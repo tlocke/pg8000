@@ -1,5 +1,6 @@
 import socket
 import struct
+import md5
 
 apilevel = '2.0'
 threadsafety = 1
@@ -34,7 +35,6 @@ class ProgrammingError(DatabaseError):
 
 class NotSupportedError(DatabaseError):
     pass
-
 
 class Cursor(object):
     def __init__(self, c):
@@ -87,13 +87,14 @@ class Cursor(object):
 
 
 class Connection(object):
-    def __init__(self, host, user, port=5432, database=None):
+    def __init__(self, host, user, port=5432, database=None, password=None):
         try:
             self.c = Protocol.Connection(host, port)
             self.c.connect()
-            self.c.authenticate(user)
+            if not self.c.authenticate(user, password=password, database=database):
+                raise InterfaceError("authentication method failed or not supported")
         except socket.error, e:
-            raise InterfaceError("socket.error", *e.args)
+            raise InterfaceError("communication error", e)
         self._cursor = Cursor(self.c)
 
     def close(self):
@@ -137,21 +138,60 @@ class Protocol(object):
             val = "Q" + val
             return val
 
+    class PasswordMessage(object):
+        def __init__(self, pwd):
+            self.pwd = pwd
+
+        def serialize(self):
+            val = self.pwd + "\x00"
+            val = struct.pack("!i", len(val) + 4) + val
+            val = "p" + val
+            return val
+
     class AuthenticationRequest(object):
+        def __init__(self, data):
+            pass
+
         def createFromData(data):
             ident = struct.unpack("!i", data[:4])[0]
-            if ident == 0:
-                return Protocol.AuthenticationOk()
+            klass = Protocol.authentication_codes.get(ident, None)
+            if klass != None:
+                return klass(data[4:])
             else:
-                return Protocol.AuthenticationRequest()
+                raise InterfaceError("authentication method %r not supported" % (ident,))
         createFromData = staticmethod(createFromData)
 
-        def ok(self):
-            return False
+        def ok(self, conn, user, **kwargs):
+            raise NotImplementedError("ok method should be overridden on AuthenticationRequest instance")
 
     class AuthenticationOk(AuthenticationRequest):
-        def ok(self):
+        def ok(self, conn, user, **kwargs):
             return True
+
+    class AuthenticationMD5Password(AuthenticationRequest):
+        def __init__(self, data):
+            self.salt = "".join(struct.unpack("4c", data))
+
+        def ok(self, conn, user, password=None, **kwargs):
+            if password == None:
+                raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
+            pwd = "md5" + md5.new(md5.new(password + user).hexdigest() + self.salt).hexdigest()
+            conn._send(Protocol.PasswordMessage(pwd))
+            msg = conn._read_message()
+            if isinstance(msg, Protocol.AuthenticationRequest):
+                return msg.ok(conn, user)
+            elif isinstance(msg, Protocol.ErrorResponse):
+                if msg.code == "28000":
+                    raise InterfaceError("md5 password authentication failed")
+                else:
+                    raise InternalError("server returned unexpected error %r" % msg)
+            else:
+                raise InternalError("server returned unexpected response %r" % msg)
+
+    authentication_codes = {
+        0: AuthenticationOk,
+        5: AuthenticationMD5Password,
+    }
 
     class ParameterStatus(object):
         def __init__(self, key, value):
@@ -206,7 +246,7 @@ class Protocol(object):
                     args["code"] = s[1:]
                 elif s[0] == "M":
                     args["msg"] = s[1:]
-            return ErrorResponse(**args)
+            return Protocol.ErrorResponse(**args)
         createFromData = staticmethod(createFromData)
 
     class RowDescription(object):
@@ -263,7 +303,7 @@ class Protocol(object):
 
         def verifyState(self, state):
             if self.state != state:
-                raise ProgrammingError, "connection state must be %s, is %s" % (state, self.state)
+                raise InternalError, "connection state must be %s, is %s" % (state, self.state)
 
         def _send(self, msg):
             self.sock.send(msg.serialize())
@@ -281,14 +321,18 @@ class Protocol(object):
             self.sock.connect((self.host, self.port))
             self.state = "noauth"
 
-        def authenticate(self, user):
+        def authenticate(self, user, **kwargs):
             self.verifyState("noauth")
-            self._send(Protocol.StartupMessage(user))
+            self._send(Protocol.StartupMessage(user, database=kwargs.get("database",None)))
             msg = self._read_message()
-            if isinstance(msg, Protocol.AuthenticationOk):
-                self.state = "auth"
-                self._waitForReady()
-                return True
+            if isinstance(msg, Protocol.AuthenticationRequest):
+                if msg.ok(self, user, **kwargs):
+                    self.state = "auth"
+                    self._waitForReady()
+                else:
+                    raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
+            else:
+                raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg")
 
         def _waitForReady(self):
             while 1:

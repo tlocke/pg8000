@@ -2,7 +2,7 @@
 
 import pg8000
 
-db = pg8000.connect(host='localhost', user='mfenniak')
+db = pg8000.connect(host='localhost', user='laotzu')
 cur = db.cursor()
 
 cur.execute("SELECT 1+1")
