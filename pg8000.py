@@ -56,14 +56,18 @@ class Cursor(object):
         pass
 
     def execute(self, operation, *params):
-        row_desc = self.c.query(operation)
+        self.row_desc = self.c.query(operation)
+        #for f in row_desc.fields:
+        #    print repr(f)
 
     def executemany(self, operation, seq):
         pass
 
     def fetchone(self):
         row = self.c.getrow()
-        return row
+        if row == None:
+            return None
+        return [Types.convert(row.fields[i], self.row_desc.fields[i]) for i in range(len(row.fields))]
 
     def fetchmany(self, size=None):
         if size == None:
@@ -91,8 +95,7 @@ class Connection(object):
         try:
             self.c = Protocol.Connection(host, port)
             self.c.connect()
-            if not self.c.authenticate(user, password=password, database=database):
-                raise InterfaceError("authentication method failed or not supported")
+            self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
             raise InterfaceError("communication error", e)
         self._cursor = Cursor(self.c)
@@ -158,11 +161,11 @@ class Protocol(object):
             if klass != None:
                 return klass(data[4:])
             else:
-                raise InterfaceError("authentication method %r not supported" % (ident,))
+                raise NotSupportedError("authentication method %r not supported" % (ident,))
         createFromData = staticmethod(createFromData)
 
         def ok(self, conn, user, **kwargs):
-            raise NotImplementedError("ok method should be overridden on AuthenticationRequest instance")
+            raise InternalError("ok method should be overridden on AuthenticationRequest instance")
 
     class AuthenticationOk(AuthenticationRequest):
         def ok(self, conn, user, **kwargs):
@@ -290,7 +293,7 @@ class Protocol(object):
                     fields.append(None)
                 else:
                     fields.append(data[:val_len])
-                    data = data[val_len + 1:]
+                    data = data[val_len:]
             return Protocol.DataRow(fields)
         createFromData = staticmethod(createFromData)
 
@@ -303,7 +306,7 @@ class Protocol(object):
 
         def verifyState(self, state):
             if self.state != state:
-                raise InternalError, "connection state must be %s, is %s" % (state, self.state)
+                raise InternalError("connection state must be %s, is %s" % (state, self.state))
 
         def _send(self, msg):
             self.sock.send(msg.serialize())
@@ -348,6 +351,10 @@ class Protocol(object):
             if isinstance(msg, Protocol.RowDescription):
                 self.state = "in_query"
                 return msg
+            elif isinstance(msg, Protocol.ErrorResponse):
+                raise ProgrammingError(msg.severity, msg.code, msg.msg)
+            else:
+                raise InternalError("RowDescription expected, other message recv'd")
 
         def getrow(self):
             self.verifyState("in_query")
@@ -369,4 +376,43 @@ class Protocol(object):
         "D": DataRow,
         "C": CommandComplete,
         }
+
+class Types(object):
+    def convert(data, description):
+        format = description['format']
+        table = Types.t_formats.get(format)
+        if table == None:
+            raise NotSupportedError("data response format %r not supported" % format)
+        type_oid = description['type_oid']
+        func = table.get(type_oid)
+        if func == None:
+            raise NotSupportedError("data response format %r, type %r not supported" % (format, type_oid))
+        in_func, out_func = func
+        return in_func(data, description)
+    convert = staticmethod(convert)
+
+    def boolin(data, description):
+        return data == 't'
+
+    def boolout(v):
+        if v:
+            return 't'
+        else:
+            return 'f'
+
+    def int4in(data, description):
+        return int(data)
+
+    def int4out(v):
+        return str(v)
+
+    t_formats_text = {
+        16: (boolin, boolout),
+        23: (int4in, int4out),
+    }
+
+    t_formats = {
+        0: t_formats_text,
+    }
+
 
