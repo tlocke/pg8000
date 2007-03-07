@@ -1,3 +1,34 @@
+# vim: sw=4:expandtab:foldmethod=marker
+#
+# Copyright (c) 2007, Mathieu Fenniak
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#
+# * Redistributions of source code must retain the above copyright notice,
+# this list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+# * The name of the author may not be used to endorse or promote products
+# derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+__author__ = "Mathieu Fenniak"
+
 import socket
 import struct
 import datetime
@@ -51,9 +82,44 @@ class DataIterator(object):
             raise StopIteration()
         return retval
 
-
+##
+# This class represents a connection to a PostgreSQL database.
+# <p>
+# A single PostgreSQL connection can only perform a single query at a time,
+# which is an important restriction to note.  This limitation can be overcome
+# by retrieving all results immediately after a query, but this approach is not
+# taken by this library.
+# <p>
+# Stability: Added in v1.00, stability guaranteed for v1.xx.
+#
+# @param host   The hostname of the PostgreSQL server to connect with.  Only
+# TCP/IP connections are presently supported, so this parameter is mandatory.
+#
+# @param user   The username to connect to the PostgreSQL server with.  This
+# parameter is mandatory.
+#
+# @param port   The TCP/IP port of the PostgreSQL server instance.  This
+# parameter defaults to 5432, the registered and common port of PostgreSQL
+# TCP/IP servers.
+#
+# @param database   The name of the database instance to connect with.  This
+# parameter is optional, if omitted the PostgreSQL server will assume the
+# database name is the same as the username.
+#
+# @param password   The user password to connect to the server with.  This
+# parameter is optional.  If omitted, and the database server requests password
+# based authentication, the connection will fail.  On the other hand, if this
+# parameter is provided and the database does not request password
+# authentication, then the password will not be used.
 class Connection(object):
 
+    ##
+    # A configuration variable that determines whether iterating over the
+    # connection will return tuples of queried rows (False), or dictionaries
+    # indexed by column name/alias (True).  By default, this variable is set to
+    # False.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     iterate_dicts = False
 
     def __init__(self, host, user, port=5432, database=None, password=None):
@@ -77,6 +143,12 @@ class Connection(object):
             return None
         return tuple([Types.convert(row.fields[i], self._row_desc.fields[i]) for i in range(len(row.fields))])
 
+    ##
+    # Read a row from the database server, and return it in a dictionary
+    # indexed by column name/alias.  This method will raise an error if two
+    # columns have the same name.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_dict(self):
         row = self._fetch()
         if row == None:
@@ -89,12 +161,22 @@ class Connection(object):
             retval[col_name] = row[i]
         return retval
 
+    ##
+    # Read a row from the database server, and return it as a tuple of values.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_tuple(self):
         row = self._fetch()
         if row == None:
             return row
         return row
 
+    ##
+    # Iterate over query results.  The behaviour of iterating over this object
+    # is dependent upon the value of the {@link #Connection.iterate_dicts
+    # iterate_dicts} variable.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def __iter__(self):
         return DataIterator(self)
 
