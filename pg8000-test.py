@@ -2,10 +2,12 @@
 
 import pg8000
 
-db = pg8000.connect(host='localhost', user='mfenniak')
-cur = db.cursor()
+db = pg8000.Connection(host='joy.fenniak.net', user='Mathieu Fenniak', password='hello', database='software')
+db.iterate_dicts = True
 
-cur.execute("SELECT 5000+1, true, false, '2001-01-01 01:01:01'::timestamp")
-res = cur.fetchall()
-print repr(res)
+print "begin query..."
+db.query("SELECT 5000 + 1, True as pg_stuff, False, '2000-01-02 03:04:05'::timestamp")
+for row in db:
+    print repr(row)
+print "end query..."
 

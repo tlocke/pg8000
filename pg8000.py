@@ -3,10 +3,6 @@ import struct
 import datetime
 import md5
 
-apilevel = '2.0'
-threadsafety = 1
-paramstyle = 'named' # check this later
-
 class Warning(StandardError):
     pass
 
@@ -37,71 +33,72 @@ class ProgrammingError(DatabaseError):
 class NotSupportedError(DatabaseError):
     pass
 
-class Cursor(object):
-    def __init__(self, c):
-        self.c = c
-        self.arraysize = 1
 
-    def getDescription(self):
-        return None
-    description = property(getDescription, None, None)
+class DataIterator(object):
+    def __init__(self, connection):
+        self.connection = connection
+        if self.connection.iterate_dicts:
+            self.method = Connection.read_dict
+        else:
+            self.method = Connection.read_tuple
 
-    def getRowCount(self):
-        return -1
-    rowcount = property(getRowCount, None, None)
+    def __iter__(self):
+        return self
 
-    def callproc(self, procname, *params):
-        pass
-
-    def close(self):
-        pass
-
-    def execute(self, operation, *params):
-        self.row_desc = self.c.query(operation)
-        #for f in row_desc.fields:
-        #    print repr(f)
-
-    def executemany(self, operation, seq):
-        pass
-
-    def fetchone(self):
-        row = self.c.getrow()
-        if row == None:
-            return None
-        return [Types.convert(row.fields[i], self.row_desc.fields[i]) for i in range(len(row.fields))]
-
-    def fetchmany(self, size=None):
-        if size == None:
-            size = self.arraysize
-        pass
-
-    def fetchall(self):
-        retval = []
-        while 1:
-            row = self.fetchone()
-            if row == None:
-                break
-            retval.append(row)
+    def next(self):
+        retval = self.method(self.connection)
+        if retval == None:
+            raise StopIteration()
         return retval
-
-    def setinputsizes(self, sizes):
-        pass
-
-    def setoutputsize(self, size, *columns):
-        pass
 
 
 class Connection(object):
+
+    iterate_dicts = False
+
     def __init__(self, host, user, port=5432, database=None, password=None):
+        self._row_desc = None
         try:
             self.c = Protocol.Connection(host, port)
             self.c.connect()
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
             raise InterfaceError("communication error", e)
-        self._cursor = Cursor(self.c)
 
-    def close(self):
+    def execute(self, command, *args, **kwargs):
+        pass
+
+    def query(self, query, *args, **kwargs):
+        self._row_desc = self.c.query(query)
+
+    def _fetch(self):
+        row = self.c.getrow()
+        if row == None:
+            return None
+        return tuple([Types.convert(row.fields[i], self._row_desc.fields[i]) for i in range(len(row.fields))])
+
+    def read_dict(self):
+        row = self._fetch()
+        if row == None:
+            return row
+        retval = {}
+        for i in range(len(self._row_desc.fields)):
+            col_name = self._row_desc.fields[i]['name']
+            if retval.has_key(col_name):
+                raise InterfaceError("cannot return dict of row when two columns have the same name (%r)" % (col_name,))
+            retval[col_name] = row[i]
+        return retval
+
+    def read_tuple(self):
+        row = self._fetch()
+        if row == None:
+            return row
+        return row
+
+    def __iter__(self):
+        return DataIterator(self)
+
+    def begin(self):
         pass
 
     def commit(self):
@@ -109,11 +106,6 @@ class Connection(object):
 
     def rollback(self):
         pass
-
-    def cursor(self):
-        return self._cursor
-
-connect = Connection
 
 
 class Protocol(object):
@@ -239,6 +231,9 @@ class Protocol(object):
         def __repr__(self):
             return "<ErrorResponse %s %s %r>" % (self.severity, self.code, self.msg)
 
+        def createException(self):
+            return ProgrammingError(self.severity, self.code, self.msg)
+
         def createFromData(data):
             args = {}
             for s in data.split("\x00"):
@@ -266,7 +261,7 @@ class Protocol(object):
                 field = {"name": data[:null]}
                 data = data[null+1:]
                 field["table_oid"], field["column_attrnum"], field["type_oid"], field["type_size"], field["type_modifier"], field["format"] = struct.unpack("!ihihih", data[:18])
-                data = data[19:]
+                data = data[18:]
                 fields.append(field)
             return Protocol.RowDescription(fields)
         createFromData = staticmethod(createFromData)
@@ -344,6 +339,8 @@ class Protocol(object):
                 if isinstance(msg, Protocol.ReadyForQuery):
                     self.state = "ready"
                     break
+                elif isinstance(msg, Protocol.ErrorResponse):
+                    raise msg.createException()
 
         def query(self, qs):
             self.verifyState("ready")
@@ -353,7 +350,7 @@ class Protocol(object):
                 self.state = "in_query"
                 return msg
             elif isinstance(msg, Protocol.ErrorResponse):
-                raise ProgrammingError(msg.severity, msg.code, msg.msg)
+                raise msg.createException()
             else:
                 raise InternalError("RowDescription expected, other message recv'd")
 
