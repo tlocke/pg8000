@@ -1,5 +1,6 @@
 import socket
 import struct
+import datetime
 import md5
 
 apilevel = '2.0'
@@ -395,20 +396,33 @@ class Types(object):
         return data == 't'
 
     def boolout(v):
-        if v:
-            return 't'
-        else:
-            return 'f'
+        # imp req.
+        pass
 
     def int4in(data, description):
         return int(data)
 
     def int4out(v):
-        return str(v)
+        # imp req.
+        pass
+
+    def timestamp_in(data, description):
+        year = int(data[0:4])
+        month = int(data[5:7])
+        day = int(data[8:10])
+        hour = int(data[11:13])
+        minute = int(data[14:16])
+        sec = int(data[17:19])
+        return datetime.datetime(year, month, day, hour, minute, sec)
+
+    def timestamp_out(v):
+        # imp req.
+        pass
 
     t_formats_text = {
         16: (boolin, boolout),
         23: (int4in, int4out),
+        1114: (timestamp_in, timestamp_out),
     }
 
     t_formats = {
