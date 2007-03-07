@@ -131,17 +131,18 @@ class Connection(object):
         except socket.error, e:
             raise InterfaceError("communication error", e)
 
-    def execute(self, command, *args, **kwargs):
+    def execute(self, command, *args):
         pass
 
-    def query(self, query, *args, **kwargs):
-        self._row_desc = self.c.query(query)
+    def query(self, query, *args):
+        self._row_desc = self.c.extended_query('', '', query, args)
+        #self._row_desc = self.c.query(query)
 
     def _fetch(self):
         row = self.c.getrow()
         if row == None:
             return None
-        return tuple([Types.convert(row.fields[i], self._row_desc.fields[i]) for i in range(len(row.fields))])
+        return tuple([Types.py_value(row.fields[i], self._row_desc.fields[i]) for i in range(len(row.fields))])
 
     ##
     # Read a row from the database server, and return it in a dictionary
@@ -215,6 +216,77 @@ class Protocol(object):
             val = struct.pack("!i", len(val) + 4) + val
             val = "Q" + val
             return val
+
+    class Parse(object):
+        def __init__(self, ps, qs, types):
+            self.ps = ps
+            self.qs = qs
+            self.types = [Types.pg_type_id(x) for x in types]
+
+        def serialize(self):
+            val = self.ps + "\x00" + self.qs + "\x00"
+            val = val + struct.pack("!h", len(self.types))
+            for oid in self.types:
+                val = val + struct.pack("!i", oid)
+            val = struct.pack("!i", len(val) + 4) + val
+            val = "P" + val
+            return val
+
+    class Bind(object):
+        def __init__(self, portal, ps, in_fc, params, out_fc):
+            self.portal = portal
+            self.ps = ps
+            self.in_fc = in_fc
+            self.params = []
+            for i in range(len(params)):
+                if len(self.in_fc) == 0:
+                    fc = 0
+                elif len(self.in_fc) == 1:
+                    fc = self.in_fc[0]
+                else:
+                    fc = self.in_fc[i]
+                self.params.append(Types.pg_value(params[i], fc))
+            self.out_fc = out_fc
+
+        def serialize(self):
+            val = self.portal + "\x00" + self.ps + "\x00"
+            val = val + struct.pack("!h", len(self.in_fc))
+            for fc in self.in_fc:
+                val = val + struct.pack("!h", fc)
+            val = val + struct.pack("!h", len(self.params))
+            for param in self.params:
+                val = val + struct.pack("!i", len(param)) + param
+            val = val + struct.pack("!h", len(self.out_fc))
+            for fc in self.out_fc:
+                val = val + struct.pack("!h", fc)
+            val = struct.pack("!i", len(val) + 4) + val
+            val = "B" + val
+            return val
+
+    class Describe(object):
+        def __init__(self, typ, name):
+            if len(typ) != 1:
+                raise InternalError("Describe typ must be 1 char")
+            self.typ = typ
+            self.name = name
+
+        def serialize(self):
+            val = self.typ + self.name + "\x00"
+            val = struct.pack("!i", len(val) + 4) + val
+            val = "D" + val
+            return val
+
+    class DescribePortal(Describe):
+        def __init__(self, name):
+            Protocol.Describe.__init__(self, "P", name)
+
+    class DescribePreparedStatement(Describe):
+        def __init__(self, name):
+            Protocol.Describe.__init__(self, "S", name)
+
+    class Flush(object):
+        def serialize(self):
+            return 'H\x00\x00\x00\x04'
 
     class PasswordMessage(object):
         def __init__(self, pwd):
@@ -290,6 +362,16 @@ class Protocol(object):
         def createFromData(data):
             process_id, secret_key = struct.unpack("!2i", data)
             return Protocol.BackendKeyData(process_id, secret_key)
+        createFromData = staticmethod(createFromData)
+
+    class ParseComplete(object):
+        def createFromData(data):
+            return Protocol.ParseComplete()
+        createFromData = staticmethod(createFromData)
+
+    class BindComplete(object):
+        def createFromData(data):
+            return Protocol.BindComplete()
         createFromData = staticmethod(createFromData)
 
     class ReadyForQuery(object):
@@ -424,6 +506,27 @@ class Protocol(object):
                 elif isinstance(msg, Protocol.ErrorResponse):
                     raise msg.createException()
 
+        def extended_query(self, portal, statement, qs, params):
+            self.verifyState("ready")
+            self._send(Protocol.Parse(statement, qs, [type(x) for x in params]))
+            self._send(Protocol.Bind(portal, statement, (1,), params, (1,)))
+            self._send(Protocol.DescribePortal(portal))
+            self._send(Protocol.Flush())
+            while 1:
+                msg = self._read_message()
+                if isinstance(msg, Protocol.ParseComplete):
+                    # ok, good.
+                    pass
+                elif isinstance(msg, Protocol.BindComplete):
+                    # good news everybody!
+                    pass
+                elif isinstance(msg, Protocol.RowDescription):
+                    return msg
+                elif isinstance(msg, Protocol.ErrorResponse):
+                    raise msg.createException()
+                else:
+                    raise InternalError("Unexpected response msg %r" % (msg))
+
         def query(self, qs):
             self.verifyState("ready")
             self._send(Protocol.Query(qs))
@@ -455,35 +558,54 @@ class Protocol(object):
         "E": ErrorResponse,
         "D": DataRow,
         "C": CommandComplete,
+        "1": ParseComplete,
+        "2": BindComplete,
         }
 
 class Types(object):
-    def convert(data, description):
-        format = description['format']
-        table = Types.t_formats.get(format)
-        if table == None:
-            raise NotSupportedError("data response format %r not supported" % format)
+    def pg_type_id(typ):
+        data = Types.py_types.get(typ)
+        if data == None:
+            raise NotSupportedError("type %r not mapped to pg type" % typ)
+        type_oid, func_txt, func_bin = data
+        return type_oid
+    pg_type_id = staticmethod(pg_type_id)
+
+    def pg_value(v, fc):
+        typ = type(v)
+        data = Types.py_types.get(typ)
+        if data == None:
+            raise NotSupportedError("type %r not mapped to pg type" % typ)
+        type_oid, func_txt, func_bin = data
+        if fc == 0:
+            func = func_txt
+        else:
+            func = func_bin
+        if func == None:
+            raise NotSupportedError("type %r, format code %r not converted" % (typ, fc))
+        return func(v)
+    pg_value = staticmethod(pg_value)
+
+    def py_value(data, description):
         type_oid = description['type_oid']
-        func = table.get(type_oid)
+        format = description['format']
+        funcs = Types.pg_types.get(type_oid)
+        if func == None:
+            raise NotSupportedError("data response type %r not supported" % (type_oid))
+        func = funcs[format]
         if func == None:
             raise NotSupportedError("data response format %r, type %r not supported" % (format, type_oid))
-        in_func, out_func = func
-        return in_func(data, description)
-    convert = staticmethod(convert)
+        return func(data, description)
+    py_value = staticmethod(py_value)
 
     def boolin(data, description):
         return data == 't'
 
-    def boolout(v):
-        # imp req.
-        pass
-
     def int4in(data, description):
         return int(data)
 
-    def int4out(v):
-        # imp req.
-        pass
+    def int4send(v):
+        return struct.pack("!i", v)
 
     def timestamp_in(data, description):
         year = int(data[0:4])
@@ -494,18 +616,14 @@ class Types(object):
         sec = int(data[17:19])
         return datetime.datetime(year, month, day, hour, minute, sec)
 
-    def timestamp_out(v):
-        # imp req.
-        pass
-
-    t_formats_text = {
-        16: (boolin, boolout),
-        23: (int4in, int4out),
-        1114: (timestamp_in, timestamp_out),
+    py_types = {
+        int: (23, None, int4send),
     }
 
-    t_formats = {
-        0: t_formats_text,
+    pg_types = {
+        16: (boolin, None),
+        23: (int4in, None),
+        1114: (timestamp_in, None),
     }
 
 
