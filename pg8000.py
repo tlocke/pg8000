@@ -195,6 +195,9 @@ class Cursor(object):
 # based authentication, the connection will fail.  On the other hand, if this
 # parameter is provided and the database does not request password
 # authentication, then the password will not be used.
+#
+# @keyparam socket_timeout  Socket connect timeout measured in seconds.
+# Defaults to 60 seconds.
 class Connection(Cursor):
 
     ##
@@ -206,10 +209,10 @@ class Connection(Cursor):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     iterate_dicts = False
 
-    def __init__(self, host, user, port=5432, database=None, password=None):
+    def __init__(self, host, user, port=5432, database=None, password=None, socket_timeout=60):
         self._row_desc = None
         try:
-            self.c = Protocol.Connection(host, port)
+            self.c = Protocol.Connection(host, port, socket_timeout=socket_timeout)
             self.c.connect()
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
@@ -506,6 +509,15 @@ class Protocol(object):
             return Protocol.ErrorResponse(**args)
         createFromData = staticmethod(createFromData)
 
+    class ParameterDescription(object):
+        def __init__(self, type_oids):
+            self.type_oids = type_oids
+        def createFromData(data):
+            count = struct.unpack("!h", data[:2])[0]
+            type_oids = struct.unpack("!" + "i"*count, data[2:])
+            return Protocol.ParameterDescription(type_oids)
+        createFromData = staticmethod(createFromData)
+
     class RowDescription(object):
         def __init__(self, fields):
             self.fields = fields
@@ -552,12 +564,13 @@ class Protocol(object):
         createFromData = staticmethod(createFromData)
 
     class Connection(object):
-        def __init__(self, host=None, port=5432):
+        def __init__(self, host=None, port=5432, socket_timeout=60):
             self._state = "unconnected"
             self._client_encoding = "ascii"
             self._host = host
             self._port = port
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._sock.settimeout(socket_timeout)
             self._backend_key_data = None
 
         def verifyState(self, state):
@@ -617,28 +630,21 @@ class Protocol(object):
             type_info = [Types.pg_type_info(type(x)) for x in params]
             param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
             self._send(Protocol.Parse(statement, qs, param_types))
-            # The Types functions have the ability to "prefer" a certain output
-            # format from the server, however... we need to know the output
-            # type before we can know the output format.  we don't get the
-            # types until we bind, which is where we need to specify the format
-            # codes.  So, we need to go with text format for all outputs from
-            # the server, even though it'd be nice to have the flexibility to
-            # get some return values in bin and some in txt.
-            self._send(Protocol.Bind(portal, statement, param_fc, params, (0,), self._client_encoding))
-            self._send(Protocol.DescribePortal(portal))
+            self._send(Protocol.DescribePreparedStatement(statement))
             self._send(Protocol.Flush())
             while 1:
                 msg = self._read_message()
+                print repr(msg)
                 if isinstance(msg, Protocol.ParseComplete):
                     # ok, good.
                     pass
-                elif isinstance(msg, Protocol.BindComplete):
-                    # good news everybody!
+                elif isinstance(msg, Protocol.ParameterDescription):
+                    # well, we don't really care -- we're going to send whatever
+                    # we want and let the database deal with it.  But thanks
+                    # anyways!
                     pass
                 elif isinstance(msg, Protocol.NoData):
                     # No data means we should execute this command right away.
-                    # There's no need to rebind like we were planning to, since
-                    # there are no return format codes.  Just execute and sync.
                     self._send(Protocol.Execute(portal, 0))
                     self._send(Protocol.Sync())
                     while 1:
@@ -654,11 +660,34 @@ class Protocol(object):
                         else:
                             raise InternalError("unexpected response")
                 elif isinstance(msg, Protocol.RowDescription):
-                    return msg
+                    row_desc = msg
+                    break
                 elif isinstance(msg, Protocol.ErrorResponse):
                     raise msg.createException()
                 else:
                     raise InternalError("Unexpected response msg %r" % (msg))
+
+            # We've got row_desc that allows us to identify what we're going to
+            # get back from this statement.  Now we can Bind values.
+            output_fc = [Types.py_type_info(f) for f in row_desc.fields]
+            print repr(output_fc)
+            self._send(Protocol.Bind(portal, statement, param_fc, params, output_fc, self._client_encoding))
+            print "bind"
+            self._send(Protocol.Flush())
+            print "flush"
+            while 1:
+                msg = self._read_message()
+                print repr(msg)
+                if isinstance(msg, Protocol.BindComplete):
+                    # good news everybody!
+                    #return row_desc
+                    pass
+                elif isinstance(msg, Protocol.ErrorResponse):
+                    raise msg.createException()
+                else:
+                    raise InternalError("Unexpected response msg %r" % (msg))
+
+
 
         def fetch_rows(self, portal, row_count, row_desc):
             self.verifyState("ready")
@@ -737,6 +766,7 @@ class Protocol(object):
         "3": CloseComplete,
         "s": PortalSuspended,
         "n": NoData,
+        "t": ParameterDescription,
         }
 
 class Types(object):
@@ -788,7 +818,7 @@ class Types(object):
 
     def py_type_info(description):
         type_oid = description['type_oid']
-        data = Types.pg_types.get(typ)
+        data = Types.pg_types.get(type_oid)
         if data == None:
             raise NotSupportedError("type oid %r not mapped to py type" % type_oid)
         prefer = data.get("prefer")
@@ -811,7 +841,7 @@ class Types(object):
                 format = 0
             else:
                 raise InternalError("no conversion fuction for type oid %r" % type_oid)
-        return type_oid
+        return format
     py_type_info = staticmethod(py_type_info)
 
     def py_value(v, description, **kwargs):
