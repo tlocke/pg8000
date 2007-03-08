@@ -469,6 +469,14 @@ class Protocol(object):
             return Protocol.ReadyForQuery(data)
         createFromData = staticmethod(createFromData)
 
+    class NoticeResponse(object):
+        def __init__(self):
+            pass
+        def createFromData(data):
+            # we could read the notice here, but we don't care yet.
+            return Protocol.NoticeResponse()
+        createFromData = staticmethod(createFromData)
+
     class ErrorResponse(object):
         def __init__(self, severity, code, msg):
             self.severity = severity
@@ -560,7 +568,12 @@ class Protocol(object):
             message_code = bytes[0]
             data_len = struct.unpack("!i", bytes[1:])[0] - 4
             bytes = self.sock.recv(data_len)
-            return Protocol.message_types[message_code].createFromData(bytes)
+            msg = Protocol.message_types[message_code].createFromData(bytes)
+            if isinstance(msg, Protocol.NoticeResponse):
+                # ignore NoticeResponse
+                return self._read_message()
+            else:
+                return msg
 
         def connect(self):
             self.verifyState("unconnected")
@@ -578,7 +591,7 @@ class Protocol(object):
                 else:
                     raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
             else:
-                raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg")
+                raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
 
         def _waitForReady(self):
             while 1:
@@ -674,6 +687,7 @@ class Protocol(object):
                 return None
 
     message_types = {
+        "N": NoticeResponse,
         "R": AuthenticationRequest,
         "S": ParameterStatus,
         "K": BackendKeyData,
@@ -768,14 +782,23 @@ class Types(object):
     def numeric_out(v):
         return str(v)
 
+    def varcharin(data, description):
+        return unicode(data, "utf-8")
+
+    def varcharout(v):
+        return v.encode("utf-8")
+
     py_types = {
         int: (1700, numeric_out, None),
+        str: (1043, varcharout, None),
+        unicode: (1043, varcharout, None),
     }
 
     pg_types = {
         16: (boolin, boolrecv),
         21: (None, int2recv),
         23: (int4in, int4recv),
+        1043: (varcharin, None),
         1114: (timestamp_in, timestamp_recv),
         1700: (numeric_in, None),
     }
