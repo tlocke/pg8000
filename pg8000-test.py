@@ -22,8 +22,8 @@ i = 0
 for row1 in cur1:
     i = i + 1
     print i, repr(row1)
-    cur2.execute("SELECT * FROM t1 WHERE f1 > $1", row1['f1'])
-    for row2 in cur2:
+    db.execute("SELECT * FROM t1 WHERE f1 > $1", row1['f1'])
+    for row2 in db:
         print "\t", repr(row2)
 print "end query..."
 

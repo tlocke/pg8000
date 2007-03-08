@@ -193,7 +193,7 @@ class Cursor(object):
 # based authentication, the connection will fail.  On the other hand, if this
 # parameter is provided and the database does not request password
 # authentication, then the password will not be used.
-class Connection(object):
+class Connection(Cursor):
 
     ##
     # A configuration variable that determines whether iterating over the
@@ -212,6 +212,7 @@ class Connection(object):
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
             raise InterfaceError("communication error", e)
+        Cursor.__init__(self, self, name='')
 
     def begin(self):
         raise NotSupportedError("uncoded")
