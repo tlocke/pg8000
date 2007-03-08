@@ -69,9 +69,9 @@ class DataIterator(object):
     def __init__(self, connection):
         self.connection = connection
         if self.connection.iterate_dicts:
-            self.method = Connection.read_dict
+            self.method = Cursor.read_dict
         else:
-            self.method = Connection.read_tuple
+            self.method = Cursor.read_tuple
 
     def __iter__(self):
         return self
@@ -82,37 +82,7 @@ class DataIterator(object):
             raise StopIteration()
         return retval
 
-##
-# This class represents a connection to a PostgreSQL database.
-# <p>
-# A single PostgreSQL connection can only perform a single query at a time,
-# which is an important restriction to note.  This limitation can be overcome
-# by retrieving all results immediately after a query, but this approach is not
-# taken by this library.
-# <p>
-# Stability: Added in v1.00, stability guaranteed for v1.xx.
-#
-# @param host   The hostname of the PostgreSQL server to connect with.  Only
-# TCP/IP connections are presently supported, so this parameter is mandatory.
-#
-# @param user   The username to connect to the PostgreSQL server with.  This
-# parameter is mandatory.
-#
-# @param port   The TCP/IP port of the PostgreSQL server instance.  This
-# parameter defaults to 5432, the registered and common port of PostgreSQL
-# TCP/IP servers.
-#
-# @param database   The name of the database instance to connect with.  This
-# parameter is optional, if omitted the PostgreSQL server will assume the
-# database name is the same as the username.
-#
-# @param password   The user password to connect to the server with.  This
-# parameter is optional.  If omitted, and the database server requests password
-# based authentication, the connection will fail.  On the other hand, if this
-# parameter is provided and the database does not request password
-# authentication, then the password will not be used.
-class Connection(object):
-
+class Cursor(object):
     ##
     # A configuration variable that determines whether iterating over the
     # connection will return tuples of queried rows (False), or dictionaries
@@ -122,26 +92,32 @@ class Connection(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     iterate_dicts = False
 
-    def __init__(self, host, user, port=5432, database=None, password=None):
+    row_cache_size = 100
+
+    def __init__(self, connection, name = None):
+        self.c = connection.c
+        if name == None:
+            name = "pg8000_%s_%s" % (id(self.c), id(self))
+        self.name = name
         self._row_desc = None
-        try:
-            self.c = Protocol.Connection(host, port)
-            self.c.connect()
-            self.c.authenticate(user, password=password, database=database)
-        except socket.error, e:
-            raise InterfaceError("communication error", e)
+        self._cached_rows = []
+        self._command_complete = True
 
-    def execute(self, command, *args):
-        pass
-
-    def query(self, query, *args):
-        self._row_desc = self.c.extended_query('', '', query, args)
-        #self._row_desc = self.c.query(query)
+    def execute(self, query, *args):
+        self._cached_rows = []
+        self._command_complete = False
+        self._row_desc = self.c.extended_query(self.name, '', query, args)
 
     def _fetch(self):
-        row = self.c.getrow()
-        if row == None:
-            return None
+        if not self._cached_rows:
+            if self._command_complete:
+                return None
+            end_of_data, rows = self.c.fetch_rows(self.name, self.row_cache_size)
+            self._cached_rows = rows
+            if end_of_data:
+                self._command_complete = True
+        row = self._cached_rows[0]
+        del self._cached_rows[0]
         return tuple([Types.py_value(row.fields[i], self._row_desc.fields[i]) for i in range(len(row.fields))])
 
     ##
@@ -181,14 +157,53 @@ class Connection(object):
     def __iter__(self):
         return DataIterator(self)
 
+##
+# This class represents a connection to a PostgreSQL database.
+# <p>
+# A single PostgreSQL connection can only perform a single query at a time,
+# which is an important restriction to note.  This limitation can be overcome
+# by retrieving all results immediately after a query, but this approach is not
+# taken by this library.
+# <p>
+# Stability: Added in v1.00, stability guaranteed for v1.xx.
+#
+# @param host   The hostname of the PostgreSQL server to connect with.  Only
+# TCP/IP connections are presently supported, so this parameter is mandatory.
+#
+# @param user   The username to connect to the PostgreSQL server with.  This
+# parameter is mandatory.
+#
+# @param port   The TCP/IP port of the PostgreSQL server instance.  This
+# parameter defaults to 5432, the registered and common port of PostgreSQL
+# TCP/IP servers.
+#
+# @param database   The name of the database instance to connect with.  This
+# parameter is optional, if omitted the PostgreSQL server will assume the
+# database name is the same as the username.
+#
+# @param password   The user password to connect to the server with.  This
+# parameter is optional.  If omitted, and the database server requests password
+# based authentication, the connection will fail.  On the other hand, if this
+# parameter is provided and the database does not request password
+# authentication, then the password will not be used.
+class Connection(object):
+    def __init__(self, host, user, port=5432, database=None, password=None):
+        self._row_desc = None
+        try:
+            self.c = Protocol.Connection(host, port)
+            self.c.connect()
+            self.c.authenticate(user, password=password, database=database)
+        except socket.error, e:
+            raise InterfaceError("communication error", e)
+
     def begin(self):
-        pass
+        raise NotSupportedError("uncoded")
 
     def commit(self):
-        pass
+        raise NotSupportedError("uncoded")
 
     def rollback(self):
-        pass
+        raise NotSupportedError("uncoded")
 
 
 class Protocol(object):
@@ -263,6 +278,27 @@ class Protocol(object):
             val = "B" + val
             return val
 
+    class Close(object):
+        def __init__(self, typ, name):
+            if len(typ) != 1:
+                raise InternalError("Close typ must be 1 char")
+            self.typ = typ
+            self.name = name
+
+        def serialize(self):
+            val = self.typ + self.name + "\x00"
+            val = struct.pack("!i", len(val) + 4) + val
+            val = "C" + val
+            return val
+
+    class ClosePortal(Close):
+        def __init__(self, name):
+            Protocol.Close.__init__(self, "P", name)
+
+    class ClosePreparedStatement(Close):
+        def __init__(self, name):
+            Protocol.Close.__init__(self, "S", name)
+
     class Describe(object):
         def __init__(self, typ, name):
             if len(typ) != 1:
@@ -288,6 +324,10 @@ class Protocol(object):
         def serialize(self):
             return 'H\x00\x00\x00\x04'
 
+    class Sync(object):
+        def serialize(self):
+            return 'S\x00\x00\x00\x04'
+
     class PasswordMessage(object):
         def __init__(self, pwd):
             self.pwd = pwd
@@ -296,6 +336,17 @@ class Protocol(object):
             val = self.pwd + "\x00"
             val = struct.pack("!i", len(val) + 4) + val
             val = "p" + val
+            return val
+
+    class Execute(object):
+        def __init__(self, portal, row_count):
+            self.portal = portal
+            self.row_count = row_count
+
+        def serialize(self):
+            val = self.portal + "\x00" + struct.pack("!i", self.row_count)
+            val = struct.pack("!i", len(val) + 4) + val
+            val = "E" + val
             return val
 
     class AuthenticationRequest(object):
@@ -372,6 +423,16 @@ class Protocol(object):
     class BindComplete(object):
         def createFromData(data):
             return Protocol.BindComplete()
+        createFromData = staticmethod(createFromData)
+
+    class CloseComplete(object):
+        def createFromData(data):
+            return Protocol.CloseComplete()
+        createFromData = staticmethod(createFromData)
+
+    class PortalSuspended(object):
+        def createFromData(data):
+            return Protocol.PortalSuspended()
         createFromData = staticmethod(createFromData)
 
     class ReadyForQuery(object):
@@ -527,6 +588,31 @@ class Protocol(object):
                 else:
                     raise InternalError("Unexpected response msg %r" % (msg))
 
+        def fetch_rows(self, portal, row_count):
+            self.verifyState("ready")
+            self._send(Protocol.Execute(portal, row_count))
+            self._send(Protocol.Flush())
+            rows = []
+            end_of_data = False
+            while 1:
+                msg = self._read_message()
+                if isinstance(msg, Protocol.DataRow):
+                    rows.append(msg)
+                elif isinstance(msg, Protocol.PortalSuspended):
+                    # got all the rows we asked for, but not all that exist
+                    break
+                elif isinstance(msg, Protocol.CommandComplete):
+                    self._send(Protocol.ClosePortal(portal))
+                    self._send(Protocol.Sync())
+                    self._waitForReady()
+                    end_of_data = True
+                    break
+                elif isinstance(msg, Protocol.ErrorResponse):
+                    raise msg.createException()
+                else:
+                    raise InternalError("Unexpected response msg %r" % msg)
+            return end_of_data, rows
+
         def query(self, qs):
             self.verifyState("ready")
             self._send(Protocol.Query(qs))
@@ -560,6 +646,8 @@ class Protocol(object):
         "C": CommandComplete,
         "1": ParseComplete,
         "2": BindComplete,
+        "3": CloseComplete,
+        "s": PortalSuspended,
         }
 
 class Types(object):
@@ -590,7 +678,7 @@ class Types(object):
         type_oid = description['type_oid']
         format = description['format']
         funcs = Types.pg_types.get(type_oid)
-        if func == None:
+        if funcs == None:
             raise NotSupportedError("data response type %r not supported" % (type_oid))
         func = funcs[format]
         if func == None:
@@ -601,11 +689,24 @@ class Types(object):
     def boolin(data, description):
         return data == 't'
 
+    def boolrecv(data, description):
+        return data == "\x01"
+
+    def int2recv(data, description):
+        return struct.unpack("!h", data)[0]
+
+    def int4recv(data, description):
+        return struct.unpack("!i", data)[0]
+
     def int4in(data, description):
         return int(data)
 
     def int4send(v):
         return struct.pack("!i", v)
+
+    def timestamp_recv(data, description):
+        val = struct.unpack("!d", data)[0]
+        return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds = val)
 
     def timestamp_in(data, description):
         year = int(data[0:4])
@@ -621,9 +722,10 @@ class Types(object):
     }
 
     pg_types = {
-        16: (boolin, None),
-        23: (int4in, None),
-        1114: (timestamp_in, None),
+        16: (boolin, boolrecv),
+        21: (None, int2recv),
+        23: (int4in, int4recv),
+        1114: (timestamp_in, timestamp_recv),
     }
 
 
