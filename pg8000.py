@@ -86,8 +86,8 @@ class Cursor(object):
     ##
     # A configuration variable that determines whether iterating over the
     # connection will return tuples of queried rows (False), or dictionaries
-    # indexed by column name/alias (True).  By default, this variable is set to
-    # False.
+    # indexed by column name/alias (True).  By default, this variable value is
+    # copied from the connection's iterate_dicts value.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     iterate_dicts = False
@@ -95,6 +95,7 @@ class Cursor(object):
     row_cache_size = 100
 
     def __init__(self, connection, name = None):
+        self.iterate_dicts = connection.iterate_dicts
         self.c = connection.c
         if name == None:
             name = "pg8000_%s_%s" % (id(self.c), id(self))
@@ -107,6 +108,8 @@ class Cursor(object):
         self._cached_rows = []
         self._command_complete = False
         self._row_desc = self.c.extended_query(self.name, '', query, args)
+        if self._row_desc == None:
+            self._command_complete = True
 
     def _fetch(self):
         if not self._cached_rows:
@@ -116,6 +119,10 @@ class Cursor(object):
             self._cached_rows = rows
             if end_of_data:
                 self._command_complete = True
+                if not rows:
+                    # special case - an empty query, hit end_of_data and no
+                    # rows at the same time
+                    return None
         row = self._cached_rows[0]
         del self._cached_rows[0]
         return tuple([Types.py_value(row.fields[i], self._row_desc.fields[i]) for i in range(len(row.fields))])
@@ -187,6 +194,16 @@ class Cursor(object):
 # parameter is provided and the database does not request password
 # authentication, then the password will not be used.
 class Connection(object):
+
+    ##
+    # A configuration variable that determines whether iterating over the
+    # connection will return tuples of queried rows (False), or dictionaries
+    # indexed by column name/alias (True).  By default, this variable is set to
+    # False.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    iterate_dicts = False
+
     def __init__(self, host, user, port=5432, database=None, password=None):
         self._row_desc = None
         try:
@@ -415,6 +432,11 @@ class Protocol(object):
             return Protocol.BackendKeyData(process_id, secret_key)
         createFromData = staticmethod(createFromData)
 
+    class NoData(object):
+        def createFromData(data):
+            return Protocol.NoData()
+        createFromData = staticmethod(createFromData)
+
     class ParseComplete(object):
         def createFromData(data):
             return Protocol.ParseComplete()
@@ -581,6 +603,22 @@ class Protocol(object):
                 elif isinstance(msg, Protocol.BindComplete):
                     # good news everybody!
                     pass
+                elif isinstance(msg, Protocol.NoData):
+                    # no data means we should execute this command right away
+                    self._send(Protocol.Execute(portal, 0))
+                    self._send(Protocol.Sync())
+                    while 1:
+                        msg = self._read_message()
+                        if isinstance(msg, Protocol.CommandComplete):
+                            # more good news!
+                            pass
+                        elif isinstance(msg, Protocol.ReadyForQuery):
+                            # ready to move on with life...
+                            return None
+                        elif isinstance(msg, Protocol.ErrorResponse):
+                            raise msg.createException()
+                        else:
+                            raise InternalError("unexpected response")
                 elif isinstance(msg, Protocol.RowDescription):
                     return msg
                 elif isinstance(msg, Protocol.ErrorResponse):
@@ -648,6 +686,7 @@ class Protocol(object):
         "2": BindComplete,
         "3": CloseComplete,
         "s": PortalSuspended,
+        "n": NoData,
         }
 
 class Types(object):
