@@ -181,15 +181,15 @@ class Cursor(object):
 # @param user   The username to connect to the PostgreSQL server with.  This
 # parameter is mandatory.
 #
-# @param port   The TCP/IP port of the PostgreSQL server instance.  This
+# @keyparam port   The TCP/IP port of the PostgreSQL server instance.  This
 # parameter defaults to 5432, the registered and common port of PostgreSQL
 # TCP/IP servers.
 #
-# @param database   The name of the database instance to connect with.  This
+# @keyparam database   The name of the database instance to connect with.  This
 # parameter is optional, if omitted the PostgreSQL server will assume the
 # database name is the same as the username.
 #
-# @param password   The user password to connect to the server with.  This
+# @keyparam password   The user password to connect to the server with.  This
 # parameter is optional.  If omitted, and the database server requests password
 # based authentication, the connection will fail.  On the other hand, if this
 # parameter is provided and the database does not request password
