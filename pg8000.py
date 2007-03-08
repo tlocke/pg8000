@@ -33,6 +33,7 @@ import socket
 import struct
 import datetime
 import md5
+import decimal
 
 class Warning(StandardError):
     pass
@@ -769,11 +770,23 @@ class Types(object):
     def int2recv(data, description):
         return struct.unpack("!h", data)[0]
 
+    def int2in(data, description):
+        return int(data)
+
     def int4recv(data, description):
         return struct.unpack("!i", data)[0]
 
     def int4in(data, description):
         return int(data)
+
+    def int8in(data, description):
+        return int(data)
+
+    def float4in(data, description):
+        return float(data)
+
+    def float8in(data, description):
+        return float(data)
 
     def timestamp_recv(data, description):
         val = struct.unpack("!d", data)[0]
@@ -785,14 +798,14 @@ class Types(object):
         day = int(data[8:10])
         hour = int(data[11:13])
         minute = int(data[14:16])
-        sec = int(data[17:19])
-        return datetime.datetime(year, month, day, hour, minute, sec)
+        sec = decimal.Decimal(data[17:])
+        return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
     def numeric_in(data, description):
         if data.find(".") == -1:
             return int(data)
         else:
-            return decimal(data)
+            return decimal.Decimal(data)
 
     def numeric_out(v, ce):
         return str(v)
@@ -800,22 +813,60 @@ class Types(object):
     def varcharin(data, description):
         return unicode(data, "utf-8")
 
-    def varcharout(v, ce):
+    def textout(v, ce):
         return v.encode(ce)
+
+    def timestamptz_in(data, description):
+        year = int(data[0:4])
+        month = int(data[5:7])
+        day = int(data[8:10])
+        hour = int(data[11:13])
+        minute = int(data[14:16])
+        tz_sep = data.rfind("-")
+        sec = decimal.Decimal(data[17:tz_sep])
+        tz = data[tz_sep:]
+        print repr(data), repr(description)
+        print repr(tz)
+        return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000), Types.FixedOffsetTz(tz))
+
+    class FixedOffsetTz(datetime.tzinfo):
+        def __init__(self, hrs):
+            self.hrs = int(hrs)
+            self.name = hrs
+
+        def utcoffset(self, dt):
+            return datetime.timedelta(hours=1) * self.hrs
+
+        def tzname(self, dt):
+            return self.name
+
+        def dst(self, dt):
+            return datetime.timedelta(0)
+
+    # interval req. new patch for binary-output format prefered.
+    #def interval_in(data, description):
+    #    print repr(data), repr(description)
 
     py_types = {
         int: (1700, numeric_out, None),
-        str: (1043, varcharout, None),
-        unicode: (1043, varcharout, None),
+        str: (25, textout, None),
+        unicode: (25, textout, None),
     }
 
     pg_types = {
         16: (boolin, boolrecv),
-        21: (None, int2recv),
+        17: (None, None), # bytea not supported yet
+        20: (int8in, None),
+        21: (int2in, int2recv),
         23: (int4in, int4recv),
-        1043: (varcharin, None),
+        25: (varcharin, None),  # text
+        700: (float4in, None),
+        701: (float8in, None),
+        1042: (varcharin, None), # char
+        1043: (varcharin, None), # varchar
         1114: (timestamp_in, timestamp_recv),
+        1184: (timestamptz_in, None), # timestamp w/ tz
+        1186: (interval_in, None),
         1700: (numeric_in, None),
     }
-
 

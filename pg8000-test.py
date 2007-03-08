@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import datetime
+import decimal
+
 import pg8000
 
 db = pg8000.Connection(host='localhost', user='mfenniak')
@@ -26,9 +29,47 @@ for row1 in cur1:
         print "\t", repr(row2)
 print "end query..."
 
-print "begin query..."
-cur1.execute("SELECT 5000 + 1 as int_test, True as bool_test, '2000-01-02 03:04:05.67'::timestamp as timestamp_test, 99999999999999999999::numeric")
-for row in cur1:
-    print repr(row)
-print "end query..."
+print "Beginning type checks..."
+
+cur1.execute("SELECT 5000::smallint")
+assert tuple(cur1) == ({"int2": 5000},)
+
+cur1.execute("SELECT 5000::integer")
+assert tuple(cur1) == ({"int4": 5000},)
+
+cur1.execute("SELECT 50000000000000::bigint")
+assert tuple(cur1) == ({"int8": 50000000000000},)
+
+cur1.execute("SELECT 5000.023232::decimal")
+assert tuple(cur1) == ({"numeric": decimal.Decimal("5000.023232")},)
+
+cur1.execute("SELECT 1.1::real")
+assert tuple(cur1) == ({"float4": 1.1000000000000001},)
+
+cur1.execute("SELECT 1.1::double precision")
+assert tuple(cur1) == ({"float8": 1.1000000000000001},)
+
+cur1.execute("SELECT 'hello'::varchar(50)")
+assert tuple(cur1) == ({"varchar": u"hello"},)
+
+cur1.execute("SELECT 'hello'::char(20)")
+assert tuple(cur1) == ({"bpchar": u"hello               "},)
+
+cur1.execute("SELECT 'hello'::text")
+assert tuple(cur1) == ({"text": u"hello"},)
+
+#cur1.execute("SELECT 'hell\007o'::bytea")
+#assert tuple(cur1) == ({"bytea": "hello"},)
+
+cur1.execute("SELECT '2001-02-03 04:05:06.17'::timestamp")
+assert tuple(cur1) == ({'timestamp': datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)},)
+
+#cur1.execute("SELECT '2001-02-03 04:05:06.17'::timestamp with time zone")
+#assert tuple(cur1) == ({'timestamp': datetime.datetime(2001, 2, 3, 4, 5, 6, 170000, pg8000.Types.FixedOffsetTz("-07"))},)
+
+cur1.execute("SELECT '1 day'::interval")
+print repr(tuple(cur1))
+
+
+print "Type checks complete."
 
