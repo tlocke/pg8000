@@ -27,7 +27,7 @@ for row1 in cur1:
 print "end query..."
 
 print "begin query..."
-cur1.execute("SELECT 5000 + 1 as int_test, True as bool_test, '2000-01-02 03:04:05.67'::timestamp as timestamp_test")
+cur1.execute("SELECT 5000 + 1 as int_test, True as bool_test, '2000-01-02 03:04:05.67'::timestamp as timestamp_test, 22::numeric")
 for row in cur1:
     print repr(row)
 print "end query..."

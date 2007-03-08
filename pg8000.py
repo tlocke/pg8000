@@ -592,7 +592,7 @@ class Protocol(object):
         def extended_query(self, portal, statement, qs, params):
             self.verifyState("ready")
             self._send(Protocol.Parse(statement, qs, [type(x) for x in params]))
-            self._send(Protocol.Bind(portal, statement, (1,), params, (1,)))
+            self._send(Protocol.Bind(portal, statement, (0,), params, (0,)))
             self._send(Protocol.DescribePortal(portal))
             self._send(Protocol.Flush())
             while 1:
@@ -740,6 +740,9 @@ class Types(object):
     def int4in(data, description):
         return int(data)
 
+    def int4out(v):
+        return str(v)
+
     def int4send(v):
         return struct.pack("!i", v)
 
@@ -756,8 +759,17 @@ class Types(object):
         sec = int(data[17:19])
         return datetime.datetime(year, month, day, hour, minute, sec)
 
+    def numeric_in(data, description):
+        if data.find(".") == -1:
+            return int(data)
+        else:
+            return decimal(data)
+
+    def numeric_out(v):
+        return str(v)
+
     py_types = {
-        int: (23, None, int4send),
+        int: (1700, numeric_out, None),
     }
 
     pg_types = {
@@ -765,6 +777,7 @@ class Types(object):
         21: (None, int2recv),
         23: (int4in, int4recv),
         1114: (timestamp_in, timestamp_recv),
+        1700: (numeric_in, None),
     }
 
 
