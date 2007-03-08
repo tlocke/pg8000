@@ -634,7 +634,6 @@ class Protocol(object):
             self._send(Protocol.Flush())
             while 1:
                 msg = self._read_message()
-                print repr(msg)
                 if isinstance(msg, Protocol.ParseComplete):
                     # ok, good.
                     pass
@@ -670,18 +669,20 @@ class Protocol(object):
             # We've got row_desc that allows us to identify what we're going to
             # get back from this statement.  Now we can Bind values.
             output_fc = [Types.py_type_info(f) for f in row_desc.fields]
-            print repr(output_fc)
             self._send(Protocol.Bind(portal, statement, param_fc, params, output_fc, self._client_encoding))
-            print "bind"
+            # I don't know why we need to send DescribePortal again, but without it,
+            # we don't receive our BindComplete.  It's like Flush fails to work.
+            self._send(Protocol.DescribePortal(portal))
             self._send(Protocol.Flush())
-            print "flush"
             while 1:
                 msg = self._read_message()
-                print repr(msg)
                 if isinstance(msg, Protocol.BindComplete):
                     # good news everybody!
-                    #return row_desc
                     pass
+                elif isinstance(msg, Protocol.RowDescription):
+                    # Return the new row desc, since it will have the format
+                    # types we asked for
+                    return msg
                 elif isinstance(msg, Protocol.ErrorResponse):
                     raise msg.createException()
                 else:

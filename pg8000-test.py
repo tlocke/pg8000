@@ -5,7 +5,8 @@ import decimal
 
 import pg8000
 
-db = pg8000.Connection(host='joy.fenniak.net', user='Mathieu Fenniak', database="software", password="hello", socket_timeout=5)
+#db = pg8000.Connection(host='joy.fenniak.net', user='Mathieu Fenniak', database="software", password="hello", socket_timeout=5)
+db = pg8000.Connection(host='localhost', user='mfenniak')
 db.iterate_dicts = True
 
 cur1 = pg8000.Cursor(db)
@@ -31,6 +32,9 @@ cur1 = pg8000.Cursor(db)
 
 print "Beginning type checks..."
 
+cur1.execute("SELECT $1", 5)
+assert tuple(cur1) == ({"?column?": 5},)
+
 cur1.execute("SELECT 5000::smallint")
 assert tuple(cur1) == ({"int2": 5000},)
 
@@ -44,7 +48,7 @@ cur1.execute("SELECT 5000.023232::decimal")
 assert tuple(cur1) == ({"numeric": decimal.Decimal("5000.023232")},)
 
 cur1.execute("SELECT 1.1::real")
-assert tuple(cur1) == ({"float4": 1.1000000000000001},)
+assert tuple(cur1) == ({"float4": 1.1000000238418579},)
 
 cur1.execute("SELECT 1.1::double precision")
 assert tuple(cur1) == ({"float8": 1.1000000000000001},)
