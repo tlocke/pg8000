@@ -167,10 +167,11 @@ class Cursor(object):
 ##
 # This class represents a connection to a PostgreSQL database.
 # <p>
-# A single PostgreSQL connection can only perform a single query at a time,
-# which is an important restriction to note.  This limitation can be overcome
-# by retrieving all results immediately after a query, but this approach is not
-# taken by this library.
+# The database connection is derived from the {@link #Cursor Cursor} class, and
+# provides access to the database's unnamed cursor through the standard Cursor
+# methods.  It also provides transaction control via the 'begin', 'commit', and
+# 'rollback' methods.  Without beginning a transaction explicitly, all
+# statements will autocommit to the database.
 # <p>
 # Stability: Added in v1.00, stability guaranteed for v1.xx.
 #

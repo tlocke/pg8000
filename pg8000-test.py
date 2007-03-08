@@ -6,7 +6,6 @@ db = pg8000.Connection(host='localhost', user='mfenniak')
 db.iterate_dicts = True
 
 cur1 = pg8000.Cursor(db)
-cur2 = pg8000.Cursor(db)
 
 cur1.execute("DROP TABLE t1")
 cur1.execute("CREATE TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) not null)")
