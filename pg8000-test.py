@@ -67,9 +67,9 @@ assert tuple(cur1) == ({'timestamp': datetime.datetime(2001, 2, 3, 4, 5, 6, 1700
 #cur1.execute("SELECT '2001-02-03 04:05:06.17'::timestamp with time zone")
 #assert tuple(cur1) == ({'timestamp': datetime.datetime(2001, 2, 3, 4, 5, 6, 170000, pg8000.Types.FixedOffsetTz("-07"))},)
 
-cur1.execute("SELECT '1 day'::interval")
-print repr(tuple(cur1))
-
+cur1.execute("SELECT '1 month'::interval")
+assert tuple(cur1) == ({'interval': '1 mon'},)
+#print repr(tuple(cur1))
 
 print "Type checks complete."
 

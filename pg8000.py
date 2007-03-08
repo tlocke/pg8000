@@ -116,7 +116,7 @@ class Cursor(object):
         if not self._cached_rows:
             if self._command_complete:
                 return None
-            end_of_data, rows = self.c.fetch_rows(self.name, self.row_cache_size)
+            end_of_data, rows = self.c.fetch_rows(self.name, self.row_cache_size, self._row_desc)
             self._cached_rows = rows
             if end_of_data:
                 self._command_complete = True
@@ -126,7 +126,7 @@ class Cursor(object):
                     return None
         row = self._cached_rows[0]
         del self._cached_rows[0]
-        return tuple([Types.py_value(row.fields[i], self._row_desc.fields[i]) for i in range(len(row.fields))])
+        return tuple(row)
 
     ##
     # Read a row from the database server, and return it in a dictionary
@@ -253,15 +253,15 @@ class Protocol(object):
             return val
 
     class Parse(object):
-        def __init__(self, ps, qs, types):
+        def __init__(self, ps, qs, type_oids):
             self.ps = ps
             self.qs = qs
-            self.types = [Types.pg_type_id(x) for x in types]
+            self.type_oids = type_oids
 
         def serialize(self):
             val = self.ps + "\x00" + self.qs + "\x00"
-            val = val + struct.pack("!h", len(self.types))
-            for oid in self.types:
+            val = val + struct.pack("!h", len(self.type_oids))
+            for oid in self.type_oids:
                 val = val + struct.pack("!i", oid)
             val = struct.pack("!i", len(val) + 4) + val
             val = "P" + val
@@ -280,7 +280,7 @@ class Protocol(object):
                     fc = self.in_fc[0]
                 else:
                     fc = self.in_fc[i]
-                self.params.append(Types.pg_value(params[i], fc, client_encoding))
+                self.params.append(Types.pg_value(params[i], fc, client_encoding = client_encoding))
             self.out_fc = out_fc
 
         def serialize(self):
@@ -614,8 +614,17 @@ class Protocol(object):
 
         def extended_query(self, portal, statement, qs, params):
             self.verifyState("ready")
-            self._send(Protocol.Parse(statement, qs, [type(x) for x in params]))
-            self._send(Protocol.Bind(portal, statement, (0,), params, (0,), self._client_encoding))
+            type_info = [Types.pg_type_info(type(x)) for x in params]
+            param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
+            self._send(Protocol.Parse(statement, qs, param_types))
+            # The Types functions have the ability to "prefer" a certain output
+            # format from the server, however... we need to know the output
+            # type before we can know the output format.  we don't get the
+            # types until we bind, which is where we need to specify the format
+            # codes.  So, we need to go with text format for all outputs from
+            # the server, even though it'd be nice to have the flexibility to
+            # get some return values in bin and some in txt.
+            self._send(Protocol.Bind(portal, statement, param_fc, params, (0,), self._client_encoding))
             self._send(Protocol.DescribePortal(portal))
             self._send(Protocol.Flush())
             while 1:
@@ -627,7 +636,9 @@ class Protocol(object):
                     # good news everybody!
                     pass
                 elif isinstance(msg, Protocol.NoData):
-                    # no data means we should execute this command right away
+                    # No data means we should execute this command right away.
+                    # There's no need to rebind like we were planning to, since
+                    # there are no return format codes.  Just execute and sync.
                     self._send(Protocol.Execute(portal, 0))
                     self._send(Protocol.Sync())
                     while 1:
@@ -649,7 +660,7 @@ class Protocol(object):
                 else:
                     raise InternalError("Unexpected response msg %r" % (msg))
 
-        def fetch_rows(self, portal, row_count):
+        def fetch_rows(self, portal, row_count, row_desc):
             self.verifyState("ready")
             self._send(Protocol.Execute(portal, row_count))
             self._send(Protocol.Flush())
@@ -658,7 +669,10 @@ class Protocol(object):
             while 1:
                 msg = self._read_message()
                 if isinstance(msg, Protocol.DataRow):
-                    rows.append(msg)
+                    rows.append(
+                            [Types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding)
+                                for i in range(len(msg.fields))]
+                            )
                 elif isinstance(msg, Protocol.PortalSuspended):
                     # got all the rows we asked for, but not all that exist
                     break
@@ -726,73 +740,138 @@ class Protocol(object):
         }
 
 class Types(object):
-    def pg_type_id(typ):
+    def pg_type_info(typ):
         data = Types.py_types.get(typ)
         if data == None:
             raise NotSupportedError("type %r not mapped to pg type" % typ)
-        type_oid, func_txt, func_bin = data
-        return type_oid
-    pg_type_id = staticmethod(pg_type_id)
+        type_oid = data.get("tid")
+        if type_oid == None:
+            raise InternalError("type %r has no type_oid" % typ)
+        prefer = data.get("prefer")
+        if prefer != None:
+            if prefer == "bin":
+                if data.get("bin_out") == None:
+                    raise InternalError("bin format prefered but not avail for type %r" % typ)
+                format = 1
+            elif prefer == "txt":
+                if data.get("txt_out") == None:
+                    raise InternalError("txt format prefered but not avail for type %r" % typ)
+                format = 0
+            else:
+                raise InternalError("prefer flag not recognized for type %r" % typ)
+        else:
+            # by default, prefer bin, but go with whatever exists
+            if data.get("bin_out"):
+                format = 1
+            elif data.get("txt_out"):
+                format = 0
+            else:
+                raise InternalError("no conversion fuction for type %r" % typ)
+        return type_oid, format
+    pg_type_info = staticmethod(pg_type_info)
 
-    def pg_value(v, fc, client_encoding):
+    def pg_value(v, fc, **kwargs):
         typ = type(v)
         data = Types.py_types.get(typ)
         if data == None:
             raise NotSupportedError("type %r not mapped to pg type" % typ)
-        type_oid, func_txt, func_bin = data
         if fc == 0:
-            func = func_txt
+            func = data.get("txt_out")
+        elif fc == 1:
+            func = data.get("bin_out")
         else:
-            func = func_bin
+            raise InternalError("unrecognized format code %r" % fc)
         if func == None:
-            raise NotSupportedError("type %r, format code %r not converted" % (typ, fc))
-        return func(v, client_encoding)
+            raise NotSupportedError("type %r, format code %r not supported" % (typ, fc))
+        return func(v, **kwargs)
     pg_value = staticmethod(pg_value)
 
-    def py_value(data, description):
+    def py_type_info(description):
+        type_oid = description['type_oid']
+        data = Types.pg_types.get(typ)
+        if data == None:
+            raise NotSupportedError("type oid %r not mapped to py type" % type_oid)
+        prefer = data.get("prefer")
+        if prefer != None:
+            if prefer == "bin":
+                if data.get("bin_in") == None:
+                    raise InternalError("bin format prefered but not avail for type oid %r" % type_oid)
+                format = 1
+            elif prefer == "txt":
+                if data.get("txt_in") == None:
+                    raise InternalError("txt format prefered but not avail for type oid %r" % type_oid)
+                format = 0
+            else:
+                raise InternalError("prefer flag not recognized for type oid %r" % type_oid)
+        else:
+            # by default, prefer bin, but go with whatever exists
+            if data.get("bin_in"):
+                format = 1
+            elif data.get("txt_in"):
+                format = 0
+            else:
+                raise InternalError("no conversion fuction for type oid %r" % type_oid)
+        return type_oid
+    py_type_info = staticmethod(py_type_info)
+
+    def py_value(v, description, **kwargs):
         type_oid = description['type_oid']
         format = description['format']
-        funcs = Types.pg_types.get(type_oid)
-        if funcs == None:
-            raise NotSupportedError("data response type %r not supported" % (type_oid))
-        func = funcs[format]
+        data = Types.pg_types.get(type_oid)
+        if data == None:
+            raise NotSupportedError("type oid %r not supported" % type_oid)
+        if format == 0:
+            func = data.get("txt_in")
+        elif format == 1:
+            func = data.get("bin_in")
+        else:
+            raise NotSupportedError("format code %r not supported" % format)
         if func == None:
             raise NotSupportedError("data response format %r, type %r not supported" % (format, type_oid))
-        return func(data, description)
+        return func(v, **kwargs)
     py_value = staticmethod(py_value)
 
-    def boolin(data, description):
+    def boolin(data, **kwargs):
         return data == 't'
 
-    def boolrecv(data, description):
+    def boolrecv(data, **kwargs):
         return data == "\x01"
 
-    def int2recv(data, description):
+    def int2recv(data, **kwargs):
         return struct.unpack("!h", data)[0]
 
-    def int2in(data, description):
+    def int2in(data, **kwargs):
         return int(data)
 
-    def int4recv(data, description):
+    def int4recv(data, **kwargs):
         return struct.unpack("!i", data)[0]
 
-    def int4in(data, description):
+    def int4in(data, **kwargs):
         return int(data)
 
-    def int8in(data, description):
+    def int8recv(data, **kwargs):
+        return struct.unpack("!q", data)[0]
+
+    def int8in(data, **kwargs):
         return int(data)
 
-    def float4in(data, description):
+    def float4in(data, **kwargs):
         return float(data)
 
-    def float8in(data, description):
+    def float4recv(data, **kwargs):
+        return struct.unpack("!f", data)[0]
+
+    def float8recv(data, **kwargs):
+        return struct.unpack("!d", data)[0]
+
+    def float8in(data, **kwargs):
         return float(data)
 
-    def timestamp_recv(data, description):
+    def timestamp_recv(data, **kwargs):
         val = struct.unpack("!d", data)[0]
         return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds = val)
 
-    def timestamp_in(data, description):
+    def timestamp_in(data, **kwargs):
         year = int(data[0:4])
         month = int(data[5:7])
         day = int(data[8:10])
@@ -801,20 +880,20 @@ class Types(object):
         sec = decimal.Decimal(data[17:])
         return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
-    def numeric_in(data, description):
+    def numeric_in(data, **kwargs):
         if data.find(".") == -1:
             return int(data)
         else:
             return decimal.Decimal(data)
 
-    def numeric_out(v, ce):
+    def numeric_out(v, **kwargs):
         return str(v)
 
-    def varcharin(data, description):
-        return unicode(data, "utf-8")
+    def varcharin(data, client_encoding, **kwargs):
+        return unicode(data, client_encoding)
 
-    def textout(v, ce):
-        return v.encode(ce)
+    def textout(v, client_encoding, **kwargs):
+        return v.encode(client_encoding)
 
     def timestamptz_in(data, description):
         year = int(data[0:4])
@@ -843,30 +922,37 @@ class Types(object):
         def dst(self, dt):
             return datetime.timedelta(0)
 
-    # interval req. new patch for binary-output format prefered.
-    #def interval_in(data, description):
-    #    print repr(data), repr(description)
+    def bytearecv(data, **kwargs):
+        return Bytea(data)
+
+    # interval support does not provide a Python-usable interval object yet
+    def interval_in(data, **kwargs):
+        return data
 
     py_types = {
-        int: (1700, numeric_out, None),
-        str: (25, textout, None),
-        unicode: (25, textout, None),
+        int: {"tid": 1700, "txt_out": numeric_out},
+        str: {"tid": 25, "txt_out": textout},
+        unicode: {"tid": 25, "txt_out": textout},
     }
 
     pg_types = {
-        16: (boolin, boolrecv),
-        17: (None, None), # bytea not supported yet
-        20: (int8in, None),
-        21: (int2in, int2recv),
-        23: (int4in, int4recv),
-        25: (varcharin, None),  # text
-        700: (float4in, None),
-        701: (float8in, None),
-        1042: (varcharin, None), # char
-        1043: (varcharin, None), # varchar
-        1114: (timestamp_in, timestamp_recv),
-        1184: (timestamptz_in, None), # timestamp w/ tz
-        1186: (interval_in, None),
-        1700: (numeric_in, None),
+        16: {"txt_in": boolin, "bin_in": boolrecv, "prefer": "bin"},
+        17: {"bin_in": bytearecv},
+        20: {"txt_in": int8in, "bin_in": int8recv, "prefer": "bin"},
+        21: {"txt_in": int2in, "bin_in": int2recv, "prefer": "bin"},
+        23: {"txt_in": int4in, "bin_in": int4recv, "prefer": "bin"},
+        25: {"txt_in": varcharin}, # TEXT type
+        700: {"txt_in": float4in, "bin_in": float4recv, "prefer": "bin"},
+        701: {"txt_in": float8in, "bin_in": float8recv, "prefer": "bin"},
+        1042: {"txt_in": varcharin}, # CHAR type
+        1043: {"txt_in": varcharin}, # VARCHAR type
+        1114: {"txt_in": timestamp_in, "bin_in": timestamp_recv, "prefer": "bin"},
+        1186: {"txt_in": interval_in},
+        1700: {"txt_in": numeric_in},
     }
+        #1184: (timestamptz_in, None), # timestamp w/ tz
+
+class Bytea(str):
+    pass
+
 
