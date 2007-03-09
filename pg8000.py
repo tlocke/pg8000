@@ -67,32 +67,47 @@ class NotSupportedError(DatabaseError):
 
 
 class DataIterator(object):
-    def __init__(self, connection):
-        self.connection = connection
-        if self.connection.iterate_dicts:
-            self.method = PreparedStatement.read_dict
-        else:
-            self.method = PreparedStatement.read_tuple
+    def __init__(self, obj, func):
+        self.obj = obj
+        self.func = func
 
     def __iter__(self):
         return self
 
     def next(self):
-        retval = self.method(self.connection)
+        retval = self.func(self.obj)
         if retval == None:
             raise StopIteration()
         return retval
 
+##
+# This class represents a prepared statement.  A prepared statement is
+# pre-parsed on the server, which reduces the need to parse the query every
+# time it is run.  The statement can have parameters in the form of $1, $2, $3,
+# etc.  When parameters are used, the types of the parameters need to be
+# specified when creating the prepared statement.
+# <p>
+# Stability: Added in v1.00, stability guaranteed for v1.xx.
+#
+# @param connection     An instance of {@link Connection Connection}.
+#
+# @param statement      The SQL statement to be represented, often containing
+# parameters in the form of $1, $2, $3, etc.
+#
+# @param types          Python type objects for each parameter in the SQL
+# statement.  For example, int, float, str.
 class PreparedStatement(object):
-    ##
-    # A configuration variable that determines whether iterating over the
-    # connection will return tuples of queried rows (False), or dictionaries
-    # indexed by column name/alias (True).  By default, this variable value is
-    # copied from the connection's iterate_dicts value.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    iterate_dicts = False
 
+    ##
+    # Determines the number of rows to read from the database server at once.
+    # Reading more rows increases performance at the cost of memory.  The
+    # default value is 100 rows.  The affect of this parameter is transparent.
+    # That is, the library reads more rows when the cache is empty
+    # automatically.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.  It is
+    # possible that implementation changes in the future could cause this
+    # parameter to be ignored.O
     row_cache_size = 100
 
     def __init__(self, connection, statement, *types):
@@ -104,26 +119,50 @@ class PreparedStatement(object):
         self._command_complete = True
         self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
 
+    def __del__(self):
+        # This __del__ should work with garbage collection / non-instant
+        # cleanup.  It only really needs to be called right away if the same
+        # object id (and therefore the same statement name) might be reused
+        # soon, and clearly that wouldn't happen in a GC situation.
+        self.c.close_statement(self._statement_name)
+
+    ##
+    # Run the SQL prepared statement with the given parameters.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def execute(self, *args):
         if not self._command_complete:
             # cleanup last execute
             self._cached_rows = []
-            self.c.close(self._portal_name)
+            self.c.close_portal(self._portal_name)
         self._command_complete = False
         self._row_desc = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
+        if self._row_desc:
+            # We execute our cursor right away to fill up our cache.  This
+            # prevents the cursor from being destroyed, apparently, by a rogue
+            # Sync between Bind and Execute.  Since it is quite likely that
+            # data will be read from us right away anyways, this seems a safe
+            # move for now.
+            self._fill_cache()
+
+    def _fill_cache(self):
+        if self._cached_rows:
+            raise InternalError("attempt to fill cache that isn't empty")
+        end_of_data, rows = self.c.fetch_rows(self._portal_name, self.row_cache_size, self._row_desc)
+        self._cached_rows = rows
+        if end_of_data:
+            self._command_complete = True
 
     def _fetch(self):
         if not self._cached_rows:
             if self._command_complete:
                 return None
-            end_of_data, rows = self.c.fetch_rows(self._portal_name, self.row_cache_size, self._row_desc)
-            self._cached_rows = rows
-            if end_of_data:
-                self._command_complete = True
-                if not rows:
-                    # special case - an empty query, hit end_of_data and no
-                    # rows at the same time
-                    return None
+            self._fill_cache()
+            if self._command_complete and not self._cached_rows:
+                # fill cache tells us the command is complete, but yet we have
+                # no rows after filling our cache.  This is a special case when
+                # a query returns no rows.
+                return None
         row = self._cached_rows[0]
         del self._cached_rows[0]
         return tuple(row)
@@ -131,7 +170,7 @@ class PreparedStatement(object):
     ##
     # Read a row from the database server, and return it in a dictionary
     # indexed by column name/alias.  This method will raise an error if two
-    # columns have the same name.
+    # columns have the same name.  Returns None after the last row.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_dict(self):
@@ -148,6 +187,7 @@ class PreparedStatement(object):
 
     ##
     # Read a row from the database server, and return it as a tuple of values.
+    # Returns None after the last row.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_tuple(self):
@@ -157,43 +197,100 @@ class PreparedStatement(object):
         return row
 
     ##
-    # Iterate over query results.  The behaviour of iterating over this object
-    # is dependent upon the value of the {@link #Connection.iterate_dicts
-    # iterate_dicts} variable.
+    # Return an iterator for the output of this statement.  The iterator will
+    # return a tuple for each row, in the same manner as {@link
+    # #PreparedStatement.read_tuple read_tuple}.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def __iter__(self):
-        return DataIterator(self)
+    def iterate_tuple(self):
+        return DataIterator(self, PreparedStatement.read_tuple)
 
+    ##
+    # Return an iterator for the output of this statement.  The iterator will
+    # return a dict for each row, in the same manner as {@link
+    # #PreparedStatement.read_dict read_dict}.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    def iterate_dict(self):
+        return DataIterator(self, PreparedStatement.read_dict)
 
+##
+# The Cursor class allows multiple queries to be performed concurrently with a
+# single PostgreSQL connection.  The Cursor object is implemented internally by
+# using a {@link PreparedStatement PreparedStatement} object, so if you plan to
+# use a statement multiple times, you might as well create a PreparedStatement
+# and save a small amount of reparsing time.
+# <p>
+# Stability: Added in v1.00, stability guaranteed for v1.xx.
+#
+# @param connection     An instance of {@link Connection Connection}.
 class Cursor(object):
     def __init__(self, connection):
         self.connection = connection
         self._stmt = None
 
+    ##
+    # Run an SQL statement using this cursor.  The SQL statement can have
+    # parameters in the form of $1, $2, $3, etc., which will be filled in by
+    # the additional arguments passed to this function.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    # @param query      The SQL statement to execute.
     def execute(self, query, *args):
         self._stmt = PreparedStatement(self.connection, query, *[type(x) for x in args])
         self._stmt.execute(*args)
 
+    ##
+    # Read a row from the database server, and return it in a dictionary
+    # indexed by column name/alias.  This method will raise an error if two
+    # columns have the same name.  Returns None after the last row.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_dict(self):
         if self._stmt == None:
-            return None
+            raise ProgrammingError("attempting to read from unexecuted cursor")
         return self._stmt.read_dict()
 
+    ##
+    # Read a row from the database server, and return it as a tuple of values.
+    # Returns None after the last row.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_tuple(self):
         if self._stmt == None:
-            return None
+            raise ProgrammingError("attempting to read from unexecuted cursor")
         return self._stmt.read_tuple()
 
+    ##
+    # Return an iterator for the output of this statement.  The iterator will
+    # return a tuple for each row, in the same manner as {@link
+    # #PreparedStatement.read_tuple read_tuple}.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    def iterate_tuple(self):
+        if self._stmt == None:
+            raise ProgrammingError("attempting to read from unexecuted cursor")
+        return self._stmt.iterate_tuple()
+
+    ##
+    # Return an iterator for the output of this statement.  The iterator will
+    # return a dict for each row, in the same manner as {@link
+    # #PreparedStatement.read_dict read_dict}.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    def iterate_dict(self):
+        if self._stmt == None:
+            raise ProgrammingError("attempting to read from unexecuted cursor")
+        return self._stmt.iterate_dict()
 
 ##
 # This class represents a connection to a PostgreSQL database.
 # <p>
-# The database connection is derived from the {@link #Cursor Cursor} class, and
-# provides access to the database's unnamed cursor through the standard Cursor
-# methods.  It also provides transaction control via the 'begin', 'commit', and
-# 'rollback' methods.  Without beginning a transaction explicitly, all
-# statements will autocommit to the database.
+# The database connection is derived from the {@link #Cursor Cursor} class,
+# which provides a default cursor for running queries.  It also provides
+# transaction control via the 'begin', 'commit', and 'rollback' methods.
+# Without beginning a transaction explicitly, all statements will autocommit to
+# the database.
 # <p>
 # Stability: Added in v1.00, stability guaranteed for v1.xx.
 #
@@ -220,16 +317,6 @@ class Cursor(object):
 # @keyparam socket_timeout  Socket connect timeout measured in seconds.
 # Defaults to 60 seconds.
 class Connection(Cursor):
-
-    ##
-    # A configuration variable that determines whether iterating over the
-    # connection will return tuples of queried rows (False), or dictionaries
-    # indexed by column name/alias (True).  By default, this variable is set to
-    # False.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    iterate_dicts = False
-
     def __init__(self, host, user, port=5432, database=None, password=None, socket_timeout=60):
         self._row_desc = None
         try:
@@ -239,15 +326,30 @@ class Connection(Cursor):
         except socket.error, e:
             raise InterfaceError("communication error", e)
         Cursor.__init__(self, self)
+        self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
+        self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
+        self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
 
+    ##
+    # Begins a new transaction.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def begin(self):
-        raise NotSupportedError("uncoded")
+        self._begin.execute()
 
+    ##
+    # Commits the running transaction.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def commit(self):
-        raise NotSupportedError("uncoded")
+        self._commit.execute()
 
+    ##
+    # Rolls back the running transaction.
+    # <p>
+    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def rollback(self):
-        raise NotSupportedError("uncoded")
+        self._rollback.execute()
 
 
 class Protocol(object):
@@ -599,14 +701,19 @@ class Protocol(object):
                 raise InternalError("connection state must be %s, is %s" % (state, self._state))
 
         def _send(self, msg):
-            self._sock.send(msg.serialize())
+            #print repr(msg)
+            data = msg.serialize()
+            self._sock.send(data)
 
         def _read_message(self):
             bytes = self._sock.recv(5)
             assert len(bytes) == 5
             message_code = bytes[0]
             data_len = struct.unpack("!i", bytes[1:])[0] - 4
-            bytes = self._sock.recv(data_len)
+            if data_len == 0:
+                bytes = ""
+            else:
+                bytes = self._sock.recv(data_len)
             msg = Protocol.message_types[message_code].createFromData(bytes)
             if isinstance(msg, Protocol.NoticeResponse):
                 # ignore NoticeResponse
@@ -686,8 +793,9 @@ class Protocol(object):
                 # get back from this statement.
                 output_fc = [Types.py_type_info(f) for f in row_desc.fields]
             self._send(Protocol.Bind(portal, statement, param_fc, params, output_fc, self._client_encoding))
-            # I don't know why we need to send DescribePortal again, but without it,
-            # we don't receive our BindComplete.  It's like Flush fails to work.
+            # We need to describe the portal after bind, since the return
+            # format codes will be different (hopefully, always what we
+            # requested).
             self._send(Protocol.DescribePortal(portal))
             self._send(Protocol.Flush())
             while 1:
@@ -761,7 +869,22 @@ class Protocol(object):
                     raise InternalError("Unexpected response msg %r" % msg)
             return end_of_data, rows
 
-        def close(self, portal):
+        def close_statement(self, statement):
+            self._send(Protocol.ClosePreparedStatement(statement))
+            self._send(Protocol.Sync())
+            while 1:
+                msg = self._read_message()
+                if isinstance(msg, Protocol.CloseComplete):
+                    # thanks!
+                    pass
+                elif isinstance(msg, Protocol.ReadyForQuery):
+                    return
+                elif isinstance(msg, Protocol.ErrorResponse):
+                    raise msg.createException()
+                else:
+                    raise InternalError("Unexpected response msg %r" % msg)
+
+        def close_portal(self, portal):
             self._send(Protocol.ClosePortal(portal))
             self._send(Protocol.Sync())
             while 1:
