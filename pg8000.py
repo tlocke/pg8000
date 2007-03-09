@@ -70,9 +70,9 @@ class DataIterator(object):
     def __init__(self, connection):
         self.connection = connection
         if self.connection.iterate_dicts:
-            self.method = Cursor.read_dict
+            self.method = PreparedStatement.read_dict
         else:
-            self.method = Cursor.read_tuple
+            self.method = PreparedStatement.read_tuple
 
     def __iter__(self):
         return self
@@ -83,7 +83,7 @@ class DataIterator(object):
             raise StopIteration()
         return retval
 
-class Cursor(object):
+class PreparedStatement(object):
     ##
     # A configuration variable that determines whether iterating over the
     # connection will return tuples of queried rows (False), or dictionaries
@@ -95,28 +95,28 @@ class Cursor(object):
 
     row_cache_size = 100
 
-    def __init__(self, connection, name = None):
-        self.iterate_dicts = connection.iterate_dicts
+    def __init__(self, connection, statement, *types):
         self.c = connection.c
-        if name == None:
-            name = "pg8000_%s_%s" % (id(self.c), id(self))
-        self.name = name
+        self._portal_name = "pg8000_portal_%s_%s" % (id(self.c), id(self))
+        self._statement_name = "pg8000_statement_%s_%s" % (id(self.c), id(self))
         self._row_desc = None
         self._cached_rows = []
         self._command_complete = True
+        self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
 
-    def execute(self, query, *args):
-        self._cached_rows = []
+    def execute(self, *args):
+        if not self._command_complete:
+            # cleanup last execute
+            self._cached_rows = []
+            self.c.close(self._portal_name)
         self._command_complete = False
-        self._row_desc = self.c.extended_query(self.name, '', query, args)
-        if self._row_desc == None:
-            self._command_complete = True
+        self._row_desc = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
 
     def _fetch(self):
         if not self._cached_rows:
             if self._command_complete:
                 return None
-            end_of_data, rows = self.c.fetch_rows(self.name, self.row_cache_size, self._row_desc)
+            end_of_data, rows = self.c.fetch_rows(self._portal_name, self.row_cache_size, self._row_desc)
             self._cached_rows = rows
             if end_of_data:
                 self._command_complete = True
@@ -164,6 +164,27 @@ class Cursor(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def __iter__(self):
         return DataIterator(self)
+
+
+class Cursor(object):
+    def __init__(self, connection):
+        self.connection = connection
+        self._stmt = None
+
+    def execute(self, query, *args):
+        self._stmt = PreparedStatement(self.connection, query, *[type(x) for x in args])
+        self._stmt.execute(*args)
+
+    def read_dict(self):
+        if self._stmt == None:
+            return None
+        return self._stmt.read_dict()
+
+    def read_tuple(self):
+        if self._stmt == None:
+            return None
+        return self._stmt.read_tuple()
+
 
 ##
 # This class represents a connection to a PostgreSQL database.
@@ -217,7 +238,7 @@ class Connection(Cursor):
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
             raise InterfaceError("communication error", e)
-        Cursor.__init__(self, self, name='')
+        Cursor.__init__(self, self)
 
     def begin(self):
         raise NotSupportedError("uncoded")
@@ -625,9 +646,9 @@ class Protocol(object):
             else:
                 raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
 
-        def extended_query(self, portal, statement, qs, params):
+        def parse(self, statement, qs, types):
             self.verifyState("ready")
-            type_info = [Types.pg_type_info(type(x)) for x in params]
+            type_info = [Types.pg_type_info(x) for x in types]
             param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
             self._send(Protocol.Parse(statement, qs, param_types))
             self._send(Protocol.DescribePreparedStatement(statement))
@@ -643,32 +664,27 @@ class Protocol(object):
                     # anyways!
                     pass
                 elif isinstance(msg, Protocol.NoData):
-                    # No data means we should execute this command right away.
-                    self._send(Protocol.Execute(portal, 0))
-                    self._send(Protocol.Sync())
-                    while 1:
-                        msg = self._read_message()
-                        if isinstance(msg, Protocol.CommandComplete):
-                            # more good news!
-                            pass
-                        elif isinstance(msg, Protocol.ReadyForQuery):
-                            # ready to move on with life...
-                            return None
-                        elif isinstance(msg, Protocol.ErrorResponse):
-                            raise msg.createException()
-                        else:
-                            raise InternalError("unexpected response")
+                    # We're not waiting for a row description.  Return
+                    # something destinctive to let bind know that there is no
+                    # output.
+                    return (None, param_fc)
                 elif isinstance(msg, Protocol.RowDescription):
-                    row_desc = msg
-                    break
+                    return (msg, param_fc)
                 elif isinstance(msg, Protocol.ErrorResponse):
                     raise msg.createException()
                 else:
                     raise InternalError("Unexpected response msg %r" % (msg))
 
-            # We've got row_desc that allows us to identify what we're going to
-            # get back from this statement.  Now we can Bind values.
-            output_fc = [Types.py_type_info(f) for f in row_desc.fields]
+        def bind(self, portal, statement, params, parse_data):
+            self.verifyState("ready")
+            row_desc, param_fc = parse_data
+            if row_desc == None:
+                # no data coming out
+                output_fc = ()
+            else:
+                # We've got row_desc that allows us to identify what we're going to
+                # get back from this statement.
+                output_fc = [Types.py_type_info(f) for f in row_desc.fields]
             self._send(Protocol.Bind(portal, statement, param_fc, params, output_fc, self._client_encoding))
             # I don't know why we need to send DescribePortal again, but without it,
             # we don't receive our BindComplete.  It's like Flush fails to work.
@@ -679,6 +695,23 @@ class Protocol(object):
                 if isinstance(msg, Protocol.BindComplete):
                     # good news everybody!
                     pass
+                elif isinstance(msg, Protocol.NoData):
+                    # No data means we should execute this command right away.
+                    self._send(Protocol.Execute(portal, 0))
+                    self._send(Protocol.Sync())
+                    while 1:
+                        msg = self._read_message()
+                        if isinstance(msg, Protocol.CommandComplete):
+                            # more good news!
+                            pass
+                        elif isinstance(msg, Protocol.ReadyForQuery):
+                            # ready to move on with life...
+                            break
+                        elif isinstance(msg, Protocol.ErrorResponse):
+                            raise msg.createException()
+                        else:
+                            raise InternalError("unexpected response")
+                    return None
                 elif isinstance(msg, Protocol.RowDescription):
                     # Return the new row desc, since it will have the format
                     # types we asked for
@@ -687,8 +720,6 @@ class Protocol(object):
                     raise msg.createException()
                 else:
                     raise InternalError("Unexpected response msg %r" % (msg))
-
-
 
         def fetch_rows(self, portal, row_count, row_desc):
             self.verifyState("ready")
@@ -729,6 +760,21 @@ class Protocol(object):
                 else:
                     raise InternalError("Unexpected response msg %r" % msg)
             return end_of_data, rows
+
+        def close(self, portal):
+            self._send(Protocol.ClosePortal(portal))
+            self._send(Protocol.Sync())
+            while 1:
+                msg = self._read_message()
+                if isinstance(msg, Protocol.CloseComplete):
+                    # thanks!
+                    pass
+                elif isinstance(msg, Protocol.ReadyForQuery):
+                    return
+                elif isinstance(msg, Protocol.ErrorResponse):
+                    raise msg.createException()
+                else:
+                    raise InternalError("Unexpected response msg %r" % msg)
 
         def query(self, qs):
             self.verifyState("ready")
