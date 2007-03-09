@@ -11,13 +11,13 @@ db = pg8000.Connection(host='localhost', user='mfenniak')
 db.begin()
 
 db.execute("DROP TABLE t1")
-db.execute("CREATE TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) not null)")
+db.execute("CREATE TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
 
 s1 = pg8000.PreparedStatement(db, "INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", int, int, str)
 s1.execute(1, 1, "hello")
 s1.execute(2, 10, "he\u0173llo")
 s1.execute(3, 100, "hello")
-s1.execute(4, 1000, "hello")
+s1.execute(4, 1000, None)
 s1.execute(5, 10000, "hello")
 s1.execute(6, 100000, "hello")
 

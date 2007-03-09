@@ -416,7 +416,11 @@ class Protocol(object):
                 val = val + struct.pack("!h", fc)
             val = val + struct.pack("!h", len(self.params))
             for param in self.params:
-                val = val + struct.pack("!i", len(param)) + param
+                if param == None:
+                    # special case, NULL value
+                    val = val + struct.pack("!i", -1)
+                else:
+                    val = val + struct.pack("!i", len(param)) + param
             val = val + struct.pack("!h", len(self.out_fc))
             for fc in self.out_fc:
                 val = val + struct.pack("!h", fc)
@@ -975,6 +979,9 @@ class Types(object):
         data = Types.py_types.get(typ)
         if data == None:
             raise NotSupportedError("type %r not mapped to pg type" % typ)
+        elif data.get("tid") == -1:
+            # special case: NULL values
+            return None
         if fc == 0:
             func = data.get("txt_out")
         elif fc == 1:
@@ -1015,6 +1022,9 @@ class Types(object):
     py_type_info = staticmethod(py_type_info)
 
     def py_value(v, description, **kwargs):
+        if v == None:
+            # special case - NULL value
+            return None
         type_oid = description['type_oid']
         format = description['format']
         data = Types.pg_types.get(type_oid)
@@ -1133,6 +1143,7 @@ class Types(object):
         int: {"tid": 1700, "txt_out": numeric_out},
         str: {"tid": 25, "txt_out": textout},
         unicode: {"tid": 25, "txt_out": textout},
+        type(None): {"tid": -1},
     }
 
     pg_types = {
