@@ -5,7 +5,7 @@ import decimal
 
 import pg8000
 
-#db = pg8000.Connection(host='joy.fenniak.net', user='Mathieu Fenniak', database="software", password="hello", socket_timeout=5)
+#db = pg8000.Connection(host='joy', user='Mathieu Fenniak', database="software", password="hello", socket_timeout=5)
 db = pg8000.Connection(host='localhost', user='mfenniak')
 
 db.begin()
