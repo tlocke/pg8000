@@ -1,0 +1,6 @@
+Version 1.0, 2007-03-08
+-----------------------
+
+- First public release.  Although fully functional, this release is mostly
+  lacking in production testing and in type support.
+
