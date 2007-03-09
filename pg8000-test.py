@@ -8,6 +8,8 @@ import pg8000
 #db = pg8000.Connection(host='joy.fenniak.net', user='Mathieu Fenniak', database="software", password="hello", socket_timeout=5)
 db = pg8000.Connection(host='localhost', user='mfenniak')
 
+db.begin()
+
 db.execute("DROP TABLE t1")
 db.execute("CREATE TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) not null)")
 
@@ -84,4 +86,6 @@ assert tuple(cur1.iterate_dict()) == ({'interval': '1 mon'},)
 #print repr(tuple(cur1.iterate_dict()))
 
 print "Type checks complete."
+
+db.commit()
 
