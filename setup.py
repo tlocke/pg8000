@@ -28,7 +28,7 @@ setup(
             "License :: OSI Approved :: BSD License",
             "Programming Language :: Python",
             "Operating System :: OS Independent",
-            "Topic :: Database :: Front-Ends"
+            "Topic :: Database :: Front-Ends",
             "Topic :: Software Development :: Libraries :: Python Modules",
         ],
         py_modules = ["pg8000"],
