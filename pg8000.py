@@ -339,11 +339,17 @@ class Cursor(object):
 # <p>
 # Stability: Added in v1.00, stability guaranteed for v1.xx.
 #
-# @param host   The hostname of the PostgreSQL server to connect with.  Only
-# TCP/IP connections are presently supported, so this parameter is mandatory.
-#
 # @param user   The username to connect to the PostgreSQL server with.  This
-# parameter is mandatory.
+# parameter is required.
+#
+# @keyparam host   The hostname of the PostgreSQL server to connect with.
+# Providing this parameter is necessary for TCP/IP connections.  One of either
+# host, or unix_sock, must be provided.
+#
+# @keyparam unix_sock   The path to the UNIX socket to access the database
+# through, for example, '/tmp/.s.PGSQL.5432'.  One of either unix_sock or host
+# must be provided.  The port parameter will have no affect if unix_sock is
+# provided.
 #
 # @keyparam port   The TCP/IP port of the PostgreSQL server instance.  This
 # parameter defaults to 5432, the registered and common port of PostgreSQL
