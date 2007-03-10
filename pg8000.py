@@ -91,12 +91,78 @@ class DBAPI(object):
     IntegrityError = IntegrityError
     ProgrammingError = ProgrammingError
     NotSupportedError = NotSupportedError
+    
+    apilevel = "2.0"
+    threadsafety = 3
+    paramstyle = 'none-of-the-above'
+
+    class CursorWrapper(object):
+        def __init__(self, conn):
+            self.cursor = Cursor(conn)
+            self.arraysize = 1
+
+        def execute(self, operation, args=()):
+            self.cursor.execute(operation, *args)
+
+        def executemany(self, operation, parameter_sets):
+            for parameters in parameter_sets:
+                self.execute(operation, parameters)
+
+        def fetchone(self):
+            return self.cursor.read_tuple()
+
+        def fetchmany(self, size=None):
+            if size == None:
+                size = self.arraysize
+            rows = []
+            for i in range(size):
+                rows.append(self.fetchone())
+            return rows
+
+        def fetchall(self):
+            return tuple(cursor.iterate_tuple())
+
+        def close(self):
+            self.cursor = None
+
+        def setinputsizes(self, sizes):
+            pass
+
+        def setoutputsize(self, size, column=None):
+            pass
 
     class ConnectionWrapper(object):
-        pass
+        def __init__(self, **kwargs):
+            self.conn = Connection(**kwargs)
+            self.conn.begin()
 
-    def connect():
-        return ConnectionWrapper()
+        def cursor(self):
+            return CursorWrapper(self.conn)
+
+        def commit(self):
+            # There's a threading bug here.  If a query is sent after the
+            # commit, but before the begin, it will be executed immediately
+            # without a surrounding transaction.  Like all threading bugs -- it
+            # sounds unlikely, until it happens every time in one
+            # application...  however, to fix this, we need to lock the
+            # database connection entirely, so that no cursors can execute
+            # statements on other threads.  Support for that type of lock will
+            # be done later.
+            self.conn.commit()
+            self.conn.begin()
+
+        def rollback(self):
+            # see bug description in commit.
+            self.conn.rollback()
+            self.conn.begin()
+
+        def close(self):
+            self.conn = None
+
+    def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60):
+        return ConnectionWrapper(user=user, host=host, unix_sock=unix_sock,
+                port=port, database=database, password=password,
+                socket_timeout=socket_timeout)
 
 
 ##
