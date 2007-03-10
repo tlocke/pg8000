@@ -1,6 +1,8 @@
 Version 1.01, 2007-03-..
 ------------------------
 
+- Add support for writing floats and decimal objs up to PG backend.
+
 - Add new error handling code and tests to make sure connection can recover
   from a database error.
 
