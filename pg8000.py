@@ -879,16 +879,18 @@ class Protocol(object):
                         # No data means we should execute this command right away.
                         self._send(Protocol.Execute(portal, 0))
                         self._send(Protocol.Sync())
+                        exc = None
                         while 1:
                             msg = self._read_message()
                             if isinstance(msg, Protocol.CommandComplete):
                                 # more good news!
                                 pass
                             elif isinstance(msg, Protocol.ReadyForQuery):
-                                # ready to move on with life...
+                                if exc != None:
+                                    raise exc
                                 break
                             elif isinstance(msg, Protocol.ErrorResponse):
-                                raise msg.createException()
+                                exc = msg.createException()
                             else:
                                 raise InternalError("unexpected response")
                         return None
@@ -1084,6 +1086,7 @@ class Types(object):
     py_type_info = staticmethod(py_type_info)
 
     def py_value(v, description, **kwargs):
+        print repr(v), repr(description)
         if v == None:
             # special case - NULL value
             return None
@@ -1141,6 +1144,7 @@ class Types(object):
 
     def timestamp_recv(data, **kwargs):
         val = struct.unpack("!d", data)[0]
+        print "timestamp_recv", repr(val), repr(data)
         return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds = val)
 
     def timestamp_in(data, **kwargs):
