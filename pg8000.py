@@ -1206,6 +1206,9 @@ class Types(object):
     def float8in(data, **kwargs):
         return float(data)
 
+    def float8send(v, **kwargs):
+        return struct.pack("!d", v)
+
     # The timestamp_recv function is sadly not in use because some PostgreSQL
     # servers are compiled with HAVE_INT64_TIMESTAMP, and some are not.  This
     # alters the binary format of the timestamp, cannot be perfectly detected,
@@ -1277,6 +1280,8 @@ class Types(object):
         int: {"tid": 1700, "txt_out": numeric_out},
         str: {"tid": 25, "txt_out": textout},
         unicode: {"tid": 25, "txt_out": textout},
+        float: {"tid": 701, "bin_out": float8send},
+        decimal.Decimal: {"tid": 1700, "txt_out": numeric_out},
         type(None): {"tid": -1},
     }
 

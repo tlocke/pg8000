@@ -6,9 +6,9 @@ import threading
 
 import pg8000
 
-db = pg8000.Connection(host='joy', user='pg8000-test', database='pg8000-test', password='pg8000-test', socket_timeout=5)
+#db = pg8000.Connection(host='joy', user='pg8000-test', database='pg8000-test', password='pg8000-test', socket_timeout=5)
 #db = pg8000.Connection(host='localhost', user='mfenniak')
-#db = pg8000.Connection(user="mfenniak", unix_sock="/tmp/.s.PGSQL.5432")
+db = pg8000.Connection(user="mfenniak", unix_sock="/tmp/.s.PGSQL.5432")
 
 print "testing db.execute and error recovery in NoData query"
 for i in range(1, 3):
@@ -79,6 +79,14 @@ print "beginning type checks..."
 
 cur1.execute("SELECT $1", 5)
 assert tuple(cur1.iterate_dict()) == ({"?column?": 5},)
+
+cur1.execute("SELECT $1", 22.333)
+retval = tuple(cur1.iterate_dict())
+assert retval == ({"?column?": 22.332999999999998},)
+
+cur1.execute("SELECT $1", decimal.Decimal("22.333"))
+retval = tuple(cur1.iterate_dict())
+assert retval == ({"?column?": decimal.Decimal("22.333")},)
 
 cur1.execute("SELECT 5000::smallint")
 assert tuple(cur1.iterate_dict()) == ({"int2": 5000},)
