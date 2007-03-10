@@ -66,7 +66,6 @@ class ProgrammingError(DatabaseError):
 class NotSupportedError(DatabaseError):
     pass
 
-
 class DataIterator(object):
     def __init__(self, obj, func):
         self.obj = obj
@@ -95,6 +94,60 @@ class DBAPI(object):
     apilevel = "2.0"
     threadsafety = 3
     paramstyle = 'none-of-the-above'
+
+    def convert_paramstyle(src_style, query, args):
+        # Break the query into a series of parts, unquoted, quoted, unquoted, and so on...
+        parts = []
+        while 1:
+            idx = query.find("'")
+            if idx == -1:
+                parts.append(query)
+                break
+            else:
+                parts.append(query[:idx])
+                query = query[idx+1:]
+            start = 0
+            while 1:
+                idx = query.find("'", start)
+                if idx == -1:
+                    raise ProgrammingError("unterminated quoted string")
+                if (idx+1) < len(query) and query[idx+1] == "'":
+                    # idx points to double-quote.  not terminating quote.
+                    start = idx + 2
+                    continue
+                else:
+                    parts.append(query[:idx])
+                    query = query[idx+1:]
+                    break
+        # String broken up.  Now, in all unquoted sections, let's replace the
+        # param strings.
+        param_cnt = 1
+        params = []
+        for i in range((len(parts) / 2) + 1):
+            pidx = i * 2
+            part = parts[pidx]
+            output = ""
+            while 1:
+                if src_style == "qmark":
+                    idx = part.find("?")
+                    if idx == -1:
+                        output += part
+                        break
+                    output += part[:idx]
+                    output += "$" + str(param_cnt)
+                    part = part[idx+1:]
+                    params.append(args[param_cnt-1])
+                    param_cnt += 1
+            parts[pidx] = output
+        retval = ""
+        for i in range((len(parts) / 2) + 1):
+            pidx = i * 2
+            retval += parts[pidx]
+            pidx += 1
+            if pidx < len(parts):
+                retval += "'" + parts[pidx] + "'"
+        return retval, tuple(params)
+    convert_paramstyle = staticmethod(convert_paramstyle)
 
     class CursorWrapper(object):
         def __init__(self, conn):

@@ -6,6 +6,11 @@ import threading
 
 import pg8000
 
+print "testing convert_paramstyle"
+new_query, new_args = pg8000.DBAPI.convert_paramstyle("qmark", "SELECT ?, ?, * FROM t WHERE a='say ''what?''' AND b=?", (1, 2, 3))
+assert new_query == "SELECT $1, $2, * FROM t WHERE a='say ''what?''' AND b=$3"
+assert new_args == (1, 2, 3)
+
 #db = pg8000.Connection(host='joy', user='pg8000-test', database='pg8000-test', password='pg8000-test', socket_timeout=5)
 #db = pg8000.Connection(host='localhost', user='mfenniak')
 db = pg8000.Connection(user="mfenniak", unix_sock="/tmp/.s.PGSQL.5432")
