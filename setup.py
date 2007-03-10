@@ -15,13 +15,13 @@ PostgreSQL interface for Python.
 
 setup(
         name="pg8000",
-        version="1.00",
+        version="1.01",
         description="PostgreSQL interface library",
         long_description=long_description,
         author="Mathieu Fenniak",
         author_email="biziqe@mathieu.fenniak.net",
         url="http://pybrary.net/pg8000/",
-        download_url="http://pybrary.net/pg8000/pg8000-1.00.tar.gz",
+        download_url="http://pybrary.net/pg8000/pg8000-1.01.tar.gz",
         classifiers = [
             "Development Status :: 3 - Alpha",
             "Intended Audience :: Developers",

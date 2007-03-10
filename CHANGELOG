@@ -1,4 +1,4 @@
-Version 1.01, 2007-03-..
+Version 1.01, 2007-03-09
 ------------------------
 
 - Add support for writing floats and decimal objs up to PG backend.
@@ -20,7 +20,7 @@ Version 1.01, 2007-03-..
 
 
 Version 1.00, 2007-03-08
------------------------
+------------------------
 
 - First public release.  Although fully functional, this release is mostly
   lacking in production testing and in type support.
