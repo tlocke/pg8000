@@ -34,6 +34,7 @@ import struct
 import datetime
 import md5
 import decimal
+import threading
 
 class Warning(StandardError):
     pass
@@ -80,12 +81,37 @@ class DataIterator(object):
             raise StopIteration()
         return retval
 
+class DBAPI(object):
+    Warning = Warning
+    Error = Error
+    InterfaceError = InterfaceError
+    DatabaseError = DatabaseError
+    DataError = DataError
+    OperationalError = OperationalError
+    IntegrityError = IntegrityError
+    ProgrammingError = ProgrammingError
+    NotSupportedError = NotSupportedError
+
+    class ConnectionWrapper(object):
+        pass
+
+    def connect():
+        return ConnectionWrapper()
+
+
 ##
 # This class represents a prepared statement.  A prepared statement is
 # pre-parsed on the server, which reduces the need to parse the query every
 # time it is run.  The statement can have parameters in the form of $1, $2, $3,
 # etc.  When parameters are used, the types of the parameters need to be
 # specified when creating the prepared statement.
+# <p>
+# As of v1.01, instances of this class are thread-safe.  This means that a
+# single PreparedStatement can be accessed by multiple threads without the
+# internal consistency of the statement being altered.  However, the
+# responsibility is on the client application to ensure that one thread reading
+# from a statement isn't affected by another thread starting a new query with
+# the same statement.
 # <p>
 # Stability: Added in v1.00, stability guaranteed for v1.xx.
 #
@@ -118,6 +144,7 @@ class PreparedStatement(object):
         self._cached_rows = []
         self._command_complete = True
         self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
+        self._lock = threading.RLock()
 
     def __del__(self):
         # This __del__ should work with garbage collection / non-instant
@@ -131,41 +158,53 @@ class PreparedStatement(object):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def execute(self, *args):
-        if not self._command_complete:
-            # cleanup last execute
-            self._cached_rows = []
-            self.c.close_portal(self._portal_name)
-        self._command_complete = False
-        self._row_desc = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
-        if self._row_desc:
-            # We execute our cursor right away to fill up our cache.  This
-            # prevents the cursor from being destroyed, apparently, by a rogue
-            # Sync between Bind and Execute.  Since it is quite likely that
-            # data will be read from us right away anyways, this seems a safe
-            # move for now.
-            self._fill_cache()
+        self._lock.acquire()
+        try:
+            if not self._command_complete:
+                # cleanup last execute
+                self._cached_rows = []
+                self.c.close_portal(self._portal_name)
+            self._command_complete = False
+            self._row_desc = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
+            if self._row_desc:
+                # We execute our cursor right away to fill up our cache.  This
+                # prevents the cursor from being destroyed, apparently, by a rogue
+                # Sync between Bind and Execute.  Since it is quite likely that
+                # data will be read from us right away anyways, this seems a safe
+                # move for now.
+                self._fill_cache()
+        finally:
+            self._lock.release()
 
     def _fill_cache(self):
-        if self._cached_rows:
-            raise InternalError("attempt to fill cache that isn't empty")
-        end_of_data, rows = self.c.fetch_rows(self._portal_name, self.row_cache_size, self._row_desc)
-        self._cached_rows = rows
-        if end_of_data:
-            self._command_complete = True
+        self._lock.acquire()
+        try:
+            if self._cached_rows:
+                raise InternalError("attempt to fill cache that isn't empty")
+            end_of_data, rows = self.c.fetch_rows(self._portal_name, self.row_cache_size, self._row_desc)
+            self._cached_rows = rows
+            if end_of_data:
+                self._command_complete = True
+        finally:
+            self._lock.release()
 
     def _fetch(self):
-        if not self._cached_rows:
-            if self._command_complete:
-                return None
-            self._fill_cache()
-            if self._command_complete and not self._cached_rows:
-                # fill cache tells us the command is complete, but yet we have
-                # no rows after filling our cache.  This is a special case when
-                # a query returns no rows.
-                return None
-        row = self._cached_rows[0]
-        del self._cached_rows[0]
-        return tuple(row)
+        self._lock.acquire()
+        try:
+            if not self._cached_rows:
+                if self._command_complete:
+                    return None
+                self._fill_cache()
+                if self._command_complete and not self._cached_rows:
+                    # fill cache tells us the command is complete, but yet we have
+                    # no rows after filling our cache.  This is a special case when
+                    # a query returns no rows.
+                    return None
+            row = self._cached_rows[0]
+            del self._cached_rows[0]
+            return tuple(row)
+        finally:
+            self._lock.release()
 
     ##
     # Read a row from the database server, and return it in a dictionary
@@ -220,6 +259,9 @@ class PreparedStatement(object):
 # using a {@link PreparedStatement PreparedStatement} object, so if you plan to
 # use a statement multiple times, you might as well create a PreparedStatement
 # and save a small amount of reparsing time.
+# <p>
+# As of v1.01, instances of this class are thread-safe.  See {@link
+# PreparedStatement PreparedStatement} for more information.
 # <p>
 # Stability: Added in v1.00, stability guaranteed for v1.xx.
 #
@@ -292,6 +334,9 @@ class Cursor(object):
 # Without beginning a transaction explicitly, all statements will autocommit to
 # the database.
 # <p>
+# As of v1.01, instances of this class are thread-safe.  See {@link
+# PreparedStatement PreparedStatement} for more information.
+# <p>
 # Stability: Added in v1.00, stability guaranteed for v1.xx.
 #
 # @param host   The hostname of the PostgreSQL server to connect with.  Only
@@ -317,11 +362,11 @@ class Cursor(object):
 # @keyparam socket_timeout  Socket connect timeout measured in seconds.
 # Defaults to 60 seconds.
 class Connection(Cursor):
-    def __init__(self, host, user, port=5432, database=None, password=None, socket_timeout=60):
+    def __init__(self, user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60):
         self._row_desc = None
         try:
-            self.c = Protocol.Connection(host, port, socket_timeout=socket_timeout)
-            self.c.connect()
+            self.c = Protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout)
+            #self.c.connect()
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
             raise InterfaceError("communication error", e)
@@ -691,14 +736,22 @@ class Protocol(object):
         createFromData = staticmethod(createFromData)
 
     class Connection(object):
-        def __init__(self, host=None, port=5432, socket_timeout=60):
-            self._state = "unconnected"
+        def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60):
             self._client_encoding = "ascii"
-            self._host = host
-            self._port = port
-            self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            if unix_sock == None and host != None:
+                self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            elif unix_sock != None:
+                self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            else:
+                raise ProgrammingError("one of host or unix_sock must be provided")
             self._sock.settimeout(socket_timeout)
+            if unix_sock == None and host != None:
+                self._sock.connect((host, port))
+            elif unix_sock != None:
+                self._sock.connect(unix_sock)
+            self._state = "noauth"
             self._backend_key_data = None
+            self._sock_lock = threading.Lock()
 
         def verifyState(self, state):
             if self._state != state:
@@ -710,25 +763,28 @@ class Protocol(object):
             self._sock.send(data)
 
         def _read_message(self):
-            bytes = self._sock.recv(5)
-            assert len(bytes) == 5
+            bytes = ""
+            while len(bytes) < 5:
+                tmp = self._sock.recv(5 - len(bytes))
+                bytes += tmp
+            if len(bytes) != 5:
+                raise InternalError("unable to read 5 bytes from socket %r" % bytes)
             message_code = bytes[0]
             data_len = struct.unpack("!i", bytes[1:])[0] - 4
             if data_len == 0:
                 bytes = ""
             else:
-                bytes = self._sock.recv(data_len)
+                bytes = ""
+                while len(bytes) < data_len:
+                    tmp = self._sock.recv(data_len - len(bytes))
+                    bytes += tmp
+            assert len(bytes) == data_len
             msg = Protocol.message_types[message_code].createFromData(bytes)
             if isinstance(msg, Protocol.NoticeResponse):
                 # ignore NoticeResponse
                 return self._read_message()
             else:
                 return msg
-
-        def connect(self):
-            self.verifyState("unconnected")
-            self._sock.connect((self._host, self._port))
-            self._state = "noauth"
 
         def authenticate(self, user, **kwargs):
             self.verifyState("noauth")
@@ -759,171 +815,171 @@ class Protocol(object):
 
         def parse(self, statement, qs, types):
             self.verifyState("ready")
-            type_info = [Types.pg_type_info(x) for x in types]
-            param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
-            self._send(Protocol.Parse(statement, qs, param_types))
-            self._send(Protocol.DescribePreparedStatement(statement))
-            self._send(Protocol.Flush())
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, Protocol.ParseComplete):
-                    # ok, good.
-                    pass
-                elif isinstance(msg, Protocol.ParameterDescription):
-                    # well, we don't really care -- we're going to send whatever
-                    # we want and let the database deal with it.  But thanks
-                    # anyways!
-                    pass
-                elif isinstance(msg, Protocol.NoData):
-                    # We're not waiting for a row description.  Return
-                    # something destinctive to let bind know that there is no
-                    # output.
-                    return (None, param_fc)
-                elif isinstance(msg, Protocol.RowDescription):
-                    return (msg, param_fc)
-                elif isinstance(msg, Protocol.ErrorResponse):
-                    raise msg.createException()
-                else:
-                    raise InternalError("Unexpected response msg %r" % (msg))
+            self._sock_lock.acquire()
+            try:
+                type_info = [Types.pg_type_info(x) for x in types]
+                param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
+                self._send(Protocol.Parse(statement, qs, param_types))
+                self._send(Protocol.DescribePreparedStatement(statement))
+                self._send(Protocol.Flush())
+                while 1:
+                    msg = self._read_message()
+                    if isinstance(msg, Protocol.ParseComplete):
+                        # ok, good.
+                        pass
+                    elif isinstance(msg, Protocol.ParameterDescription):
+                        # well, we don't really care -- we're going to send whatever
+                        # we want and let the database deal with it.  But thanks
+                        # anyways!
+                        pass
+                    elif isinstance(msg, Protocol.NoData):
+                        # We're not waiting for a row description.  Return
+                        # something destinctive to let bind know that there is no
+                        # output.
+                        return (None, param_fc)
+                    elif isinstance(msg, Protocol.RowDescription):
+                        return (msg, param_fc)
+                    elif isinstance(msg, Protocol.ErrorResponse):
+                        raise msg.createException()
+                    else:
+                        raise InternalError("Unexpected response msg %r" % (msg))
+            finally:
+                self._sock_lock.release()
 
         def bind(self, portal, statement, params, parse_data):
             self.verifyState("ready")
-            row_desc, param_fc = parse_data
-            if row_desc == None:
-                # no data coming out
-                output_fc = ()
-            else:
-                # We've got row_desc that allows us to identify what we're going to
-                # get back from this statement.
-                output_fc = [Types.py_type_info(f) for f in row_desc.fields]
-            self._send(Protocol.Bind(portal, statement, param_fc, params, output_fc, self._client_encoding))
-            # We need to describe the portal after bind, since the return
-            # format codes will be different (hopefully, always what we
-            # requested).
-            self._send(Protocol.DescribePortal(portal))
-            self._send(Protocol.Flush())
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, Protocol.BindComplete):
-                    # good news everybody!
-                    pass
-                elif isinstance(msg, Protocol.NoData):
-                    # No data means we should execute this command right away.
-                    self._send(Protocol.Execute(portal, 0))
-                    self._send(Protocol.Sync())
-                    while 1:
-                        msg = self._read_message()
-                        if isinstance(msg, Protocol.CommandComplete):
-                            # more good news!
-                            pass
-                        elif isinstance(msg, Protocol.ReadyForQuery):
-                            # ready to move on with life...
-                            break
-                        elif isinstance(msg, Protocol.ErrorResponse):
-                            raise msg.createException()
-                        else:
-                            raise InternalError("unexpected response")
-                    return None
-                elif isinstance(msg, Protocol.RowDescription):
-                    # Return the new row desc, since it will have the format
-                    # types we asked for
-                    return msg
-                elif isinstance(msg, Protocol.ErrorResponse):
-                    raise msg.createException()
+            self._sock_lock.acquire()
+            try:
+                row_desc, param_fc = parse_data
+                if row_desc == None:
+                    # no data coming out
+                    output_fc = ()
                 else:
-                    raise InternalError("Unexpected response msg %r" % (msg))
+                    # We've got row_desc that allows us to identify what we're going to
+                    # get back from this statement.
+                    output_fc = [Types.py_type_info(f) for f in row_desc.fields]
+                self._send(Protocol.Bind(portal, statement, param_fc, params, output_fc, self._client_encoding))
+                # We need to describe the portal after bind, since the return
+                # format codes will be different (hopefully, always what we
+                # requested).
+                self._send(Protocol.DescribePortal(portal))
+                self._send(Protocol.Flush())
+                while 1:
+                    msg = self._read_message()
+                    if isinstance(msg, Protocol.BindComplete):
+                        # good news everybody!
+                        pass
+                    elif isinstance(msg, Protocol.NoData):
+                        # No data means we should execute this command right away.
+                        self._send(Protocol.Execute(portal, 0))
+                        self._send(Protocol.Sync())
+                        while 1:
+                            msg = self._read_message()
+                            if isinstance(msg, Protocol.CommandComplete):
+                                # more good news!
+                                pass
+                            elif isinstance(msg, Protocol.ReadyForQuery):
+                                # ready to move on with life...
+                                break
+                            elif isinstance(msg, Protocol.ErrorResponse):
+                                raise msg.createException()
+                            else:
+                                raise InternalError("unexpected response")
+                        return None
+                    elif isinstance(msg, Protocol.RowDescription):
+                        # Return the new row desc, since it will have the format
+                        # types we asked for
+                        return msg
+                    elif isinstance(msg, Protocol.ErrorResponse):
+                        raise msg.createException()
+                    else:
+                        raise InternalError("Unexpected response msg %r" % (msg))
+            finally:
+                self._sock_lock.release()
 
         def fetch_rows(self, portal, row_count, row_desc):
             self.verifyState("ready")
-            self._send(Protocol.Execute(portal, row_count))
-            self._send(Protocol.Flush())
-            rows = []
-            end_of_data = False
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, Protocol.DataRow):
-                    rows.append(
-                            [Types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding)
-                                for i in range(len(msg.fields))]
-                            )
-                elif isinstance(msg, Protocol.PortalSuspended):
-                    # got all the rows we asked for, but not all that exist
-                    break
-                elif isinstance(msg, Protocol.CommandComplete):
-                    self._send(Protocol.ClosePortal(portal))
-                    self._send(Protocol.Sync())
-                    while 1:
-                        msg = self._read_message()
-                        if isinstance(msg, Protocol.ReadyForQuery):
-                            # ready to move on with life...
-                            self._state = "ready"
-                            break
-                        elif isinstance(msg, Protocol.CloseComplete):
-                            # ok, great!
-                            pass
-                        elif isinstance(msg, Protocol.ErrorResponse):
-                            raise msg.createException()
-                        else:
-                            raise InternalError("unexpected response msg %r" % msg)
-                    end_of_data = True
-                    break
-                elif isinstance(msg, Protocol.ErrorResponse):
-                    raise msg.createException()
-                else:
-                    raise InternalError("Unexpected response msg %r" % msg)
-            return end_of_data, rows
+            self._sock_lock.acquire()
+            try:
+                self._send(Protocol.Execute(portal, row_count))
+                self._send(Protocol.Flush())
+                rows = []
+                end_of_data = False
+                while 1:
+                    msg = self._read_message()
+                    if isinstance(msg, Protocol.DataRow):
+                        rows.append(
+                                [Types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding)
+                                    for i in range(len(msg.fields))]
+                                )
+                    elif isinstance(msg, Protocol.PortalSuspended):
+                        # got all the rows we asked for, but not all that exist
+                        break
+                    elif isinstance(msg, Protocol.CommandComplete):
+                        self._send(Protocol.ClosePortal(portal))
+                        self._send(Protocol.Sync())
+                        while 1:
+                            msg = self._read_message()
+                            if isinstance(msg, Protocol.ReadyForQuery):
+                                # ready to move on with life...
+                                self._state = "ready"
+                                break
+                            elif isinstance(msg, Protocol.CloseComplete):
+                                # ok, great!
+                                pass
+                            elif isinstance(msg, Protocol.ErrorResponse):
+                                raise msg.createException()
+                            else:
+                                raise InternalError("unexpected response msg %r" % msg)
+                        end_of_data = True
+                        break
+                    elif isinstance(msg, Protocol.ErrorResponse):
+                        raise msg.createException()
+                    else:
+                        raise InternalError("Unexpected response msg %r" % msg)
+                return end_of_data, rows
+            finally:
+                self._sock_lock.release()
 
         def close_statement(self, statement):
-            self._send(Protocol.ClosePreparedStatement(statement))
-            self._send(Protocol.Sync())
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, Protocol.CloseComplete):
-                    # thanks!
-                    pass
-                elif isinstance(msg, Protocol.ReadyForQuery):
-                    return
-                elif isinstance(msg, Protocol.ErrorResponse):
-                    raise msg.createException()
-                else:
-                    raise InternalError("Unexpected response msg %r" % msg)
+            self.verifyState("ready")
+            self._sock_lock.acquire()
+            try:
+                self._send(Protocol.ClosePreparedStatement(statement))
+                self._send(Protocol.Sync())
+                while 1:
+                    msg = self._read_message()
+                    if isinstance(msg, Protocol.CloseComplete):
+                        # thanks!
+                        pass
+                    elif isinstance(msg, Protocol.ReadyForQuery):
+                        return
+                    elif isinstance(msg, Protocol.ErrorResponse):
+                        raise msg.createException()
+                    else:
+                        raise InternalError("Unexpected response msg %r" % msg)
+            finally:
+                self._sock_lock.release()
 
         def close_portal(self, portal):
-            self._send(Protocol.ClosePortal(portal))
-            self._send(Protocol.Sync())
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, Protocol.CloseComplete):
-                    # thanks!
-                    pass
-                elif isinstance(msg, Protocol.ReadyForQuery):
-                    return
-                elif isinstance(msg, Protocol.ErrorResponse):
-                    raise msg.createException()
-                else:
-                    raise InternalError("Unexpected response msg %r" % msg)
-
-        def query(self, qs):
             self.verifyState("ready")
-            self._send(Protocol.Query(qs))
-            msg = self._read_message()
-            if isinstance(msg, Protocol.RowDescription):
-                self._state = "in_query"
-                return msg
-            elif isinstance(msg, Protocol.ErrorResponse):
-                raise msg.createException()
-            else:
-                raise InternalError("RowDescription expected, other message recv'd")
-
-        def getrow(self):
-            self.verifyState("in_query")
-            msg = self._read_message()
-            if isinstance(msg, Protocol.DataRow):
-                return msg
-            elif isinstance(msg, Protocol.CommandComplete):
-                self.status = "query_complete"
-                self._waitForReady()
-                return None
+            self._sock_lock.acquire()
+            try:
+                self._send(Protocol.ClosePortal(portal))
+                self._send(Protocol.Sync())
+                while 1:
+                    msg = self._read_message()
+                    if isinstance(msg, Protocol.CloseComplete):
+                        # thanks!
+                        pass
+                    elif isinstance(msg, Protocol.ReadyForQuery):
+                        return
+                    elif isinstance(msg, Protocol.ErrorResponse):
+                        raise msg.createException()
+                    else:
+                        raise InternalError("Unexpected response msg %r" % msg)
+            finally:
+                self._sock_lock.release()
 
     message_types = {
         "N": NoticeResponse,
