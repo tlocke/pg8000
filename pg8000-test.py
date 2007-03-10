@@ -112,7 +112,6 @@ assert tuple(cur1.iterate_dict()) == ({"text": u"hello"},)
 
 cur1.execute("SELECT '2001-02-03 04:05:06.17'::timestamp")
 retval = tuple(cur1.iterate_dict())
-print repr(retval)
 assert retval == ({'timestamp': datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)},)
 
 #cur1.execute("SELECT '2001-02-03 04:05:06.17'::timestamp with time zone")

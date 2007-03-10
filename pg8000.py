@@ -764,7 +764,6 @@ class Protocol(object):
                 raise InternalError("connection state must be %s, is %s" % (state, self._state))
 
         def _send(self, msg):
-            #print repr(msg)
             data = msg.serialize()
             self._sock.send(data)
 
@@ -1086,7 +1085,6 @@ class Types(object):
     py_type_info = staticmethod(py_type_info)
 
     def py_value(v, description, **kwargs):
-        print repr(v), repr(description)
         if v == None:
             # special case - NULL value
             return None
@@ -1142,10 +1140,14 @@ class Types(object):
     def float8in(data, **kwargs):
         return float(data)
 
-    def timestamp_recv(data, **kwargs):
-        val = struct.unpack("!d", data)[0]
-        print "timestamp_recv", repr(val), repr(data)
-        return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds = val)
+    # The timestamp_recv function is sadly not in use because some PostgreSQL
+    # servers are compiled with HAVE_INT64_TIMESTAMP, and some are not.  This
+    # alters the binary format of the timestamp, cannot be perfectly detected,
+    # and there is no message from the server indicating which format is in
+    # use.  Ah, well, obviously binary formats are hit-and-miss...
+    #def timestamp_recv(data, **kwargs):
+    #    val = struct.unpack("!d", data)[0]
+    #    return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds = val)
 
     def timestamp_in(data, **kwargs):
         year = int(data[0:4])
@@ -1223,7 +1225,7 @@ class Types(object):
         701: {"txt_in": float8in, "bin_in": float8recv, "prefer": "bin"},
         1042: {"txt_in": varcharin}, # CHAR type
         1043: {"txt_in": varcharin}, # VARCHAR type
-        1114: {"txt_in": timestamp_in, "bin_in": timestamp_recv, "prefer": "bin"},
+        1114: {"txt_in": timestamp_in}, #, "bin_in": timestamp_recv, "prefer": "bin"},
         1186: {"txt_in": interval_in},
         1700: {"txt_in": numeric_in},
     }
