@@ -1,4 +1,23 @@
-Version 1.0, 2007-03-08
+Version 1.01, 2007-03-..
+------------------------
+
+- Add new error handling code and tests to make sure connection can recover
+  from a database error.
+
+- Fixed bug where timestamp types were not always returned in the same binary
+  format from the PG backend.  Text format is now being used to send
+  timestamps.
+
+- Fixed bug where large packets from the server were not being read fully, due
+  to socket.read not always returning full read size requested.  It was a
+  lazy-coding bug.
+
+- Added locks to make most of the library thread-safe.
+
+- Added UNIX socket support.
+
+
+Version 1.00, 2007-03-08
 -----------------------
 
 - First public release.  Although fully functional, this release is mostly
