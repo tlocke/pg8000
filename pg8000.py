@@ -292,7 +292,7 @@ class DBAPI(object):
             return rows
 
         def fetchall(self):
-            return tuple(cursor.iterate_tuple())
+            return tuple(self.cursor.iterate_tuple())
 
         def close(self):
             self.cursor = None
