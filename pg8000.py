@@ -96,89 +96,176 @@ class DBAPI(object):
     paramstyle = 'none-of-the-above'
 
     def convert_paramstyle(src_style, query, args):
-        # Break the query into a series of parts, unquoted, quoted, unquoted, and so on...
-        parts = []
+        # I don't see any way to avoid scanning the query string char by char,
+        # so we might as well take that careful approach and create a
+        # state-based scanner.  We'll use int variables for the state.
+        #  0 -- outside quoted string
+        #  1 -- inside single-quote string '...'
+        #  2 -- inside quoted identifier   "..."
+        #  3 -- inside escaped single-quote string, E'...'
+        state = 0
+        output_query = ""
+        output_args = []
+        if src_style == "numeric":
+            output_args = args
+        elif src_style in ("pyformat", "named"):
+            mapping_to_idx = {}
+        i = 0
         while 1:
-            idx = query.find("'")
-            if idx == -1:
-                parts.append(query)
+            if i == len(query):
                 break
-            else:
-                parts.append(query[:idx])
-                query = query[idx+1:]
-            start = 0
-            while 1:
-                idx = query.find("'", start)
-                if idx == -1:
-                    raise ProgrammingError("unterminated quoted string")
-                if (idx+1) < len(query) and query[idx+1] == "'":
-                    # idx points to double-quote.  not terminating quote.
-                    start = idx + 2
-                    continue
-                else:
-                    parts.append(query[:idx])
-                    query = query[idx+1:]
-                    break
-        # String broken up.  Now, in all unquoted sections, let's replace the
-        # param strings.
-        param_cnt = 1
-        if src_style == "qmark" or src_style == "format":
-            params = []
-        elif src_style == "numeric":
-            params = args
-        for i in range((len(parts) / 2) + 1):
-            pidx = i * 2
-            part = parts[pidx]
-            output = ""
-            while 1:
-                if src_style == "qmark":
-                    idx = part.find("?")
-                    if idx == -1:
-                        output += part
-                        break
-                    output += part[:idx]
-                    output += "$" + str(param_cnt)
-                    part = part[idx+1:]
-                    params.append(args[param_cnt-1])
-                    param_cnt += 1
-                elif src_style == "format":
-                    idx = part.find("%")
-                    if idx == -1:
-                        output += part
-                        break
-                    elif (idx+1) == len(part):
-                        raise ProgrammingError("parameter quote : found at end of unquoted str")
-                    output += part[:idx]
-                    if part[idx+1] == "%":
-                        # %% escapes a percent sign.
-                        output += "%"
+            c = query[i]
+            # print "begin loop", repr(i), repr(c), repr(state)
+            if state == 0:
+                if c == "'":
+                    i += 1
+                    output_query += c
+                    state = 1
+                elif c == '"':
+                    i += 1
+                    output_query += c
+                    state = 2
+                elif c == 'E':
+                    # check for escaped single-quote string
+                    i += 1
+                    if i < len(query) and i > 1 and query[i] == "'":
+                        i += 1
+                        output_query += "E'"
+                        state = 3
                     else:
-                        output += "$" + str(param_cnt)
-                        params.append(args[param_cnt - 1])
-                        param_cnt += 1
-                    part = part[idx+2:]
-                elif src_style == "numeric":
-                    idx = part.find(":")
-                    if idx == -1:
-                        output += part
-                        break
-                    elif (idx+1) == len(part):
-                        raise ProgrammingError("parameter quote : found at end of unquoted str")
-                    output += part[:idx]
-                    output += "$" + part[idx+1]
-                    part = part[idx+2:]
+                        output_query += c
+                elif src_style == "qmark" and c == "?":
+                    i += 1
+                    param_idx = len(output_args)
+                    if param_idx == len(args):
+                        raise ProgrammingError("too many parameter fields, not enough parameters")
+                    output_args.append(args[param_idx])
+                    output_query += "$" + str(param_idx + 1)
+                elif src_style == "numeric" and c == ":":
+                    i += 1
+                    if i < len(query) and i > 1 and query[i].isdigit():
+                        output_query += "$" + query[i]
+                        i += 1
+                    else:
+                        raise ProgrammingError("numeric parameter : does not have numeric arg")
+                elif src_style == "named" and c == ":":
+                    name = ""
+                    while 1:
+                        i += 1
+                        if i == len(query):
+                            break
+                        c = query[i]
+                        if c.isalnum():
+                            name += c
+                        else:
+                            break
+                    if name == "":
+                        raise ProgrammingError("empty name of named parameter")
+                    idx = mapping_to_idx.get(name)
+                    if idx == None:
+                        idx = len(output_args)
+                        output_args.append(args[name])
+                        idx += 1
+                        mapping_to_idx[name] = idx
+                    output_query += "$" + str(idx)
+                elif src_style == "format" and c == "%":
+                    i += 1
+                    if i < len(query) and i > 1:
+                        if query[i] == "s":
+                            param_idx = len(output_args)
+                            if param_idx == len(args):
+                                raise ProgrammingError("too many parameter fields, not enough parameters")
+                            output_args.append(args[param_idx])
+                            output_query += "$" + str(param_idx + 1)
+                        elif query[i] == "%":
+                            output_query += "%"
+                        else:
+                            raise ProgrammingError("Only %s and %% are supported")
+                        i += 1
+                    else:
+                        raise ProgrammingError("numeric parameter : does not have numeric arg")
+                elif src_style == "pyformat" and c == "%":
+                    i += 1
+                    if i < len(query) and i > 1:
+                        if query[i] == "(":
+                            i += 1
+                            # begin mapping name
+                            end_idx = query.find(')', i)
+                            if end_idx == -1:
+                                raise ProgrammingError("began pyformat dict read, but couldn't find end of name")
+                            else:
+                                name = query[i:end_idx]
+                                i = end_idx + 1
+                                if i < len(query) and query[i] == "s":
+                                    i += 1
+                                    idx = mapping_to_idx.get(name)
+                                    if idx == None:
+                                        idx = len(output_args)
+                                        output_args.append(args[name])
+                                        idx += 1
+                                        mapping_to_idx[name] = idx
+                                    output_query += "$" + str(idx)
+                                else:
+                                    raise ProgrammingError("format not specified or not supported (only %(...)s supported)")
+                        elif query[i] == "%":
+                            output_query += "%"
                 else:
-                    raise NotSupportedError("paramstyle %r not supported" % src_style)
-            parts[pidx] = output
-        retval = ""
-        for i in range((len(parts) / 2) + 1):
-            pidx = i * 2
-            retval += parts[pidx]
-            pidx += 1
-            if pidx < len(parts):
-                retval += "'" + parts[pidx] + "'"
-        return retval, tuple(params)
+                    i += 1
+                    output_query += c
+            elif state == 1:
+                output_query += c
+                i += 1
+                if c == "'":
+                    # Could be a double ''
+                    if i < len(query) and query[i] == "'":
+                        # is a double quote.
+                        output_query += query[i]
+                        i += 1
+                    else:
+                        state = 0
+                elif src_style in ("pyformat","format") and c == "%":
+                    # hm... we're only going to support an escaped percent sign
+                    if i < len(query):
+                        if query[i] == "%":
+                            # good.  We already output the first percent sign.
+                            i += 1
+                        else:
+                            raise ProgrammingError("'%" + query[i] + "' not supported in quoted string")
+            elif state == 2:
+                output_query += c
+                i += 1
+                if c == '"':
+                    state = 0
+                elif src_style in ("pyformat","format") and c == "%":
+                    # hm... we're only going to support an escaped percent sign
+                    if i < len(query):
+                        if query[i] == "%":
+                            # good.  We already output the first percent sign.
+                            i += 1
+                        else:
+                            raise ProgrammingError("'%" + query[i] + "' not supported in quoted string")
+            elif state == 3:
+                output_query += c
+                i += 1
+                if c == "\\":
+                    # check for escaped single-quote
+                    if i < len(query) and query[i] == "'":
+                        output_query += "'"
+                        i += 1
+                elif c == "'":
+                    state = 0
+                elif src_style in ("pyformat","format") and c == "%":
+                    # hm... we're only going to support an escaped percent sign
+                    if i < len(query):
+                        if query[i] == "%":
+                            # good.  We already output the first percent sign.
+                            i += 1
+                        else:
+                            raise ProgrammingError("'%" + query[i] + "' not supported in quoted string")
+
+        return output_query, tuple(output_args)
     convert_paramstyle = staticmethod(convert_paramstyle)
+
 
     class CursorWrapper(object):
         def __init__(self, conn):
