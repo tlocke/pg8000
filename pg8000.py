@@ -122,7 +122,10 @@ class DBAPI(object):
         # String broken up.  Now, in all unquoted sections, let's replace the
         # param strings.
         param_cnt = 1
-        params = []
+        if src_style == "qmark" or src_style == "format":
+            params = []
+        elif src_style == "numeric":
+            params = args
         for i in range((len(parts) / 2) + 1):
             pidx = i * 2
             part = parts[pidx]
@@ -138,6 +141,34 @@ class DBAPI(object):
                     part = part[idx+1:]
                     params.append(args[param_cnt-1])
                     param_cnt += 1
+                elif src_style == "format":
+                    idx = part.find("%")
+                    if idx == -1:
+                        output += part
+                        break
+                    elif (idx+1) == len(part):
+                        raise ProgrammingError("parameter quote : found at end of unquoted str")
+                    output += part[:idx]
+                    if part[idx+1] == "%":
+                        # %% escapes a percent sign.
+                        output += "%"
+                    else:
+                        output += "$" + str(param_cnt)
+                        params.append(args[param_cnt - 1])
+                        param_cnt += 1
+                    part = part[idx+2:]
+                elif src_style == "numeric":
+                    idx = part.find(":")
+                    if idx == -1:
+                        output += part
+                        break
+                    elif (idx+1) == len(part):
+                        raise ProgrammingError("parameter quote : found at end of unquoted str")
+                    output += part[:idx]
+                    output += "$" + part[idx+1]
+                    part = part[idx+2:]
+                else:
+                    raise NotSupportedError("paramstyle %r not supported" % src_style)
             parts[pidx] = output
         retval = ""
         for i in range((len(parts) / 2) + 1):

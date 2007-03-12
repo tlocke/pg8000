@@ -7,9 +7,24 @@ import threading
 import pg8000
 
 print "testing convert_paramstyle"
+
 new_query, new_args = pg8000.DBAPI.convert_paramstyle("qmark", "SELECT ?, ?, * FROM t WHERE a='say ''what?''' AND b=?", (1, 2, 3))
 assert new_query == "SELECT $1, $2, * FROM t WHERE a='say ''what?''' AND b=$3"
 assert new_args == (1, 2, 3)
+
+new_query, new_args = pg8000.DBAPI.convert_paramstyle("qmark", "SELECT ?, ?, * FROM t WHERE a=? AND b='are you ''sure?'", (1, 2, 3))
+assert new_query == "SELECT $1, $2, * FROM t WHERE a=$3 AND b='are you ''sure?'"
+assert new_args == (1, 2, 3)
+
+new_query, new_args = pg8000.DBAPI.convert_paramstyle("numeric", "SELECT :2, :1, * FROM t WHERE a=:3", (1, 2, 3))
+assert new_query == "SELECT $2, $1, * FROM t WHERE a=$3"
+assert new_args == (1, 2, 3)
+
+new_query, new_args = pg8000.DBAPI.convert_paramstyle("format", "SELECT %s, %s, * FROM t WHERE a=%s", (1, 2, 3))
+print repr(new_query), repr(new_args)
+assert new_query == "SELECT $1, $2, * FROM t WHERE a=$3"
+assert new_args == (1, 2, 3)
+
 
 #db = pg8000.Connection(host='joy', user='pg8000-test', database='pg8000-test', password='pg8000-test', socket_timeout=5)
 #db = pg8000.Connection(host='localhost', user='mfenniak')
