@@ -93,7 +93,7 @@ class DBAPI(object):
     
     apilevel = "2.0"
     threadsafety = 3
-    paramstyle = 'none-of-the-above'
+    paramstyle = 'format' # paramstyle can be changed to any DB-API paramstyle
 
     def convert_paramstyle(src_style, query, args):
         # I don't see any way to avoid scanning the query string char by char,
@@ -273,7 +273,8 @@ class DBAPI(object):
             self.arraysize = 1
 
         def execute(self, operation, args=()):
-            self.cursor.execute(operation, *args)
+            new_query, new_args = DBAPI.convert_paramstyle(DBAPI.paramstyle, operation, args)
+            self.cursor.execute(new_query, *new_args)
 
         def executemany(self, operation, parameter_sets):
             for parameters in parameter_sets:
@@ -308,7 +309,7 @@ class DBAPI(object):
             self.conn.begin()
 
         def cursor(self):
-            return CursorWrapper(self.conn)
+            return DBAPI.CursorWrapper(self.conn)
 
         def commit(self):
             # There's a threading bug here.  If a query is sent after the
@@ -331,9 +332,10 @@ class DBAPI(object):
             self.conn = None
 
     def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60):
-        return ConnectionWrapper(user=user, host=host, unix_sock=unix_sock,
-                port=port, database=database, password=password,
-                socket_timeout=socket_timeout)
+        return DBAPI.ConnectionWrapper(user=user, host=host,
+                unix_sock=unix_sock, port=port, database=database,
+                password=password, socket_timeout=socket_timeout)
+    connect = staticmethod(connect)
 
 
 ##
