@@ -47,9 +47,11 @@ db.commit()
 
 cur.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, 1))
 cur.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, 10))
+cur.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, 10))
+cur.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, 10))
 
 print "testing basic query..."
-cur.execute("SELECT * FROM t1")
+cur.execute("SELECT * FROM t1 WHERE f1 > %s", (2,))
 while 1:
     row = cur.fetchone()
     if row == None:
