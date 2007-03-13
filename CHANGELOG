@@ -1,3 +1,20 @@
+Version 1.02, 2007-03-13
+------------------------
+
+- Add complete DB-API 2.0 interface.
+
+- Add basic SSL support via ssl connect bool.
+
+- Rewrite pg8000_test.py to use Python's unittest library.
+
+- Add bytea type support.
+
+- Add support for parameter output types: NULL value, timestamp value, python
+long value.
+
+- Add support for input parameter type oid.
+
+
 Version 1.01, 2007-03-09
 ------------------------
 
