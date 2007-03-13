@@ -66,6 +66,7 @@ for row in db.iterate_dict():
 print "testing two queries at once..."
 cur1 = pg8000.Cursor(db)
 cur1.execute("SELECT * FROM t1")
+print repr(cur1.row_description)
 s1 = pg8000.PreparedStatement(db, "SELECT f1, f2 FROM t1 WHERE f1 > $1", int)
 i = 0
 for row1 in cur1.iterate_dict():

@@ -279,7 +279,12 @@ class DBAPI(object):
 
         description = property(lambda self: self._getDescription())
         def _getDescription(self):
-            return None
+            if self.cursor.row_description == None:
+                return None
+            columns = []
+            for col in self.cursor.row_description:
+                columns.append((col["name"], col["type_oid"]))
+            return columns
 
         def execute(self, operation, args=()):
             if self.cursor == None:
@@ -411,6 +416,10 @@ class PreparedStatement(object):
         # soon, and clearly that wouldn't happen in a GC situation.
         self.c.close_statement(self._statement_name)
 
+    row_description = property(lambda self: self._getRowDescription())
+    def _getRowDescription(self):
+        return self._row_desc.fields
+
     ##
     # Run the SQL prepared statement with the given parameters.
     # <p>
@@ -528,6 +537,12 @@ class Cursor(object):
     def __init__(self, connection):
         self.connection = connection
         self._stmt = None
+
+    row_description = property(lambda self: self._getRowDescription())
+    def _getRowDescription(self):
+        if self._stmt == None:
+            return None
+        return self._stmt.row_description
 
     ##
     # Run an SQL statement using this cursor.  The SQL statement can have
