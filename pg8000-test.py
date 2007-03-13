@@ -3,132 +3,373 @@
 import datetime
 import decimal
 import threading
-
+import unittest
 import pg8000
+import struct
 
-db = pg8000.Connection(host='joy', user='pg8000-test', database='pg8000-test', password='pg8000-test', socket_timeout=5)
-#db = pg8000.Connection(host='localhost', user='mfenniak')
-#db = pg8000.Connection(user="mfenniak", unix_sock="/tmp/.s.PGSQL.5432")
+db_connect = {
+        "host": "joy",
+        "user": "pg8000-test",
+        "database": "pg8000-test",
+        "password": "pg8000-test",
+        "socket_timeout": 5
+        }
+db = pg8000.Connection(**db_connect)
+dbapi = pg8000.DBAPI
+db2 = dbapi.connect(**db_connect)
 
-print "testing db.execute and error recovery in NoData query"
-for i in range(1, 3):
-    db.begin()
-    try:
-        db.execute("DROP TABLE t1")
-        db.commit()
-    except pg8000.DatabaseError, e:
-        assert e.args[1] == '42P01' # table does not exist
-        db.rollback()
-        db.begin()
+# Tests relating to the basic operation of the database driver, driven by the
+# pg8000 custom interface.
+class QueryTests(unittest.TestCase):
+    def setUp(self):
+        try:
+            db.execute("DROP TABLE t1")
+        except pg8000.DatabaseError, e:
+            # the only acceptable error is:
+            self.assert_(e.args[1] == '42P01', # table does not exist
+                    "incorrect error for drop table")
+        db.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
 
-print "creating test table"
-db.begin()
-db.execute("CREATE TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
-db.commit()
+    def TestParallelQueries(self):
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 1, 1, None)
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 2, 10, None)
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 3, 100, None)
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 4, 1000, None)
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 5, 10000, None)
+        c1 = pg8000.Cursor(db)
+        c2 = pg8000.Cursor(db)
+        c1.execute("SELECT f1, f2, f3 FROM t1")
+        for row in c1.iterate_tuple():
+            f1, f2, f3 = row
+            c2.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > $1", f1)
+            for row in c2.iterate_tuple():
+                f1, f2, f3 = row
 
-print "testing db.execute on query, error recovery in on parsing"
-for i in range(1, 3):
-    db.begin()
-    try:
-        db.execute("SELECT * FROM table_that_does_not_exist")
-        print "error - shouldn't get here"
-        for row in db.iterate_dict():
-            print "definately shouldn't be here... %r" % row
-    except pg8000.DatabaseError, e:
-        assert e.args[1] == '42P01' # table does not exist
-        db.rollback()
-        db.begin()
+    def TestNoDataErrorRecovery(self):
+        for i in range(1, 4):
+            try:
+                db.execute("DROP TABLE t1")
+            except pg8000.DatabaseError, e:
+                # the only acceptable error is:
+                self.assert_(e.args[1] == '42P01', # table does not exist
+                        "incorrect error for drop table")
 
-print "testing multithreaded prepared statement with arguments"
-# Not the most efficient way to do this.  Multiple DB connections would
-# multiplex this insert and make it faster -- we're just testing for thread
-# safety here.  Testing with much higher values of left/right allows
-# multithread locking to be obvious.
-s1 = pg8000.PreparedStatement(db, "INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", int, int, str)
-def test(left, right):
-    for i in range(left, right):
-        s1.execute(i, id(threading.currentThread()), "test - unicode \u0173 ")
-t1 = threading.Thread(target=test, args=(1, 10))
-t2 = threading.Thread(target=test, args=(10, 20))
-t3 = threading.Thread(target=test, args=(20, 30))
-t4 = threading.Thread(target=test, args=(30, 40))
-t1.start() ; t2.start() ; t3.start() ; t4.start()
-t1.join(); t2.join(); t3.join(); t4.join()
+    def TestMultithreadedStatement(self):
+        # Note: Multithreading with a prepared statement is not highly
+        # recommended due to low performance.
+        s1 = pg8000.PreparedStatement(db, "INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", int, int, str)
+        def test(left, right):
+            for i in range(left, right):
+                s1.execute(i, id(threading.currentThread()), None)
+        t1 = threading.Thread(target=test, args=(1, 25))
+        t2 = threading.Thread(target=test, args=(25, 50))
+        t3 = threading.Thread(target=test, args=(50, 75))
+        t1.start(); t2.start(); t3.start()
+        t1.join(); t2.join(); t3.join()
 
-db.commit()
+    def TestMultithreadedCursor(self):
+        # Note: Multithreading with a cursor is not highly recommended due to
+        # low performance.
+        cur = pg8000.Cursor(db)
+        def test(left, right):
+            for i in range(left, right):
+                cur.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", i, id(threading.currentThread()), None)
+        t1 = threading.Thread(target=test, args=(1, 25))
+        t2 = threading.Thread(target=test, args=(25, 50))
+        t3 = threading.Thread(target=test, args=(50, 75))
+        t1.start(); t2.start(); t3.start()
+        t1.join(); t2.join(); t3.join()
 
+class ParamstyleTests(unittest.TestCase):
+    def TestQmark(self):
+        new_query, new_args = pg8000.DBAPI.convert_paramstyle("qmark", "SELECT ?, ?, \"field_?\" FROM t WHERE a='say ''what?''' AND b=? AND c=E'?\\'test\\'?'", (1, 2, 3))
+        assert new_query == "SELECT $1, $2, \"field_?\" FROM t WHERE a='say ''what?''' AND b=$3 AND c=E'?\\'test\\'?'"
+        assert new_args == (1, 2, 3)
 
-print "testing basic query..."
-db.execute("SELECT * FROM t1")
-for row in db.iterate_dict():
-    assert row.has_key("f1") and row.has_key("f2") and row.has_key("f3")
+    def TestQmark2(self):
+        new_query, new_args = pg8000.DBAPI.convert_paramstyle("qmark", "SELECT ?, ?, * FROM t WHERE a=? AND b='are you ''sure?'", (1, 2, 3))
+        assert new_query == "SELECT $1, $2, * FROM t WHERE a=$3 AND b='are you ''sure?'"
+        assert new_args == (1, 2, 3)
 
-print "testing two queries at once..."
-cur1 = pg8000.Cursor(db)
-cur1.execute("SELECT * FROM t1")
-print repr(cur1.row_description)
-s1 = pg8000.PreparedStatement(db, "SELECT f1, f2 FROM t1 WHERE f1 > $1", int)
-i = 0
-for row1 in cur1.iterate_dict():
-    assert row1.has_key("f1") and row1.has_key("f2") and row1.has_key("f3")
-    i = i + 1
-    s1.execute(row1['f1'])
-    for row2 in s1.iterate_dict():
-        assert row2.has_key("f1") and row2.has_key("f2") and not row2.has_key("f3")
+    def TestNumeric(self):
+        new_query, new_args = pg8000.DBAPI.convert_paramstyle("numeric", "SELECT :2, :1, * FROM t WHERE a=:3", (1, 2, 3))
+        assert new_query == "SELECT $2, $1, * FROM t WHERE a=$3"
+        assert new_args == (1, 2, 3)
 
-print "beginning type checks..."
+    def TestNamed(self):
+        new_query, new_args = pg8000.DBAPI.convert_paramstyle("named", "SELECT :f2, :f1 FROM t WHERE a=:f2", {"f2": 1, "f1": 2})
+        assert new_query == "SELECT $1, $2 FROM t WHERE a=$1"
+        assert new_args == (1, 2)
 
-cur1.execute("SELECT $1", 5)
-assert tuple(cur1.iterate_dict()) == ({"?column?": 5},)
+    def TestFormat(self):
+        new_query, new_args = pg8000.DBAPI.convert_paramstyle("format", "SELECT %s, %s, \"f1_%%\", E'txt_%%' FROM t WHERE a=%s AND b='75%%'", (1, 2, 3))
+        assert new_query == "SELECT $1, $2, \"f1_%\", E'txt_%' FROM t WHERE a=$3 AND b='75%'"
+        assert new_args == (1, 2, 3)
 
-cur1.execute("SELECT $1", 22.333)
-retval = tuple(cur1.iterate_dict())
-assert retval == ({"?column?": 22.332999999999998},)
-
-cur1.execute("SELECT $1", decimal.Decimal("22.333"))
-retval = tuple(cur1.iterate_dict())
-assert retval == ({"?column?": decimal.Decimal("22.333")},)
-
-cur1.execute("SELECT 5000::smallint")
-assert tuple(cur1.iterate_dict()) == ({"int2": 5000},)
-
-cur1.execute("SELECT 5000::integer")
-assert tuple(cur1.iterate_dict()) == ({"int4": 5000},)
-
-cur1.execute("SELECT 50000000000000::bigint")
-assert tuple(cur1.iterate_dict()) == ({"int8": 50000000000000},)
-
-cur1.execute("SELECT 5000.023232::decimal")
-assert tuple(cur1.iterate_dict()) == ({"numeric": decimal.Decimal("5000.023232")},)
-
-cur1.execute("SELECT 1.1::real")
-assert tuple(cur1.iterate_dict()) == ({"float4": 1.1000000238418579},)
-
-cur1.execute("SELECT 1.1::double precision")
-assert tuple(cur1.iterate_dict()) == ({"float8": 1.1000000000000001},)
-
-cur1.execute("SELECT 'hello'::varchar(50)")
-assert tuple(cur1.iterate_dict()) == ({"varchar": u"hello"},)
-
-cur1.execute("SELECT 'hello'::char(20)")
-assert tuple(cur1.iterate_dict()) == ({"bpchar": u"hello               "},)
-
-cur1.execute("SELECT 'hello'::text")
-assert tuple(cur1.iterate_dict()) == ({"text": u"hello"},)
-
-#cur1.execute("SELECT 'hell\007o'::bytea")
-#assert tuple(cur1.iterate_dict()) == ({"bytea": "hello"},)
-
-cur1.execute("SELECT '2001-02-03 04:05:06.17'::timestamp")
-retval = tuple(cur1.iterate_dict())
-assert retval == ({'timestamp': datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)},)
-
-#cur1.execute("SELECT '2001-02-03 04:05:06.17'::timestamp with time zone")
-#assert tuple(cur1.iterate_dict()) == ({'timestamp': datetime.datetime(2001, 2, 3, 4, 5, 6, 170000, pg8000.Types.FixedOffsetTz("-07"))},)
-
-cur1.execute("SELECT '1 month'::interval")
-assert tuple(cur1.iterate_dict()) == ({'interval': '1 mon'},)
-#print repr(tuple(cur1.iterate_dict()))
+    def TestPyformat(self):
+        new_query, new_args = pg8000.DBAPI.convert_paramstyle("pyformat", "SELECT %(f2)s, %(f1)s, \"f1_%%\", E'txt_%%' FROM t WHERE a=%(f2)s AND b='75%%'", {"f2": 1, "f1": 2, "f3": 3})
+        assert new_query == "SELECT $1, $2, \"f1_%\", E'txt_%' FROM t WHERE a=$1 AND b='75%'"
+        assert new_args == (1, 2)
 
 
-print "tests complete"
+class DBAPITests(unittest.TestCase):
+    def setUp(self):
+        c = db2.cursor()
+        try:
+            c.execute("DROP TABLE t1")
+        except pg8000.DatabaseError, e:
+            # the only acceptable error is:
+            self.assert_(e.args[1] == '42P01', # table does not exist
+                    "incorrect error for drop table")
+        c.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
+
+    def TestParallelQueries(self):
+        c1 = db2.cursor()
+        c2 = db2.cursor()
+        c1.execute("SELECT f1, f2, f3 FROM t1")
+        while 1:
+            row = c1.fetchone()
+            if row == None:
+                break
+            f1, f2, f3 = row
+            c2.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (f1,))
+            while 1:
+                row = c2.fetchone()
+                if row == None:
+                    break
+                f1, f2, f3 = row
+
+    def TestQmark(self):
+        orig_paramstyle = dbapi.paramstyle
+        try:
+            dbapi.paramstyle = "qmark"
+            c1 = db2.cursor()
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > ?", (3,))
+            while 1:
+                row = c1.fetchone()
+                if row == None:
+                    break
+                f1, f2, f3 = row
+        finally:
+            dbapi.paramstyle = orig_paramstyle
+
+    def TestNumeric(self):
+        orig_paramstyle = dbapi.paramstyle
+        try:
+            dbapi.paramstyle = "numeric"
+            c1 = db2.cursor()
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :1", (3,))
+            while 1:
+                row = c1.fetchone()
+                if row == None:
+                    break
+                f1, f2, f3 = row
+        finally:
+            dbapi.paramstyle = orig_paramstyle
+
+    def TestNamed(self):
+        orig_paramstyle = dbapi.paramstyle
+        try:
+            dbapi.paramstyle = "named"
+            c1 = db2.cursor()
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
+            while 1:
+                row = c1.fetchone()
+                if row == None:
+                    break
+                f1, f2, f3 = row
+        finally:
+            dbapi.paramstyle = orig_paramstyle
+
+    def TestFormat(self):
+        orig_paramstyle = dbapi.paramstyle
+        try:
+            dbapi.paramstyle = "format"
+            c1 = db2.cursor()
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (3,))
+            while 1:
+                row = c1.fetchone()
+                if row == None:
+                    break
+                f1, f2, f3 = row
+        finally:
+            dbapi.paramstyle = orig_paramstyle
+    
+    def TestPyformat(self):
+        orig_paramstyle = dbapi.paramstyle
+        try:
+            dbapi.paramstyle = "pyformat"
+            c1 = db2.cursor()
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
+            while 1:
+                row = c1.fetchone()
+                if row == None:
+                    break
+                f1, f2, f3 = row
+        finally:
+            dbapi.paramstyle = orig_paramstyle
+
+# Tests relating to type conversion.
+class TypeTests(unittest.TestCase):
+    def TestNullRoundtrip(self):
+        # We can't just "SELECT $1" and set None as the parameter, since it has
+        # no type.  That would result in a PG error, "could not determine data
+        # type of parameter $1".  So we create a temporary table, insert null
+        # values, and read them back.
+        db.execute("CREATE TEMPORARY TABLE TestNullWrite (f1 int4, f2 timestamp, f3 varchar)")
+        db.execute("INSERT INTO TestNullWrite VALUES ($1, $2, $3)",
+                None, None, None)
+        db.execute("SELECT * FROM TestNullWrite")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": None, "f2": None, "f3": None},),
+                "retrieved value match failed")
+
+    def TestNullSelectFailure(self):
+        # See comment in TestNullRoundtrip.  This test is here to ensure that
+        # this behaviour is documented and doesn't mysteriously change.
+        self.assertRaises(pg8000.ProgrammingError, db.execute,
+                "SELECT $1 as f1", None)
+
+    def TestDecimalRoundtrip(self):
+        db.execute("SELECT $1 as f1", decimal.Decimal('1.1'))
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": decimal.Decimal('1.1')},),
+                "retrieved value match failed")
+
+    def TestFloatRoundtrip(self):
+        # This test ensures that the binary float value doesn't change in a
+        # roundtrip to the server.  That could happen if the value was
+        # converted to text and got rounded by a decimal place somewhere.
+        val = 1.756e-12
+        bin_orig = struct.pack("!d", val)
+        db.execute("SELECT $1 as f1", val)
+        retval = tuple(db.iterate_dict())
+        bin_new = struct.pack("!d", retval[0]['f1'])
+        self.assert_(bin_new == bin_orig,
+                "retrieved value match failed")
+
+    def TestStrRoundtrip(self):
+        db.execute("SELECT $1 as f1", "hello world")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": u"hello world"},),
+                "retrieved value match failed")
+
+    def TestUnicodeRoundtrip(self):
+        db.execute("SELECT $1 as f1", u"hello \u0173 world")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": u"hello \u0173 world"},),
+                "retrieved value match failed")
+
+    def TestLongRoundtrip(self):
+        db.execute("SELECT $1 as f1", 50000000000000L)
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": 50000000000000L},),
+                "retrieved value match failed")
+
+    def TestIntRoundtrip(self):
+        db.execute("SELECT $1 as f1", 100)
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": 100},),
+                "retrieved value match failed")
+
+    def TestByteaRoundtrip(self):
+        db.execute("SELECT $1 as f1", pg8000.Bytea("\x00\x01\x02\x03\x02\x01\x00"))
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": "\x00\x01\x02\x03\x02\x01\x00"},),
+                "retrieved value match failed")
+
+    def TestOidIn(self):
+        db.execute("SELECT oid FROM pg_type")
+        retval = tuple(db.iterate_dict())
+        # It is sufficient that no errors were encountered.
+
+    def TestBooleanOut(self):
+        db.execute("SELECT 't'::bool")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"bool": True},),
+                "retrieved value match failed")
+
+    def TestNumericOut(self):
+        db.execute("SELECT 5000::numeric")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"numeric": decimal.Decimal("5000")},),
+                "retrieved value match failed")
+
+    def TestInt2Out(self):
+        db.execute("SELECT 5000::smallint")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"int2": 5000},),
+                "retrieved value match failed")
+
+    def TestInt4Out(self):
+        db.execute("SELECT 5000::integer")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"int4": 5000},),
+                "retrieved value match failed")
+
+    def TestInt8Out(self):
+        db.execute("SELECT 50000000000000::bigint")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"int8": 50000000000000},),
+                "retrieved value match failed")
+
+    def TestFloat4Out(self):
+        db.execute("SELECT 1.1::real")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"float4": 1.1000000238418579},),
+                "retrieved value match failed")
+
+    def TestFloat8Out(self):
+        db.execute("SELECT 1.1::double precision")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"float8": 1.1000000000000001},),
+                "retrieved value match failed")
+
+    def TestVarcharOut(self):
+        db.execute("SELECT 'hello'::varchar(20)")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"varchar": u"hello"},),
+                "retrieved value match failed")
+
+    def TestCharOut(self):
+        db.execute("SELECT 'hello'::char(20)")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"bpchar": u"hello               "},),
+                "retrieved value match failed")
+
+    def TestTextOut(self):
+        db.execute("SELECT 'hello'::text")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"text": u"hello"},),
+                "retrieved value match failed")
+
+    def TestIntervalOut(self):
+        db.execute("SELECT '1 month'::interval")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"interval": "1 mon"},),
+                "retrieved value match failed")
+
+    def TestTimestampOut(self):
+        db.execute("SELECT '2001-02-03 04:05:06.17'::timestamp")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"timestamp": datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)},),
+                "retrieved value match failed")
+
+
+def suite():
+    paramstyle_tests = unittest.makeSuite(ParamstyleTests, "Test")
+    dbapi_tests = unittest.makeSuite(DBAPITests, "Test")
+    query_tests = unittest.makeSuite(QueryTests, "Test")
+    type_tests = unittest.makeSuite(TypeTests, "Test")
+    return unittest.TestSuite((paramstyle_tests, dbapi_tests, query_tests,
+        type_tests))
+
+if __name__ == "__main__":
+    runner = unittest.TextTestRunner()
+    runner.run(suite())
+

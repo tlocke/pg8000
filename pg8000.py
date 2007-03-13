@@ -290,7 +290,12 @@ class DBAPI(object):
             if self.cursor == None:
                 raise InterfaceError("cursor is closed")
             new_query, new_args = DBAPI.convert_paramstyle(DBAPI.paramstyle, operation, args)
-            self.cursor.execute(new_query, *new_args)
+            try:
+                self.cursor.execute(new_query, *new_args)
+            except:
+                # any error will rollback the transaction to-date
+                self.cursor.connection.rollback()
+                raise
 
         def executemany(self, operation, parameter_sets):
             for parameters in parameter_sets:
