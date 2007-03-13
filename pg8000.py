@@ -712,6 +712,10 @@ class Protocol(object):
             val = self.ps + "\x00" + self.qs + "\x00"
             val = val + struct.pack("!h", len(self.type_oids))
             for oid in self.type_oids:
+                # Parse message doesn't seem to handle the -1 type_oid for NULL
+                # values that other messages handle.  So we'll provide type_oid 705,
+                # the PG "unknown" type.
+                if oid == -1: oid = 705
                 val = val + struct.pack("!i", oid)
             val = struct.pack("!i", len(val) + 4) + val
             val = "P" + val
@@ -1279,7 +1283,11 @@ class Protocol(object):
         "t": ParameterDescription,
         }
 
+class Bytea(str):
+    pass
+
 class Types(object):
+
     def pg_type_info(typ):
         data = Types.py_types.get(typ)
         if data == None:
@@ -1287,6 +1295,9 @@ class Types(object):
         type_oid = data.get("tid")
         if type_oid == None:
             raise InternalError("type %r has no type_oid" % typ)
+        elif type_oid == -1:
+            # special case: NULL values
+            return type_oid, 0
         prefer = data.get("prefer")
         if prefer != None:
             if prefer == "bin":
@@ -1476,6 +1487,9 @@ class Types(object):
         def dst(self, dt):
             return datetime.timedelta(0)
 
+    def byteasend(v, **kwargs):
+        return str(v)
+
     def bytearecv(data, **kwargs):
         return Bytea(data)
 
@@ -1490,6 +1504,7 @@ class Types(object):
         unicode: {"tid": 25, "txt_out": textout},
         float: {"tid": 701, "bin_out": float8send},
         decimal.Decimal: {"tid": 1700, "txt_out": numeric_out},
+        Bytea: {"tid": 17, "bin_out": byteasend},
         type(None): {"tid": -1},
     }
 
@@ -1511,7 +1526,5 @@ class Types(object):
     }
         #1184: (timestamptz_in, None), # timestamp w/ tz
 
-class Bytea(str):
-    pass
 
 
