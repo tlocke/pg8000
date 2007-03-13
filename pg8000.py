@@ -361,10 +361,10 @@ class DBAPI(object):
         def close(self):
             self.conn = None
 
-    def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60):
+    def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
         return DBAPI.ConnectionWrapper(user=user, host=host,
                 unix_sock=unix_sock, port=port, database=database,
-                password=password, socket_timeout=socket_timeout)
+                password=password, socket_timeout=socket_timeout, ssl=ssl)
     connect = staticmethod(connect)
 
     def Date(year, month, day):
@@ -691,14 +691,20 @@ class Cursor(object):
 #
 # @keyparam socket_timeout  Socket connect timeout measured in seconds.
 # Defaults to 60 seconds.
+#
+# @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
 class Connection(Cursor):
-    def __init__(self, user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60):
+    def __init__(self, user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
         self._row_desc = None
         try:
-            self.c = Protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout)
+            self.c = Protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout, ssl=ssl)
             #self.c.connect()
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
+            print repr(e)
+            print dir(e)
+            print str(e)
+
             raise InterfaceError("communication error", e)
         Cursor.__init__(self, self)
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
@@ -728,6 +734,14 @@ class Connection(Cursor):
 
 
 class Protocol(object):
+
+    class SSLRequest(object):
+        def __init__(self):
+            pass
+
+        def serialize(selF):
+            return struct.pack("!ii", 8, 80877103)
+
     class StartupMessage(object):
         def __init__(self, user, database=None):
             self.user = user
@@ -1069,8 +1083,16 @@ class Protocol(object):
             return Protocol.DataRow(fields)
         createFromData = staticmethod(createFromData)
 
+    class SSLWrapper(object):
+        def __init__(self, sslobj):
+            self.sslobj = sslobj
+        def send(self, data):
+            self.sslobj.write(data)
+        def recv(self, num):
+            return self.sslobj.read(num)
+
     class Connection(object):
-        def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60):
+        def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
             self._client_encoding = "ascii"
             if unix_sock == None and host != None:
                 self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1078,11 +1100,20 @@ class Protocol(object):
                 self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             else:
                 raise ProgrammingError("one of host or unix_sock must be provided")
-            self._sock.settimeout(socket_timeout)
             if unix_sock == None and host != None:
                 self._sock.connect((host, port))
             elif unix_sock != None:
                 self._sock.connect(unix_sock)
+            if ssl:
+                self._send(Protocol.SSLRequest())
+                resp = self._sock.recv(1)
+                if resp == 'S':
+                    self._sock = Protocol.SSLWrapper(socket.ssl(self._sock))
+                else:
+                    raise InterfaceError("server refuses SSL")
+            else:
+                # settimeout causes ssl failure, on windows.  Python bug 1462352.
+                self._sock.settimeout(socket_timeout)
             self._state = "noauth"
             self._backend_key_data = None
             self._sock_lock = threading.Lock()

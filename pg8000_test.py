@@ -12,7 +12,8 @@ db_connect = {
         "user": "pg8000-test",
         "database": "pg8000-test",
         "password": "pg8000-test",
-        "socket_timeout": 5
+        "socket_timeout": 5,
+        "ssl": False,
         }
 db = pg8000.Connection(**db_connect)
 dbapi = pg8000.DBAPI
