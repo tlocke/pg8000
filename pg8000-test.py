@@ -214,6 +214,52 @@ class DBAPITests(unittest.TestCase):
         finally:
             dbapi.paramstyle = orig_paramstyle
 
+    def TestArraysize(self):
+        c1 = db2.cursor()
+        c1.arraysize = 3
+        c1.execute("SELECT * FROM t1")
+        retval = c1.fetchmany()
+        self.assert_(len(retval) == c1.arraysize,
+                "fetchmany returned wrong number of rows")
+
+    def TestDate(self):
+        val = dbapi.Date(2001, 2, 3)
+        self.assert_(val == datetime.date(2001, 2, 3),
+                "Date constructor value match failed")
+
+    def TestTime(self):
+        val = dbapi.Time(4, 5, 6)
+        self.assert_(val == datetime.time(4, 5, 6),
+                "Time constructor value match failed")
+
+    def TestTimestamp(self):
+        val = dbapi.Timestamp(2001, 2, 3, 4, 5, 6)
+        self.assert_(val == datetime.datetime(2001, 2, 3, 4, 5, 6),
+                "Timestamp constructor value match failed")
+
+    def TestDateFromTicks(self):
+        val = dbapi.DateFromTicks(1173804319)
+        self.assert_(val == datetime.date(2007, 3, 13),
+                "DateFromTicks constructor value match failed")
+
+    def TestTimeFromTicks(self):
+        val = dbapi.TimeFromTicks(1173804319)
+        self.assert_(val == datetime.time(10, 45, 19),
+                "TimeFromTicks constructor value match failed")
+
+    def TestTimestampFromTicks(self):
+        val = dbapi.TimestampFromTicks(1173804319)
+        self.assert_(val == datetime.datetime(2007, 3, 13, 10, 45, 19),
+                "TimestampFromTicks constructor value match failed")
+
+    def TestBinary(self):
+        v = dbapi.Binary("\x00\x01\x02\x03\x02\x01\x00")
+        self.assert_(v == "\x00\x01\x02\x03\x02\x01\x00",
+                "Binary value match failed")
+        self.assert_(isinstance(v, pg8000.Bytea),
+                "Binary type match failed")
+
+
 # Tests relating to type conversion.
 class TypeTests(unittest.TestCase):
     def TestNullRoundtrip(self):

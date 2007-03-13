@@ -35,6 +35,7 @@ import datetime
 import md5
 import decimal
 import threading
+import time
 
 class Warning(StandardError):
     pass
@@ -365,6 +366,51 @@ class DBAPI(object):
                 unix_sock=unix_sock, port=port, database=database,
                 password=password, socket_timeout=socket_timeout)
     connect = staticmethod(connect)
+
+    def Date(year, month, day):
+        return datetime.date(year, month, day)
+    Date = staticmethod(Date)
+
+    def Time(hour, minute, second):
+        return datetime.time(hour, minute, second)
+    Time = staticmethod(Time)
+
+    def Timestamp(year, month, day, hour, minute, second):
+        return datetime.datetime(year, month, day, hour, minute, second)
+    Timestamp = staticmethod(Timestamp)
+
+    def DateFromTicks(ticks):
+        return DBAPI.Date(*time.localtime(ticks)[:3])
+    DateFromTicks = staticmethod(DateFromTicks)
+
+    def TimeFromTicks(ticks):
+        return DBAPI.Time(*time.localtime(ticks)[3:6])
+    TimeFromTicks = staticmethod(TimeFromTicks)
+
+    def TimestampFromTicks(ticks):
+        return DBAPI.Timestamp(*time.localtime(ticks)[:6])
+    TimestampFromTicks = staticmethod(TimestampFromTicks)
+
+    def Binary(value):
+        return Bytea(value)
+    Binary = staticmethod(Binary)
+
+    # I have no idea what this would be used for by a client app.  Should it be
+    # TEXT, VARCHAR, CHAR?  It will only compare against row_description's
+    # type_code if it is this one type.  It is the TEXT type_oid for now.
+    STRING = 25
+
+    # bytea type_oid
+    BINARY = 17
+
+    # numeric type_oid
+    NUMBER = 1700
+
+    # timestamp type_oid
+    DATETIME = 1114
+
+    # oid type_oid
+    ROWID = 26
 
 
 ##
