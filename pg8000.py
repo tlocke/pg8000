@@ -701,10 +701,6 @@ class Connection(Cursor):
             #self.c.connect()
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
-            print repr(e)
-            print dir(e)
-            print str(e)
-
             raise InterfaceError("communication error", e)
         Cursor.__init__(self, self)
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
