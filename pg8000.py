@@ -84,6 +84,7 @@ class DBAPI(object):
     Warning = Warning
     Error = Error
     InterfaceError = InterfaceError
+    InternalError = InternalError
     DatabaseError = DatabaseError
     DataError = DataError
     OperationalError = OperationalError
@@ -272,7 +273,17 @@ class DBAPI(object):
             self.cursor = Cursor(conn)
             self.arraysize = 1
 
+        rowcount = property(lambda self: self._getRowCount())
+        def _getRowCount(self):
+            return -1
+
+        description = property(lambda self: self._getDescription())
+        def _getDescription(self):
+            return None
+
         def execute(self, operation, args=()):
+            if self.cursor == None:
+                raise InterfaceError("cursor is closed")
             new_query, new_args = DBAPI.convert_paramstyle(DBAPI.paramstyle, operation, args)
             self.cursor.execute(new_query, *new_args)
 
@@ -281,6 +292,8 @@ class DBAPI(object):
                 self.execute(operation, parameters)
 
         def fetchone(self):
+            if self.cursor == None:
+                raise InterfaceError("cursor is closed")
             return self.cursor.read_tuple()
 
         def fetchmany(self, size=None):
@@ -292,6 +305,8 @@ class DBAPI(object):
             return rows
 
         def fetchall(self):
+            if self.cursor == None:
+                raise InterfaceError("cursor is closed")
             return tuple(self.cursor.iterate_tuple())
 
         def close(self):
@@ -320,11 +335,15 @@ class DBAPI(object):
             # database connection entirely, so that no cursors can execute
             # statements on other threads.  Support for that type of lock will
             # be done later.
+            if self.conn == None:
+                raise InterfaceError("connection is closed")
             self.conn.commit()
             self.conn.begin()
 
         def rollback(self):
             # see bug description in commit.
+            if self.conn == None:
+                raise InterfaceError("connection is closed")
             self.conn.rollback()
             self.conn.begin()
 
@@ -1451,6 +1470,7 @@ class Types(object):
 
     py_types = {
         int: {"tid": 1700, "txt_out": numeric_out},
+        long: {"tid": 1700, "txt_out": numeric_out},
         str: {"tid": 25, "txt_out": textout},
         unicode: {"tid": 25, "txt_out": textout},
         float: {"tid": 701, "bin_out": float8send},
@@ -1465,6 +1485,7 @@ class Types(object):
         21: {"txt_in": int2in, "bin_in": int2recv, "prefer": "bin"},
         23: {"txt_in": int4in, "bin_in": int4recv, "prefer": "bin"},
         25: {"txt_in": varcharin}, # TEXT type
+        26: {"txt_in": numeric_in}, # oid type
         700: {"txt_in": float4in, "bin_in": float4recv, "prefer": "bin"},
         701: {"txt_in": float8in, "bin_in": float8recv, "prefer": "bin"},
         1042: {"txt_in": varcharin}, # CHAR type
