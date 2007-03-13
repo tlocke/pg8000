@@ -1496,6 +1496,9 @@ class Types(object):
         sec = decimal.Decimal(data[17:])
         return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
+    def timestamp_out(v, **kwargs):
+        return v.isoformat(' ')
+
     def numeric_in(data, **kwargs):
         if data.find(".") == -1:
             return int(data)
@@ -1556,6 +1559,7 @@ class Types(object):
         float: {"tid": 701, "bin_out": float8send},
         decimal.Decimal: {"tid": 1700, "txt_out": numeric_out},
         Bytea: {"tid": 17, "bin_out": byteasend},
+        datetime.datetime: {"tid": 1114, "txt_out": timestamp_out},
         type(None): {"tid": -1},
     }
 

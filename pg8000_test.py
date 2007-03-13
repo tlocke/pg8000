@@ -329,6 +329,13 @@ class TypeTests(unittest.TestCase):
         self.assert_(retval == ({"f1": "\x00\x01\x02\x03\x02\x01\x00"},),
                 "retrieved value match failed")
 
+    def TestTimestampRoundtrip(self):
+        v = datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)
+        db.execute("SELECT $1 as f1", v)
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": v},),
+                "retrieved value match failed")
+
     def TestOidIn(self):
         db.execute("SELECT oid FROM pg_type")
         retval = tuple(db.iterate_dict())
