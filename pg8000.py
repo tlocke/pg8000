@@ -469,6 +469,8 @@ class PreparedStatement(object):
 
     row_description = property(lambda self: self._getRowDescription())
     def _getRowDescription(self):
+        if self._row_desc == None:
+            return None
         return self._row_desc.fields
 
     ##
