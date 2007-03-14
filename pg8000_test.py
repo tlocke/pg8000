@@ -7,7 +7,7 @@ import unittest
 import pg8000
 import struct
 
-db_connect = {
+db_joy_connect = {
         "host": "joy",
         "user": "pg8000-test",
         "database": "pg8000-test",
@@ -15,6 +15,11 @@ db_connect = {
         "socket_timeout": 5,
         "ssl": False,
         }
+db_local_connect = {
+        "unix_sock": "/tmp/.s.PGSQL.5432",
+        "user": "mfenniak"
+        }
+db_connect = db_local_connect
 db = pg8000.Connection(**db_connect)
 dbapi = pg8000.DBAPI
 db2 = dbapi.connect(**db_connect)
@@ -263,6 +268,24 @@ class DBAPITests(unittest.TestCase):
 
 # Tests relating to type conversion.
 class TypeTests(unittest.TestCase):
+    def TestTimeRoundtrip(self):
+        db.execute("SELECT $1 as f1", datetime.time(4, 5, 6))
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": datetime.time(4, 5, 6)},),
+                "retrieved value match failed")
+
+    def TestDateRoundtrip(self):
+        db.execute("SELECT $1 as f1", datetime.date(2001, 2, 3))
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": datetime.date(2001, 2, 3)},),
+                "retrieved value match failed")
+
+    def TestBoolRoundtrip(self):
+        db.execute("SELECT $1 as f1", True)
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": True},),
+                "retrieved value match failed")
+
     def TestNullRoundtrip(self):
         # We can't just "SELECT $1" and set None as the parameter, since it has
         # no type.  That would result in a PG error, "could not determine data
@@ -337,7 +360,24 @@ class TypeTests(unittest.TestCase):
         self.assert_(retval == ({"f1": v},),
                 "retrieved value match failed")
 
-    def TestOidIn(self):
+    def TestTimestampTzOut(self):
+        db.execute("SELECT '2001-02-03 04:05:06.17 Canada/Mountain'::timestamp with time zone")
+        retval = tuple(db.iterate_dict())
+        dt = retval[0]['timestamptz']
+        self.assert_(dt.tzinfo.hrs == -7,
+                "timezone hrs != -7")
+        self.assert_(
+                datetime.datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond) ==
+                datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
+                "retrieved value match failed")
+
+    def TestNameOut(self):
+        # select a field that is of "name" type:
+        db.execute("SELECT usename FROM pg_user")
+        retval = tuple(db.iterate_dict())
+        # It is sufficient that no errors were encountered.
+
+    def TestOidOut(self):
         db.execute("SELECT oid FROM pg_type")
         retval = tuple(db.iterate_dict())
         # It is sufficient that no errors were encountered.

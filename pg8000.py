@@ -37,6 +37,8 @@ import decimal
 import threading
 import time
 
+debug_log = file("/Users/mfenniak/SQLAlchemy-0.3.5/pg8000_debug.log", "w")
+
 class Warning(StandardError):
     pass
 
@@ -105,6 +107,7 @@ class DBAPI(object):
         #  1 -- inside single-quote string '...'
         #  2 -- inside quoted identifier   "..."
         #  3 -- inside escaped single-quote string, E'...'
+        debug_log.write("convert_paramstyle(%r, %r, %r)\n" % (src_style, query, args))
         state = 0
         output_query = ""
         output_args = []
@@ -288,6 +291,7 @@ class DBAPI(object):
             return columns
 
         def execute(self, operation, args=()):
+            debug_log.write("execute(%r, %r)\n" % (operation, args))
             if self.cursor == None:
                 raise InterfaceError("cursor is closed")
             new_query, new_args = DBAPI.convert_paramstyle(DBAPI.paramstyle, operation, args)
@@ -1474,6 +1478,12 @@ class Types(object):
     def boolrecv(data, **kwargs):
         return data == "\x01"
 
+    def boolout(v, **kwargs):
+        if v:
+            return 't'
+        else:
+            return 'f'
+
     def int2recv(data, **kwargs):
         return struct.unpack("!h", data)[0]
 
@@ -1528,6 +1538,24 @@ class Types(object):
     def timestamp_out(v, **kwargs):
         return v.isoformat(' ')
 
+    def date_in(data, **kwargs):
+        year = int(data[0:4])
+        month = int(data[5:7])
+        day = int(data[8:10])
+        return datetime.date(year, month, day)
+
+    def date_out(v, **kwargs):
+        return v.isoformat()
+
+    def time_in(data, **kwargs):
+        hour = int(data[0:2])
+        minute = int(data[3:5])
+        sec = decimal.Decimal(data[6:])
+        return datetime.time(hour, minute, int(sec), int((sec - int(sec)) * 1000000))
+
+    def time_out(v, **kwargs):
+        return v.isoformat()
+
     def numeric_in(data, **kwargs):
         if data.find(".") == -1:
             return int(data)
@@ -1543,7 +1571,7 @@ class Types(object):
     def textout(v, client_encoding, **kwargs):
         return v.encode(client_encoding)
 
-    def timestamptz_in(data, description):
+    def timestamptz_in(data, **kwargs):
         year = int(data[0:4])
         month = int(data[5:7])
         day = int(data[8:10])
@@ -1552,8 +1580,6 @@ class Types(object):
         tz_sep = data.rfind("-")
         sec = decimal.Decimal(data[17:tz_sep])
         tz = data[tz_sep:]
-        print repr(data), repr(description)
-        print repr(tz)
         return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000), Types.FixedOffsetTz(tz))
 
     class FixedOffsetTz(datetime.tzinfo):
@@ -1570,6 +1596,11 @@ class Types(object):
         def dst(self, dt):
             return datetime.timedelta(0)
 
+        def __eq__(self, other):
+            if not isinstance(other, FixedOffsetTz):
+                return False
+            return self.hrs == other.hrs
+
     def byteasend(v, **kwargs):
         return str(v)
 
@@ -1581,6 +1612,7 @@ class Types(object):
         return data
 
     py_types = {
+        bool: {"tid": 16, "txt_out": boolout},
         int: {"tid": 1700, "txt_out": numeric_out},
         long: {"tid": 1700, "txt_out": numeric_out},
         str: {"tid": 25, "txt_out": textout},
@@ -1589,12 +1621,15 @@ class Types(object):
         decimal.Decimal: {"tid": 1700, "txt_out": numeric_out},
         Bytea: {"tid": 17, "bin_out": byteasend},
         datetime.datetime: {"tid": 1114, "txt_out": timestamp_out},
+        datetime.date: {"tid": 1082, "txt_out": date_out},
+        datetime.time: {"tid": 1083, "txt_out": time_out},
         type(None): {"tid": -1},
     }
 
     pg_types = {
         16: {"txt_in": boolin, "bin_in": boolrecv, "prefer": "bin"},
         17: {"bin_in": bytearecv},
+        19: {"txt_in": varcharin}, # name type
         20: {"txt_in": int8in, "bin_in": int8recv, "prefer": "bin"},
         21: {"txt_in": int2in, "bin_in": int2recv, "prefer": "bin"},
         23: {"txt_in": int4in, "bin_in": int4recv, "prefer": "bin"},
@@ -1604,11 +1639,13 @@ class Types(object):
         701: {"txt_in": float8in, "bin_in": float8recv, "prefer": "bin"},
         1042: {"txt_in": varcharin}, # CHAR type
         1043: {"txt_in": varcharin}, # VARCHAR type
-        1114: {"txt_in": timestamp_in}, #, "bin_in": timestamp_recv, "prefer": "bin"},
+        1082: {"txt_in": date_in},
+        1083: {"txt_in": time_in},
+        1114: {"txt_in": timestamp_in},
+        1184: {"txt_in": timestamptz_in}, # timestamp w/ tz
         1186: {"txt_in": interval_in},
         1700: {"txt_in": numeric_in},
     }
-        #1184: (timestamptz_in, None), # timestamp w/ tz
 
 
 
