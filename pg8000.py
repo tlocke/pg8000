@@ -524,8 +524,7 @@ class PreparedStatement(object):
                     # no rows after filling our cache.  This is a special case when
                     # a query returns no rows.
                     return None
-            row = self._cached_rows[0]
-            del self._cached_rows[0]
+            row = self._cached_rows.pop(0)
             return tuple(row)
         finally:
             self._lock.release()
