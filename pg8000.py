@@ -37,8 +37,6 @@ import decimal
 import threading
 import time
 
-debug_log = file("/Users/mfenniak/SQLAlchemy-0.3.5/pg8000_debug.log", "w")
-
 class Warning(StandardError):
     pass
 
@@ -107,7 +105,6 @@ class DBAPI(object):
         #  1 -- inside single-quote string '...'
         #  2 -- inside quoted identifier   "..."
         #  3 -- inside escaped single-quote string, E'...'
-        debug_log.write("convert_paramstyle(%r, %r, %r)\n" % (src_style, query, args))
         state = 0
         output_query = ""
         output_args = []
@@ -291,7 +288,6 @@ class DBAPI(object):
             return columns
 
         def execute(self, operation, args=()):
-            debug_log.write("execute(%r, %r)\n" % (operation, args))
             if self.cursor == None:
                 raise InterfaceError("cursor is closed")
             new_query, new_args = DBAPI.convert_paramstyle(DBAPI.paramstyle, operation, args)
@@ -703,7 +699,6 @@ class Connection(Cursor):
         self._row_desc = None
         try:
             self.c = Protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout, ssl=ssl)
-            #self.c.connect()
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
             raise InterfaceError("communication error", e)
@@ -1564,11 +1559,16 @@ class Types(object):
     def numeric_out(v, **kwargs):
         return str(v)
 
+    def encoding_convert(encoding):
+        encodings = {"sql_ascii": "ascii"}
+        return encodings.get(encoding.lower(), encoding)
+    encoding_convert = staticmethod(encoding_convert)
+
     def varcharin(data, client_encoding, **kwargs):
-        return unicode(data, client_encoding)
+        return unicode(data, Types.encoding_convert(client_encoding))
 
     def textout(v, client_encoding, **kwargs):
-        return v.encode(client_encoding)
+        return v.encode(Types.encoding_convert(client_encoding))
 
     def timestamptz_in(data, **kwargs):
         year = int(data[0:4])
