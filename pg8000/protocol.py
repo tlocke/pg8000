@@ -32,6 +32,7 @@ __author__ = "Mathieu Fenniak"
 import socket
 import threading
 import struct
+import md5
 
 from errors import *
 import types
@@ -40,7 +41,7 @@ class SSLRequest(object):
     def __init__(self):
         pass
 
-    def serialize(selF):
+    def serialize(self):
         return struct.pack("!ii", 8, 80877103)
 
 class StartupMessage(object):
