@@ -1376,26 +1376,13 @@ class Types(object):
         elif type_oid == -1:
             # special case: NULL values
             return type_oid, 0
-        prefer = data.get("prefer")
-        if prefer != None:
-            if prefer == "bin":
-                if data.get("bin_out") == None:
-                    raise InternalError("bin format prefered but not avail for type %r" % typ)
-                format = 1
-            elif prefer == "txt":
-                if data.get("txt_out") == None:
-                    raise InternalError("txt format prefered but not avail for type %r" % typ)
-                format = 0
-            else:
-                raise InternalError("prefer flag not recognized for type %r" % typ)
+        # prefer bin, but go with whatever exists
+        if data.get("bin_out"):
+            format = 1
+        elif data.get("txt_out"):
+            format = 0
         else:
-            # by default, prefer bin, but go with whatever exists
-            if data.get("bin_out"):
-                format = 1
-            elif data.get("txt_out"):
-                format = 0
-            else:
-                raise InternalError("no conversion fuction for type %r" % typ)
+            raise InternalError("no conversion fuction for type %r" % typ)
         return type_oid, format
     pg_type_info = staticmethod(pg_type_info)
 
@@ -1423,26 +1410,13 @@ class Types(object):
         data = Types.pg_types.get(type_oid)
         if data == None:
             raise NotSupportedError("type oid %r not mapped to py type" % type_oid)
-        prefer = data.get("prefer")
-        if prefer != None:
-            if prefer == "bin":
-                if data.get("bin_in") == None:
-                    raise InternalError("bin format prefered but not avail for type oid %r" % type_oid)
-                format = 1
-            elif prefer == "txt":
-                if data.get("txt_in") == None:
-                    raise InternalError("txt format prefered but not avail for type oid %r" % type_oid)
-                format = 0
-            else:
-                raise InternalError("prefer flag not recognized for type oid %r" % type_oid)
+        # prefer bin, but go with whatever exists
+        if data.get("bin_in"):
+            format = 1
+        elif data.get("txt_in"):
+            format = 0
         else:
-            # by default, prefer bin, but go with whatever exists
-            if data.get("bin_in"):
-                format = 1
-            elif data.get("txt_in"):
-                format = 0
-            else:
-                raise InternalError("no conversion fuction for type oid %r" % type_oid)
+            raise InternalError("no conversion fuction for type oid %r" % type_oid)
         return format
     py_type_info = staticmethod(py_type_info)
 
@@ -1466,9 +1440,6 @@ class Types(object):
         return func(v, **kwargs)
     py_value = staticmethod(py_value)
 
-    def boolin(data, **kwargs):
-        return data == 't'
-
     def boolrecv(data, **kwargs):
         return data == "\x01"
 
@@ -1481,32 +1452,17 @@ class Types(object):
     def int2recv(data, **kwargs):
         return struct.unpack("!h", data)[0]
 
-    def int2in(data, **kwargs):
-        return int(data)
-
     def int4recv(data, **kwargs):
         return struct.unpack("!i", data)[0]
 
-    def int4in(data, **kwargs):
-        return int(data)
-
     def int8recv(data, **kwargs):
         return struct.unpack("!q", data)[0]
-
-    def int8in(data, **kwargs):
-        return int(data)
-
-    def float4in(data, **kwargs):
-        return float(data)
 
     def float4recv(data, **kwargs):
         return struct.unpack("!f", data)[0]
 
     def float8recv(data, **kwargs):
         return struct.unpack("!d", data)[0]
-
-    def float8in(data, **kwargs):
-        return float(data)
 
     def float8send(v, **kwargs):
         return struct.pack("!d", v)
@@ -1626,16 +1582,16 @@ class Types(object):
     }
 
     pg_types = {
-        16: {"txt_in": boolin, "bin_in": boolrecv, "prefer": "bin"},
+        16: {"bin_in": boolrecv},
         17: {"bin_in": bytearecv},
         19: {"txt_in": varcharin}, # name type
-        20: {"txt_in": int8in, "bin_in": int8recv, "prefer": "bin"},
-        21: {"txt_in": int2in, "bin_in": int2recv, "prefer": "bin"},
-        23: {"txt_in": int4in, "bin_in": int4recv, "prefer": "bin"},
+        20: {"bin_in": int8recv},
+        21: {"bin_in": int2recv},
+        23: {"bin_in": int4recv},
         25: {"txt_in": varcharin}, # TEXT type
         26: {"txt_in": numeric_in}, # oid type
-        700: {"txt_in": float4in, "bin_in": float4recv, "prefer": "bin"},
-        701: {"txt_in": float8in, "bin_in": float8recv, "prefer": "bin"},
+        700: {"bin_in": float4recv},
+        701: {"bin_in": float8recv},
         1042: {"txt_in": varcharin}, # CHAR type
         1043: {"txt_in": varcharin}, # VARCHAR type
         1082: {"txt_in": date_in},
