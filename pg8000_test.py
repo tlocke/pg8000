@@ -36,6 +36,9 @@ class QueryTests(unittest.TestCase):
                     "incorrect error for drop table")
         db.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
 
+    def TestDatabaseError(self):
+        self.assertRaises(pg8000.ProgrammingError, db.execute, "INSERT INTO t99 VALUES (1, 2, 3)")
+
     def TestParallelQueries(self):
         db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 1, 1, None)
         db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 2, 10, None)

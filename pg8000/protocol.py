@@ -305,6 +305,10 @@ class NoticeResponse(object):
         return NoticeResponse()
     createFromData = staticmethod(createFromData)
 
+class NotificationResponse(object):
+    # not implemented yet
+    pass
+
 class ErrorResponse(object):
     def __init__(self, severity, code, msg):
         self.severity = severity
@@ -393,6 +397,48 @@ class SSLWrapper(object):
     def recv(self, num):
         return self.sslobj.read(num)
 
+class MessageReader(object):
+    def __init__(self, connection):
+        self._conn = connection
+        self._msgs = []
+
+    def add_message(self, msg_class, handler):
+        self._msgs.append((msg_class, handler))
+
+    def clear_messages(self):
+        self._msgs = []
+    
+    def handle_messages(self):
+        while 1:
+            msg = self._conn._read_message()
+            msg_handled = False
+            for (msg_class, handler) in self._msgs:
+                if isinstance(msg, msg_class):
+                    msg_handled = True
+                    retval = handler(msg)
+                    if retval:
+                        # The handler returned a true value, meaning that the
+                        # message loop should be aborted.
+                        return retval
+            if msg_handled:
+                continue
+            elif isinstance(msg, ErrorResponse):
+                raise msg.createException()
+            elif isinstance(msg, NoticeResponse):
+                # NoticeResponse can occur at any time, and must always be handled.
+                self._conn.handleNoticeResponse(msg)
+            elif isinstance(msg, ParameterStatus):
+                # ParameterStatus can occur at any time, and must always be handled.
+                self._conn.handleParameterStatus(msg)
+            elif isinstance(msg, NotificationResponse):
+                # NotificationResponse can occur at any time, and must always
+                # be handled.  (Note, reading NotificationResponse isn't
+                # handled yet.  This code block is kinda a comment to remember
+                # to do it later.)
+                self._conn.handleNotificationResponse(msg)
+            else:
+                raise InternalError("Unexpected response msg %r" % (msg))
+
 class Connection(object):
     def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
         self._client_encoding = "ascii"
@@ -419,6 +465,7 @@ class Connection(object):
         self._state = "noauth"
         self._backend_key_data = None
         self._sock_lock = threading.Lock()
+        self._reader = MessageReader(self)
 
     def verifyState(self, state):
         if self._state != state:
@@ -488,27 +535,26 @@ class Connection(object):
             self._send(Parse(statement, qs, param_types))
             self._send(DescribePreparedStatement(statement))
             self._send(Flush())
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, ParseComplete):
-                    # ok, good.
-                    pass
-                elif isinstance(msg, ParameterDescription):
-                    # well, we don't really care -- we're going to send whatever
-                    # we want and let the database deal with it.  But thanks
-                    # anyways!
-                    pass
-                elif isinstance(msg, NoData):
-                    # We're not waiting for a row description.  Return
-                    # something destinctive to let bind know that there is no
-                    # output.
-                    return (None, param_fc)
-                elif isinstance(msg, RowDescription):
-                    return (msg, param_fc)
-                elif isinstance(msg, ErrorResponse):
-                    raise msg.createException()
-                else:
-                    raise InternalError("Unexpected response msg %r" % (msg))
+
+            try:
+                # ParseComplete is good.
+                self._reader.add_message(ParseComplete, lambda msg: 0)
+
+                # Well, we don't really care -- we're going to send whatever we
+                # want and let the database deal with it.  But thanks anyways!
+                self._reader.add_message(ParameterDescription, lambda msg: 0)
+
+                # We're not waiting for a row description.  Return something
+                # destinctive to let bind know that there is no output.
+                self._reader.add_message(NoData, lambda msg: (None, param_fc))
+
+                # Common row description response
+                self._reader.add_message(RowDescription, lambda msg: (msg, param_fc))
+
+                return self._reader.handle_messages()
+            finally:
+                self._reader.clear_messages()
+
         finally:
             self._sock_lock.release()
 
@@ -648,6 +694,24 @@ class Connection(object):
                     raise InternalError("Unexpected response msg %r" % msg)
         finally:
             self._sock_lock.release()
+
+    def handleNoticeResponse(self, msg):
+        # Note: this function will be called while things are going on.  Don't
+        # monopolize the thread - do something quick, or spawn a thread,
+        # because you'll be delaying whatever is going on.
+        pass
+
+    def handleParameterStatus(self, msg):
+        # Note: this function will be called while things are going on.  Don't
+        # monopolize the thread - do something quick, or spawn a thread,
+        # because you'll be delaying whatever is going on.
+        pass
+
+    def handleNotificationResponse(self, msg):
+        # Note: this function will be called while things are going on.  Don't
+        # monopolize the thread - do something quick, or spawn a thread,
+        # because you'll be delaying whatever is going on.
+        pass
 
 message_types = {
     "N": NoticeResponse,
