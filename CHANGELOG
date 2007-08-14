@@ -1,3 +1,21 @@
+Version 1.03,
+------------------------
+
+- Separate pg8000.py into multiple python modules within the pg8000 package.
+There should be no need for a client to change how pg8000 is imported.
+
+- Fix bug in row_description property when query has not been completed.
+
+- Add boolean type output.
+
+- Add date, time, and timestamp types in/out.
+
+- Add recognition of "SQL_ASCII" client encoding, which maps to Python's
+"ascii" encoding.
+
+- Remove unused type conversion methods.
+
+
 Version 1.02, 2007-03-13
 ------------------------
 
