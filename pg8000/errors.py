@@ -29,15 +29,33 @@
 
 __author__ = "Mathieu Fenniak"
 
-import socket
-import struct
-import datetime
-import md5
-import decimal
-import threading
-import time
+class Warning(StandardError):
+    pass
 
+class Error(StandardError):
+    pass
 
-class Protocol(object):
+class InterfaceError(Error):
+    pass
 
+class DatabaseError(Error):
+    pass
+
+class DataError(DatabaseError):
+    pass
+
+class OperationalError(DatabaseError):
+    pass
+
+class IntegrityError(DatabaseError):
+    pass
+
+class InternalError(DatabaseError):
+    pass
+
+class ProgrammingError(DatabaseError):
+    pass
+
+class NotSupportedError(DatabaseError):
+    pass
 

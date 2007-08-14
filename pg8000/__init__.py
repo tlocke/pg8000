@@ -29,15 +29,9 @@
 
 __author__ = "Mathieu Fenniak"
 
-import socket
-import struct
-import datetime
-import md5
-import decimal
-import threading
-import time
+import dbapi as DBAPI
+pg8000_dbapi = DBAPI
 
-
-class Protocol(object):
-
+from interface import *
+from types import Bytea
 

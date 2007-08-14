@@ -30,6 +30,6 @@ setup(
             "Topic :: Database :: Front-Ends",
             "Topic :: Software Development :: Libraries :: Python Modules",
         ],
-        py_modules = ["pg8000", "pg8000_dbapi"],
+        packages = ("pg8000",),
     )
 
