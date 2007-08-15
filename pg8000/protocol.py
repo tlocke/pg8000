@@ -402,24 +402,31 @@ class MessageReader(object):
         self._conn = connection
         self._msgs = []
 
-    def add_message(self, msg_class, handler):
-        self._msgs.append((msg_class, handler))
+    def add_message(self, msg_class, handler, *args, **kwargs):
+        self._msgs.append((msg_class, handler, args, kwargs))
 
     def clear_messages(self):
         self._msgs = []
+
+    def return_value(self, value):
+        self._retval = value
     
     def handle_messages(self):
         while 1:
             msg = self._conn._read_message()
             msg_handled = False
-            for (msg_class, handler) in self._msgs:
+            for (msg_class, handler, args, kwargs) in self._msgs:
                 if isinstance(msg, msg_class):
                     msg_handled = True
-                    retval = handler(msg)
+                    retval = handler(msg, *args, **kwargs)
                     if retval:
                         # The handler returned a true value, meaning that the
                         # message loop should be aborted.
                         return retval
+                    elif hasattr(self, "_retval"):
+                        # The handler told us to return -- used for non-true
+                        # return values
+                        return self._retval
             if msg_handled:
                 continue
             elif isinstance(msg, ErrorResponse):
@@ -576,40 +583,47 @@ class Connection(object):
             # requested).
             self._send(DescribePortal(portal))
             self._send(Flush())
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, BindComplete):
-                    # good news everybody!
-                    pass
-                elif isinstance(msg, NoData):
-                    # No data means we should execute this command right away.
-                    self._send(Execute(portal, 0))
-                    self._send(Sync())
-                    exc = None
-                    while 1:
-                        msg = self._read_message()
-                        if isinstance(msg, CommandComplete):
-                            # more good news!
-                            pass
-                        elif isinstance(msg, ReadyForQuery):
-                            if exc != None:
-                                raise exc
-                            break
-                        elif isinstance(msg, ErrorResponse):
-                            exc = msg.createException()
-                        else:
-                            raise InternalError("unexpected response")
-                    return None
-                elif isinstance(msg, RowDescription):
-                    # Return the new row desc, since it will have the format
-                    # types we asked for
-                    return msg
-                elif isinstance(msg, ErrorResponse):
-                    raise msg.createException()
-                else:
-                    raise InternalError("Unexpected response msg %r" % (msg))
+
+            # Read responses from server...
+            reader = MessageReader(self)
+
+            # BindComplete is good -- just ignore
+            reader.add_message(BindComplete, lambda msg: 0)
+
+            # NoData in this case means we're not executing a query.  As a
+            # result, we won't be fetching rows, so we'll never execute the
+            # portal we just created... unless we execute it right away, which
+            # we'll do.
+            reader.add_message(NoData, self._bind_nodata, portal, reader)
+
+            # Return the new row desc, since it will have the format types we
+            # asked the server for
+            reader.add_message(RowDescription, lambda msg: msg)
+
+            return reader.handle_messages()
+
         finally:
             self._sock_lock.release()
+
+    def _bind_nodata(self, msg, portal, reader):
+        # Bind message returned NoData, causing us to execute the command.
+        self._send(Execute(portal, 0))
+        self._send(Sync())
+        exc = None
+        while 1:
+            msg = self._read_message()
+            if isinstance(msg, CommandComplete):
+                # more good news!
+                pass
+            elif isinstance(msg, ReadyForQuery):
+                if exc != None:
+                    raise exc
+                break
+            elif isinstance(msg, ErrorResponse):
+                exc = msg.createException()
+            else:
+                raise InternalError("unexpected response")
+        reader.return_value(None)
 
     def fetch_rows(self, portal, row_count, row_desc):
         self.verifyState("ready")
