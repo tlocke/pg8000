@@ -4,8 +4,10 @@ import datetime
 import decimal
 import threading
 import unittest
-import pg8000
 import struct
+
+import pg8000
+dbapi = pg8000.DBAPI
 
 db_joy_connect = {
         "host": "joy",
@@ -15,14 +17,29 @@ db_joy_connect = {
         "socket_timeout": 5,
         "ssl": False,
         }
+
 db_local_connect = {
         "unix_sock": "/tmp/.s.PGSQL.5432",
         "user": "mfenniak"
         }
+
 db_connect = db_local_connect
+
 db = pg8000.Connection(**db_connect)
-dbapi = pg8000.DBAPI
 db2 = dbapi.connect(**db_connect)
+
+
+# Tests related to connecting to a database.
+class ConnectionTests(unittest.TestCase):
+    def TestUnixSockFailure(self):
+        self.assertRaises(pg8000.InterfaceError, pg8000.Connection,
+                unix_sock="/file-does-not-exist", user="doesn't-matter")
+
+    def TestDatabaseMissing(self):
+        self.assertRaises(pg8000.ProgrammingError, pg8000.Connection,
+                unix_sock=db_local_connect['unix_sock'], database='missing-db',
+                user='mfenniak')
+
 
 # Tests relating to the basic operation of the database driver, driven by the
 # pg8000 custom interface.
@@ -89,6 +106,8 @@ class QueryTests(unittest.TestCase):
         t1.start(); t2.start(); t3.start()
         t1.join(); t2.join(); t3.join()
 
+
+# Tests of the convert_paramstyle function.
 class ParamstyleTests(unittest.TestCase):
     def TestQmark(self):
         new_query, new_args = pg8000.DBAPI.convert_paramstyle("qmark", "SELECT ?, ?, \"field_?\" FROM t WHERE a='say ''what?''' AND b=? AND c=E'?\\'test\\'?'", (1, 2, 3))
@@ -121,6 +140,7 @@ class ParamstyleTests(unittest.TestCase):
         assert new_args == (1, 2)
 
 
+# DBAPI compatible interface tests
 class DBAPITests(unittest.TestCase):
     def setUp(self):
         c = db2.cursor()
@@ -459,12 +479,13 @@ class TypeTests(unittest.TestCase):
 
 
 def suite():
+    connection_tests = unittest.makeSuite(ConnectionTests, "Test")
     paramstyle_tests = unittest.makeSuite(ParamstyleTests, "Test")
     dbapi_tests = unittest.makeSuite(DBAPITests, "Test")
     query_tests = unittest.makeSuite(QueryTests, "Test")
     type_tests = unittest.makeSuite(TypeTests, "Test")
-    return unittest.TestSuite((paramstyle_tests, dbapi_tests, query_tests,
-        type_tests))
+    return unittest.TestSuite((connection_tests, paramstyle_tests, dbapi_tests,
+        query_tests, type_tests))
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner()
