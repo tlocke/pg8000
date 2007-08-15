@@ -605,7 +605,7 @@ class Connection(object):
         finally:
             self._sock_lock.release()
 
-    def _bind_nodata(self, msg, portal, reader):
+    def _bind_nodata(self, msg, portal, old_reader):
         # Bind message returned NoData, causing us to execute the command.
         self._send(Execute(portal, 0))
         self._send(Sync())
@@ -623,7 +623,7 @@ class Connection(object):
                 exc = msg.createException()
             else:
                 raise InternalError("unexpected response")
-        reader.return_value(None)
+        old_reader.return_value(None)
 
     def fetch_rows(self, portal, row_count, row_desc):
         self.verifyState("ready")
