@@ -107,13 +107,13 @@ def py_value(v, description, **kwargs):
     return func(v, **kwargs)
 
 def boolrecv(data, **kwargs):
-    return data == "\x01"
+    return data == b"\x01"
 
 def boolout(v, **kwargs):
     if v:
-        return 't'
+        return b't'
     else:
-        return 'f'
+        return b'f'
 
 def int2recv(data, **kwargs):
     return struct.unpack("!h", data)[0]
@@ -161,7 +161,7 @@ def date_in(data, **kwargs):
     return datetime.date(year, month, day)
 
 def date_out(v, **kwargs):
-    return v.isoformat()
+    return v.isoformat().encode("ascii")
 
 def time_in(data, **kwargs):
     hour = int(data[0:2])
@@ -170,16 +170,16 @@ def time_in(data, **kwargs):
     return datetime.time(hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
 def time_out(v, **kwargs):
-    return v.isoformat()
+    return v.isoformat().encode("ascii")
 
 def numeric_in(data, **kwargs):
-    if data.find(".") == -1:
-        return int(data)
+    if data.find(b".") == -1:
+        return int(data.decode("ascii"))
     else:
-        return decimal.Decimal(data)
+        return decimal.Decimal(data.decode("ascii"))
 
 def numeric_out(v, **kwargs):
-    return str(v)
+    return str(v).encode("ascii")
 
 def encoding_convert(encoding):
     encodings = {"sql_ascii": "ascii"}

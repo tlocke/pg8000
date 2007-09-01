@@ -23,7 +23,7 @@ db_local_connect = {
         "user": "mfenniak"
         }
 
-db_connect = db_local_connect
+db_connect = db_joy_connect
 
 db = pg8000.Connection(**db_connect)
 db2 = dbapi.connect(**db_connect)
@@ -49,7 +49,7 @@ class QueryTests(unittest.TestCase):
             db.execute("DROP TABLE t1")
         except pg8000.DatabaseError as e:
             # the only acceptable error is:
-            self.assert_(e.args[1] == '42P01', # table does not exist
+            self.assert_(e.args[1] == b'42P01', # table does not exist
                     "incorrect error for drop table")
         db.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
 

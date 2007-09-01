@@ -34,4 +34,7 @@ pg8000_dbapi = DBAPI
 
 from .interface import (PreparedStatement, Cursor, Connection)
 from .types import Bytea
+from .errors import (InterfaceError, DatabaseError, DataError,
+        OperationalError, IntegrityError, InternalError, ProgrammingError,
+        NotSupportedError)
 

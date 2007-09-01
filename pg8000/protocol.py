@@ -54,10 +54,10 @@ class StartupMessage(object):
     def serialize(self):
         protocol = 196608
         val = struct.pack("!i", protocol)
-        val += "user\x00" + self.user + "\x00"
+        val += b"user\x00" + self.user.encode("ascii") + b"\x00"
         if self.database:
-            val += "database\x00" + self.database + "\x00"
-        val += "\x00"
+            val += b"database\x00" + self.database.encode("ascii") + b"\x00"
+        val += b"\x00"
         val = struct.pack("!i", len(val) + 4) + val
         return val
 
@@ -66,9 +66,9 @@ class Query(object):
         self.qs = qs
 
     def serialize(self):
-        val = self.qs + "\x00"
+        val = self.qs + b"\x00"
         val = struct.pack("!i", len(val) + 4) + val
-        val = "Q" + val
+        val = b"Q" + val
         return val
 
 class Parse(object):
@@ -78,7 +78,7 @@ class Parse(object):
         self.type_oids = type_oids
 
     def serialize(self):
-        val = self.ps + "\x00" + self.qs + "\x00"
+        val = self.ps.encode("ascii") + b"\x00" + self.qs.encode("ascii") + b"\x00"
         val = val + struct.pack("!h", len(self.type_oids))
         for oid in self.type_oids:
             # Parse message doesn't seem to handle the -1 type_oid for NULL
@@ -87,7 +87,7 @@ class Parse(object):
             if oid == -1: oid = 705
             val = val + struct.pack("!i", oid)
         val = struct.pack("!i", len(val) + 4) + val
-        val = "P" + val
+        val = b"P" + val
         return val
 
 class Bind(object):
@@ -107,7 +107,7 @@ class Bind(object):
         self.out_fc = out_fc
 
     def serialize(self):
-        val = self.portal + "\x00" + self.ps + "\x00"
+        val = self.portal.encode("ascii") + b"\x00" + self.ps.encode("ascii") + b"\x00"
         val = val + struct.pack("!h", len(self.in_fc))
         for fc in self.in_fc:
             val = val + struct.pack("!h", fc)
@@ -122,7 +122,7 @@ class Bind(object):
         for fc in self.out_fc:
             val = val + struct.pack("!h", fc)
         val = struct.pack("!i", len(val) + 4) + val
-        val = "B" + val
+        val = b"B" + val
         return val
 
 class Close(object):
@@ -133,18 +133,18 @@ class Close(object):
         self.name = name
 
     def serialize(self):
-        val = self.typ + self.name + "\x00"
+        val = self.typ + self.name.encode("ascii") + b"\x00"
         val = struct.pack("!i", len(val) + 4) + val
-        val = "C" + val
+        val = b"C" + val
         return val
 
 class ClosePortal(Close):
     def __init__(self, name):
-        Close.__init__(self, "P", name)
+        Close.__init__(self, b"P", name)
 
 class ClosePreparedStatement(Close):
     def __init__(self, name):
-        Close.__init__(self, "S", name)
+        Close.__init__(self, b"S", name)
 
 class Describe(object):
     def __init__(self, typ, name):
@@ -154,35 +154,35 @@ class Describe(object):
         self.name = name
 
     def serialize(self):
-        val = self.typ + self.name + "\x00"
+        val = self.typ + self.name.encode("ascii") + b"\x00"
         val = struct.pack("!i", len(val) + 4) + val
-        val = "D" + val
+        val = b"D" + val
         return val
 
 class DescribePortal(Describe):
     def __init__(self, name):
-        Describe.__init__(self, "P", name)
+        Describe.__init__(self, b"P", name)
 
 class DescribePreparedStatement(Describe):
     def __init__(self, name):
-        Describe.__init__(self, "S", name)
+        Describe.__init__(self, b"S", name)
 
 class Flush(object):
     def serialize(self):
-        return 'H\x00\x00\x00\x04'
+        return b'H\x00\x00\x00\x04'
 
 class Sync(object):
     def serialize(self):
-        return 'S\x00\x00\x00\x04'
+        return b'S\x00\x00\x00\x04'
 
 class PasswordMessage(object):
     def __init__(self, pwd):
         self.pwd = pwd
 
     def serialize(self):
-        val = self.pwd + "\x00"
+        val = self.pwd + b"\x00"
         val = struct.pack("!i", len(val) + 4) + val
-        val = "p" + val
+        val = b"p" + val
         return val
 
 class Execute(object):
@@ -191,9 +191,9 @@ class Execute(object):
         self.row_count = row_count
 
     def serialize(self):
-        val = self.portal + "\x00" + struct.pack("!i", self.row_count)
+        val = self.portal.encode("ascii") + b"\x00" + struct.pack("!i", self.row_count)
         val = struct.pack("!i", len(val) + 4) + val
-        val = "E" + val
+        val = b"E" + val
         return val
 
 class AuthenticationRequest(object):
@@ -218,12 +218,12 @@ class AuthenticationOk(AuthenticationRequest):
 
 class AuthenticationMD5Password(AuthenticationRequest):
     def __init__(self, data):
-        self.salt = "".join(struct.unpack("4c", data))
+        self.salt = data
 
     def ok(self, conn, user, password=None, **kwargs):
         if password == None:
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
-        pwd = "md5" + hashlib.md5(hashlib.md5(password + user).hexdigest() + self.salt).hexdigest()
+        pwd = b"md5" + hashlib.md5(hashlib.md5(password.encode("ascii") + user.encode("ascii")).hexdigest().encode("ascii") + self.salt).hexdigest().encode("ascii")
         conn._send(PasswordMessage(pwd))
         msg = conn._read_message()
         if isinstance(msg, AuthenticationRequest):
@@ -247,8 +247,8 @@ class ParameterStatus(object):
         self.value = value
 
     def createFromData(data):
-        key = data[:data.find("\x00")]
-        value = data[data.find("\x00")+1:-1]
+        key = data[:data.find(b"\x00")]
+        value = data[data.find(b"\x00")+1:-1]
         return ParameterStatus(key, value)
     createFromData = staticmethod(createFromData)
 
@@ -293,7 +293,7 @@ class ReadyForQuery(object):
 
     def __repr__(self):
         return "<ReadyForQuery %s>" % \
-                {"I": "Idle", "T": "Idle in Transaction", "E": "Idle in Failed Transaction"}[self.status]
+                {b"I"[0]: "Idle", b"T"[0]: "Idle in Transaction", b"E"[0]: "Idle in Failed Transaction"}[self.status[0]]
 
     def createFromData(data):
         return ReadyForQuery(data)
@@ -325,14 +325,14 @@ class ErrorResponse(object):
 
     def createFromData(data):
         args = {}
-        for s in data.split("\x00"):
+        for s in data.split(b"\x00"):
             if not s:
                 continue
-            elif s[0] == "S":
+            elif s[0] == b"S"[0]:
                 args["severity"] = s[1:]
-            elif s[0] == "C":
+            elif s[0] == b"C"[0]:
                 args["code"] = s[1:]
-            elif s[0] == "M":
+            elif s[0] == b"M"[0]:
                 args["msg"] = s[1:]
         return ErrorResponse(**args)
     createFromData = staticmethod(createFromData)
@@ -355,7 +355,7 @@ class RowDescription(object):
         data = data[2:]
         fields = []
         for i in range(count):
-            null = data.find("\x00")
+            null = data.find(b"\x00")
             field = {"name": data[:null]}
             data = data[null+1:]
             field["table_oid"], field["column_attrnum"], field["type_oid"], field["type_size"], field["type_modifier"], field["format"] = struct.unpack("!ihihih", data[:18])
@@ -485,7 +485,7 @@ class Connection(object):
         self._sock.send(data)
 
     def _read_message(self):
-        bytes = ""
+        bytes = b""
         while len(bytes) < 5:
             tmp = self._sock.recv(5 - len(bytes))
             bytes += tmp
@@ -494,9 +494,9 @@ class Connection(object):
         message_code = bytes[0]
         data_len = struct.unpack("!i", bytes[1:])[0] - 4
         if data_len == 0:
-            bytes = ""
+            bytes = b""
         else:
-            bytes = ""
+            bytes = b""
             while len(bytes) < data_len:
                 tmp = self._sock.recv(data_len - len(bytes))
                 bytes += tmp
@@ -522,8 +522,8 @@ class Connection(object):
                         self._state = "ready"
                         break
                     elif isinstance(msg, ParameterStatus):
-                        if msg.key == "client_encoding":
-                            self._client_encoding = msg.value
+                        if msg.key == b"client_encoding":
+                            self._client_encoding = msg.value.decode("ascii")
                     elif isinstance(msg, BackendKeyData):
                         self._backend_key_data = msg
                     elif isinstance(msg, ErrorResponse):
@@ -730,21 +730,21 @@ class Connection(object):
         pass
 
 message_types = {
-    "N": NoticeResponse,
-    "R": AuthenticationRequest,
-    "S": ParameterStatus,
-    "K": BackendKeyData,
-    "Z": ReadyForQuery,
-    "T": RowDescription,
-    "E": ErrorResponse,
-    "D": DataRow,
-    "C": CommandComplete,
-    "1": ParseComplete,
-    "2": BindComplete,
-    "3": CloseComplete,
-    "s": PortalSuspended,
-    "n": NoData,
-    "t": ParameterDescription,
+    b"N"[0]: NoticeResponse,
+    b"R"[0]: AuthenticationRequest,
+    b"S"[0]: ParameterStatus,
+    b"K"[0]: BackendKeyData,
+    b"Z"[0]: ReadyForQuery,
+    b"T"[0]: RowDescription,
+    b"E"[0]: ErrorResponse,
+    b"D"[0]: DataRow,
+    b"C"[0]: CommandComplete,
+    b"1"[0]: ParseComplete,
+    b"2"[0]: BindComplete,
+    b"3"[0]: CloseComplete,
+    b"s"[0]: PortalSuspended,
+    b"n"[0]: NoData,
+    b"t"[0]: ParameterDescription,
     }
 
 
