@@ -34,8 +34,10 @@ import threading
 import struct
 import hashlib
 
-from errors import *
-import types
+from . import types
+from .errors import (InterfaceError, DatabaseError, DataError,
+        OperationalError, IntegrityError, InternalError, ProgrammingError,
+        NotSupportedError)
 
 class SSLRequest(object):
     def __init__(self):
@@ -221,7 +223,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
     def ok(self, conn, user, password=None, **kwargs):
         if password == None:
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
-        pwd = "md5" + hashlib.new(hashlib.new(password + user).hexdigest() + self.salt).hexdigest()
+        pwd = "md5" + hashlib.md5(hashlib.md5(password + user).hexdigest() + self.salt).hexdigest()
         conn._send(PasswordMessage(pwd))
         msg = conn._read_message()
         if isinstance(msg, AuthenticationRequest):

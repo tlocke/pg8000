@@ -29,9 +29,9 @@
 
 __author__ = "Mathieu Fenniak"
 
-import dbapi as DBAPI
+from . import dbapi as DBAPI
 pg8000_dbapi = DBAPI
 
-from interface import *
-from types import Bytea
+from .interface import (PreparedStatement, Cursor, Connection)
+from .types import Bytea
 

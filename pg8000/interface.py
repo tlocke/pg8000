@@ -30,9 +30,12 @@
 __author__ = "Mathieu Fenniak"
 
 import socket
-import protocol
 import threading
-from errors import *
+
+from . import protocol
+from .errors import (InterfaceError, DatabaseError, DataError,
+        OperationalError, IntegrityError, InternalError, ProgrammingError,
+        NotSupportedError)
 
 class DataIterator(object):
     def __init__(self, obj, func):
