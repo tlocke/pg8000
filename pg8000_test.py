@@ -47,7 +47,7 @@ class QueryTests(unittest.TestCase):
     def setUp(self):
         try:
             db.execute("DROP TABLE t1")
-        except pg8000.DatabaseError, e:
+        except pg8000.DatabaseError as e:
             # the only acceptable error is:
             self.assert_(e.args[1] == '42P01', # table does not exist
                     "incorrect error for drop table")
@@ -75,7 +75,7 @@ class QueryTests(unittest.TestCase):
         for i in range(1, 4):
             try:
                 db.execute("DROP TABLE t1")
-            except pg8000.DatabaseError, e:
+            except pg8000.DatabaseError as e:
                 # the only acceptable error is:
                 self.assert_(e.args[1] == '42P01', # table does not exist
                         "incorrect error for drop table")
@@ -146,7 +146,7 @@ class DBAPITests(unittest.TestCase):
         c = db2.cursor()
         try:
             c.execute("DROP TABLE t1")
-        except pg8000.DatabaseError, e:
+        except pg8000.DatabaseError as e:
             # the only acceptable error is:
             self.assert_(e.args[1] == '42P01', # table does not exist
                     "incorrect error for drop table")
@@ -349,19 +349,19 @@ class TypeTests(unittest.TestCase):
     def TestStrRoundtrip(self):
         db.execute("SELECT $1 as f1", "hello world")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"f1": u"hello world"},),
+        self.assert_(retval == ({"f1": "hello world"},),
                 "retrieved value match failed")
 
     def TestUnicodeRoundtrip(self):
-        db.execute("SELECT $1 as f1", u"hello \u0173 world")
+        db.execute("SELECT $1 as f1", "hello \u0173 world")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"f1": u"hello \u0173 world"},),
+        self.assert_(retval == ({"f1": "hello \u0173 world"},),
                 "retrieved value match failed")
 
     def TestLongRoundtrip(self):
-        db.execute("SELECT $1 as f1", 50000000000000L)
+        db.execute("SELECT $1 as f1", 50000000000000)
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"f1": 50000000000000L},),
+        self.assert_(retval == ({"f1": 50000000000000},),
                 "retrieved value match failed")
 
     def TestIntRoundtrip(self):
@@ -450,19 +450,19 @@ class TypeTests(unittest.TestCase):
     def TestVarcharOut(self):
         db.execute("SELECT 'hello'::varchar(20)")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"varchar": u"hello"},),
+        self.assert_(retval == ({"varchar": "hello"},),
                 "retrieved value match failed")
 
     def TestCharOut(self):
         db.execute("SELECT 'hello'::char(20)")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"bpchar": u"hello               "},),
+        self.assert_(retval == ({"bpchar": "hello               "},),
                 "retrieved value match failed")
 
     def TestTextOut(self):
         db.execute("SELECT 'hello'::text")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"text": u"hello"},),
+        self.assert_(retval == ({"text": "hello"},),
                 "retrieved value match failed")
 
     def TestIntervalOut(self):

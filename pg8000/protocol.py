@@ -32,7 +32,7 @@ __author__ = "Mathieu Fenniak"
 import socket
 import threading
 import struct
-import md5
+import hashlib
 
 from errors import *
 import types
@@ -221,7 +221,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
     def ok(self, conn, user, password=None, **kwargs):
         if password == None:
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
-        pwd = "md5" + md5.new(md5.new(password + user).hexdigest() + self.salt).hexdigest()
+        pwd = "md5" + hashlib.new(hashlib.new(password + user).hexdigest() + self.salt).hexdigest()
         conn._send(PasswordMessage(pwd))
         msg = conn._read_message()
         if isinstance(msg, AuthenticationRequest):

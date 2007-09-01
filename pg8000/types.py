@@ -186,7 +186,7 @@ def encoding_convert(encoding):
     return encodings.get(encoding.lower(), encoding)
 
 def varcharin(data, client_encoding, **kwargs):
-    return unicode(data, encoding_convert(client_encoding))
+    return str(data, encoding_convert(client_encoding))
 
 def textout(v, client_encoding, **kwargs):
     return v.encode(encoding_convert(client_encoding))
@@ -234,9 +234,9 @@ def interval_in(data, **kwargs):
 py_types = {
     bool: {"tid": 16, "txt_out": boolout},
     int: {"tid": 1700, "txt_out": numeric_out},
-    long: {"tid": 1700, "txt_out": numeric_out},
+    int: {"tid": 1700, "txt_out": numeric_out},
     str: {"tid": 25, "txt_out": textout},
-    unicode: {"tid": 25, "txt_out": textout},
+    str: {"tid": 25, "txt_out": textout},
     float: {"tid": 701, "bin_out": float8send},
     decimal.Decimal: {"tid": 1700, "txt_out": numeric_out},
     Bytea: {"tid": 17, "bin_out": byteasend},
