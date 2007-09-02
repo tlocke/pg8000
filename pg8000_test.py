@@ -23,7 +23,7 @@ db_local_connect = {
         "user": "mfenniak"
         }
 
-db_connect = db_joy_connect
+db_connect = db_local_connect
 
 db = pg8000.Connection(**db_connect)
 db2 = dbapi.connect(**db_connect)
@@ -282,8 +282,8 @@ class DBAPITests(unittest.TestCase):
                 "TimestampFromTicks constructor value match failed")
 
     def TestBinary(self):
-        v = dbapi.Binary("\x00\x01\x02\x03\x02\x01\x00")
-        self.assert_(v == "\x00\x01\x02\x03\x02\x01\x00",
+        v = dbapi.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
+        self.assert_(v == b"\x00\x01\x02\x03\x02\x01\x00",
                 "Binary value match failed")
         self.assert_(isinstance(v, pg8000.Bytea),
                 "Binary type match failed")
@@ -371,9 +371,9 @@ class TypeTests(unittest.TestCase):
                 "retrieved value match failed")
 
     def TestByteaRoundtrip(self):
-        db.execute("SELECT $1 as f1", pg8000.Bytea("\x00\x01\x02\x03\x02\x01\x00"))
+        db.execute("SELECT $1 as f1", pg8000.Bytea(b"\x00\x01\x02\x03\x02\x01\x00"))
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"f1": "\x00\x01\x02\x03\x02\x01\x00"},),
+        self.assert_(retval == ({"f1": b"\x00\x01\x02\x03\x02\x01\x00"},),
                 "retrieved value match failed")
 
     def TestTimestampRoundtrip(self):
@@ -468,7 +468,7 @@ class TypeTests(unittest.TestCase):
     def TestIntervalOut(self):
         db.execute("SELECT '1 month'::interval")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"interval": "1 mon"},),
+        self.assert_(retval == ({"interval": b"1 mon"},),
                 "retrieved value match failed")
 
     def TestTimestampOut(self):
@@ -484,10 +484,16 @@ def suite():
     dbapi_tests = unittest.makeSuite(DBAPITests, "Test")
     query_tests = unittest.makeSuite(QueryTests, "Test")
     type_tests = unittest.makeSuite(TypeTests, "Test")
-    return unittest.TestSuite((connection_tests, paramstyle_tests, dbapi_tests,
-        query_tests, type_tests))
+
+    return unittest.TestSuite((
+        #connection_tests,
+        #paramstyle_tests,
+        #dbapi_tests,
+        #query_tests,
+        type_tests,
+    ))
 
 if __name__ == "__main__":
-    runner = unittest.TextTestRunner()
+    runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite())
 

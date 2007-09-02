@@ -356,7 +356,7 @@ class RowDescription(object):
         fields = []
         for i in range(count):
             null = data.find(b"\x00")
-            field = {"name": data[:null]}
+            field = {"name": data[:null].decode("ascii")}
             data = data[null+1:]
             field["table_oid"], field["column_attrnum"], field["type_oid"], field["type_size"], field["type_modifier"], field["format"] = struct.unpack("!ihihih", data[:18])
             data = data[18:]

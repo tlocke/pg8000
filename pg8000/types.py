@@ -33,8 +33,7 @@ import datetime
 import decimal
 import struct
 
-class Bytea(str):
-    pass
+Bytea = bytes
 
 def pg_type_info(typ):
     data = py_types.get(typ)
@@ -222,10 +221,10 @@ class FixedOffsetTz(datetime.tzinfo):
         return self.hrs == other.hrs
 
 def byteasend(v, **kwargs):
-    return str(v)
+    return v
 
 def bytearecv(data, **kwargs):
-    return Bytea(data)
+    return data
 
 # interval support does not provide a Python-usable interval object yet
 def interval_in(data, **kwargs):
@@ -266,6 +265,5 @@ pg_types = {
     1186: {"txt_in": interval_in},
     1700: {"txt_in": numeric_in},
 }
-
 
 
