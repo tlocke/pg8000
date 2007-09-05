@@ -77,7 +77,7 @@ class QueryTests(unittest.TestCase):
                 db.execute("DROP TABLE t1")
             except pg8000.DatabaseError as e:
                 # the only acceptable error is:
-                self.assert_(e.args[1] == '42P01', # table does not exist
+                self.assert_(e.args[1] == b'42P01', # table does not exist
                         "incorrect error for drop table")
 
     def TestMultithreadedStatement(self):
@@ -148,7 +148,7 @@ class DBAPITests(unittest.TestCase):
             c.execute("DROP TABLE t1")
         except pg8000.DatabaseError as e:
             # the only acceptable error is:
-            self.assert_(e.args[1] == '42P01', # table does not exist
+            self.assert_(e.args[1] == b'42P01', # table does not exist
                     "incorrect error for drop table")
         c.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
         c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))

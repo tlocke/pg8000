@@ -147,11 +147,11 @@ def timestamp_in(data, **kwargs):
     day = int(data[8:10])
     hour = int(data[11:13])
     minute = int(data[14:16])
-    sec = decimal.Decimal(data[17:])
+    sec = decimal.Decimal(data[17:].decode("ascii"))
     return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
 def timestamp_out(v, **kwargs):
-    return v.isoformat(' ')
+    return v.isoformat(' ').encode("ascii")
 
 def date_in(data, **kwargs):
     year = int(data[0:4])
@@ -165,7 +165,7 @@ def date_out(v, **kwargs):
 def time_in(data, **kwargs):
     hour = int(data[0:2])
     minute = int(data[3:5])
-    sec = decimal.Decimal(data[6:])
+    sec = decimal.Decimal(data[6:].decode("ascii"))
     return datetime.time(hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
 def time_out(v, **kwargs):
@@ -196,8 +196,8 @@ def timestamptz_in(data, **kwargs):
     day = int(data[8:10])
     hour = int(data[11:13])
     minute = int(data[14:16])
-    tz_sep = data.rfind("-")
-    sec = decimal.Decimal(data[17:tz_sep])
+    tz_sep = data.rfind(b"-")
+    sec = decimal.Decimal(data[17:tz_sep].decode("ascii"))
     tz = data[tz_sep:]
     return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000), FixedOffsetTz(tz))
 
