@@ -486,11 +486,11 @@ def suite():
     type_tests = unittest.makeSuite(TypeTests, "Test")
 
     return unittest.TestSuite((
-        #connection_tests,
-        #paramstyle_tests,
+        connection_tests,
+        paramstyle_tests,
         dbapi_tests,
         query_tests,
-        #type_tests,
+        type_tests,
     ))
 
 if __name__ == "__main__":

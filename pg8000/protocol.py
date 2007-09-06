@@ -483,6 +483,7 @@ class Connection(object):
         self._sock_lock = threading.Lock()
         self._reader = MessageReader(self)
         self._close_statements_eventually = []
+        self._close_statements_eventually_lock = threading.Lock()
 
     def verifyState(self, state):
         if self._state != state:
@@ -490,13 +491,11 @@ class Connection(object):
 
     def _send(self, msg):
         assert self._sock_lock.locked()
-        debug("Connection._send", repr(msg))
         data = msg.serialize()
         self._sock.send(data)
 
     def _read_message(self):
         assert self._sock_lock.locked()
-        debug("Connection._read_message")
         data = b""
         while len(data) < 5:
             tmp = self._sock.recv(5 - len(data))
@@ -521,7 +520,6 @@ class Connection(object):
             return msg
 
     def authenticate(self, user, **kwargs):
-        debug("Connection.authenticate")
         self.verifyState("noauth")
         with self._sock_lock:
             self._send(StartupMessage(user, database=kwargs.get("database",None)))
@@ -550,8 +548,14 @@ class Connection(object):
                 raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
 
     def parse(self, statement, qs, param_types):
-        debug("Connection.parse")
         self.verifyState("ready")
+
+        # Just in case a statement name is being reused, close that statement name.
+        if statement in self._close_statements_eventually:
+            with self._close_statements_eventually_lock:
+                self.close_statement(statement)
+                self._close_statements_eventually.remove(statement)
+
         with self._sock_lock:
             type_info = [types.pg_type_info(x) for x in param_types]
             param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
@@ -579,7 +583,6 @@ class Connection(object):
                 self._reader.clear_messages()
 
     def bind(self, portal, statement, params, parse_data):
-        debug("Connection.bind")
         self.verifyState("ready")
         with self._sock_lock:
             row_desc, param_fc = parse_data
@@ -616,7 +619,6 @@ class Connection(object):
             return reader.handle_messages()
 
     def _bind_nodata(self, msg, portal, old_reader):
-        debug("Connection._bind_nodata")
         # Bind message returned NoData, causing us to execute the command.
         self._send(Execute(portal, 0))
         self._send(Sync())
@@ -637,7 +639,6 @@ class Connection(object):
         old_reader.return_value(None)
 
     def fetch_rows(self, portal, row_count, row_desc):
-        debug("Connection.fetch_rows")
         self.verifyState("ready")
         with self._sock_lock:
             self._send(Execute(portal, row_count))
@@ -682,17 +683,12 @@ class Connection(object):
         self._close_statements_eventually.append(statement)
 
     def close_statement(self, statement):
-        debug("Connection.close_statement")
         self.verifyState("ready")
         with self._sock_lock:
-            debug("... acquire")
             self._send(ClosePreparedStatement(statement))
-            debug("... send 1")
             self._send(Sync())
-            debug("... send 2")
             while 1:
                 msg = self._read_message()
-                debug("... read", repr(msg))
                 if isinstance(msg, CloseComplete):
                     # thanks!
                     pass
@@ -704,7 +700,6 @@ class Connection(object):
                     raise InternalError("Unexpected response msg %r" % msg)
 
     def close_portal(self, portal):
-        debug("Connection.close_portal")
         self.verifyState("ready")
         with self._sock_lock:
             self._send(ClosePortal(portal))
@@ -720,8 +715,10 @@ class Connection(object):
                     raise msg.createException()
                 else:
                     raise InternalError("Unexpected response msg %r" % msg)
-        for stmt in self._close_statements_eventually:
-            self.close_statement(stmt)
+        with self._close_statements_eventually_lock:
+            for stmt in self._close_statements_eventually:
+                self.close_statement(stmt)
+            del self._close_statements_eventually[:]
 
     def handleNoticeResponse(self, msg):
         # Note: this function will be called while things are going on.  Don't
