@@ -488,9 +488,9 @@ def suite():
     return unittest.TestSuite((
         #connection_tests,
         #paramstyle_tests,
-        #dbapi_tests,
-        #query_tests,
-        type_tests,
+        dbapi_tests,
+        query_tests,
+        #type_tests,
     ))
 
 if __name__ == "__main__":

@@ -39,6 +39,12 @@ from .errors import (InterfaceError, DatabaseError, DataError,
         OperationalError, IntegrityError, InternalError, ProgrammingError,
         NotSupportedError)
 
+if True:
+    debug = print
+else:
+    def debug(*args, **kwargs):
+        pass
+
 class SSLRequest(object):
     def __init__(self):
         pass
@@ -340,6 +346,7 @@ class ErrorResponse(object):
 class ParameterDescription(object):
     def __init__(self, type_oids):
         self.type_oids = type_oids
+
     def createFromData(data):
         count = struct.unpack("!h", data[:2])[0]
         type_oids = struct.unpack("!" + "i"*count, data[2:])
@@ -475,33 +482,36 @@ class Connection(object):
         self._backend_key_data = None
         self._sock_lock = threading.Lock()
         self._reader = MessageReader(self)
+        self._close_statements_eventually = []
 
     def verifyState(self, state):
         if self._state != state:
             raise InternalError("connection state must be %s, is %s" % (state, self._state))
 
     def _send(self, msg):
+        debug("Connection._send", repr(msg))
         data = msg.serialize()
         self._sock.send(data)
 
     def _read_message(self):
-        bytes = b""
-        while len(bytes) < 5:
-            tmp = self._sock.recv(5 - len(bytes))
-            bytes += tmp
-        if len(bytes) != 5:
-            raise InternalError("unable to read 5 bytes from socket %r" % bytes)
-        message_code = bytes[0]
-        data_len = struct.unpack("!i", bytes[1:])[0] - 4
+        debug("Connection._read_message")
+        data = b""
+        while len(data) < 5:
+            tmp = self._sock.recv(5 - len(data))
+            data += tmp
+        if len(data) != 5:
+            raise InternalError("unable to read 5 bytes from socket %r" % data)
+        message_code = data[0]
+        data_len = struct.unpack("!i", data[1:])[0] - 4
         if data_len == 0:
-            bytes = b""
+            data = b""
         else:
-            bytes = b""
-            while len(bytes) < data_len:
-                tmp = self._sock.recv(data_len - len(bytes))
-                bytes += tmp
-        assert len(bytes) == data_len
-        msg = message_types[message_code].createFromData(bytes)
+            data = b""
+            while len(data) < data_len:
+                tmp = self._sock.recv(data_len - len(data))
+                data += tmp
+        assert len(data) == data_len
+        msg = message_types[message_code].createFromData(data)
         if isinstance(msg, NoticeResponse):
             # ignore NoticeResponse
             return self._read_message()
@@ -509,6 +519,7 @@ class Connection(object):
             return msg
 
     def authenticate(self, user, **kwargs):
+        debug("Connection.authenticate")
         self.verifyState("noauth")
         self._send(StartupMessage(user, database=kwargs.get("database",None)))
         msg = self._read_message()
@@ -536,9 +547,9 @@ class Connection(object):
             raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
 
     def parse(self, statement, qs, param_types):
+        debug("Connection.parse")
         self.verifyState("ready")
-        self._sock_lock.acquire()
-        try:
+        with self._sock_lock:
             type_info = [types.pg_type_info(x) for x in param_types]
             param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
             self._send(Parse(statement, qs, param_types))
@@ -564,13 +575,10 @@ class Connection(object):
             finally:
                 self._reader.clear_messages()
 
-        finally:
-            self._sock_lock.release()
-
     def bind(self, portal, statement, params, parse_data):
+        debug("Connection.bind")
         self.verifyState("ready")
-        self._sock_lock.acquire()
-        try:
+        with self._sock_lock:
             row_desc, param_fc = parse_data
             if row_desc == None:
                 # no data coming out
@@ -604,10 +612,8 @@ class Connection(object):
 
             return reader.handle_messages()
 
-        finally:
-            self._sock_lock.release()
-
     def _bind_nodata(self, msg, portal, old_reader):
+        debug("Connection._bind_nodata")
         # Bind message returned NoData, causing us to execute the command.
         self._send(Execute(portal, 0))
         self._send(Sync())
@@ -628,9 +634,9 @@ class Connection(object):
         old_reader.return_value(None)
 
     def fetch_rows(self, portal, row_count, row_desc):
+        debug("Connection.fetch_rows")
         self.verifyState("ready")
-        self._sock_lock.acquire()
-        try:
+        with self._sock_lock:
             self._send(Execute(portal, row_count))
             self._send(Flush())
             rows = []
@@ -668,17 +674,22 @@ class Connection(object):
                 else:
                     raise InternalError("Unexpected response msg %r" % msg)
             return end_of_data, rows
-        finally:
-            self._sock_lock.release()
+
+    def close_statement_eventually(self, statement):
+        self._close_statements_eventually.append(statement)
 
     def close_statement(self, statement):
+        debug("Connection.close_statement")
         self.verifyState("ready")
-        self._sock_lock.acquire()
-        try:
+        with self._sock_lock:
+            debug("... acquire")
             self._send(ClosePreparedStatement(statement))
+            debug("... send 1")
             self._send(Sync())
+            debug("... send 2")
             while 1:
                 msg = self._read_message()
+                debug("... read", repr(msg))
                 if isinstance(msg, CloseComplete):
                     # thanks!
                     pass
@@ -688,13 +699,11 @@ class Connection(object):
                     raise msg.createException()
                 else:
                     raise InternalError("Unexpected response msg %r" % msg)
-        finally:
-            self._sock_lock.release()
 
     def close_portal(self, portal):
+        debug("Connection.close_portal")
         self.verifyState("ready")
-        self._sock_lock.acquire()
-        try:
+        with self._sock_lock:
             self._send(ClosePortal(portal))
             self._send(Sync())
             while 1:
@@ -708,8 +717,8 @@ class Connection(object):
                     raise msg.createException()
                 else:
                     raise InternalError("Unexpected response msg %r" % msg)
-        finally:
-            self._sock_lock.release()
+        for stmt in self._close_statements_eventually:
+            self.close_statement(stmt)
 
     def handleNoticeResponse(self, msg):
         # Note: this function will be called while things are going on.  Don't

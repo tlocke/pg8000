@@ -99,11 +99,14 @@ class PreparedStatement(object):
         self._lock = threading.RLock()
 
     def __del__(self):
-        # This __del__ should work with garbage collection / non-instant
-        # cleanup.  It only really needs to be called right away if the same
-        # object id (and therefore the same statement name) might be reused
-        # soon, and clearly that wouldn't happen in a GC situation.
-        self.c.close_statement(self._statement_name)
+        # Like always, __del__ causes problems.  We can't close the statement
+        # immediately, because we might be being cleaned up at the same time
+        # the connection is doing something useful.  So, we call a delayed
+        # method that tells the connection to close this statement whenever it
+        # wants.  As long as the object id, which is the basis of this
+        # statement name, isn't reused soon... then closing the statement at
+        # the connection's leisure should be fine.
+        self.c.close_statement_eventually(self._statement_name)
 
     row_description = property(lambda self: self._getRowDescription())
     def _getRowDescription(self):
