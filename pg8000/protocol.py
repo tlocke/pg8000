@@ -489,11 +489,13 @@ class Connection(object):
             raise InternalError("connection state must be %s, is %s" % (state, self._state))
 
     def _send(self, msg):
+        assert self._sock_lock.locked()
         debug("Connection._send", repr(msg))
         data = msg.serialize()
         self._sock.send(data)
 
     def _read_message(self):
+        assert self._sock_lock.locked()
         debug("Connection._read_message")
         data = b""
         while len(data) < 5:
@@ -521,30 +523,31 @@ class Connection(object):
     def authenticate(self, user, **kwargs):
         debug("Connection.authenticate")
         self.verifyState("noauth")
-        self._send(StartupMessage(user, database=kwargs.get("database",None)))
-        msg = self._read_message()
-        if isinstance(msg, AuthenticationRequest):
-            if msg.ok(self, user, **kwargs):
-                self._state = "auth"
-                while 1:
-                    msg = self._read_message()
-                    if isinstance(msg, ReadyForQuery):
-                        # done reading messages
-                        self._state = "ready"
-                        break
-                    elif isinstance(msg, ParameterStatus):
-                        if msg.key == b"client_encoding":
-                            self._client_encoding = msg.value.decode("ascii")
-                    elif isinstance(msg, BackendKeyData):
-                        self._backend_key_data = msg
-                    elif isinstance(msg, ErrorResponse):
-                        raise msg.createException()
-                    else:
-                        raise InternalError("unexpected msg %r" % msg)
+        with self._sock_lock:
+            self._send(StartupMessage(user, database=kwargs.get("database",None)))
+            msg = self._read_message()
+            if isinstance(msg, AuthenticationRequest):
+                if msg.ok(self, user, **kwargs):
+                    self._state = "auth"
+                    while 1:
+                        msg = self._read_message()
+                        if isinstance(msg, ReadyForQuery):
+                            # done reading messages
+                            self._state = "ready"
+                            break
+                        elif isinstance(msg, ParameterStatus):
+                            if msg.key == b"client_encoding":
+                                self._client_encoding = msg.value.decode("ascii")
+                        elif isinstance(msg, BackendKeyData):
+                            self._backend_key_data = msg
+                        elif isinstance(msg, ErrorResponse):
+                            raise msg.createException()
+                        else:
+                            raise InternalError("unexpected msg %r" % msg)
+                else:
+                    raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
             else:
-                raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
-        else:
-            raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
+                raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
 
     def parse(self, statement, qs, param_types):
         debug("Connection.parse")
