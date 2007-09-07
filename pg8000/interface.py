@@ -173,6 +173,8 @@ class PreparedStatement(object):
     # avoid using this property.
     row_count = property(lambda self: self._get_row_count())
     def _get_row_count(self):
+        if not self._row_desc:
+            return 0
         self._lock.acquire()
         try:
             if not self._command_complete:
