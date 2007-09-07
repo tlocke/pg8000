@@ -130,6 +130,10 @@ class QueryTests(unittest.TestCase):
             cur.read_tuple()
         self.assertEquals(expected_count, cur.row_count)
 
+        # Should be 0 for a command with no results
+        cur.execute("DROP TABLE t1")
+        self.assertEquals(0, cur.row_count)
+
 
 # Tests of the convert_paramstyle function.
 class ParamstyleTests(unittest.TestCase):
