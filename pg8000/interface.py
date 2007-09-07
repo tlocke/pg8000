@@ -94,6 +94,7 @@ class PreparedStatement(object):
         self._statement_name = "pg8000_statement_%s_%s" % (id(self.c), id(self))
         self._row_desc = None
         self._cached_rows = []
+        self._ongoing_row_count = 0
         self._command_complete = True
         self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
         self._lock = threading.RLock()
@@ -124,6 +125,7 @@ class PreparedStatement(object):
             if not self._command_complete:
                 # cleanup last execute
                 self._cached_rows = []
+                self._ongoing_row_count = 0
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
             self._row_desc = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
@@ -162,7 +164,31 @@ class PreparedStatement(object):
                     # a query returns no rows.
                     return None
             row = self._cached_rows.pop(0)
+            self._ongoing_row_count += 1
             return tuple(row)
+        finally:
+            self._lock.release()
+
+    ##
+    # Return a count of the number of rows currently being read.  If possible,
+    # please avoid using this function.  It requires reading the entire result
+    # set from the database to determine the number of rows being returned.
+    # <p>
+    # Stability: Added in v1.03, stability guaranteed for v1.xx.
+    # Implementation currently requires caching entire result set into memory,
+    # avoid using this property.
+    row_count = property(lambda self: self._get_row_count())
+    def _get_row_count(self):
+        self._lock.acquire()
+        try:
+            if not self._command_complete:
+                end_of_data, rows = self.c.fetch_rows(self._portal_name, 0, self._row_desc)
+                self._cached_rows += rows
+                if end_of_data:
+                    self._command_complete = True
+                else:
+                    raise InternalError("fetch_rows(0) did not hit end of data")
+            return self._ongoing_row_count + len(self._cached_rows)
         finally:
             self._lock.release()
 
@@ -247,6 +273,20 @@ class Cursor(object):
     def execute(self, query, *args):
         self._stmt = PreparedStatement(self.connection, query, *[type(x) for x in args])
         self._stmt.execute(*args)
+
+    ##
+    # Return a count of the number of rows currently being read.  If possible,
+    # please avoid using this function.  It requires reading the entire result
+    # set from the database to determine the number of rows being returned.
+    # <p>
+    # Stability: Added in v1.03, stability guaranteed for v1.xx.
+    # Implementation currently requires caching entire result set into memory,
+    # avoid using this property.
+    row_count = property(lambda self: self._get_row_count())
+    def _get_row_count(self):
+        if self._stmt == None:
+            raise ProgrammingError("attempting to read from unexecuted cursor")
+        return self._stmt.row_count
 
     ##
     # Read a row from the database server, and return it in a dictionary

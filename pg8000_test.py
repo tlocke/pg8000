@@ -106,6 +106,30 @@ class QueryTests(unittest.TestCase):
         t1.start(); t2.start(); t3.start()
         t1.join(); t2.join(); t3.join()
 
+    def TestRowCount(self):
+        expected_count = 57
+        s1 = pg8000.PreparedStatement(db, "INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", int, int, str)
+        for i in range(expected_count):
+            s1.execute(i, i, None)
+
+        cur = pg8000.Cursor(db)
+        cur.execute("SELECT * FROM t1")
+
+        # Check row_count without doing any reading first...
+        self.assertEquals(expected_count, cur.row_count)
+
+        # Check row_count after reading some rows, make sure it still works...
+        for i in range(expected_count // 2):
+            cur.read_tuple()
+        self.assertEquals(expected_count, cur.row_count)
+
+        # Restart the cursor, read a few rows, and then check row_count again...
+        cur = pg8000.Cursor(db)
+        cur.execute("SELECT * FROM t1")
+        for i in range(expected_count // 3):
+            cur.read_tuple()
+        self.assertEquals(expected_count, cur.row_count)
+
 
 # Tests of the convert_paramstyle function.
 class ParamstyleTests(unittest.TestCase):
@@ -287,6 +311,11 @@ class DBAPITests(unittest.TestCase):
                 "Binary value match failed")
         self.assert_(isinstance(v, pg8000.Bytea),
                 "Binary type match failed")
+
+    def TestRowCount(self):
+        c1 = db2.cursor()
+        c1.execute("SELECT * FROM t1")
+        self.assertEquals(5, c1.rowcount)
 
 
 # Tests relating to type conversion.
