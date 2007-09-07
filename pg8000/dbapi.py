@@ -35,11 +35,15 @@ import interface
 import types
 from errors import *
 
+import logging
+logging = logging.getLogger("pg8000")
+
 apilevel = "2.0"
 threadsafety = 3
 paramstyle = 'format' # paramstyle can be changed to any DB-API paramstyle
 
 def convert_paramstyle(src_style, query, args):
+    logging.debug("convert_paramstyle, %r, %r, %r", src_style, query, args)
     # I don't see any way to avoid scanning the query string char by char,
     # so we might as well take that careful approach and create a
     # state-based scanner.  We'll use int variables for the state.
@@ -217,7 +221,9 @@ class CursorWrapper(object):
 
     rowcount = property(lambda self: self._getRowCount())
     def _getRowCount(self):
-        return -1
+        if self.cursor == None:
+            raise InterfaceError("cursor is closed")
+        return self.cursor.row_count
 
     description = property(lambda self: self._getDescription())
     def _getDescription(self):
@@ -229,6 +235,7 @@ class CursorWrapper(object):
         return columns
 
     def execute(self, operation, args=()):
+        logging.debug("CursorWrapper.execute, %r, %r", operation, args)
         if self.cursor == None:
             raise InterfaceError("cursor is closed")
         new_query, new_args = convert_paramstyle(paramstyle, operation, args)
@@ -244,11 +251,13 @@ class CursorWrapper(object):
             self.execute(operation, parameters)
 
     def fetchone(self):
+        logging.debug("CursorWrapper.fetchone")
         if self.cursor == None:
             raise InterfaceError("cursor is closed")
         return self.cursor.read_tuple()
 
     def fetchmany(self, size=None):
+        logging.debug("CursorWrapper.fetchmany")
         if size == None:
             size = self.arraysize
         rows = []
@@ -257,11 +266,13 @@ class CursorWrapper(object):
         return rows
 
     def fetchall(self):
+        logging.debug("CursorWrapper.fetchall")
         if self.cursor == None:
             raise InterfaceError("cursor is closed")
         return tuple(self.cursor.iterate_tuple())
 
     def close(self):
+        logging.debug("CursorWrapper.close")
         self.cursor = None
 
     def setinputsizes(self, sizes):
@@ -279,6 +290,7 @@ class ConnectionWrapper(object):
         return CursorWrapper(self.conn)
 
     def commit(self):
+        logging.debug("ConnectionWrapper.commit")
         # There's a threading bug here.  If a query is sent after the
         # commit, but before the begin, it will be executed immediately
         # without a surrounding transaction.  Like all threading bugs -- it
@@ -293,6 +305,7 @@ class ConnectionWrapper(object):
         self.conn.begin()
 
     def rollback(self):
+        logging.debug("ConnectionWrapper.rollback")
         # see bug description in commit.
         if self.conn == None:
             raise InterfaceError("connection is closed")
@@ -300,6 +313,7 @@ class ConnectionWrapper(object):
         self.conn.begin()
 
     def close(self):
+        logging.debug("ConnectionWrapper.close")
         self.conn = None
 
 def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
