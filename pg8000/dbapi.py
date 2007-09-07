@@ -31,9 +31,12 @@ __author__ = "Mathieu Fenniak"
 
 import datetime
 import time
-import interface
-import types
-from errors import *
+
+from . import interface
+from . import types
+from .errors import (InterfaceError, DatabaseError, DataError,
+        OperationalError, IntegrityError, InternalError, ProgrammingError,
+        NotSupportedError)
 
 import logging
 logging = logging.getLogger("pg8000")

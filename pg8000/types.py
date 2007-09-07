@@ -33,8 +33,7 @@ import datetime
 import decimal
 import struct
 
-class Bytea(str):
-    pass
+Bytea = bytes
 
 def pg_type_info(typ):
     data = py_types.get(typ)
@@ -107,13 +106,13 @@ def py_value(v, description, **kwargs):
     return func(v, **kwargs)
 
 def boolrecv(data, **kwargs):
-    return data == "\x01"
+    return data == b"\x01"
 
 def boolout(v, **kwargs):
     if v:
-        return 't'
+        return b't'
     else:
-        return 'f'
+        return b'f'
 
 def int2recv(data, **kwargs):
     return struct.unpack("!h", data)[0]
@@ -148,11 +147,11 @@ def timestamp_in(data, **kwargs):
     day = int(data[8:10])
     hour = int(data[11:13])
     minute = int(data[14:16])
-    sec = decimal.Decimal(data[17:])
+    sec = decimal.Decimal(data[17:].decode("ascii"))
     return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
 def timestamp_out(v, **kwargs):
-    return v.isoformat(' ')
+    return v.isoformat(' ').encode("ascii")
 
 def date_in(data, **kwargs):
     year = int(data[0:4])
@@ -161,32 +160,32 @@ def date_in(data, **kwargs):
     return datetime.date(year, month, day)
 
 def date_out(v, **kwargs):
-    return v.isoformat()
+    return v.isoformat().encode("ascii")
 
 def time_in(data, **kwargs):
     hour = int(data[0:2])
     minute = int(data[3:5])
-    sec = decimal.Decimal(data[6:])
+    sec = decimal.Decimal(data[6:].decode("ascii"))
     return datetime.time(hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
 def time_out(v, **kwargs):
-    return v.isoformat()
+    return v.isoformat().encode("ascii")
 
 def numeric_in(data, **kwargs):
-    if data.find(".") == -1:
-        return int(data)
+    if data.find(b".") == -1:
+        return int(data.decode("ascii"))
     else:
-        return decimal.Decimal(data)
+        return decimal.Decimal(data.decode("ascii"))
 
 def numeric_out(v, **kwargs):
-    return str(v)
+    return str(v).encode("ascii")
 
 def encoding_convert(encoding):
     encodings = {"sql_ascii": "ascii"}
     return encodings.get(encoding.lower(), encoding)
 
 def varcharin(data, client_encoding, **kwargs):
-    return unicode(data, encoding_convert(client_encoding))
+    return str(data, encoding_convert(client_encoding))
 
 def textout(v, client_encoding, **kwargs):
     return v.encode(encoding_convert(client_encoding))
@@ -197,8 +196,8 @@ def timestamptz_in(data, **kwargs):
     day = int(data[8:10])
     hour = int(data[11:13])
     minute = int(data[14:16])
-    tz_sep = data.rfind("-")
-    sec = decimal.Decimal(data[17:tz_sep])
+    tz_sep = data.rfind(b"-")
+    sec = decimal.Decimal(data[17:tz_sep].decode("ascii"))
     tz = data[tz_sep:]
     return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000), FixedOffsetTz(tz))
 
@@ -222,10 +221,10 @@ class FixedOffsetTz(datetime.tzinfo):
         return self.hrs == other.hrs
 
 def byteasend(v, **kwargs):
-    return str(v)
+    return v
 
 def bytearecv(data, **kwargs):
-    return Bytea(data)
+    return data
 
 # interval support does not provide a Python-usable interval object yet
 def interval_in(data, **kwargs):
@@ -234,9 +233,9 @@ def interval_in(data, **kwargs):
 py_types = {
     bool: {"tid": 16, "txt_out": boolout},
     int: {"tid": 1700, "txt_out": numeric_out},
-    long: {"tid": 1700, "txt_out": numeric_out},
+    int: {"tid": 1700, "txt_out": numeric_out},
     str: {"tid": 25, "txt_out": textout},
-    unicode: {"tid": 25, "txt_out": textout},
+    str: {"tid": 25, "txt_out": textout},
     float: {"tid": 701, "bin_out": float8send},
     decimal.Decimal: {"tid": 1700, "txt_out": numeric_out},
     Bytea: {"tid": 17, "bin_out": byteasend},
@@ -266,6 +265,5 @@ pg_types = {
     1186: {"txt_in": interval_in},
     1700: {"txt_in": numeric_in},
 }
-
 
 

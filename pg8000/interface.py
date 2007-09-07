@@ -30,9 +30,12 @@
 __author__ = "Mathieu Fenniak"
 
 import socket
-import protocol
 import threading
-from errors import *
+
+from . import protocol
+from .errors import (InterfaceError, DatabaseError, DataError,
+        OperationalError, IntegrityError, InternalError, ProgrammingError,
+        NotSupportedError)
 
 class DataIterator(object):
     def __init__(self, obj, func):
@@ -42,7 +45,7 @@ class DataIterator(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         retval = self.func(self.obj)
         if retval == None:
             raise StopIteration()
@@ -97,11 +100,14 @@ class PreparedStatement(object):
         self._lock = threading.RLock()
 
     def __del__(self):
-        # This __del__ should work with garbage collection / non-instant
-        # cleanup.  It only really needs to be called right away if the same
-        # object id (and therefore the same statement name) might be reused
-        # soon, and clearly that wouldn't happen in a GC situation.
-        self.c.close_statement(self._statement_name)
+        # Like always, __del__ causes problems.  We can't close the statement
+        # immediately, because we might be being cleaned up at the same time
+        # the connection is doing something useful.  So, we call a delayed
+        # method that tells the connection to close this statement whenever it
+        # wants.  As long as the object id, which is the basis of this
+        # statement name, isn't reused soon... then closing the statement at
+        # the connection's leisure should be fine.
+        self.c.close_statement_eventually(self._statement_name)
 
     row_description = property(lambda self: self._getRowDescription())
     def _getRowDescription(self):
@@ -201,7 +207,7 @@ class PreparedStatement(object):
         retval = {}
         for i in range(len(self._row_desc.fields)):
             col_name = self._row_desc.fields[i]['name']
-            if retval.has_key(col_name):
+            if col_name in retval:
                 raise InterfaceError("cannot return dict of row when two columns have the same name (%r)" % (col_name,))
             retval[col_name] = row[i]
         return retval
@@ -377,7 +383,7 @@ class Connection(Cursor):
         try:
             self.c = protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout, ssl=ssl)
             self.c.authenticate(user, password=password, database=database)
-        except socket.error, e:
+        except socket.error as e:
             raise InterfaceError("communication error", e)
         Cursor.__init__(self, self)
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")

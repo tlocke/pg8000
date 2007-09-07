@@ -47,9 +47,9 @@ class QueryTests(unittest.TestCase):
     def setUp(self):
         try:
             db.execute("DROP TABLE t1")
-        except pg8000.DatabaseError, e:
+        except pg8000.DatabaseError as e:
             # the only acceptable error is:
-            self.assert_(e.args[1] == '42P01', # table does not exist
+            self.assert_(e.args[1] == b'42P01', # table does not exist
                     "incorrect error for drop table")
         db.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
 
@@ -75,9 +75,9 @@ class QueryTests(unittest.TestCase):
         for i in range(1, 4):
             try:
                 db.execute("DROP TABLE t1")
-            except pg8000.DatabaseError, e:
+            except pg8000.DatabaseError as e:
                 # the only acceptable error is:
-                self.assert_(e.args[1] == '42P01', # table does not exist
+                self.assert_(e.args[1] == b'42P01', # table does not exist
                         "incorrect error for drop table")
 
     def TestMultithreadedStatement(self):
@@ -174,9 +174,9 @@ class DBAPITests(unittest.TestCase):
         c = db2.cursor()
         try:
             c.execute("DROP TABLE t1")
-        except pg8000.DatabaseError, e:
+        except pg8000.DatabaseError as e:
             # the only acceptable error is:
-            self.assert_(e.args[1] == '42P01', # table does not exist
+            self.assert_(e.args[1] == b'42P01', # table does not exist
                     "incorrect error for drop table")
         c.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
         c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
@@ -310,8 +310,8 @@ class DBAPITests(unittest.TestCase):
                 "TimestampFromTicks constructor value match failed")
 
     def TestBinary(self):
-        v = dbapi.Binary("\x00\x01\x02\x03\x02\x01\x00")
-        self.assert_(v == "\x00\x01\x02\x03\x02\x01\x00",
+        v = dbapi.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
+        self.assert_(v == b"\x00\x01\x02\x03\x02\x01\x00",
                 "Binary value match failed")
         self.assert_(isinstance(v, pg8000.Bytea),
                 "Binary type match failed")
@@ -382,19 +382,19 @@ class TypeTests(unittest.TestCase):
     def TestStrRoundtrip(self):
         db.execute("SELECT $1 as f1", "hello world")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"f1": u"hello world"},),
+        self.assert_(retval == ({"f1": "hello world"},),
                 "retrieved value match failed")
 
     def TestUnicodeRoundtrip(self):
-        db.execute("SELECT $1 as f1", u"hello \u0173 world")
+        db.execute("SELECT $1 as f1", "hello \u0173 world")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"f1": u"hello \u0173 world"},),
+        self.assert_(retval == ({"f1": "hello \u0173 world"},),
                 "retrieved value match failed")
 
     def TestLongRoundtrip(self):
-        db.execute("SELECT $1 as f1", 50000000000000L)
+        db.execute("SELECT $1 as f1", 50000000000000)
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"f1": 50000000000000L},),
+        self.assert_(retval == ({"f1": 50000000000000},),
                 "retrieved value match failed")
 
     def TestIntRoundtrip(self):
@@ -404,9 +404,9 @@ class TypeTests(unittest.TestCase):
                 "retrieved value match failed")
 
     def TestByteaRoundtrip(self):
-        db.execute("SELECT $1 as f1", pg8000.Bytea("\x00\x01\x02\x03\x02\x01\x00"))
+        db.execute("SELECT $1 as f1", pg8000.Bytea(b"\x00\x01\x02\x03\x02\x01\x00"))
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"f1": "\x00\x01\x02\x03\x02\x01\x00"},),
+        self.assert_(retval == ({"f1": b"\x00\x01\x02\x03\x02\x01\x00"},),
                 "retrieved value match failed")
 
     def TestTimestampRoundtrip(self):
@@ -483,25 +483,25 @@ class TypeTests(unittest.TestCase):
     def TestVarcharOut(self):
         db.execute("SELECT 'hello'::varchar(20)")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"varchar": u"hello"},),
+        self.assert_(retval == ({"varchar": "hello"},),
                 "retrieved value match failed")
 
     def TestCharOut(self):
         db.execute("SELECT 'hello'::char(20)")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"bpchar": u"hello               "},),
+        self.assert_(retval == ({"bpchar": "hello               "},),
                 "retrieved value match failed")
 
     def TestTextOut(self):
         db.execute("SELECT 'hello'::text")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"text": u"hello"},),
+        self.assert_(retval == ({"text": "hello"},),
                 "retrieved value match failed")
 
     def TestIntervalOut(self):
         db.execute("SELECT '1 month'::interval")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"interval": "1 mon"},),
+        self.assert_(retval == ({"interval": b"1 mon"},),
                 "retrieved value match failed")
 
     def TestTimestampOut(self):
@@ -517,10 +517,16 @@ def suite():
     dbapi_tests = unittest.makeSuite(DBAPITests, "Test")
     query_tests = unittest.makeSuite(QueryTests, "Test")
     type_tests = unittest.makeSuite(TypeTests, "Test")
-    return unittest.TestSuite((connection_tests, paramstyle_tests, dbapi_tests,
-        query_tests, type_tests))
+
+    return unittest.TestSuite((
+        connection_tests,
+        paramstyle_tests,
+        dbapi_tests,
+        query_tests,
+        type_tests,
+    ))
 
 if __name__ == "__main__":
-    runner = unittest.TextTestRunner()
+    runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite())
 
