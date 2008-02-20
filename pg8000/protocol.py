@@ -194,6 +194,13 @@ class Execute(object):
         val = "E" + val
         return val
 
+class Terminate(object):
+    def __init__(self):
+        pass
+
+    def serialize(self):
+        return 'X\x00\x00\x00\x04'
+
 class AuthenticationRequest(object):
     def __init__(self, data):
         pass
@@ -670,6 +677,8 @@ class Connection(object):
             self._sock_lock.release()
 
     def close_statement(self, statement):
+        if self._state == "closed":
+            return
         self.verifyState("ready")
         self._sock_lock.acquire()
         try:
@@ -690,6 +699,8 @@ class Connection(object):
             self._sock_lock.release()
 
     def close_portal(self, portal):
+        if self._state == "closed":
+            return
         self.verifyState("ready")
         self._sock_lock.acquire()
         try:
@@ -706,6 +717,15 @@ class Connection(object):
                     raise msg.createException()
                 else:
                     raise InternalError("Unexpected response msg %r" % msg)
+        finally:
+            self._sock_lock.release()
+
+    def close(self):
+        self._sock_lock.acquire()
+        try:
+            self._send(Terminate())
+            self._sock.close()
+            self._state = "closed"
         finally:
             self._sock_lock.release()
 

@@ -314,6 +314,7 @@ class ConnectionWrapper(object):
 
     def close(self):
         logging.debug("ConnectionWrapper.close")
+        self.conn.close()
         self.conn = None
 
 def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):

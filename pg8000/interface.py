@@ -405,4 +405,8 @@ class Connection(Cursor):
     def rollback(self):
         self._rollback.execute()
 
+    ##
+    # Closes an open connection.
+    def close(self):
+        self.c.close()
 
