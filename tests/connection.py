@@ -9,9 +9,15 @@ class Tests(unittest.TestCase):
                 unix_sock="/file-does-not-exist", user="doesn't-matter")
 
     def testDatabaseMissing(self):
-        data = db_connect
+        data = db_connect.copy()
         data["database"] = "missing-db"
         self.assertRaises(pg8000.ProgrammingError, pg8000.Connection, **data)
+
+    def testNotify(self):
+        db = pg8000.Connection(**db_connect)
+        db.execute("LISTEN test")
+        db.execute("NOTIFY test")
+
 
 if __name__ == "__main__":
     unittest.main()

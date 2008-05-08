@@ -363,8 +363,24 @@ class ErrorResponse(object):
     createFromData = staticmethod(createFromData)
 
 class NotificationResponse(object):
-    # not implemented yet
-    pass
+    def __init__(self, backend_pid, condition, additional_info):
+        self.backend_pid = backend_pid
+        self.condition = condition
+        self.additional_info = additional_info
+
+    def __repr__(self):
+        return "<NotificationResponse %s %s %r>" % (self.backend_pid, self.condition, self.additional_info)
+
+    def createFromData(data):
+        backend_pid = struct.unpack("!i", data[:4])[0]
+        data = data[4:]
+        null = data.find("\x00")
+        condition = data[:null]
+        data = data[null+1:]
+        null = data.find("\x00")
+        additional_info = data[:null]
+        return NotificationResponse(backend_pid, condition, additional_info)
+    createFromData = staticmethod(createFromData)
 
 class ParameterDescription(object):
     def __init__(self, type_oids):
@@ -778,6 +794,7 @@ message_types = {
     "s": PortalSuspended,
     "n": NoData,
     "t": ParameterDescription,
+    "A": NotificationResponse,
     }
 
 
