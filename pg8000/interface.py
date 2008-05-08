@@ -384,9 +384,48 @@ class Connection(Cursor):
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
         self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
 
+    ##
+    # An event handler that is fired when NOTIFY occurs for a notification that
+    # has been LISTEN'd for.  The value of this property is a
+    # util.MulticastDelegate.  A callback can be added by using
+    # connection.NotificationReceived += SomeMethod.  The method will be called
+    # with a single argument, an object that has properties: backend_pid,
+    # condition, and additional_info.  Callbacks can be removed with the -=
+    # operator.
+    # <p>
+    # Stability: Added in v1.03, stability guaranteed for v1.xx.
     NotificationReceived = property(
             lambda self: getattr(self.c, "NotificationReceived"),
             lambda self, value: setattr(self.c, "NotificationReceived", value)
+    )
+
+    ##
+    # An event handler that is fired when the database server issues a notice.
+    # The value of this property is a util.MulticastDelegate.  A callback can
+    # be added by using connection.NotificationReceived += SomeMethod.  The
+    # method will be called with a single argument, an object that has
+    # properties: severity, code, msg, and possibly others (detail, hint,
+    # position, where, file, line, and routine).  Callbacks can be removed with
+    # the -= operator.
+    # <p>
+    # Stability: Added in v1.03, stability guaranteed for v1.xx.
+    NoticeReceived = property(
+            lambda self: getattr(self.c, "NoticeReceived"),
+            lambda self, value: setattr(self.c, "NoticeReceived", value)
+    )
+
+    ##
+    # An event handler that is fired when a runtime configuration option is
+    # changed on the server.  The value of this property is a
+    # util.MulticastDelegate.  A callback can be added by using
+    # connection.NotificationReceived += SomeMethod.  Callbacks can be removed
+    # with the -= operator.  The method will be called with a single argument,
+    # an object that has properties "key" and "value".
+    # <p>
+    # Stability: Added in v1.03, stability guaranteed for v1.xx.
+    ParameterStatusReceived = property(
+            lambda self: getattr(self.c, "ParameterStatusReceived"),
+            lambda self, value: setattr(self.c, "ParameterStatusReceived", value)
     )
 
     ##
