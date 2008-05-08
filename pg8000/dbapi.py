@@ -262,7 +262,13 @@ class CursorWrapper(object):
             size = self.arraysize
         rows = []
         for i in range(size):
-            rows.append(self.fetchone())
+            value = self.fetchone()
+            if value == None:
+                if len(rows) == 0:
+                    return None
+                else:
+                    break
+            rows.append(value)
         return rows
 
     def fetchall(self):
