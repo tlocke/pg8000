@@ -36,6 +36,7 @@ import md5
 from cStringIO import StringIO
 
 from errors import *
+from util import MulticastDelegate
 import types
 
 class SSLRequest(object):
@@ -536,6 +537,12 @@ class Connection(object):
         self._backend_key_data = None
         self._sock_lock = threading.Lock()
 
+        self.NoticeReceived = MulticastDelegate()
+        self.ParameterStatusReceived = MulticastDelegate()
+        self.NotificationReceived = MulticastDelegate()
+
+        self.ParameterStatusReceived += self._onParameterStatusReceived
+
     def verifyState(self, state):
         if self._state != state:
             raise InternalError("connection state must be %s, is %s" % (state, self._state))
@@ -757,26 +764,20 @@ class Connection(object):
         finally:
             self._sock_lock.release()
 
-    def handleNoticeResponse(self, msg):
-        # Note: this function will be called while things are going on.  Don't
-        # monopolize the thread - do something quick, or spawn a thread,
-        # because you'll be delaying whatever is going on.
-        pass
-
-    def handleParameterStatus(self, msg):
-        # Note: this function will be called while things are going on.  Don't
-        # monopolize the thread - do something quick, or spawn a thread,
-        # because you'll be delaying whatever is going on.
+    def _onParameterStatusReceived(self, msg):
         if msg.key == "client_encoding":
             self._client_encoding = msg.value
         elif msg.key == "integer_datetimes":
             self._integer_datetimes = (msg.value == "on")
 
+    def handleNoticeResponse(self, msg):
+        self.NoticeReceived(msg)
+
+    def handleParameterStatus(self, msg):
+        self.ParameterStatusReceived(msg)
+
     def handleNotificationResponse(self, msg):
-        # Note: this function will be called while things are going on.  Don't
-        # monopolize the thread - do something quick, or spawn a thread,
-        # because you'll be delaying whatever is going on.
-        pass
+        self.NotificationReceived(msg)
 
 message_types = {
     "N": NoticeResponse,

@@ -384,6 +384,11 @@ class Connection(Cursor):
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
         self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
 
+    NotificationReceived = property(
+            lambda self: getattr(self.c, "NotificationReceived"),
+            lambda self, value: setattr(self.c, "NotificationReceived", value)
+    )
+
     ##
     # Begins a new transaction.
     # <p>

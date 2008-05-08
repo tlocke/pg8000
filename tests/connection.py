@@ -14,9 +14,20 @@ class Tests(unittest.TestCase):
         self.assertRaises(pg8000.ProgrammingError, pg8000.Connection, **data)
 
     def testNotify(self):
+        self._notify = None
         db = pg8000.Connection(**db_connect)
-        db.execute("LISTEN test")
-        db.execute("NOTIFY test")
+        db.NotificationReceived += self._notifyReceived
+        try:
+            db.execute("LISTEN test")
+            db.execute("NOTIFY test")
+            self.assert_(self._notify != None)
+            self.assertEquals("test", self._notify.condition)
+        finally:
+            db.NotificationReceived -= self._notifyReceived
+            del self._notify
+
+    def _notifyReceived(self, msg):
+        self._notify = msg
 
 
 if __name__ == "__main__":
