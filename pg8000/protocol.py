@@ -651,42 +651,39 @@ class Connection(object):
             self._send(Execute(portal, row_count))
             self._send(Flush())
             rows = []
-            end_of_data = False
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, DataRow):
-                    rows.append(
-                            [types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding, integer_datetimes=self._integer_datetimes)
-                                for i in range(len(msg.fields))]
-                            )
-                elif isinstance(msg, PortalSuspended):
-                    # got all the rows we asked for, but not all that exist
-                    break
-                elif isinstance(msg, CommandComplete):
-                    self._send(ClosePortal(portal))
-                    self._send(Sync())
-                    while 1:
-                        msg = self._read_message()
-                        if isinstance(msg, ReadyForQuery):
-                            # ready to move on with life...
-                            self._state = "ready"
-                            break
-                        elif isinstance(msg, CloseComplete):
-                            # ok, great!
-                            pass
-                        elif isinstance(msg, ErrorResponse):
-                            raise msg.createException()
-                        else:
-                            raise InternalError("unexpected response msg %r" % msg)
-                    end_of_data = True
-                    break
-                elif isinstance(msg, ErrorResponse):
-                    raise msg.createException()
-                else:
-                    raise InternalError("Unexpected response msg %r" % msg)
-            return end_of_data, rows
+
+            reader = MessageReader(self)
+            reader.add_message(DataRow, self._fetch_datarow, rows, row_desc)
+            reader.add_message(PortalSuspended, lambda msg: 1)
+            reader.add_message(CommandComplete, self._fetch_commandcomplete, portal)
+            retval = reader.handle_messages()
+
+            # retval = 2 when command complete, indicating that we've hit the
+            # end of the available data for this command
+            return (retval == 2), rows
         finally:
             self._sock_lock.release()
+
+    def _fetch_datarow(self, msg, rows, row_desc):
+        rows.append(
+                [types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding, integer_datetimes=self._integer_datetimes)
+                    for i in range(len(msg.fields))]
+                )
+
+    def _fetch_commandcomplete(self, msg, portal):
+        self._send(ClosePortal(portal))
+        self._send(Sync())
+
+        reader = MessageReader(self)
+        reader.add_message(ReadyForQuery, self._fetch_commandcomplete_rfq)
+        reader.add_message(CloseComplete, lambda msg: False)
+        reader.handle_messages()
+
+        return 2  # signal end-of-data
+
+    def _fetch_commandcomplete_rfq(self, msg):
+        self._state = "ready"
+        return True
 
     def close_statement(self, statement):
         if self._state == "closed":
