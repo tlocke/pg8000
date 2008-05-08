@@ -194,6 +194,21 @@ class Tests(unittest.TestCase):
         self.assert_(retval == ({"timestamp": datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)},),
                 "retrieved value match failed")
 
+    # confirms that pg8000's binary output methods have the same output for
+    # a data type as the PG server
+    def testBinaryOutputMethods(self):
+        from pg8000 import types
+        methods = (
+                ("float8send", 22.2),
+                ("timestamp_send", datetime.datetime(2001, 2, 3, 4, 5, 6, 789)),
+                ("byteasend", pg8000.Bytea("\x01\x02")),
+        )
+        for method_out, value in methods:
+            db.execute("SELECT %s($1) as f1" % method_out, value)
+            retval = tuple(db.iterate_dict())
+            self.assert_(retval[0]["f1"] == getattr(types, method_out)(value, integer_datetimes=db.c._integer_datetimes))
+
+
 if __name__ == "__main__":
     unittest.main()
 

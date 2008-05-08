@@ -32,6 +32,7 @@ __author__ = "Mathieu Fenniak"
 import datetime
 import decimal
 import struct
+from errors import NotSupportedError
 
 class Bytea(str):
     pass
@@ -271,6 +272,7 @@ pg_types = {
     1184: {"txt_in": timestamptz_in}, # timestamp w/ tz
     1186: {"txt_in": interval_in},
     1700: {"txt_in": numeric_in},
+    2275: {"txt_in": varcharin}, # cstring
 }
 
 
