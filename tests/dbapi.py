@@ -159,6 +159,16 @@ class Tests(unittest.TestCase):
         c1.execute("SELECT * FROM t1")
         self.assertEquals(5, c1.rowcount)
 
+    def testFetchMany(self):
+        cursor = db2.cursor()
+        cursor.arraysize = 2
+        cursor.execute("SELECT * FROM t1")
+        self.assertEquals(2, len(cursor.fetchmany()))
+        self.assertEquals(2, len(cursor.fetchmany()))
+        self.assertEquals(1, len(cursor.fetchmany()))
+        self.assertEquals(None, cursor.fetchmany())
+
+
 if __name__ == "__main__":
     unittest.main()
 
