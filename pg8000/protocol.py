@@ -311,22 +311,46 @@ class ReadyForQuery(object):
     createFromData = staticmethod(createFromData)
 
 class NoticeResponse(object):
-    def __init__(self):
-        pass
+    responseKeys = {
+        "S": "severity",  # always present
+        "C": "code",      # always present
+        "M": "msg",       # always present
+        "D": "detail",
+        "H": "hint",
+        "P": "position",
+        "p": "_position",
+        "q": "_query",
+        "W": "where",
+        "F": "file",
+        "L": "line",
+        "R": "routine",
+    }
+
+    def __init__(self, **kwargs):
+        for arg, value in kwargs.items():
+            setattr(self, arg, value)
+
+    def __repr__(self):
+        return "<NoticeResponse %s %s %r>" % (self.severity, self.code, self.msg)
+
+    def dataIntoDict(data):
+        retval = {}
+        for s in data.split("\x00"):
+            if not s: continue
+            key, value = s[0], s[1:]
+            key = NoticeResponse.responseKeys.get(key, key)
+            retval[key] = value
+        return retval
+    dataIntoDict = staticmethod(dataIntoDict)
+
     def createFromData(data):
-        # we could read the notice here, but we don't care yet.
-        return NoticeResponse()
+        return NoticeResponse(**NoticeResponse.dataIntoDict(data))
     createFromData = staticmethod(createFromData)
 
-class NotificationResponse(object):
-    # not implemented yet
-    pass
-
 class ErrorResponse(object):
-    def __init__(self, severity, code, msg):
-        self.severity = severity
-        self.code = code
-        self.msg = msg
+    def __init__(self, **kwargs):
+        for arg, value in kwargs.items():
+            setattr(self, arg, value)
 
     def __repr__(self):
         return "<ErrorResponse %s %s %r>" % (self.severity, self.code, self.msg)
@@ -335,18 +359,12 @@ class ErrorResponse(object):
         return ProgrammingError(self.severity, self.code, self.msg)
 
     def createFromData(data):
-        args = {}
-        for s in data.split("\x00"):
-            if not s:
-                continue
-            elif s[0] == "S":
-                args["severity"] = s[1:]
-            elif s[0] == "C":
-                args["code"] = s[1:]
-            elif s[0] == "M":
-                args["msg"] = s[1:]
-        return ErrorResponse(**args)
+        return ErrorResponse(**NoticeResponse.dataIntoDict(data))
     createFromData = staticmethod(createFromData)
+
+class NotificationResponse(object):
+    # not implemented yet
+    pass
 
 class ParameterDescription(object):
     def __init__(self, type_oids):
