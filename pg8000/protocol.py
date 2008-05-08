@@ -235,16 +235,17 @@ class AuthenticationMD5Password(AuthenticationRequest):
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
         pwd = "md5" + md5.new(md5.new(password + user).hexdigest() + self.salt).hexdigest()
         conn._send(PasswordMessage(pwd))
-        msg = conn._read_message()
-        if isinstance(msg, AuthenticationRequest):
-            return msg.ok(conn, user)
-        elif isinstance(msg, ErrorResponse):
-            if msg.code == "28000":
-                raise InterfaceError("md5 password authentication failed")
-            else:
-                raise InternalError("server returned unexpected error %r" % msg)
+
+        reader = MessageReader(conn)
+        reader.add_message(AuthenticationRequest, lambda msg, reader: reader.return_value(msg.ok(conn, user)), reader)
+        reader.add_message(ErrorResponse, self._ok_error)
+        return reader.handle_messages()
+
+    def _ok_error(self, msg):
+        if msg.code == "28000":
+            raise InterfaceError("md5 password authentication failed")
         else:
-            raise InternalError("server returned unexpected response %r" % msg)
+            raise msg.createException()
 
 authentication_codes = {
     0: AuthenticationOk,
