@@ -527,11 +527,7 @@ class Connection(object):
                 bytes += tmp
         assert len(bytes) == data_len
         msg = message_types[message_code].createFromData(bytes)
-        if isinstance(msg, NoticeResponse):
-            # ignore NoticeResponse
-            return self._read_message()
-        else:
-            return msg
+        return msg
 
     def authenticate(self, user, **kwargs):
         self.verifyState("noauth")
