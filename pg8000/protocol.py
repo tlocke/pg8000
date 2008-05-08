@@ -33,6 +33,7 @@ import socket
 import threading
 import struct
 import md5
+from cStringIO import StringIO
 
 from errors import *
 import types
@@ -105,20 +106,24 @@ class Bind(object):
         self.out_fc = out_fc
 
     def serialize(self):
-        val = self.portal + "\x00" + self.ps + "\x00"
-        val = val + struct.pack("!h", len(self.in_fc))
+        retval = StringIO()
+        retval.write(self.portal + "\x00")
+        retval.write(self.ps + "\x00")
+        retval.write(struct.pack("!h", len(self.in_fc)))
         for fc in self.in_fc:
-            val = val + struct.pack("!h", fc)
-        val = val + struct.pack("!h", len(self.params))
+            retval.write(struct.pack("!h", fc))
+        retval.write(struct.pack("!h", len(self.params)))
         for param in self.params:
             if param == None:
                 # special case, NULL value
-                val = val + struct.pack("!i", -1)
+                retval.write(struct.pack("!i", -1))
             else:
-                val = val + struct.pack("!i", len(param)) + param
-        val = val + struct.pack("!h", len(self.out_fc))
+                retval.write(struct.pack("!i", len(param)))
+                retval.write(param)
+        retval.write(struct.pack("!h", len(self.out_fc)))
         for fc in self.out_fc:
-            val = val + struct.pack("!h", fc)
+            retval.write(struct.pack("!h", fc))
+        val = retval.getvalue()
         val = struct.pack("!i", len(val) + 4) + val
         val = "B" + val
         return val
