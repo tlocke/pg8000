@@ -696,17 +696,11 @@ class Connection(object):
         try:
             self._send(ClosePreparedStatement(statement))
             self._send(Sync())
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, CloseComplete):
-                    # thanks!
-                    pass
-                elif isinstance(msg, ReadyForQuery):
-                    return
-                elif isinstance(msg, ErrorResponse):
-                    raise msg.createException()
-                else:
-                    raise InternalError("Unexpected response msg %r" % msg)
+
+            reader = MessageReader(self)
+            reader.add_message(CloseComplete, lambda msg: 0)
+            reader.add_message(ReadyForQuery, lambda msg: 1)
+            reader.handle_messages()
         finally:
             self._sock_lock.release()
 
@@ -718,17 +712,11 @@ class Connection(object):
         try:
             self._send(ClosePortal(portal))
             self._send(Sync())
-            while 1:
-                msg = self._read_message()
-                if isinstance(msg, CloseComplete):
-                    # thanks!
-                    pass
-                elif isinstance(msg, ReadyForQuery):
-                    return
-                elif isinstance(msg, ErrorResponse):
-                    raise msg.createException()
-                else:
-                    raise InternalError("Unexpected response msg %r" % msg)
+
+            reader = MessageReader(self)
+            reader.add_message(CloseComplete, lambda msg: 0)
+            reader.add_message(ReadyForQuery, lambda msg: 1)
+            reader.handle_messages()
         finally:
             self._sock_lock.release()
 
