@@ -212,10 +212,7 @@ class PreparedStatement(object):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_tuple(self):
-        row = self._fetch()
-        if row == None:
-            return row
-        return row
+        return self._fetch()
 
     ##
     # Return an iterator for the output of this statement.  The iterator will
