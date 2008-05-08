@@ -523,33 +523,32 @@ class Connection(object):
 
     def authenticate(self, user, **kwargs):
         self.verifyState("noauth")
-        self._send(StartupMessage(user, database=kwargs.get("database",None)))
-        msg = self._read_message()
-        if isinstance(msg, AuthenticationRequest):
-            if msg.ok(self, user, **kwargs):
-                self._state = "auth"
-                while 1:
-                    msg = self._read_message()
-                    if isinstance(msg, ReadyForQuery):
-                        # done reading messages
-                        self._state = "ready"
-                        break
-                    elif isinstance(msg, ParameterStatus):
-                        #print "ParameterStatus{%r=%r}" % (msg.key, msg.value)
-                        if msg.key == "client_encoding":
-                            self._client_encoding = msg.value
-                        elif msg.key == "integer_datetimes":
-                            self._integer_datetimes = (msg.value == "on")
-                    elif isinstance(msg, BackendKeyData):
-                        self._backend_key_data = msg
-                    elif isinstance(msg, ErrorResponse):
-                        raise msg.createException()
-                    else:
-                        raise InternalError("unexpected msg %r" % msg)
-            else:
+        self._sock_lock.acquire()
+        try:
+            self._send(StartupMessage(user, database=kwargs.get("database",None)))
+            msg = self._read_message()
+            if not isinstance(msg, AuthenticationRequest):
+                raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
+            if not msg.ok(self, user, **kwargs):
                 raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
-        else:
-            raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
+
+            self._state = "auth"
+            try:
+                self._reader.add_message(ReadyForQuery, self._ready_for_query)
+                self._reader.add_message(BackendKeyData, self._receive_backend_key_data)
+                self._reader.handle_messages()
+            finally:
+                self._reader.clear_messages()
+
+        finally:
+            self._sock_lock.release()
+
+    def _ready_for_query(self, msg):
+        self._state = "ready"
+        return True
+
+    def _receive_backend_key_data(self, msg):
+        self._backend_key_data = msg
 
     def parse(self, statement, qs, param_types):
         self.verifyState("ready")
@@ -750,7 +749,10 @@ class Connection(object):
         # Note: this function will be called while things are going on.  Don't
         # monopolize the thread - do something quick, or spawn a thread,
         # because you'll be delaying whatever is going on.
-        pass
+        if msg.key == "client_encoding":
+            self._client_encoding = msg.value
+        elif msg.key == "integer_datetimes":
+            self._integer_datetimes = (msg.value == "on")
 
     def handleNotificationResponse(self, msg):
         # Note: this function will be called while things are going on.  Don't
