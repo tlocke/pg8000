@@ -23,7 +23,15 @@ db_local_connect = {
         "user": "mfenniak"
         }
 
-db_connect = db_local_connect
+db_vm_connect = {
+        "host": "192.168.111.128",
+        "user": "unittest",
+        "password": "unittest",
+        "database": "pg8000"
+        }
+
+
+db_connect = db_vm_connect
 
 db = pg8000.Connection(**db_connect)
 db2 = dbapi.connect(**db_connect)
@@ -36,9 +44,9 @@ class ConnectionTests(unittest.TestCase):
                 unix_sock="/file-does-not-exist", user="doesn't-matter")
 
     def TestDatabaseMissing(self):
-        self.assertRaises(pg8000.ProgrammingError, pg8000.Connection,
-                unix_sock=db_local_connect['unix_sock'], database='missing-db',
-                user='mfenniak')
+        data = db_connect
+        data["database"] = "missing-db"
+        self.assertRaises(pg8000.ProgrammingError, pg8000.Connection, **data)
 
 
 # Tests relating to the basic operation of the database driver, driven by the
@@ -517,8 +525,13 @@ def suite():
     dbapi_tests = unittest.makeSuite(DBAPITests, "Test")
     query_tests = unittest.makeSuite(QueryTests, "Test")
     type_tests = unittest.makeSuite(TypeTests, "Test")
-    return unittest.TestSuite((connection_tests, paramstyle_tests, dbapi_tests,
-        query_tests, type_tests))
+    return unittest.TestSuite((
+        connection_tests,
+        paramstyle_tests,
+        dbapi_tests,
+        query_tests,
+        type_tests,
+    ))
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner()

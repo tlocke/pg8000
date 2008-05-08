@@ -459,6 +459,8 @@ class Connection(object):
         if unix_sock == None and host != None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
+            if not hasattr(socket, "AF_UNIX"):
+                raise InterfaceError("attempt to connect to unix socket on unsupported platform")
             self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         else:
             raise ProgrammingError("one of host or unix_sock must be provided")
