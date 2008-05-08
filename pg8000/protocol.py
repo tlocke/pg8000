@@ -487,7 +487,6 @@ class Connection(object):
         self._state = "noauth"
         self._backend_key_data = None
         self._sock_lock = threading.Lock()
-        self._reader = MessageReader(self)
 
     def verifyState(self, state):
         if self._state != state:
@@ -533,13 +532,11 @@ class Connection(object):
                 raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
 
             self._state = "auth"
-            try:
-                self._reader.add_message(ReadyForQuery, self._ready_for_query)
-                self._reader.add_message(BackendKeyData, self._receive_backend_key_data)
-                self._reader.handle_messages()
-            finally:
-                self._reader.clear_messages()
 
+            reader = MessageReader(self)
+            reader.add_message(ReadyForQuery, self._ready_for_query)
+            reader.add_message(BackendKeyData, self._receive_backend_key_data)
+            reader.handle_messages()
         finally:
             self._sock_lock.release()
 
@@ -560,24 +557,23 @@ class Connection(object):
             self._send(DescribePreparedStatement(statement))
             self._send(Flush())
 
-            try:
-                # ParseComplete is good.
-                self._reader.add_message(ParseComplete, lambda msg: 0)
+            reader = MessageReader(self)
 
-                # Well, we don't really care -- we're going to send whatever we
-                # want and let the database deal with it.  But thanks anyways!
-                self._reader.add_message(ParameterDescription, lambda msg: 0)
+            # ParseComplete is good.
+            reader.add_message(ParseComplete, lambda msg: 0)
 
-                # We're not waiting for a row description.  Return something
-                # destinctive to let bind know that there is no output.
-                self._reader.add_message(NoData, lambda msg: (None, param_fc))
+            # Well, we don't really care -- we're going to send whatever we
+            # want and let the database deal with it.  But thanks anyways!
+            reader.add_message(ParameterDescription, lambda msg: 0)
 
-                # Common row description response
-                self._reader.add_message(RowDescription, lambda msg: (msg, param_fc))
+            # We're not waiting for a row description.  Return something
+            # destinctive to let bind know that there is no output.
+            reader.add_message(NoData, lambda msg: (None, param_fc))
 
-                return self._reader.handle_messages()
-            finally:
-                self._reader.clear_messages()
+            # Common row description response
+            reader.add_message(RowDescription, lambda msg: (msg, param_fc))
+
+            return reader.handle_messages()
 
         finally:
             self._sock_lock.release()
