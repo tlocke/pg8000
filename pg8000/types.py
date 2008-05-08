@@ -133,14 +133,15 @@ def float8recv(data, **kwargs):
 def float8send(v, **kwargs):
     return struct.pack("!d", v)
 
-# The timestamp_recv function is sadly not in use because some PostgreSQL
-# servers are compiled with HAVE_INT64_TIMESTAMP, and some are not.  This
-# alters the binary format of the timestamp, cannot be perfectly detected,
-# and there is no message from the server indicating which format is in
-# use.  Ah, well, obviously binary formats are hit-and-miss...
-#def timestamp_recv(data, **kwargs):
-#    val = struct.unpack("!d", data)[0]
-#    return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds = val)
+def timestamp_recv(data, integer_datetimes, **kwargs):
+    if integer_datetimes:
+        # data is 64-bit integer representing milliseconds since 2000-01-01
+        val = struct.unpack("!q", data)[0]
+        return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds = val)
+    else:
+        # data is double-precision float representing seconds since 2000-01-01
+        val = struct.unpack("!d", data)[0]
+        return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds = val)
 
 def timestamp_in(data, **kwargs):
     year = int(data[0:4])
@@ -153,6 +154,11 @@ def timestamp_in(data, **kwargs):
 
 def timestamp_out(v, **kwargs):
     return v.isoformat(' ')
+
+def timestamp_send(v, integer_datetimes, **kwargs):
+    delta = v - datetime.datetime(2000, 1, 1)
+    val = delta.microseconds + (delta.seconds * 1000000) + (delta.days * 86400000000)
+    return struct.pack("!q", val)
 
 def date_in(data, **kwargs):
     year = int(data[0:4])
@@ -240,7 +246,7 @@ py_types = {
     float: {"tid": 701, "bin_out": float8send},
     decimal.Decimal: {"tid": 1700, "txt_out": numeric_out},
     Bytea: {"tid": 17, "bin_out": byteasend},
-    datetime.datetime: {"tid": 1114, "txt_out": timestamp_out},
+    datetime.datetime: {"tid": 1114, "bin_out": timestamp_send},
     datetime.date: {"tid": 1082, "txt_out": date_out},
     datetime.time: {"tid": 1083, "txt_out": time_out},
     type(None): {"tid": -1},
@@ -261,7 +267,7 @@ pg_types = {
     1043: {"txt_in": varcharin}, # VARCHAR type
     1082: {"txt_in": date_in},
     1083: {"txt_in": time_in},
-    1114: {"txt_in": timestamp_in},
+    1114: {"bin_in": timestamp_recv},
     1184: {"txt_in": timestamptz_in}, # timestamp w/ tz
     1186: {"txt_in": interval_in},
     1700: {"txt_in": numeric_in},

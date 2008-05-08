@@ -89,7 +89,7 @@ class Parse(object):
         return val
 
 class Bind(object):
-    def __init__(self, portal, ps, in_fc, params, out_fc, client_encoding):
+    def __init__(self, portal, ps, in_fc, params, out_fc, **kwargs):
         self.portal = portal
         self.ps = ps
         self.in_fc = in_fc
@@ -101,7 +101,7 @@ class Bind(object):
                 fc = self.in_fc[0]
             else:
                 fc = self.in_fc[i]
-            self.params.append(types.pg_value(params[i], fc, client_encoding = client_encoding))
+            self.params.append(types.pg_value(params[i], fc, **kwargs))
         self.out_fc = out_fc
 
     def serialize(self):
@@ -456,6 +456,7 @@ class MessageReader(object):
 class Connection(object):
     def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
         self._client_encoding = "ascii"
+        self._integer_datetimes = False
         if unix_sock == None and host != None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
@@ -529,8 +530,11 @@ class Connection(object):
                         self._state = "ready"
                         break
                     elif isinstance(msg, ParameterStatus):
+                        #print "ParameterStatus{%r=%r}" % (msg.key, msg.value)
                         if msg.key == "client_encoding":
                             self._client_encoding = msg.value
+                        elif msg.key == "integer_datetimes":
+                            self._integer_datetimes = (msg.value == "on")
                     elif isinstance(msg, BackendKeyData):
                         self._backend_key_data = msg
                     elif isinstance(msg, ErrorResponse):
@@ -586,7 +590,7 @@ class Connection(object):
                 # We've got row_desc that allows us to identify what we're going to
                 # get back from this statement.
                 output_fc = [types.py_type_info(f) for f in row_desc.fields]
-            self._send(Bind(portal, statement, param_fc, params, output_fc, self._client_encoding))
+            self._send(Bind(portal, statement, param_fc, params, output_fc, client_encoding = self._client_encoding, integer_datetimes = self._integer_datetimes))
             # We need to describe the portal after bind, since the return
             # format codes will be different (hopefully, always what we
             # requested).
@@ -646,7 +650,7 @@ class Connection(object):
                 msg = self._read_message()
                 if isinstance(msg, DataRow):
                     rows.append(
-                            [types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding)
+                            [types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding, integer_datetimes=self._integer_datetimes)
                                 for i in range(len(msg.fields))]
                             )
                 elif isinstance(msg, PortalSuspended):
