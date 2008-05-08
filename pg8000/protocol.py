@@ -414,6 +414,12 @@ class MessageReader(object):
         self._conn = connection
         self._msgs = []
 
+        # If true, raise exception from an ErrorResponse after messages are
+        # processed.  This can be used to leave the connection in a usable
+        # state after an error response, rather than having unconsumed
+        # messages that won't be understood in another context.
+        self.delay_raising_exception = False
+
     def add_message(self, msg_class, handler, *args, **kwargs):
         self._msgs.append((msg_class, handler, args, kwargs))
 
@@ -424,6 +430,7 @@ class MessageReader(object):
         self._retval = value
     
     def handle_messages(self):
+        exc = None
         while 1:
             msg = self._conn._read_message()
             msg_handled = False
@@ -434,15 +441,21 @@ class MessageReader(object):
                     if retval:
                         # The handler returned a true value, meaning that the
                         # message loop should be aborted.
+                        if exc != None:
+                            raise exc
                         return retval
                     elif hasattr(self, "_retval"):
                         # The handler told us to return -- used for non-true
                         # return values
+                        if exc != None:
+                            raise exc
                         return self._retval
             if msg_handled:
                 continue
             elif isinstance(msg, ErrorResponse):
-                raise msg.createException()
+                exc = msg.createException()
+                if not self.delay_raising_exception:
+                    raise exc
             elif isinstance(msg, NoticeResponse):
                 # NoticeResponse can occur at any time, and must always be handled.
                 self._conn.handleNoticeResponse(msg)
@@ -622,20 +635,13 @@ class Connection(object):
         # Bind message returned NoData, causing us to execute the command.
         self._send(Execute(portal, 0))
         self._send(Sync())
-        exc = None
-        while 1:
-            msg = self._read_message()
-            if isinstance(msg, CommandComplete):
-                # more good news!
-                pass
-            elif isinstance(msg, ReadyForQuery):
-                if exc != None:
-                    raise exc
-                break
-            elif isinstance(msg, ErrorResponse):
-                exc = msg.createException()
-            else:
-                raise InternalError("unexpected response")
+
+        reader = MessageReader(self)
+        reader.add_message(CommandComplete, lambda msg: 0)
+        reader.add_message(ReadyForQuery, lambda msg: 1)
+        reader.delay_raising_exception = True
+        reader.handle_messages()
+
         old_reader.return_value(None)
 
     def fetch_rows(self, portal, row_count, row_desc):
