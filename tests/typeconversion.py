@@ -100,6 +100,13 @@ class Tests(unittest.TestCase):
         self.assert_(retval == ({"f1": v},),
                 "retrieved value match failed")
 
+    def testIntervalRoundtrip(self):
+        v = pg8000.types.Interval(microseconds=123456789, days=2, months=24)
+        db.execute("SELECT $1 as f1", v)
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": v},),
+                "retrieved value match failed")
+
     def testTimestampTzOut(self):
         db.execute("SELECT '2001-02-03 04:05:06.17 Canada/Mountain'::timestamp with time zone")
         retval = tuple(db.iterate_dict())
