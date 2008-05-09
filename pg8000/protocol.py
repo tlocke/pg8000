@@ -493,16 +493,10 @@ class MessageReader(object):
                 if not self.delay_raising_exception:
                     raise exc
             elif isinstance(msg, NoticeResponse):
-                # NoticeResponse can occur at any time, and must always be handled.
                 self._conn.handleNoticeResponse(msg)
             elif isinstance(msg, ParameterStatus):
-                # ParameterStatus can occur at any time, and must always be handled.
                 self._conn.handleParameterStatus(msg)
             elif isinstance(msg, NotificationResponse):
-                # NotificationResponse can occur at any time, and must always
-                # be handled.  (Note, reading NotificationResponse isn't
-                # handled yet.  This code block is kinda a comment to remember
-                # to do it later.)
                 self._conn.handleNotificationResponse(msg)
             else:
                 raise InternalError("Unexpected response msg %r" % (msg))
