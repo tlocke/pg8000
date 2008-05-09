@@ -19,4 +19,5 @@ db_vm_connect = {
         "database": "pg8000"
         }
 
-db_connect = db_vm_connect
+db_connect = db_local_connect
+

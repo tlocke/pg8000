@@ -37,6 +37,22 @@ from errors import NotSupportedError
 class Bytea(str):
     pass
 
+class Interval(object):
+    def __init__(self, microseconds, days, months):
+        self.microseconds = microseconds
+        self.days = days
+        self.months = months
+
+    def __repr__(self):
+        return "<Interval %s months %s days %s microseconds>" % (self.months, self.days, self.microseconds)
+
+    def __cmp__(self, other):
+        c = cmp(self.months, other.months)
+        if c != 0: return c
+        c = cmp(self.days, other.days)
+        if c != 0: return c
+        return cmp(self.microseconds, other.microseconds)
+
 def pg_type_info(typ):
     data = py_types.get(typ)
     if data == None:
@@ -159,7 +175,10 @@ def timestamp_out(v, **kwargs):
 def timestamp_send(v, integer_datetimes, **kwargs):
     delta = v - datetime.datetime(2000, 1, 1)
     val = delta.microseconds + (delta.seconds * 1000000) + (delta.days * 86400000000)
-    return struct.pack("!q", val)
+    if integer_datetimes:
+        return struct.pack("!q", val)
+    else:
+        return struct.pack("!d", val / 1000.0 / 1000.0)
 
 def date_in(data, **kwargs):
     year = int(data[0:4])
@@ -235,8 +254,19 @@ def bytearecv(data, **kwargs):
     return Bytea(data)
 
 # interval support does not provide a Python-usable interval object yet
-def interval_in(data, **kwargs):
-    return data
+def interval_recv(data, integer_datetimes, **kwargs):
+    if integer_datetimes:
+        microseconds, days, months = struct.unpack("!qii", data)
+    else:
+        seconds, days, months = struct.unpack("!dii", data)
+        microseconds = int(seconds * 1000 * 1000)
+    return Interval(microseconds, days, months)
+
+def interval_send(data, integer_datetimes, **kwargs):
+    if integer_datetimes:
+        return struct.pack("!qii", data.microseconds, data.days, data.months)
+    else:
+        return struct.pack("!dii", data.microseconds / 1000.0 / 1000.0, data.days, data.months)
 
 py_types = {
     bool: {"tid": 16, "txt_out": boolout},
@@ -250,6 +280,7 @@ py_types = {
     datetime.datetime: {"tid": 1114, "bin_out": timestamp_send},
     datetime.date: {"tid": 1082, "txt_out": date_out},
     datetime.time: {"tid": 1083, "txt_out": time_out},
+    Interval: {"tid": 1186, "bin_out": interval_send},
     type(None): {"tid": -1},
 }
 
@@ -270,7 +301,7 @@ pg_types = {
     1083: {"txt_in": time_in},
     1114: {"bin_in": timestamp_recv},
     1184: {"txt_in": timestamptz_in}, # timestamp w/ tz
-    1186: {"txt_in": interval_in},
+    1186: {"bin_in": interval_recv},
     1700: {"txt_in": numeric_in},
     2275: {"txt_in": varcharin}, # cstring
 }

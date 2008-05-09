@@ -183,9 +183,13 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testIntervalOut(self):
-        db.execute("SELECT '1 month'::interval")
+        db.execute("SELECT '1 month 16 days 12 hours 32 minutes 64 seconds'::interval")
         retval = tuple(db.iterate_dict())
-        self.assert_(retval == ({"interval": "1 mon"},),
+        expected_value = pg8000.types.Interval(
+                microseconds = (12 * 60 * 60 * 1000 * 1000) + (32 * 60 * 1000 * 1000) + (64 * 1000 * 1000),
+                days = 16,
+                months = 1)
+        self.assert_(retval == ({"interval": expected_value},),
                 "retrieved value match failed")
 
     def testTimestampOut(self):
