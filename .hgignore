@@ -2,3 +2,5 @@ build
 \.pyc$
 \.swp$
 tmp
+dist
+MANIFEST
