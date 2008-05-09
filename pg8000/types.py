@@ -160,18 +160,6 @@ def timestamp_recv(data, integer_datetimes, **kwargs):
         val = struct.unpack("!d", data)[0]
         return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds = val)
 
-def timestamp_in(data, **kwargs):
-    year = int(data[0:4])
-    month = int(data[5:7])
-    day = int(data[8:10])
-    hour = int(data[11:13])
-    minute = int(data[14:16])
-    sec = decimal.Decimal(data[17:])
-    return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000))
-
-def timestamp_out(v, **kwargs):
-    return v.isoformat(' ')
-
 def timestamp_send(v, integer_datetimes, **kwargs):
     delta = v - datetime.datetime(2000, 1, 1)
     val = delta.microseconds + (delta.seconds * 1000000) + (delta.days * 86400000000)
