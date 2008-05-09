@@ -213,6 +213,7 @@ class Tests(unittest.TestCase):
                 ("float8send", 22.2),
                 ("timestamp_send", datetime.datetime(2001, 2, 3, 4, 5, 6, 789)),
                 ("byteasend", pg8000.Bytea("\x01\x02")),
+                ("interval_send", pg8000.types.Interval(1234567, 123, 123)),
         )
         for method_out, value in methods:
             db.execute("SELECT %s($1) as f1" % method_out, value)
