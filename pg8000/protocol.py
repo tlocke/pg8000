@@ -39,18 +39,38 @@ from errors import *
 from util import MulticastDelegate
 import types
 
+##
+# An SSLRequest message.  To initiate an SSL-encrypted connection, an
+# SSLRequest message is used rather than a {@link StartupMessage
+# StartupMessage}.  A StartupMessage is still sent, but only after SSL
+# negotiation (if accepted).
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class SSLRequest(object):
     def __init__(self):
         pass
 
+    # Int32(8) - Message length, including self.<br>
+    # Int32(80877103) - The SSL request code.<br>
     def serialize(self):
         return struct.pack("!ii", 8, 80877103)
 
+
+##
+# A StartupMessage message.  Begins a DB session, identifying the user to be
+# authenticated as and the database to connect to.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class StartupMessage(object):
     def __init__(self, user, database=None):
         self.user = user
         self.database = database
 
+    # Int32 - Message length, including self.
+    # Int32(196608) - Protocol version number.  Version 3.0.
+    # Any number of key/value pairs, terminated by a zero byte:
+    #   String - A parameter name (user, database, or options)
+    #   String - Parameter value
     def serialize(self):
         protocol = 196608
         val = struct.pack("!i", protocol)
@@ -61,22 +81,30 @@ class StartupMessage(object):
         val = struct.pack("!i", len(val) + 4) + val
         return val
 
-class Query(object):
-    def __init__(self, qs):
-        self.qs = qs
 
-    def serialize(self):
-        val = self.qs + "\x00"
-        val = struct.pack("!i", len(val) + 4) + val
-        val = "Q" + val
-        return val
-
+##
+# Parse message.  Creates a prepared statement in the DB session.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
+#
+# @param ps         Name of the prepared statement to create.
+# @param qs         Query string.
+# @param type_oids  An iterable that contains the PostgreSQL type OIDs for
+#                   parameters in the query string.
 class Parse(object):
     def __init__(self, ps, qs, type_oids):
         self.ps = ps
         self.qs = qs
         self.type_oids = type_oids
 
+    # Byte1('P') - Identifies the message as a Parse command.
+    # Int32 -   Message length, including self.
+    # String -  Prepared statement name.  An empty string selects the unnamed
+    #           prepared statement.
+    # String -  The query string.
+    # Int16 -   Number of parameter data types specified (can be zero).
+    # For each parameter:
+    #   Int32 - The OID of the parameter data type.
     def serialize(self):
         val = self.ps + "\x00" + self.qs + "\x00"
         val = val + struct.pack("!h", len(self.type_oids))
@@ -90,6 +118,21 @@ class Parse(object):
         val = "P" + val
         return val
 
+
+##
+# Bind message.  Readies a prepared statement for execution.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
+#
+# @param portal     Name of the destination portal.
+# @param ps         Name of the source prepared statement.
+# @param in_fc      An iterable containing the format codes for input
+#                   parameters.  0 = Text, 1 = Binary.
+# @param params     The parameters.
+# @param out_fc     An iterable containing the format codes for output
+#                   parameters.  0 = Text, 1 = Binary.
+# @param kwargs     Additional arguments to pass to the type conversion
+#                   methods.
 class Bind(object):
     def __init__(self, portal, ps, in_fc, params, out_fc, **kwargs):
         self.portal = portal
@@ -106,6 +149,22 @@ class Bind(object):
             self.params.append(types.pg_value(params[i], fc, **kwargs))
         self.out_fc = out_fc
 
+    # Byte1('B') - Identifies the Bind command.
+    # Int32 - Message length, including self.
+    # String - Name of the destination portal.
+    # String - Name of the source prepared statement.
+    # Int16 - Number of parameter format codes.
+    # For each parameter format code:
+    #   Int16 - The parameter format code.
+    # Int16 - Number of parameter values.
+    # For each parameter value:
+    #   Int32 - The length of the parameter value, in bytes, not including this
+    #           this length.  -1 indicates a NULL parameter value, in which no
+    #           value bytes follow.
+    #   Byte[n] - Value of the parameter.
+    # Int16 - The number of result-column format codes.
+    # For each result-column format code:
+    #   Int16 - The format code.
     def serialize(self):
         retval = StringIO()
         retval.write(self.portal + "\x00")
@@ -129,6 +188,14 @@ class Bind(object):
         val = "B" + val
         return val
 
+
+##
+# A Close message, used for closing prepared statements and portals.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
+#
+# @param typ    'S' for prepared statement, 'P' for portal.
+# @param name   The name of the item to close.
 class Close(object):
     def __init__(self, typ, name):
         if len(typ) != 1:
@@ -136,20 +203,43 @@ class Close(object):
         self.typ = typ
         self.name = name
 
+    # Byte1('C') - Identifies the message as a close command.
+    # Int32 - Message length, including self.
+    # Byte1 - 'S' for prepared statement, 'P' for portal.
+    # String - The name of the item to close.
     def serialize(self):
         val = self.typ + self.name + "\x00"
         val = struct.pack("!i", len(val) + 4) + val
         val = "C" + val
         return val
 
+
+##
+# A specialized Close message for a portal.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class ClosePortal(Close):
     def __init__(self, name):
         Close.__init__(self, "P", name)
 
+
+##
+# A specialized Close message for a prepared statement.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class ClosePreparedStatement(Close):
     def __init__(self, name):
         Close.__init__(self, "S", name)
 
+
+##
+# A Describe message, used for obtaining information on prepared statements
+# and portals.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
+#
+# @param typ    'S' for prepared statement, 'P' for portal.
+# @param name   The name of the item to close.
 class Describe(object):
     def __init__(self, typ, name):
         if len(typ) != 1:
@@ -157,60 +247,137 @@ class Describe(object):
         self.typ = typ
         self.name = name
 
+    # Byte1('D') - Identifies the message as a describe command.
+    # Int32 - Message length, including self.
+    # Byte1 - 'S' for prepared statement, 'P' for portal.
+    # String - The name of the item to close.
     def serialize(self):
         val = self.typ + self.name + "\x00"
         val = struct.pack("!i", len(val) + 4) + val
         val = "D" + val
         return val
 
+
+##
+# A specialized Describe message for a portal.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class DescribePortal(Describe):
     def __init__(self, name):
         Describe.__init__(self, "P", name)
 
+
+##
+# A specialized Describe message for a prepared statement.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class DescribePreparedStatement(Describe):
     def __init__(self, name):
         Describe.__init__(self, "S", name)
 
+
+##
+# A Flush message forces the backend to deliver any data pending in its
+# output buffers.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class Flush(object):
+    # Byte1('H') - Identifies the message as a flush command.
+    # Int32(4) - Length of message, including self.
     def serialize(self):
         return 'H\x00\x00\x00\x04'
 
+##
+# Causes the backend to close the current transaction (if not in a BEGIN/COMMIT
+# block), and issue ReadyForQuery.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class Sync(object):
+    # Byte1('S') - Identifies the message as a sync command.
+    # Int32(4) - Length of message, including self.
     def serialize(self):
         return 'S\x00\x00\x00\x04'
 
+
+##
+# Transmits a password.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class PasswordMessage(object):
     def __init__(self, pwd):
         self.pwd = pwd
 
+    # Byte1('p') - Identifies the message as a password message.
+    # Int32 - Message length including self.
+    # String - The password.  Password may be encrypted.
     def serialize(self):
         val = self.pwd + "\x00"
         val = struct.pack("!i", len(val) + 4) + val
         val = "p" + val
         return val
 
+
+##
+# Requests that the backend execute a portal and retrieve any number of rows.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
+# @param row_count  The number of rows to return.  Can be zero to indicate the
+#                   backend should return all rows. If the portal represents a
+#                   query that does not return rows, no rows will be returned
+#                   no matter what the row_count.
 class Execute(object):
     def __init__(self, portal, row_count):
         self.portal = portal
         self.row_count = row_count
 
+    # Byte1('E') - Identifies the message as an execute message.
+    # Int32 -   Message length, including self.
+    # String -  The name of the portal to execute.
+    # Int32 -   Maximum number of rows to return, if portal contains a query that
+    #           returns rows.  0 = no limit.
     def serialize(self):
         val = self.portal + "\x00" + struct.pack("!i", self.row_count)
         val = struct.pack("!i", len(val) + 4) + val
         val = "E" + val
         return val
 
+
+##
+# Informs the backend that the connection is being closed.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class Terminate(object):
     def __init__(self):
         pass
 
+    # Byte1('X') - Identifies the message as a terminate message.
+    # Int32(4) - Message length, including self.
     def serialize(self):
         return 'X\x00\x00\x00\x04'
 
+##
+# Base class of all Authentication[*] messages.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class AuthenticationRequest(object):
     def __init__(self, data):
         pass
 
+    # Byte1('R') - Identifies the message as an authentication request.
+    # Int32(8) - Message length, including self.
+    # Int32 -   An authentication code that represents different
+    #           authentication messages:
+    #               0 = AuthenticationOk
+    #               5 = MD5 pwd
+    #               2 = Kerberos v5 (not supported by pg8000)
+    #               3 = Cleartext pwd (not supported by pg8000)
+    #               4 = crypt() pwd (not supported by pg8000)
+    #               6 = SCM credential (not supported by pg8000)
+    #               7 = GSSAPI (not supported by pg8000)
+    #               8 = GSSAPI data (not supported by pg8000)
+    #               9 = SSPI (not supported by pg8000)
+    # Some authentication messages have additional data following the
+    # authentication code.  That data is documented in the appropriate class.
     def createFromData(data):
         ident = struct.unpack("!i", data[:4])[0]
         klass = authentication_codes.get(ident, None)
@@ -223,11 +390,24 @@ class AuthenticationRequest(object):
     def ok(self, conn, user, **kwargs):
         raise InternalError("ok method should be overridden on AuthenticationRequest instance")
 
+##
+# A message representing that the backend accepting the provided username
+# without any challenge.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class AuthenticationOk(AuthenticationRequest):
     def ok(self, conn, user, **kwargs):
         return True
 
+
+##
+# A message representing the backend requesting an MD5 hashed password
+# response.  The response will be sent as md5(md5(pwd + login) + salt).
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class AuthenticationMD5Password(AuthenticationRequest):
+    # Additional message data:
+    #  Byte4 - Hash salt.
     def __init__(self, data):
         self.salt = "".join(struct.unpack("4c", data))
 
@@ -253,64 +433,159 @@ authentication_codes = {
     5: AuthenticationMD5Password,
 }
 
+
+##
+# ParameterStatus message sent from backend, used to inform the frotnend of
+# runtime configuration parameter changes.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class ParameterStatus(object):
     def __init__(self, key, value):
         self.key = key
         self.value = value
 
+    # Byte1('S') - Identifies ParameterStatus
+    # Int32 - Message length, including self.
+    # String - Runtime parameter name.
+    # String - Runtime parameter value.
     def createFromData(data):
         key = data[:data.find("\x00")]
         value = data[data.find("\x00")+1:-1]
         return ParameterStatus(key, value)
     createFromData = staticmethod(createFromData)
 
+
+##
+# BackendKeyData message sent from backend.  Contains a connection's process
+# ID and a secret key.  Can be used to terminate the connection's current
+# actions, such as a long running query.  Not supported by pg8000 yet.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class BackendKeyData(object):
     def __init__(self, process_id, secret_key):
         self.process_id = process_id
         self.secret_key = secret_key
 
+    # Byte1('K') - Identifier.
+    # Int32(12) - Message length, including self.
+    # Int32 - Process ID.
+    # Int32 - Secret key.
     def createFromData(data):
         process_id, secret_key = struct.unpack("!2i", data)
         return BackendKeyData(process_id, secret_key)
     createFromData = staticmethod(createFromData)
 
+
+##
+# Message representing a query with no data.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class NoData(object):
+    # Byte1('n') - Identifier.
+    # Int32(4) - Message length, including self.
     def createFromData(data):
         return NoData()
     createFromData = staticmethod(createFromData)
 
+
+##
+# Message representing a successful Parse.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class ParseComplete(object):
+    # Byte1('1') - Identifier.
+    # Int32(4) - Message length, including self.
     def createFromData(data):
         return ParseComplete()
     createFromData = staticmethod(createFromData)
 
+
+##
+# Message representing a successful Bind.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class BindComplete(object):
+    # Byte1('2') - Identifier.
+    # Int32(4) - Message length, including self.
     def createFromData(data):
         return BindComplete()
     createFromData = staticmethod(createFromData)
 
+
+##
+# Message representing a successful Close.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class CloseComplete(object):
+    # Byte1('3') - Identifier.
+    # Int32(4) - Message length, including self.
     def createFromData(data):
         return CloseComplete()
     createFromData = staticmethod(createFromData)
 
+
+##
+# Message representing data from an Execute has been received, but more data
+# exists in the portal.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class PortalSuspended(object):
+    # Byte1('s') - Identifier.
+    # Int32(4) - Message length, including self.
     def createFromData(data):
         return PortalSuspended()
     createFromData = staticmethod(createFromData)
 
+
+##
+# Message representing the backend is ready to process a new query.
+# <p>
+# Stability: This is an internal class.  No stability guarantee is made.
 class ReadyForQuery(object):
     def __init__(self, status):
-        self.status = status
+        self._status = status
+
+    ##
+    # I = Idle, T = Idle in Transaction, E = idle in failed transaction.
+    status = property(lambda self: self._status)
 
     def __repr__(self):
         return "<ReadyForQuery %s>" % \
                 {"I": "Idle", "T": "Idle in Transaction", "E": "Idle in Failed Transaction"}[self.status]
 
+    # Byte1('Z') - Identifier.
+    # Int32(5) - Message length, including self.
+    # Byte1 -   Status indicator.
     def createFromData(data):
         return ReadyForQuery(data)
     createFromData = staticmethod(createFromData)
 
+
+##
+# Represents a notice sent from the server.  This is not the same as a
+# notification.  A notice is just additional information about a query, such
+# as a notice that a primary key has automatically been created for a table.
+# <p>
+# A NoticeResponse instance will have properties containing the data sent
+# from the server:
+# <ul>
+# <li>severity -- "ERROR", "FATAL', "PANIC", "WARNING", "NOTICE", "DEBUG",
+# "INFO", or "LOG".  Always present.</li>
+# <li>code -- the SQLSTATE code for the error.  See Appendix A of the
+# PostgreSQL documentation for specific error codes.  Always present.</li>
+# <li>msg -- human-readable error message.  Always present.</li>
+# <li>detail -- Optional additional information.</li>
+# <li>hint -- Optional suggestion about what to do about the issue.</li>
+# <li>position -- Optional index into the query string.</li>
+# <li>where -- Optional context.</li>
+# <li>file -- Source-code file.</li>
+# <li>line -- Source-code line.</li>
+# <li>routine -- Source-code routine.</li>
+# </ul>
+# <p>
+# Stability: Added in pg8000 v1.03.  Required properties severity, code, and
+# msg are guaranteed for v1.xx.  Other properties should be checked with
+# hasattr before accessing.
 class NoticeResponse(object):
     responseKeys = {
         "S": "severity",  # always present
@@ -344,10 +619,23 @@ class NoticeResponse(object):
         return retval
     dataIntoDict = staticmethod(dataIntoDict)
 
+    # Byte1('N') - Identifier
+    # Int32 - Message length
+    # Any number of these, followed by a zero byte:
+    #   Byte1 - code identifying the field type (see responseKeys)
+    #   String - field value
     def createFromData(data):
         return NoticeResponse(**NoticeResponse.dataIntoDict(data))
     createFromData = staticmethod(createFromData)
 
+
+##
+# A message sent in case of a server-side error.  Contains the same properties
+# that {@link NoticeResponse NoticeResponse} contains.
+# <p>
+# Stability: Added in pg8000 v1.03.  Required properties severity, code, and
+# msg are guaranteed for v1.xx.  Other properties should be checked with
+# hasattr before accessing.
 class ErrorResponse(object):
     def __init__(self, **kwargs):
         for arg, value in kwargs.items():
@@ -363,11 +651,36 @@ class ErrorResponse(object):
         return ErrorResponse(**NoticeResponse.dataIntoDict(data))
     createFromData = staticmethod(createFromData)
 
+
+##
+# A message sent if this connection receives a NOTIFY that it was LISTENing for.
+# <p>
+# Stability: Added in pg8000 v1.03.  When limited to accessing properties from
+# a notification event dispatch, stability is guaranteed for v1.xx.
 class NotificationResponse(object):
     def __init__(self, backend_pid, condition, additional_info):
-        self.backend_pid = backend_pid
-        self.condition = condition
-        self.additional_info = additional_info
+        self._backend_pid = backend_pid
+        self._condition = condition
+        self._additional_info = additional_info
+
+    ##
+    # An integer representing the process ID of the backend that triggered
+    # the NOTIFY.
+    # <p>
+    # Stability: Added in pg8000 v1.03, stability guaranteed for v1.xx.
+    backend_pid = property(lambda self: self._backend_pid)
+
+    ##
+    # The name of the notification fired.
+    # <p>
+    # Stability: Added in pg8000 v1.03, stability guaranteed for v1.xx.
+    condition = property(lambda self: self._condition)
+
+    ##
+    # Currently unspecified by the PostgreSQL documentation as of v8.3.1.
+    # <p>
+    # Stability: Added in pg8000 v1.03, stability guaranteed for v1.xx.
+    additional_info = property(lambda self: self._additional_info)
 
     def __repr__(self):
         return "<NotificationResponse %s %s %r>" % (self.backend_pid, self.condition, self.additional_info)
@@ -383,6 +696,7 @@ class NotificationResponse(object):
         return NotificationResponse(backend_pid, condition, additional_info)
     createFromData = staticmethod(createFromData)
 
+
 class ParameterDescription(object):
     def __init__(self, type_oids):
         self.type_oids = type_oids
@@ -391,6 +705,7 @@ class ParameterDescription(object):
         type_oids = struct.unpack("!" + "i"*count, data[2:])
         return ParameterDescription(type_oids)
     createFromData = staticmethod(createFromData)
+
 
 class RowDescription(object):
     def __init__(self, fields):
@@ -410,6 +725,7 @@ class RowDescription(object):
         return RowDescription(fields)
     createFromData = staticmethod(createFromData)
 
+
 class CommandComplete(object):
     def __init__(self, tag):
         self.tag = tag
@@ -417,6 +733,7 @@ class CommandComplete(object):
     def createFromData(data):
         return CommandComplete(data[:-1])
     createFromData = staticmethod(createFromData)
+
 
 class DataRow(object):
     def __init__(self, fields):
@@ -437,6 +754,7 @@ class DataRow(object):
         return DataRow(fields)
     createFromData = staticmethod(createFromData)
 
+
 class SSLWrapper(object):
     def __init__(self, sslobj):
         self.sslobj = sslobj
@@ -444,6 +762,7 @@ class SSLWrapper(object):
         self.sslobj.write(data)
     def recv(self, num):
         return self.sslobj.read(num)
+
 
 class MessageReader(object):
     def __init__(self, connection):
@@ -500,6 +819,7 @@ class MessageReader(object):
                 self._conn.handleNotificationResponse(msg)
             else:
                 raise InternalError("Unexpected response msg %r" % (msg))
+
 
 class Connection(object):
     def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
