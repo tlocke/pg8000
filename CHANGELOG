@@ -1,4 +1,4 @@
-Version 1.03,
+Version 1.03, 2008-05-09
 ------------------------
 
 - Separate pg8000.py into multiple python modules within the pg8000 package.
@@ -6,12 +6,23 @@ There should be no need for a client to change how pg8000 is imported.
 
 - Fix bug in row_description property when query has not been completed.
 
+- Fix bug in fetchmany dbapi method that did not properly deal with the end of
+result sets.
+
+- Add close methods to DB connections.
+
+- Add callback event handlers for server notices, notifications, and runtime
+configuration changes.
+
 - Add boolean type output.
 
 - Add date, time, and timestamp types in/out.
 
 - Add recognition of "SQL_ASCII" client encoding, which maps to Python's
 "ascii" encoding.
+
+- Add types.Interval class to represent PostgreSQL's interval data type, and
+appropriate wire send/receive methods.
 
 - Remove unused type conversion methods.
 
