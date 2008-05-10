@@ -264,10 +264,7 @@ class CursorWrapper(object):
         for i in range(size):
             value = self.fetchone()
             if value == None:
-                if len(rows) == 0:
-                    return None
-                else:
-                    break
+                break
             rows.append(value)
         return rows
 
