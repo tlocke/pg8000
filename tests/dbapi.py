@@ -166,7 +166,7 @@ class Tests(unittest.TestCase):
         self.assertEquals(2, len(cursor.fetchmany()))
         self.assertEquals(2, len(cursor.fetchmany()))
         self.assertEquals(1, len(cursor.fetchmany()))
-        self.assertEquals(None, cursor.fetchmany())
+        self.assertEquals(0, len(cursor.fetchmany()))
 
 
 if __name__ == "__main__":
