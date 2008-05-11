@@ -727,11 +727,23 @@ class RowDescription(object):
 
 
 class CommandComplete(object):
-    def __init__(self, tag):
-        self.tag = tag
+    def __init__(self, command, rows=None, oid=None):
+        print repr(command), repr(rows), repr(oid)
+        self.command = command
+        self.rows = rows
+        self.oid = oid
 
     def createFromData(data):
-        return CommandComplete(data[:-1])
+        values = data[:-1].split(" ")
+        args = {}
+        args['command'] = values[0]
+        if args['command'] in ("INSERT", "DELETE", "UPDATE", "MOVE", "FETCH", "COPY"):
+            args['rows'] = int(values[-1])
+            if args['command'] == "INSERT":
+                args['oid'] = int(values[1])
+        else:
+            args['command'] = data[:-1]
+        return CommandComplete(**args)
     createFromData = staticmethod(createFromData)
 
 
