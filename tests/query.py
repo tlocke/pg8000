@@ -34,6 +34,24 @@ class Tests(unittest.TestCase):
             for row in c2.iterate_tuple():
                 f1, f2, f3 = row
 
+    def testInsertReturning(self):
+        db.begin()
+        try:
+            db.execute("CREATE TABLE t2 (id serial, data text)")
+
+            # Test INSERT ... RETURNING with one row...
+            db.execute("INSERT INTO t2 (data) VALUES ($1) RETURNING id", "test1")
+            row_id = db.read_dict()["id"]
+            db.execute("SELECT data FROM t2 WHERE id = $1", row_id)
+            self.assert_("test1" == db.read_dict()["data"])
+
+            # Test with multiple rows...
+            db.execute("INSERT INTO t2 (data) VALUES ($1), ($2), ($3) RETURNING id", "test2", "test3", "test4")
+            ids = tuple([x[0] for x in db.iterate_tuple()])
+            self.assert_(len(ids) == 3)
+        finally:
+            db.rollback()
+
     def testNoDataErrorRecovery(self):
         for i in range(1, 4):
             try:
