@@ -44,9 +44,11 @@ class Tests(unittest.TestCase):
             row_id = db.read_dict()["id"]
             db.execute("SELECT data FROM t2 WHERE id = $1", row_id)
             self.assert_("test1" == db.read_dict()["data"])
+            self.assert_(db.row_count == 1)
 
             # Test with multiple rows...
             db.execute("INSERT INTO t2 (data) VALUES ($1), ($2), ($3) RETURNING id", "test2", "test3", "test4")
+            self.assert_(db.row_count == 3)
             ids = tuple([x[0] for x in db.iterate_tuple()])
             self.assert_(len(ids) == 3)
         finally:
@@ -114,6 +116,15 @@ class Tests(unittest.TestCase):
         # Should be 0 for a command with no results
         cur.execute("DROP TABLE t1")
         self.assertEquals(0, cur.row_count)
+
+    def testRowCountUpdate(self):
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 1, 1, None)
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 2, 10, None)
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 3, 100, None)
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 4, 1000, None)
+        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 5, 10000, None)
+        db.execute("UPDATE t1 SET f3 = $1 WHERE f2 > 101", "Hello!")
+        self.assert_(db.row_count == 2)
 
 
 if __name__ == "__main__":

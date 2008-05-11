@@ -122,7 +122,7 @@ class PreparedStatement(object):
                 self._ongoing_row_count = 0
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
-            self._row_desc = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
+            self._row_desc, cmd = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
             if self._row_desc:
                 # We execute our cursor right away to fill up our cache.  This
                 # prevents the cursor from being destroyed, apparently, by a rogue
@@ -130,6 +130,10 @@ class PreparedStatement(object):
                 # data will be read from us right away anyways, this seems a safe
                 # move for now.
                 self._fill_cache()
+            else:
+                self._command_complete = True
+                if cmd != None and cmd.rows != None:
+                    self._ongoing_row_count = cmd.rows
         finally:
             self._lock.release()
 
@@ -173,8 +177,6 @@ class PreparedStatement(object):
     # avoid using this property.
     row_count = property(lambda self: self._get_row_count())
     def _get_row_count(self):
-        if not self._row_desc:
-            return 0
         self._lock.acquire()
         try:
             if not self._command_complete:
