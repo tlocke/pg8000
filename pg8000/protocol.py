@@ -728,7 +728,6 @@ class RowDescription(object):
 
 class CommandComplete(object):
     def __init__(self, command, rows=None, oid=None):
-        print repr(command), repr(rows), repr(oid)
         self.command = command
         self.rows = rows
         self.oid = oid
@@ -988,7 +987,7 @@ class Connection(object):
 
             # Return the new row desc, since it will have the format types we
             # asked the server for
-            reader.add_message(RowDescription, lambda msg: msg)
+            reader.add_message(RowDescription, lambda msg: (msg, None))
 
             return reader.handle_messages()
 
@@ -1000,13 +999,14 @@ class Connection(object):
         self._send(Execute(portal, 0))
         self._send(Sync())
 
+        output = {}
         reader = MessageReader(self)
-        reader.add_message(CommandComplete, lambda msg: 0)
+        reader.add_message(CommandComplete, lambda msg, out: out.setdefault('msg', msg) and False, output)
         reader.add_message(ReadyForQuery, lambda msg: 1)
         reader.delay_raising_exception = True
         reader.handle_messages()
 
-        old_reader.return_value(None)
+        old_reader.return_value((None, output['msg']))
 
     def fetch_rows(self, portal, row_count, row_desc):
         self.verifyState("ready")
