@@ -13,6 +13,5 @@ cursor.execute(
         "INSERT INTO book (title, author) VALUES (%s, %s) RETURNING id",
         ("Ender's Game", "Orson Scott Card"))
 book_id, = cursor.fetchone()
-
-
+db.commit()
 

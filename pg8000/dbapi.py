@@ -231,6 +231,8 @@ def convert_paramstyle(src_style, query, args):
     return output_query, tuple(output_args)
 
 
+##
+# The class of object returned by the {@link #ConnectionWrapper.cursor cursor method}.
 class CursorWrapper(object):
     def __init__(self, conn):
         self.cursor = interface.Cursor(conn)
@@ -367,6 +369,8 @@ class CursorWrapper(object):
         pass
 
 
+##
+# The class of object returned by the {@link #connect connect method}.
 class ConnectionWrapper(object):
     # DBAPI Extension: supply exceptions as attributes on the connection
     Warning = Warning
