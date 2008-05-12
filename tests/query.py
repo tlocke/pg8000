@@ -113,9 +113,9 @@ class Tests(unittest.TestCase):
             cur.read_tuple()
         self.assertEquals(expected_count, cur.row_count)
 
-        # Should be 0 for a command with no results
+        # Should be -1 for a command with no results
         cur.execute("DROP TABLE t1")
-        self.assertEquals(0, cur.row_count)
+        self.assertEquals(-1, cur.row_count)
 
     def testRowCountUpdate(self):
         db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 1, 1, None)

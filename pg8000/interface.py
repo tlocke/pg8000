@@ -132,6 +132,7 @@ class PreparedStatement(object):
                 self._fill_cache()
             else:
                 self._command_complete = True
+                self._ongoing_row_count = -1
                 if cmd != None and cmd.rows != None:
                     self._ongoing_row_count = cmd.rows
         finally:
@@ -150,6 +151,8 @@ class PreparedStatement(object):
             self._lock.release()
 
     def _fetch(self):
+        if not self._row_desc:
+            raise ProgrammingError("no result set")
         self._lock.acquire()
         try:
             if not self._cached_rows:
@@ -168,13 +171,19 @@ class PreparedStatement(object):
             self._lock.release()
 
     ##
-    # Return a count of the number of rows currently being read.  If possible,
-    # please avoid using this function.  It requires reading the entire result
-    # set from the database to determine the number of rows being returned.
+    # Return a count of the number of rows relevant to the executed statement.
+    # For a SELECT, this is the number of rows returned.  For UPDATE or DELETE,
+    # this the number of rows affected.  For INSERT, the number of rows
+    # inserted.  This property may have a value of -1 to indicate that there
+    # was no row count.
+    # <p>
+    # During a result-set query (eg. SELECT, or INSERT ... RETURNING ...),
+    # accessing this property requires reading the entire result-set into
+    # memory, as reading the data to completion is the only way to determine
+    # the total number of rows.  Avoid using this property in with
+    # result-set queries, as it may cause unexpected memory usage.
     # <p>
     # Stability: Added in v1.03, stability guaranteed for v1.xx.
-    # Implementation currently requires caching entire result set into memory,
-    # avoid using this property.
     row_count = property(lambda self: self._get_row_count())
     def _get_row_count(self):
         self._lock.acquire()

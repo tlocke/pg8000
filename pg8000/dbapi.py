@@ -218,11 +218,14 @@ class CursorWrapper(object):
     def __init__(self, conn):
         self.cursor = interface.Cursor(conn)
         self.arraysize = 1
+        self._override_rowcount = None
 
     rowcount = property(lambda self: self._getRowCount())
     def _getRowCount(self):
         if self.cursor == None:
             raise InterfaceError("cursor is closed")
+        if self._override_rowcount != None:
+            return self._override_rowcount
         return self.cursor.row_count
 
     description = property(lambda self: self._getDescription())
@@ -231,13 +234,17 @@ class CursorWrapper(object):
             return None
         columns = []
         for col in self.cursor.row_description:
-            columns.append((col["name"], col["type_oid"]))
+            columns.append((col["name"], col["type_oid"], None, None, None, None, None))
         return columns
 
     def execute(self, operation, args=()):
         logging.debug("CursorWrapper.execute, %r, %r", operation, args)
         if self.cursor == None:
             raise InterfaceError("cursor is closed")
+        self._override_rowcount = None
+        self._execute(operation, args)
+
+    def _execute(self, operation, args=()):
         new_query, new_args = convert_paramstyle(paramstyle, operation, args)
         try:
             self.cursor.execute(new_query, *new_args)
@@ -247,8 +254,13 @@ class CursorWrapper(object):
             raise
 
     def executemany(self, operation, parameter_sets):
+        self._override_rowcount = 0
         for parameters in parameter_sets:
-            self.execute(operation, parameters)
+            self._execute(operation, parameters)
+            if self.cursor.row_count == -1 or self._override_rowcount == -1:
+                self._override_rowcount = -1
+            else:
+                self._override_rowcount += self.cursor.row_count
 
     def fetchone(self):
         logging.debug("CursorWrapper.fetchone")
@@ -277,6 +289,7 @@ class CursorWrapper(object):
     def close(self):
         logging.debug("CursorWrapper.close")
         self.cursor = None
+        self._override_rowcount = None
 
     def setinputsizes(self, sizes):
         pass
@@ -285,6 +298,17 @@ class CursorWrapper(object):
         pass
 
 class ConnectionWrapper(object):
+    # DBAPI Extension: supply exceptions as attributes on the connection
+    Warning = Warning
+    Error = Error
+    InterfaceError = InterfaceError
+    DatabaseError = DatabaseError
+    OperationalError = OperationalError
+    IntegrityError = IntegrityError
+    InternalError = InternalError
+    ProgrammingError = ProgrammingError
+    NotSupportedError = NotSupportedError
+
     def __init__(self, **kwargs):
         self.conn = interface.Connection(**kwargs)
         self.conn.begin()
@@ -317,6 +341,8 @@ class ConnectionWrapper(object):
 
     def close(self):
         logging.debug("ConnectionWrapper.close")
+        if self.conn == None:
+            raise InterfaceError("connection is closed")
         self.conn.close()
         self.conn = None
 
@@ -348,8 +374,9 @@ def Binary(value):
 
 # I have no idea what this would be used for by a client app.  Should it be
 # TEXT, VARCHAR, CHAR?  It will only compare against row_description's
-# type_code if it is this one type.  It is the TEXT type_oid for now.
-STRING = 25
+# type_code if it is this one type.  It is the varchar type oid for now, this
+# appears to match expectations in the DB API 2.0 compliance test suite.
+STRING = 1043
 
 # bytea type_oid
 BINARY = 17
