@@ -85,10 +85,10 @@ class PreparedStatement(object):
     # parameter to be ignored.O
     row_cache_size = 100
 
-    def __init__(self, connection, statement, *types):
+    def __init__(self, connection, statement, *types, **kwargs):
         self.c = connection.c
         self._portal_name = "pg8000_portal_%s_%s" % (id(self.c), id(self))
-        self._statement_name = "pg8000_statement_%s_%s" % (id(self.c), id(self))
+        self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s_%s" % (id(self.c), id(self)))
         self._row_desc = None
         self._cached_rows = []
         self._ongoing_row_count = 0
@@ -101,7 +101,8 @@ class PreparedStatement(object):
         # cleanup.  It only really needs to be called right away if the same
         # object id (and therefore the same statement name) might be reused
         # soon, and clearly that wouldn't happen in a GC situation.
-        self.c.close_statement(self._statement_name)
+        if self._statement_name != "": # don't close unnamed statement
+            self.c.close_statement(self._statement_name)
 
     row_description = property(lambda self: self._getRowDescription())
     def _getRowDescription(self):
@@ -275,8 +276,12 @@ class Cursor(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     # @param query      The SQL statement to execute.
     def execute(self, query, *args):
-        self._stmt = PreparedStatement(self.connection, query, *[type(x) for x in args])
-        self._stmt.execute(*args)
+        self.connection._unnamed_prepared_statement_lock.acquire()
+        try:
+            self._stmt = PreparedStatement(self.connection, query, statement_name="", *[type(x) for x in args])
+            self._stmt.execute(*args)
+        finally:
+            self.connection._unnamed_prepared_statement_lock.release()
 
     ##
     # Return a count of the number of rows currently being read.  If possible,
@@ -391,6 +396,7 @@ class Connection(Cursor):
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
         self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
+        self._unnamed_prepared_statement_lock = threading.RLock()
 
     ##
     # An event handler that is fired when NOTIFY occurs for a notification that
