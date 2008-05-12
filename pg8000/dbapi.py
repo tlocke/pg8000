@@ -38,8 +38,25 @@ from errors import *
 import logging
 logging = logging.getLogger("pg8000")
 
+##
+# The DBAPI level supported.  Currently 2.0.  This property is part of the
+# DBAPI 2.0 specification.
 apilevel = "2.0"
+
+##
+# Integer constant stating the level of thread safety the DBAPI interface
+# supports.  This DBAPI interface supports sharing of the module, connections,
+# and cursors.  This property is part of the DBAPI 2.0 specification.
 threadsafety = 3
+
+##
+# String property stating the type of parameter marker formatting expected by
+# the interface.  This value defaults to "format".  This property is part of
+# the DBAPI 2.0 specification.
+# <p>
+# Unlike the DBAPI specification, this value is not constant.  It can be
+# changed to any standard paramstyle value (ie. qmark, numeric, named, format,
+# and pyformat).
 paramstyle = 'format' # paramstyle can be changed to any DB-API paramstyle
 
 def convert_paramstyle(src_style, query, args):
@@ -220,7 +237,18 @@ class CursorWrapper(object):
         self.arraysize = 1
         self._override_rowcount = None
 
+    ##
+    # This read-only attribute specifies the number of rows that the last
+    # .execute*() produced (for DQL statements like 'select') or affected (for
+    # DML statements like 'update' or 'insert').
+    # <p>
+    # The attribute is -1 in case no .execute*() has been performed on the
+    # cursor or the rowcount of the last operation is cannot be determined by
+    # the interface.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     rowcount = property(lambda self: self._getRowCount())
+
     def _getRowCount(self):
         if self.cursor == None:
             raise InterfaceError("cursor is closed")
@@ -228,7 +256,16 @@ class CursorWrapper(object):
             return self._override_rowcount
         return self.cursor.row_count
 
+    ##
+    # This read-only attribute is a sequence of 7-item sequences.  Each value
+    # contains information describing one result column.  The 7 items returned
+    # for each column are (name, type_code, display_size, internal_size,
+    # precision, scale, null_ok).  Only the first two values are provided by
+    # this interface implementation.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     description = property(lambda self: self._getDescription())
+
     def _getDescription(self):
         if self.cursor.row_description == None:
             return None
@@ -237,6 +274,11 @@ class CursorWrapper(object):
             columns.append((col["name"], col["type_oid"], None, None, None, None, None))
         return columns
 
+    ##
+    # Executes a database operation.  Parameters may be provided as a sequence
+    # or mapping and will be bound to variables in the operation.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     def execute(self, operation, args=()):
         logging.debug("CursorWrapper.execute, %r, %r", operation, args)
         if self.cursor == None:
@@ -253,6 +295,11 @@ class CursorWrapper(object):
             self.cursor.connection.rollback()
             raise
 
+    ##
+    # Prepare a database operation and then execute it against all parameter
+    # sequences or mappings provided.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     def executemany(self, operation, parameter_sets):
         self._override_rowcount = 0
         for parameters in parameter_sets:
@@ -262,12 +309,25 @@ class CursorWrapper(object):
             else:
                 self._override_rowcount += self.cursor.row_count
 
+    ##
+    # Fetch the next row of a query result set, returning a single sequence, or
+    # None when no more data is available.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     def fetchone(self):
         logging.debug("CursorWrapper.fetchone")
         if self.cursor == None:
             raise InterfaceError("cursor is closed")
         return self.cursor.read_tuple()
 
+    ##
+    # Fetch the next set of rows of a query result, returning a sequence of
+    # sequences.  An empty sequence is returned when no more rows are
+    # available.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
+    # @param size   The number of rows to fetch when called.  If not provided,
+    #               the arraysize property value is used instead.
     def fetchmany(self, size=None):
         logging.debug("CursorWrapper.fetchmany")
         if size == None:
@@ -280,12 +340,21 @@ class CursorWrapper(object):
             rows.append(value)
         return rows
 
+    ##
+    # Fetch all remaining rows of a query result, returning them as a sequence
+    # of sequences.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     def fetchall(self):
         logging.debug("CursorWrapper.fetchall")
         if self.cursor == None:
             raise InterfaceError("cursor is closed")
         return tuple(self.cursor.iterate_tuple())
 
+    ##
+    # Close the cursor.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     def close(self):
         logging.debug("CursorWrapper.close")
         self.cursor = None
@@ -296,6 +365,7 @@ class CursorWrapper(object):
 
     def setoutputsize(self, size, column=None):
         pass
+
 
 class ConnectionWrapper(object):
     # DBAPI Extension: supply exceptions as attributes on the connection
@@ -313,9 +383,18 @@ class ConnectionWrapper(object):
         self.conn = interface.Connection(**kwargs)
         self.conn.begin()
 
+    ##
+    # Creates a {@link #CursorWrapper CursorWrapper} object bound to this
+    # connection.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     def cursor(self):
         return CursorWrapper(self.conn)
 
+    ##
+    # Commits the current database transaction.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     def commit(self):
         logging.debug("ConnectionWrapper.commit")
         # There's a threading bug here.  If a query is sent after the
@@ -331,6 +410,10 @@ class ConnectionWrapper(object):
         self.conn.commit()
         self.conn.begin()
 
+    ##
+    # Rolls back the current database transaction.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     def rollback(self):
         logging.debug("ConnectionWrapper.rollback")
         # see bug description in commit.
@@ -339,6 +422,10 @@ class ConnectionWrapper(object):
         self.conn.rollback()
         self.conn.begin()
 
+    ##
+    # Closes the database connection.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
     def close(self):
         logging.debug("ConnectionWrapper.close")
         if self.conn == None:
@@ -346,6 +433,43 @@ class ConnectionWrapper(object):
         self.conn.close()
         self.conn = None
 
+##
+# Creates a DBAPI 2.0 compatible interface to a PostgreSQL database.
+# <p>
+# Stability: Part of the DBAPI 2.0 specification.
+#
+# @param user   The username to connect to the PostgreSQL server with.  This
+# parameter is required.
+#
+# @keyparam host   The hostname of the PostgreSQL server to connect with.
+# Providing this parameter is necessary for TCP/IP connections.  One of either
+# host, or unix_sock, must be provided.
+#
+# @keyparam unix_sock   The path to the UNIX socket to access the database
+# through, for example, '/tmp/.s.PGSQL.5432'.  One of either unix_sock or host
+# must be provided.  The port parameter will have no affect if unix_sock is
+# provided.
+#
+# @keyparam port   The TCP/IP port of the PostgreSQL server instance.  This
+# parameter defaults to 5432, the registered and common port of PostgreSQL
+# TCP/IP servers.
+#
+# @keyparam database   The name of the database instance to connect with.  This
+# parameter is optional, if omitted the PostgreSQL server will assume the
+# database name is the same as the username.
+#
+# @keyparam password   The user password to connect to the server with.  This
+# parameter is optional.  If omitted, and the database server requests password
+# based authentication, the connection will fail.  On the other hand, if this
+# parameter is provided and the database does not request password
+# authentication, then the password will not be used.
+#
+# @keyparam socket_timeout  Socket connect timeout measured in seconds.
+# Defaults to 60 seconds.
+#
+# @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
+#
+# @return An instance of {@link #ConnectionWrapper ConnectionWrapper}.
 def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
     return ConnectionWrapper(user=user, host=host,
             unix_sock=unix_sock, port=port, database=database,
@@ -369,6 +493,8 @@ def TimeFromTicks(ticks):
 def TimestampFromTicks(ticks):
     return Timestamp(*time.localtime(ticks)[:6])
 
+##
+# Construct an object holding binary data.
 def Binary(value):
     return types.Bytea(value)
 
