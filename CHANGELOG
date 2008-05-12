@@ -1,3 +1,38 @@
+Version 1.04, 2008-05-12
+------------------------
+
+- DBAPI 2.0 compatibility:
+
+    - rowcount returns rows affected when appropriate (eg. UPDATE, DELETE)
+
+    - Fix CursorWrapper.description to return a 7 element tuple, as per spec.
+
+    - Fix CursorWrapper.rowcount when using executemany.
+
+    - Fix CursorWrapper.fetchmany to return an empty sequence when no more
+      results are available.
+
+    - Add access to DBAPI exceptions through connection properties.
+
+    - Raise exception on closing a closed connection.
+
+    - Change DBAPI.STRING to varchar type.
+
+    - rowcount returns -1 when appropriate.
+
+    - DBAPI implementation now passes Stuart Bishop's Python DB API 2.0 Anal
+      Compliance Unit Test.
+
+- Make interface.Cursor class use unnamed prepared statement that binds to
+  parameter value types.  This change increases the accuracy of PG's query
+  plans by including parameter information, hence increasing performance in
+  some scenarios.
+
+- Raise exception when reading from a cursor without a result set.
+
+- Fix bug where a parse error may have rendered a connection unusable.
+
+
 Version 1.03, 2008-05-09
 ------------------------
 
