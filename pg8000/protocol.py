@@ -97,6 +97,9 @@ class Parse(object):
         self.qs = qs
         self.type_oids = type_oids
 
+    def __repr__(self):
+        return "<Parse ps=%r qs=%r>" % (self.ps, self.qs)
+
     # Byte1('P') - Identifies the message as a Parse command.
     # Int32 -   Message length, including self.
     # String -  Prepared statement name.  An empty string selects the unnamed
@@ -148,6 +151,9 @@ class Bind(object):
                 fc = self.in_fc[i]
             self.params.append(types.pg_value(params[i], fc, **kwargs))
         self.out_fc = out_fc
+
+    def __repr__(self):
+        return "<Bind p=%r s=%r>" % (self.portal, self.ps)
 
     # Byte1('B') - Identifies the Bind command.
     # Int32 - Message length, including self.
@@ -266,6 +272,9 @@ class DescribePortal(Describe):
     def __init__(self, name):
         Describe.__init__(self, "P", name)
 
+    def __repr__(self):
+        return "<DescribePortal %r>" % (self.name)
+
 
 ##
 # A specialized Describe message for a prepared statement.
@@ -274,6 +283,9 @@ class DescribePortal(Describe):
 class DescribePreparedStatement(Describe):
     def __init__(self, name):
         Describe.__init__(self, "S", name)
+
+    def __repr__(self):
+        return "<DescribePreparedStatement %r>" % (self.name)
 
 
 ##
@@ -287,6 +299,9 @@ class Flush(object):
     def serialize(self):
         return 'H\x00\x00\x00\x04'
 
+    def __repr__(self):
+        return "<Flush>"
+
 ##
 # Causes the backend to close the current transaction (if not in a BEGIN/COMMIT
 # block), and issue ReadyForQuery.
@@ -297,6 +312,9 @@ class Sync(object):
     # Int32(4) - Length of message, including self.
     def serialize(self):
         return 'S\x00\x00\x00\x04'
+
+    def __repr__(self):
+        return "<Sync>"
 
 
 ##
@@ -873,6 +891,7 @@ class Connection(object):
             raise InternalError("connection state must be %s, is %s" % (state, self._state))
 
     def _send(self, msg):
+        #print "_send(%r)" % msg
         data = msg.serialize()
         self._sock.send(data)
 
@@ -894,6 +913,7 @@ class Connection(object):
                 bytes += tmp
         assert len(bytes) == data_len
         msg = message_types[message_code].createFromData(bytes)
+        #print "_read_message() -> %r" % msg
         return msg
 
     def authenticate(self, user, **kwargs):
@@ -949,7 +969,15 @@ class Connection(object):
             # Common row description response
             reader.add_message(RowDescription, lambda msg: (msg, param_fc))
 
-            return reader.handle_messages()
+            try:
+                return reader.handle_messages()
+            except:
+                # If an error occurs, resync connection and get RFQ msg.
+                self._send(Sync())
+                reader = MessageReader(self)
+                reader.add_message(ReadyForQuery, lambda msg: True)
+                reader.handle_messages()
+                raise
 
         finally:
             self._sock_lock.release()
