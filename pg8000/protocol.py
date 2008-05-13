@@ -804,6 +804,8 @@ class MessageReader(object):
         # messages that won't be understood in another context.
         self.delay_raising_exception = False
 
+        self.ignore_unhandled_messages = False
+
     def add_message(self, msg_class, handler, *args, **kwargs):
         self._msgs.append((msg_class, handler, args, kwargs))
 
@@ -846,9 +848,17 @@ class MessageReader(object):
                 self._conn.handleParameterStatus(msg)
             elif isinstance(msg, NotificationResponse):
                 self._conn.handleNotificationResponse(msg)
-            else:
+            elif not self.ignore_unhandled_messages:
                 raise InternalError("Unexpected response msg %r" % (msg))
 
+def sync_on_error(fn):
+    def _fn(self, *args, **kwargs):
+        try:
+            return fn(self, *args, **kwargs)
+        except:
+            self._sync()
+            raise
+    return _fn
 
 class Connection(object):
     def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
@@ -943,6 +953,7 @@ class Connection(object):
     def _receive_backend_key_data(self, msg):
         self._backend_key_data = msg
 
+    @sync_on_error
     def parse(self, statement, qs, param_types):
         self.verifyState("ready")
         self._sock_lock.acquire()
@@ -969,19 +980,12 @@ class Connection(object):
             # Common row description response
             reader.add_message(RowDescription, lambda msg: (msg, param_fc))
 
-            try:
-                return reader.handle_messages()
-            except:
-                # If an error occurs, resync connection and get RFQ msg.
-                self._send(Sync())
-                reader = MessageReader(self)
-                reader.add_message(ReadyForQuery, lambda msg: True)
-                reader.handle_messages()
-                raise
+            return reader.handle_messages()
 
         finally:
             self._sock_lock.release()
 
+    @sync_on_error
     def bind(self, portal, statement, params, parse_data):
         self.verifyState("ready")
         self._sock_lock.acquire()
@@ -1036,6 +1040,7 @@ class Connection(object):
 
         old_reader.return_value((None, output['msg']))
 
+    @sync_on_error
     def fetch_rows(self, portal, row_count, row_desc):
         self.verifyState("ready")
         self._sock_lock.acquire()
@@ -1057,23 +1062,10 @@ class Connection(object):
             self._sock_lock.release()
 
     def _fetch_datarow(self, msg, rows, row_desc):
-        try:
-            rows.append(
-                    [types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding, integer_datetimes=self._integer_datetimes)
-                        for i in range(len(msg.fields))]
-                    )
-        except:
-            # Error occurred during conversion from PG type to Py type.  Send
-            # a Sync message and clear out pending data from this execute.
-            # Then reraise the original exception.
-            self._send(Sync())
-            reader = MessageReader(self)
-            reader.add_message(DataRow, lambda msg: False)
-            reader.add_message(PortalSuspended, lambda msg: False)
-            reader.add_message(CommandComplete, lambda msg: False)
-            reader.add_message(ReadyForQuery, lambda msg: True)
-            reader.handle_messages()
-            raise 
+        rows.append(
+                [types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding, integer_datetimes=self._integer_datetimes)
+                    for i in range(len(msg.fields))]
+                )
 
     def _fetch_commandcomplete(self, msg, portal):
         self._send(ClosePortal(portal))
@@ -1090,6 +1082,16 @@ class Connection(object):
         self._state = "ready"
         return True
 
+    # Send a Sync message, then read and discard all messages until we
+    # receive a ReadyForQuery message.
+    def _sync(self):
+        self._send(Sync())
+        reader = MessageReader(self)
+        reader.ignore_unhandled_messages = True
+        reader.add_message(ReadyForQuery, lambda msg: True)
+        reader.handle_messages()
+
+    @sync_on_error
     def close_statement(self, statement):
         if self._state == "closed":
             return
@@ -1106,6 +1108,7 @@ class Connection(object):
         finally:
             self._sock_lock.release()
 
+    @sync_on_error
     def close_portal(self, portal):
         if self._state == "closed":
             return

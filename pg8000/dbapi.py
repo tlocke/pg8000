@@ -437,6 +437,7 @@ class ConnectionWrapper(object):
         self.conn.close()
         self.conn = None
 
+
 ##
 # Creates a DBAPI 2.0 compatible interface to a PostgreSQL database.
 # <p>

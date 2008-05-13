@@ -447,6 +447,8 @@ class Connection(Cursor):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def begin(self):
+        if self.is_closed:
+            raise InterfaceError("connection is closed")
         self._begin.execute()
 
     ##
@@ -454,6 +456,8 @@ class Connection(Cursor):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def commit(self):
+        if self.is_closed:
+            raise InterfaceError("connection is closed")
         self._commit.execute()
 
     ##
@@ -461,10 +465,17 @@ class Connection(Cursor):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def rollback(self):
+        if self.is_closed:
+            raise InterfaceError("connection is closed")
         self._rollback.execute()
 
     ##
     # Closes an open connection.
     def close(self):
+        if self.is_closed:
+            raise InterfaceError("connection is closed")
         self.c.close()
+        self.c = None
+
+    is_closed = property(lambda self: self.c == None)
 
