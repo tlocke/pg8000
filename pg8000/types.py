@@ -195,9 +195,62 @@ def numeric_in(data, **kwargs):
 def numeric_out(v, **kwargs):
     return str(v)
 
+# PostgreSQL encodings:
+#   http://www.postgresql.org/docs/8.3/interactive/multibyte.html
+# Python encodings:
+#   http://www.python.org/doc/2.4/lib/standard-encodings.html
+#
+# Commented out encodings don't require a name change between PostgreSQL and
+# Python.  If the py side is None, then the encoding isn't supported.
+pg_to_py_encodings = {
+    # Not supported:
+    "mule_internal": None,
+    "euc_tw": None,
+
+    # Name fine as-is:
+    #"euc_jp",
+    #"euc_jis_2004",
+    #"euc_kr",
+    #"gb18030",
+    #"gbk",
+    #"johab",
+    #"sjis",
+    #"shift_jis_2004",
+    #"uhc",
+    #"utf8",
+
+    # Different name:
+    "euc_cn": "gb2312",
+    "iso_8859_5": "is8859_5",
+    "iso_8859_6": "is8859_6",
+    "iso_8859_7": "is8859_7",
+    "iso_8859_8": "is8859_8",
+    "koi8": "koi8_r",
+    "latin1": "iso8859-1",
+    "latin2": "iso8859_2",
+    "latin3": "iso8859_3",
+    "latin4": "iso8859_4",
+    "latin5": "iso8859_9",
+    "latin6": "iso8859_10",
+    "latin7": "iso8859_13",
+    "latin8": "iso8859_14",
+    "latin9": "iso8859_15",
+    "sql_ascii": "ascii",
+    "win866": "cp886",
+    "win874": "cp874",
+    "win1250": "cp1250",
+    "win1251": "cp1251",
+    "win1252": "cp1252",
+    "win1253": "cp1253",
+    "win1254": "cp1254",
+    "win1255": "cp1255",
+    "win1256": "cp1256",
+    "win1257": "cp1257",
+    "win1258": "cp1258",
+}
+
 def encoding_convert(encoding):
-    encodings = {"sql_ascii": "ascii"}
-    return encodings.get(encoding.lower(), encoding)
+    return pg_to_py_encodings.get(encoding.lower(), encoding)
 
 def varcharin(data, client_encoding, **kwargs):
     return unicode(data, encoding_convert(client_encoding))
