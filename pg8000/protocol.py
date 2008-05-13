@@ -1057,10 +1057,23 @@ class Connection(object):
             self._sock_lock.release()
 
     def _fetch_datarow(self, msg, rows, row_desc):
-        rows.append(
-                [types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding, integer_datetimes=self._integer_datetimes)
-                    for i in range(len(msg.fields))]
-                )
+        try:
+            rows.append(
+                    [types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding, integer_datetimes=self._integer_datetimes)
+                        for i in range(len(msg.fields))]
+                    )
+        except:
+            # Error occurred during conversion from PG type to Py type.  Send
+            # a Sync message and clear out pending data from this execute.
+            # Then reraise the original exception.
+            self._send(Sync())
+            reader = MessageReader(self)
+            reader.add_message(DataRow, lambda msg: False)
+            reader.add_message(PortalSuspended, lambda msg: False)
+            reader.add_message(CommandComplete, lambda msg: False)
+            reader.add_message(ReadyForQuery, lambda msg: True)
+            reader.handle_messages()
+            raise 
 
     def _fetch_commandcomplete(self, msg, portal):
         self._send(ClosePortal(portal))
