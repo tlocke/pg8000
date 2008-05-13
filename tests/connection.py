@@ -20,6 +20,7 @@ class Tests(unittest.TestCase):
         try:
             db.execute("LISTEN test")
             db.execute("NOTIFY test")
+            db.execute("VALUES (1, 2), (3, 4), (5, 6)")
             self.assert_(self._notify != None)
             self.assertEquals("test", self._notify.condition)
         finally:
