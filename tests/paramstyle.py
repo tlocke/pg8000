@@ -19,7 +19,7 @@ class Tests(unittest.TestCase):
         assert new_args == (1, 2, 3)
 
     def testNamed(self):
-        new_query, new_args = pg8000.DBAPI.convert_paramstyle("named", "SELECT :f2, :f1 FROM t WHERE a=:f2", {"f2": 1, "f1": 2})
+        new_query, new_args = pg8000.DBAPI.convert_paramstyle("named", "SELECT :f_2, :f1 FROM t WHERE a=:f_2", {"f_2": 1, "f1": 2})
         assert new_query == "SELECT $1, $2 FROM t WHERE a=$1"
         assert new_args == (1, 2)
 

@@ -120,7 +120,7 @@ def convert_paramstyle(src_style, query, args):
                     if i == len(query):
                         break
                     c = query[i]
-                    if c.isalnum():
+                    if c.isalnum() or c == '_':
                         name += c
                     else:
                         break
