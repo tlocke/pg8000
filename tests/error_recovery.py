@@ -1,5 +1,5 @@
 import unittest
-from pg8000 import DBAPI
+from pg8000 import DBAPI, DatabaseError
 from connection_settings import db_connect
 
 db = DBAPI.connect(**db_connect)
@@ -35,6 +35,14 @@ class Tests(unittest.TestCase):
         c.execute("VALUES ('hw3'::text)")
         self.assert_(c.fetchone()[0] == "hw3")
 
+    def testNoDataErrorRecovery(self):
+        for i in range(1, 4):
+            try:
+                db.cursor().execute("DROP TABLE t1")
+            except DatabaseError, e:
+                # the only acceptable error is:
+                self.assert_(e.args[1] == '42P01', # table does not exist
+                        "incorrect error for drop table")
 
 if __name__ == "__main__":
     unittest.main()
