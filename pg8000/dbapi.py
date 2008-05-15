@@ -174,6 +174,11 @@ def convert_paramstyle(src_style, query, args):
                                 raise ProgrammingError("format not specified or not supported (only %(...)s supported)")
                     elif query[i] == "%":
                         output_query += "%"
+                    elif query[i] == "s":
+                        # we have a %s in a pyformat query string.  Assume
+                        # support for format instead.
+                        i -= 1
+                        src_style = "format"
             else:
                 i += 1
                 output_query += c

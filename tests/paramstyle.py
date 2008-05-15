@@ -33,6 +33,11 @@ class Tests(unittest.TestCase):
         assert new_query == "SELECT $1, $2, \"f1_%\", E'txt_%' FROM t WHERE a=$1 AND b='75%'"
         assert new_args == (1, 2)
 
+        # pyformat should support %s and an array, too:
+        new_query, new_args = pg8000.DBAPI.convert_paramstyle("pyformat", "SELECT %s, %s, \"f1_%%\", E'txt_%%' FROM t WHERE a=%s AND b='75%%'", (1, 2, 3))
+        assert new_query == "SELECT $1, $2, \"f1_%\", E'txt_%' FROM t WHERE a=$3 AND b='75%'"
+        assert new_args == (1, 2, 3)
+
 if __name__ == "__main__":
     unittest.main()
 
