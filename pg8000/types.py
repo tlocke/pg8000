@@ -138,6 +138,9 @@ def int2recv(data, **kwargs):
 def int4recv(data, **kwargs):
     return struct.unpack("!i", data)[0]
 
+def int4send(v, **kwargs):
+    return struct.pack("!i", v)
+
 def int8recv(data, **kwargs):
     return struct.unpack("!q", data)[0]
 
@@ -311,7 +314,7 @@ def interval_send(data, integer_datetimes, **kwargs):
 
 py_types = {
     bool: {"tid": 16, "txt_out": boolout},
-    int: {"tid": 1700, "txt_out": numeric_out},
+    int: {"tid": 23, "bin_out": int4send},
     long: {"tid": 1700, "txt_out": numeric_out},
     str: {"tid": 25, "txt_out": textout},
     unicode: {"tid": 25, "txt_out": textout},

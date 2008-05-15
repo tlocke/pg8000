@@ -117,6 +117,9 @@ class Tests(unittest.TestCase):
         db.execute("UPDATE t1 SET f3 = $1 WHERE f2 > 101", "Hello!")
         self.assert_(db.row_count == 2)
 
+    def testIntOid(self):
+        # https://bugs.launchpad.net/pg8000/+bug/230796
+        db.execute("SELECT typname FROM pg_type WHERE oid = $1", 100)
 
 if __name__ == "__main__":
     unittest.main()
