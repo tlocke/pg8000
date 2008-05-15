@@ -5,3 +5,4 @@ tmp
 dist
 MANIFEST
 ^\.bzr$
+\.orig$
