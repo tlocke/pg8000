@@ -1063,9 +1063,16 @@ class Connection(object):
 
     def _fetch_datarow(self, msg, rows, row_desc):
         rows.append(
-                [types.py_value(msg.fields[i], row_desc.fields[i], client_encoding=self._client_encoding, integer_datetimes=self._integer_datetimes)
-                    for i in range(len(msg.fields))]
+            [
+                types.py_value(
+                    msg.fields[i],
+                    row_desc.fields[i],
+                    client_encoding=self._client_encoding,
+                    integer_datetimes=self._integer_datetimes
                 )
+                for i in range(len(msg.fields))
+            ]
+        )
 
     def _fetch_commandcomplete(self, msg, portal):
         self._send(ClosePortal(portal))

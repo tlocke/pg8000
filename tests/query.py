@@ -54,15 +54,6 @@ class Tests(unittest.TestCase):
         finally:
             db.rollback()
 
-    def testNoDataErrorRecovery(self):
-        for i in range(1, 4):
-            try:
-                db.execute("DROP TABLE t1")
-            except pg8000.DatabaseError, e:
-                # the only acceptable error is:
-                self.assert_(e.args[1] == '42P01', # table does not exist
-                        "incorrect error for drop table")
-
     def testMultithreadedStatement(self):
         # Note: Multithreading with a prepared statement is not highly
         # recommended due to low performance.
