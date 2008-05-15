@@ -87,7 +87,7 @@ class PreparedStatement(object):
 
     def __init__(self, connection, statement, *types, **kwargs):
         self.c = connection.c
-        self._portal_name = "pg8000_portal_%s_%s" % (id(self.c), id(self))
+        self._portal_name = None
         self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s_%s" % (id(self.c), id(self)))
         self._row_desc = None
         self._cached_rows = []
@@ -103,6 +103,9 @@ class PreparedStatement(object):
         # soon, and clearly that wouldn't happen in a GC situation.
         if self._statement_name != "": # don't close unnamed statement
             self.c.close_statement(self._statement_name)
+        if self._portal_name != None:
+            self.c.close_portal(self._portal_name)
+            self._portal_name = None
 
     row_description = property(lambda self: self._getRowDescription())
     def _getRowDescription(self):
@@ -121,8 +124,10 @@ class PreparedStatement(object):
                 # cleanup last execute
                 self._cached_rows = []
                 self._ongoing_row_count = 0
+            if self._portal_name != None:
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
+            self._portal_name = "pg8000_portal_%s_%s" % (id(self.c), id(self))
             self._row_desc, cmd = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
             if self._row_desc:
                 # We execute our cursor right away to fill up our cache.  This
