@@ -234,10 +234,18 @@ def convert_paramstyle(src_style, query, args):
 ##
 # The class of object returned by the {@link #ConnectionWrapper.cursor cursor method}.
 class CursorWrapper(object):
-    def __init__(self, conn):
+    def __init__(self, conn, connection):
         self.cursor = interface.Cursor(conn)
         self.arraysize = 1
+        self._connection = connection
         self._override_rowcount = None
+
+    ##
+    # This read-only attribute returns a reference to the connection object on
+    # which the cursor was created.
+    # <p>
+    # Stability: Part of a DBAPI 2.0 extension.
+    connection = property(lambda self: self._connection)
 
     ##
     # This read-only attribute specifies the number of rows that the last
@@ -393,7 +401,7 @@ class ConnectionWrapper(object):
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
     def cursor(self):
-        return CursorWrapper(self.conn)
+        return CursorWrapper(self.conn, self)
 
     ##
     # Commits the current database transaction.
