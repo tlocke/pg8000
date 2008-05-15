@@ -300,9 +300,12 @@ class CursorWrapper(object):
         new_query, new_args = convert_paramstyle(paramstyle, operation, args)
         try:
             self.cursor.execute(new_query, *new_args)
+        except ConnectionClosedError:
+            # can't rollback in this case
+            raise
         except:
             # any error will rollback the transaction to-date
-            self.cursor.connection.rollback()
+            self.connection.rollback()
             raise
 
     ##
@@ -418,7 +421,7 @@ class ConnectionWrapper(object):
         # statements on other threads.  Support for that type of lock will
         # be done later.
         if self.conn == None:
-            raise InterfaceError("connection is closed")
+            raise ConnectionClosedError()
         self.conn.commit()
         self.conn.begin()
 
@@ -430,7 +433,7 @@ class ConnectionWrapper(object):
         logging.debug("ConnectionWrapper.rollback")
         # see bug description in commit.
         if self.conn == None:
-            raise InterfaceError("connection is closed")
+            raise ConnectionClosedError()
         self.conn.rollback()
         self.conn.begin()
 
@@ -441,7 +444,7 @@ class ConnectionWrapper(object):
     def close(self):
         logging.debug("ConnectionWrapper.close")
         if self.conn == None:
-            raise InterfaceError("connection is closed")
+            raise ConnectionClosedError()
         self.conn.close()
         self.conn = None
 

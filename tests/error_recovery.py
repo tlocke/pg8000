@@ -44,5 +44,11 @@ class Tests(unittest.TestCase):
                 self.assert_(e.args[1] == '42P01', # table does not exist
                         "incorrect error for drop table")
 
+    def testClosedConnection(self):
+        my_db = DBAPI.connect(**db_connect)
+        cursor = my_db.cursor()
+        my_db.close()
+        self.assertRaises(db.InterfaceError, cursor.execute, "VALUES ('hw1'::text)")
+
 if __name__ == "__main__":
     unittest.main()

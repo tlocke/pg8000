@@ -86,6 +86,8 @@ class PreparedStatement(object):
     row_cache_size = 100
 
     def __init__(self, connection, statement, *types, **kwargs):
+        if connection == None or connection.c == None:
+            raise InterfaceError("connection not provided")
         self.c = connection.c
         self._portal_name = None
         self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s_%s" % (id(self.c), id(self)))
@@ -267,6 +269,13 @@ class Cursor(object):
         self.connection = connection
         self._stmt = None
 
+    def require_stmt(func):
+        def retval(self, *args, **kwargs):
+            if self._stmt == None:
+                raise ProgrammingError("attempting to use unexecuted cursor")
+            return func(self, *args, **kwargs)
+        return retval
+
     row_description = property(lambda self: self._getRowDescription())
     def _getRowDescription(self):
         if self._stmt == None:
@@ -281,6 +290,8 @@ class Cursor(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     # @param query      The SQL statement to execute.
     def execute(self, query, *args):
+        if self.connection.is_closed:
+            raise ConnectionClosedError()
         self.connection._unnamed_prepared_statement_lock.acquire()
         try:
             self._stmt = PreparedStatement(self.connection, query, statement_name="", *[type(x) for x in args])
@@ -297,9 +308,9 @@ class Cursor(object):
     # Implementation currently requires caching entire result set into memory,
     # avoid using this property.
     row_count = property(lambda self: self._get_row_count())
+
+    @require_stmt
     def _get_row_count(self):
-        if self._stmt == None:
-            raise ProgrammingError("attempting to read from unexecuted cursor")
         return self._stmt.row_count
 
     ##
@@ -308,9 +319,8 @@ class Cursor(object):
     # columns have the same name.  Returns None after the last row.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    @require_stmt
     def read_dict(self):
-        if self._stmt == None:
-            raise ProgrammingError("attempting to read from unexecuted cursor")
         return self._stmt.read_dict()
 
     ##
@@ -318,9 +328,8 @@ class Cursor(object):
     # Returns None after the last row.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    @require_stmt
     def read_tuple(self):
-        if self._stmt == None:
-            raise ProgrammingError("attempting to read from unexecuted cursor")
         return self._stmt.read_tuple()
 
     ##
@@ -329,9 +338,8 @@ class Cursor(object):
     # #PreparedStatement.read_tuple read_tuple}.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    @require_stmt
     def iterate_tuple(self):
-        if self._stmt == None:
-            raise ProgrammingError("attempting to read from unexecuted cursor")
         return self._stmt.iterate_tuple()
 
     ##
@@ -340,9 +348,8 @@ class Cursor(object):
     # #PreparedStatement.read_dict read_dict}.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    @require_stmt
     def iterate_dict(self):
-        if self._stmt == None:
-            raise ProgrammingError("attempting to read from unexecuted cursor")
         return self._stmt.iterate_dict()
 
 ##
@@ -453,7 +460,7 @@ class Connection(Cursor):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def begin(self):
         if self.is_closed:
-            raise InterfaceError("connection is closed")
+            raise ConnectionClosedError()
         self._begin.execute()
 
     ##
@@ -462,7 +469,7 @@ class Connection(Cursor):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def commit(self):
         if self.is_closed:
-            raise InterfaceError("connection is closed")
+            raise ConnectionClosedError()
         self._commit.execute()
 
     ##
@@ -471,14 +478,14 @@ class Connection(Cursor):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def rollback(self):
         if self.is_closed:
-            raise InterfaceError("connection is closed")
+            raise ConnectionClosedError()
         self._rollback.execute()
 
     ##
     # Closes an open connection.
     def close(self):
         if self.is_closed:
-            raise InterfaceError("connection is closed")
+            raise ConnectionClosedError()
         self.c.close()
         self.c = None
 
