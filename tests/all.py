@@ -1,5 +1,8 @@
 import unittest
 
+from warnings import filterwarnings
+filterwarnings("ignore", "DB-API extension connection")
+
 from connection import Tests as ConnectionTests
 from query import Tests as QueryTests
 from paramstyle import Tests as ParamStyleTests

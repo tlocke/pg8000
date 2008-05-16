@@ -175,6 +175,10 @@ class Tests(unittest.TestCase):
         self.assertEquals(0, len(cursor.fetchmany()))
 
     def testIterator(self):
+        from warnings import filterwarnings
+        filterwarnings("ignore", "DB-API extension cursor.next()")
+        filterwarnings("ignore", "DB-API extension cursor.__iter__()")
+
         cursor = db2.cursor()
         cursor.execute("SELECT * FROM t1 ORDER BY f1")
         f1 = 0

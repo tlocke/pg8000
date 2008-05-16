@@ -252,7 +252,7 @@ class CursorWrapper(object):
     connection = property(lambda self: self._getConnection())
 
     def _getConnection(self):
-        warn("DB-API extension cursor.connection used")
+        warn("DB-API extension cursor.connection used", stacklevel=3)
         return self._connection
 
     ##
@@ -312,7 +312,7 @@ class CursorWrapper(object):
             raise
         except:
             # any error will rollback the transaction to-date
-            self.connection.rollback()
+            self._connection.rollback()
             raise
 
     ##
@@ -377,14 +377,14 @@ class CursorWrapper(object):
         self._override_rowcount = None
 
     def next(self):
-        warn("DB-API extension cursor.next() used")
+        warn("DB-API extension cursor.next() used", stacklevel=2)
         retval = self.fetchone()
         if retval == None:
             raise StopIteration()
         return retval
 
     def __iter__(self):
-        warn("DB-API extension cursor.__iter__() used")
+        warn("DB-API extension cursor.__iter__() used", stacklevel=2)
         return self
 
     def setinputsizes(self, sizes):
@@ -409,7 +409,7 @@ class ConnectionWrapper(object):
     NotSupportedError = property(lambda self: self._getError(NotSupportedError))
 
     def _getError(self, error):
-        warn("DB-API extension connection.%s used" % error.__name__)
+        warn("DB-API extension connection.%s used" % error.__name__, stacklevel=3)
         return error
 
     def __init__(self, **kwargs):
