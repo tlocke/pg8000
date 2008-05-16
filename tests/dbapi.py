@@ -174,6 +174,15 @@ class Tests(unittest.TestCase):
         self.assertEquals(1, len(cursor.fetchmany()))
         self.assertEquals(0, len(cursor.fetchmany()))
 
+    def testIterator(self):
+        cursor = db2.cursor()
+        cursor.execute("SELECT * FROM t1 ORDER BY f1")
+        f1 = 0
+        for row in cursor:
+            next_f1 = row[0]
+            assert next_f1 > f1
+            f1 = next_f1
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -384,6 +384,17 @@ class CursorWrapper(object):
         self.cursor = None
         self._override_rowcount = None
 
+    def next(self):
+        warn("DB-API extension cursor.next() used")
+        retval = self.fetchone()
+        if retval == None:
+            raise StopIteration()
+        return retval
+
+    def __iter__(self):
+        warn("DB-API extension cursor.__iter__() used")
+        return self
+
     def setinputsizes(self, sizes):
         pass
 
