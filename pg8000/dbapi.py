@@ -37,6 +37,7 @@ from errors import *
 
 import logging
 logging = logging.getLogger("pg8000")
+from warnings import warn
 
 ##
 # The DBAPI level supported.  Currently 2.0.  This property is part of the
@@ -249,8 +250,13 @@ class CursorWrapper(object):
     # This read-only attribute returns a reference to the connection object on
     # which the cursor was created.
     # <p>
-    # Stability: Part of a DBAPI 2.0 extension.
-    connection = property(lambda self: self._connection)
+    # Stability: Part of a DBAPI 2.0 extension.  A warning "DB-API extension
+    # cursor.connection used" will be fired.
+    connection = property(lambda self: self._getConnection())
+
+    def _getConnection(self):
+        warn("DB-API extension cursor.connection used")
+        return self._connection
 
     ##
     # This read-only attribute specifies the number of rows that the last
@@ -389,15 +395,19 @@ class CursorWrapper(object):
 # The class of object returned by the {@link #connect connect method}.
 class ConnectionWrapper(object):
     # DBAPI Extension: supply exceptions as attributes on the connection
-    Warning = Warning
-    Error = Error
-    InterfaceError = InterfaceError
-    DatabaseError = DatabaseError
-    OperationalError = OperationalError
-    IntegrityError = IntegrityError
-    InternalError = InternalError
-    ProgrammingError = ProgrammingError
-    NotSupportedError = NotSupportedError
+    Warning = property(lambda self: self._getError(Warning))
+    Error = property(lambda self: self._getError(Error))
+    InterfaceError = property(lambda self: self._getError(InterfaceError))
+    DatabaseError = property(lambda self: self._getError(DatabaseError))
+    OperationalError = property(lambda self: self._getError(OperationalError))
+    IntegrityError = property(lambda self: self._getError(IntegrityError))
+    InternalError = property(lambda self: self._getError(InternalError))
+    ProgrammingError = property(lambda self: self._getError(ProgrammingError))
+    NotSupportedError = property(lambda self: self._getError(NotSupportedError))
+
+    def _getError(self, error):
+        warn("DB-API extension connection.%s used" % error.__name__)
+        return error
 
     def __init__(self, **kwargs):
         self.conn = interface.Connection(**kwargs)
