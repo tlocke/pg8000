@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+import ez_setup
+ez_setup.use_setuptools()
+
+from setuptools import setup
 
 long_description = \
 """pg8000 is a Pure-Python interface to the PostgreSQL database engine.  It is one
@@ -30,6 +33,9 @@ setup(
             "Topic :: Database :: Front-Ends",
             "Topic :: Software Development :: Libraries :: Python Modules",
         ],
+        keywords="postgresql dbapi",
+        zip_safe=True,
+        tests_require=["pytz"],
         packages = ("pg8000",),
     )
 
