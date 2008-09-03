@@ -903,24 +903,20 @@ class Connection(object):
     def _send(self, msg):
         #print "_send(%r)" % msg
         data = msg.serialize()
-        self._sock.send(data)
+        self._sock.sendall(data)
+
+    def _read_bytes(self, byte_count):
+        retval = ""
+        while len(retval) < byte_count:
+            tmp = self._sock.recv(byte_count - len(retval))
+            retval += tmp
+        return retval
 
     def _read_message(self):
-        bytes = ""
-        while len(bytes) < 5:
-            tmp = self._sock.recv(5 - len(bytes))
-            bytes += tmp
-        if len(bytes) != 5:
-            raise InternalError("unable to read 5 bytes from socket %r" % bytes)
+        bytes = self._read_bytes(5)
         message_code = bytes[0]
         data_len = struct.unpack("!i", bytes[1:])[0] - 4
-        if data_len == 0:
-            bytes = ""
-        else:
-            bytes = ""
-            while len(bytes) < data_len:
-                tmp = self._sock.recv(data_len - len(bytes))
-                bytes += tmp
+        bytes = self._read_bytes(data_len)
         assert len(bytes) == data_len
         msg = message_types[message_code].createFromData(bytes)
         #print "_read_message() -> %r" % msg
