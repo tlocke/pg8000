@@ -12,12 +12,12 @@ db_local_connect = {
         "user": "mfenniak"
         }
 
-db_vm_connect = {
-        "host": "192.168.111.128",
-        "user": "unittest",
-        "password": "unittest",
-        "database": "pg8000"
+db_local_win_connect = {
+        "host": "localhost",
+        "user": "mfenniak",
+        "password": "password",
+        "database": "mfenniak"
         }
 
-db_connect = db_local_connect
+db_connect = db_local_win_connect
 
