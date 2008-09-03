@@ -108,14 +108,38 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testTimestampTzOut(self):
-        db.execute("SELECT '2001-02-03 04:05:06.17 Canada/Mountain'::timestamp with time zone")
+        db.execute("SELECT '2001-02-03 04:05:06.17 America/Edmonton'::timestamp with time zone")
         retval = tuple(db.iterate_dict())
         dt = retval[0]['timestamptz']
-        self.assert_(dt.tzinfo.hrs == -7,
-                "timezone hrs != -7")
+        self.assert_(dt.tzinfo != None, "no tzinfo returned")
         self.assert_(
-                datetime.datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond) ==
-                datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
+                dt.astimezone(pg8000.types.utc) ==
+                datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pg8000.types.utc),
+                "retrieved value match failed")
+
+    def testTimestampTzRoundtrip(self):
+        import pytz
+        mst = pytz.timezone("America/Edmonton")
+        v1 = datetime.datetime(2001, 2, 3, 4, 5, 6, 170000, mst)
+        db.execute("SELECT $1 as f1", v1)
+        retval = tuple(db.iterate_dict())
+        v2 = retval[0]['f1']
+        self.assert_(v2.tzinfo != None, "expected tzinfo on v2")
+        self.assert_(v1.astimezone(pg8000.types.utc) == v2.astimezone(pg8000.types.utc), "expected v1 == v2")
+
+    def testTimestampInsert(self):
+        import pytz
+        mst = pytz.timezone("America/Edmonton")
+        db.execute("CREATE TEMPORARY TABLE TestTz (f1 timestamp with time zone)")
+        db.execute("INSERT INTO TestTz (f1) VALUES ($1)",
+                datetime.datetime(2001, 2, 3, 4, 5, 6, 170000, mst)
+                )
+        db.execute("SELECT f1 FROM TestTz")
+        retval = tuple(db.iterate_dict())
+        f1 = retval[0]['f1']
+        self.assert_(
+                f1.astimezone(pg8000.types.utc) ==
+                datetime.datetime(2001, 2, 3, 4, 5, 6, 170000, mst),
                 "retrieved value match failed")
 
     def testNameOut(self):

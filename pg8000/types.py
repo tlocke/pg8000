@@ -34,6 +34,19 @@ import decimal
 import struct
 from errors import NotSupportedError
 
+try:
+    from pytz import utc
+except ImportError:
+    ZERO = datetime.timedelta(0)
+    class UTC(datetime.tzinfo):
+        def utcoffset(self, dt):
+            return ZERO
+        def tzname(self, dt):
+            return "UTC"
+        def dst(self, dt):
+            return ZERO
+    utc = UTC()
+
 class Bytea(str):
     pass
 
@@ -54,6 +67,10 @@ class Interval(object):
         return cmp(self.microseconds, other.microseconds)
 
 def pg_type_info(typ):
+    value = None
+    if isinstance(typ, dict):
+        value = typ["value"]
+        typ = typ["type"]
     data = py_types.get(typ)
     if data == None:
         raise NotSupportedError("type %r not mapped to pg type" % typ)
@@ -70,6 +87,10 @@ def pg_type_info(typ):
         format = 0
     else:
         raise InternalError("no conversion fuction for type %r" % typ)
+    # if a value is provided, it's a date time, and it has timezone info,
+    # then switch the type oid to timestamp w/ tz
+    if type_oid == 1114 and value != None and value.tzinfo != None:
+        type_oid = 1184
     return type_oid, format
 
 def pg_value(v, fc, **kwargs):
@@ -163,12 +184,25 @@ def timestamp_recv(data, integer_datetimes, **kwargs):
         val = struct.unpack("!d", data)[0]
         return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds = val)
 
+# return a timezone-aware datetime instance if we're reading from a
+# "timestamp with timezone" type.  The timezone returned will always be UTC,
+# but providing that additional information can permit conversion to local.
+def timestamptz_recv(data, **kwargs):
+    return timestamp_recv(data, **kwargs).replace(tzinfo=utc)
+
 def timestamp_send(v, integer_datetimes, **kwargs):
-    delta = v - datetime.datetime(2000, 1, 1)
+    if v.tzinfo != None:
+        # timestamps should be sent as UTC.  If they have zone info,
+        # convert them.
+        delta = v.astimezone(utc) - datetime.datetime(2000, 1, 1, tzinfo=utc)
+    else:
+        delta = v - datetime.datetime(2000, 1, 1)
     val = delta.microseconds + (delta.seconds * 1000000) + (delta.days * 86400000000)
     if integer_datetimes:
+        # data is 64-bit integer representing milliseconds since 2000-01-01
         return struct.pack("!q", val)
     else:
+        # data is double-precision float representing seconds since 2000-01-01
         return struct.pack("!d", val / 1000.0 / 1000.0)
 
 def date_in(data, **kwargs):
@@ -261,36 +295,6 @@ def varcharin(data, client_encoding, **kwargs):
 def textout(v, client_encoding, **kwargs):
     return v.encode(encoding_convert(client_encoding))
 
-def timestamptz_in(data, **kwargs):
-    year = int(data[0:4])
-    month = int(data[5:7])
-    day = int(data[8:10])
-    hour = int(data[11:13])
-    minute = int(data[14:16])
-    tz_sep = data.rfind("-")
-    sec = decimal.Decimal(data[17:tz_sep])
-    tz = data[tz_sep:]
-    return datetime.datetime(year, month, day, hour, minute, int(sec), int((sec - int(sec)) * 1000000), FixedOffsetTz(tz))
-
-class FixedOffsetTz(datetime.tzinfo):
-    def __init__(self, hrs):
-        self.hrs = int(hrs)
-        self.name = hrs
-
-    def utcoffset(self, dt):
-        return datetime.timedelta(hours=1) * self.hrs
-
-    def tzname(self, dt):
-        return self.name
-
-    def dst(self, dt):
-        return datetime.timedelta(0)
-
-    def __eq__(self, other):
-        if not isinstance(other, FixedOffsetTz):
-            return False
-        return self.hrs == other.hrs
-
 def byteasend(v, **kwargs):
     return str(v)
 
@@ -344,11 +348,9 @@ pg_types = {
     1082: {"txt_in": date_in},
     1083: {"txt_in": time_in},
     1114: {"bin_in": timestamp_recv},
-    1184: {"txt_in": timestamptz_in}, # timestamp w/ tz
+    1184: {"bin_in": timestamptz_recv}, # timestamp w/ tz
     1186: {"bin_in": interval_recv},
     1700: {"txt_in": numeric_in},
     2275: {"txt_in": varcharin}, # cstring
 }
-
-
 

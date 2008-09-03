@@ -294,7 +294,7 @@ class Cursor(object):
             raise ConnectionClosedError()
         self.connection._unnamed_prepared_statement_lock.acquire()
         try:
-            self._stmt = PreparedStatement(self.connection, query, statement_name="", *[type(x) for x in args])
+            self._stmt = PreparedStatement(self.connection, query, statement_name="", *[{"type": type(x), "value": x} for x in args])
             self._stmt.execute(*args)
         finally:
             self.connection._unnamed_prepared_statement_lock.release()
