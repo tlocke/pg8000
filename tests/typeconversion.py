@@ -248,7 +248,7 @@ class Tests(unittest.TestCase):
         self.assert_(retval == ({"timestamp": datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)},),
                 "retrieved value match failed")
 
-    def testIntArrayOut(self):
+    def testInt4ArrayOut(self):
         db.execute("SELECT '{1,2,3,4}'::INT[] AS f1, '{{1,2,3},{4,5,6}}'::INT[][] AS f2, '{{{1,2},{3,4}},{{5,6},{7,8}}}'::INT[][][] AS f3")
         f1, f2, f3 = tuple(db.iterate_tuple())[0]
         self.assert_(f1 == [1, 2, 3, 4])
@@ -257,6 +257,13 @@ class Tests(unittest.TestCase):
 
     def testInt2ArrayOut(self):
         db.execute("SELECT '{1,2,3,4}'::INT2[] AS f1, '{{1,2,3},{4,5,6}}'::INT2[][] AS f2, '{{{1,2},{3,4}},{{5,6},{7,8}}}'::INT2[][][] AS f3")
+        f1, f2, f3 = tuple(db.iterate_tuple())[0]
+        self.assert_(f1 == [1, 2, 3, 4])
+        self.assert_(f2 == [[1, 2, 3], [4, 5, 6]])
+        self.assert_(f3 == [[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+
+    def testInt8ArrayOut(self):
+        db.execute("SELECT '{1,2,3,4}'::INT8[] AS f1, '{{1,2,3},{4,5,6}}'::INT8[][] AS f2, '{{{1,2},{3,4}},{{5,6},{7,8}}}'::INT8[][][] AS f3")
         f1, f2, f3 = tuple(db.iterate_tuple())[0]
         self.assert_(f1 == [1, 2, 3, 4])
         self.assert_(f2 == [[1, 2, 3], [4, 5, 6]])

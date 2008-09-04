@@ -358,8 +358,6 @@ def array_recv(data, **kwargs):
     return array_values
 
 
-
-
 py_types = {
     bool: {"tid": 16, "txt_out": boolout},
     int: {"tid": 23, "bin_out": int4send},
@@ -387,8 +385,9 @@ pg_types = {
     26: {"txt_in": numeric_in}, # oid type
     700: {"bin_in": float4recv},
     701: {"bin_in": float8recv},
-    1005: {"bin_in": array_recv},
-    1007: {"bin_in": array_recv},
+    1005: {"bin_in": array_recv}, # INT2[]
+    1007: {"bin_in": array_recv}, # INT4[]
+    1016: {"bin_in": array_recv}, # INT8[]
     1042: {"txt_in": varcharin}, # CHAR type
     1043: {"txt_in": varcharin}, # VARCHAR type
     1082: {"txt_in": date_in},
