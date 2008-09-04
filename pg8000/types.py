@@ -32,7 +32,9 @@ __author__ = "Mathieu Fenniak"
 import datetime
 import decimal
 import struct
-from errors import NotSupportedError, ArrayDataParseError
+from errors import (NotSupportedError, ArrayDataParseError, InternalError,
+        ArrayContentEmptyError, ArrayContentNotHomogenousError,
+        ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError)
 
 try:
     from pytz import utc
@@ -378,6 +380,95 @@ def array_recv(data, **kwargs):
 
     return array_values
 
+def array_inspect(value):
+    # Check if array has any values.  If not, we can't determine the proper
+    # array typeoid.
+    first_element = array_find_first_element(value)
+    if first_element == None:
+        raise ArrayContentEmptyError("array has no values")
+
+    # supported array output
+    typ = type(first_element)
+    if typ == int:
+        typeoid = 1007
+    else:
+        raise ArrayContentNotSupportedError("type %r not supported as array contents" % typ)
+
+    # check for homogenous array
+    for v in array_flatten(value):
+        if v != None and not isinstance(v, typ):
+            raise ArrayContentNotHomogenousError("not all array elements are of type %r" % typ)
+
+    # check that all array dimensions are consistent
+    array_check_dimensions(value)
+
+    return {"typeoid": typeoid, "bin_out": int_array_send}
+
+def array_find_first_element(arr):
+    for v in arr:
+        if isinstance(v, list):
+            retval = array_find_first_element(v)
+            if retval != None:
+                return retval
+        elif v != None:
+            return v
+    return None
+
+def array_flatten(arr):
+    for v in arr:
+        if isinstance(v, list):
+            for v2 in array_flatten(v):
+                yield v2
+        else:
+            yield v
+
+def array_check_dimensions(arr):
+    v0 = arr[0]
+    if isinstance(v0, list):
+        req_len = len(v0)
+        req_inner_lengths = array_check_dimensions(v0)
+        for v in arr:
+            inner_lengths = array_check_dimensions(v)
+            if len(v) != req_len or inner_lengths != req_inner_lengths:
+                raise ArrayDimensionsNotConsistentError("array dimensions not consistent")
+        retval = [req_len]
+        retval.extend(req_inner_lengths)
+        return retval
+    else:
+        # make sure nothing else at this level is a list
+        for v in arr:
+            if isinstance(v, list):
+                raise ArrayDimensionsNotConsistentError("array dimensions not consistent")
+        return []
+
+def array_has_null(arr):
+    for v in array_flatten(arr):
+        if v == None:
+            return True
+    return False
+
+def array_dim_lengths(arr):
+    v0 = arr[0]
+    if isinstance(v0, list):
+        retval = [len(v0)]
+        retval.extend(array_dim_lengths(v0))
+    else:
+        return [len(arr)]
+
+def int_array_send(arr, **kwargs):
+    has_null = array_has_null(arr)
+    dim_lengths = array_dim_lengths(arr)
+    data = struct.pack("!iii", len(dim_lengths), has_null, 23)
+    for i in dim_lengths:
+        data += struct.pack("!ii", i, 1)
+    for v in array_flatten(arr):
+        if v == None:
+            data += struct.pack("!i", -1)
+        else:
+            inner_data = int4send(v)
+            data += struct.pack("!i", len(inner_data))
+            data += inner_data
+    return data
 
 py_types = {
     bool: {"typeoid": 16, "txt_out": boolout},
@@ -393,6 +484,7 @@ py_types = {
     datetime.time: {"typeoid": 1083, "txt_out": time_out},
     Interval: {"typeoid": 1186, "bin_out": interval_send},
     type(None): {"typeoid": -1},
+    list: {"inspect": array_inspect},
 }
 
 pg_types = {

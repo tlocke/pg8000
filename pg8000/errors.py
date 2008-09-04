@@ -69,3 +69,25 @@ class NotSupportedError(DatabaseError):
 class ArrayDataParseError(InternalError):
     pass
 
+##
+# Thrown when attempting to transmit an array of unsupported data types.
+class ArrayContentNotSupportedError(NotSupportedError):
+    pass
+
+##
+# Thrown when attempting to send an array that doesn't contain all the same
+# type of objects (eg. some floats, some ints).
+class ArrayContentNotHomogenousError(ProgrammingError):
+    pass
+
+##
+# Attempted to pass an empty array in, but it's not possible to determine the
+# data type for an empty array.
+class ArrayContentEmptyError(ProgrammingError):
+    pass
+
+##
+# Attempted to use a multidimensional array with inconsistent array sizes.
+class ArrayDimensionsNotConsistentError(ProgrammingError):
+    pass
+

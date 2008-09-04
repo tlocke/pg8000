@@ -290,6 +290,17 @@ class Tests(unittest.TestCase):
         self.assert_(f2 == [[1, 2, 3], [4, 5, 6]])
         self.assert_(f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]])
 
+    def testIntArrayRoundtrip(self):
+        db.execute("SELECT $1 as f1", [1, 2, 3])
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": [1, 2, 3]},),
+                "retrieved value match failed")
+
+        db.execute("SELECT $1 as f1", [1, None, 3])
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": [1, None, 3]},),
+                "retrieved value match failed")
+
     # confirms that pg8000's binary output methods have the same output for
     # a data type as the PG server
     def testBinaryOutputMethods(self):
@@ -304,6 +315,41 @@ class Tests(unittest.TestCase):
             db.execute("SELECT %s($1) as f1" % method_out, value)
             retval = tuple(db.iterate_dict())
             self.assert_(retval[0]["f1"] == getattr(types, method_out)(value, integer_datetimes=db.c._integer_datetimes))
+
+    def testArrayHasValue(self):
+        from pg8000 import errors, types
+        self.assertRaises(errors.ArrayContentEmptyError,
+                types.array_inspect, [[None],[None],[None]])
+
+    def testArrayContentNotSupported(self):
+        from pg8000 import errors, types
+        # someday we might support string arrays, but not yet
+        self.assertRaises(errors.ArrayContentNotSupportedError,
+                types.array_inspect, [["Hello!"],["Hello!"],["Hello!"]])
+
+    def testArrayDimensions(self):
+        from pg8000 import errors, types
+        self.assertRaises(errors.ArrayDimensionsNotConsistentError,
+                types.array_inspect, [1,[2]])
+        self.assertRaises(errors.ArrayDimensionsNotConsistentError,
+                types.array_inspect, [[1],[2],[3,4]])
+        self.assertRaises(errors.ArrayDimensionsNotConsistentError,
+                types.array_inspect, [[[1]],[[2]],[[3,4]]])
+        self.assertRaises(errors.ArrayDimensionsNotConsistentError,
+                types.array_inspect, [[[[1]]],[[[2]]],[[[3,4]]]])
+        self.assertRaises(errors.ArrayDimensionsNotConsistentError,
+                types.array_inspect, [[1,2,3],[4,[5],6]])
+
+    def testArrayHomogenous(self):
+        from pg8000 import errors, types
+        self.assertRaises(errors.ArrayContentNotHomogenousError,
+                types.array_inspect, [[[1]],[[2]],[[3.1]]])
+
+    def testArrayInspect(self):
+        from pg8000 import types
+        types.array_inspect([1,2,3])
+        types.array_inspect([[1],[2],[3]])
+        types.array_inspect([[[1]],[[2]],[[3]]])
 
 
 if __name__ == "__main__":
