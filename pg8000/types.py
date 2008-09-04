@@ -385,6 +385,7 @@ pg_types = {
     26: {"txt_in": numeric_in}, # oid type
     700: {"bin_in": float4recv},
     701: {"bin_in": float8recv},
+    1000: {"bin_in": array_recv}, # BOOL[]
     1005: {"bin_in": array_recv}, # INT2[]
     1007: {"bin_in": array_recv}, # INT4[]
     1016: {"bin_in": array_recv}, # INT8[]

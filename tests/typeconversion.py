@@ -269,6 +269,13 @@ class Tests(unittest.TestCase):
         self.assert_(f2 == [[1, 2, 3], [4, 5, 6]])
         self.assert_(f3 == [[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
 
+    def testBoolArrayOut(self):
+        db.execute("SELECT '{TRUE,FALSE,FALSE,TRUE}'::BOOL[] AS f1, '{{TRUE,FALSE,TRUE},{FALSE,TRUE,FALSE}}'::BOOL[][] AS f2, '{{{TRUE,FALSE},{FALSE,TRUE}},{{TRUE,TRUE},{FALSE,FALSE}}}'::BOOL[][][] AS f3")
+        f1, f2, f3 = tuple(db.iterate_tuple())[0]
+        self.assert_(f1 == [True, False, False, True])
+        self.assert_(f2 == [[True, False, True], [False, True, False]])
+        self.assert_(f3 == [[[True, False], [False, True]], [[True, True], [False, False]]])
+
     # confirms that pg8000's binary output methods have the same output for
     # a data type as the PG server
     def testBinaryOutputMethods(self):
