@@ -74,7 +74,7 @@ def pg_type_info(typ):
     data = py_types.get(typ)
     if data == None:
         raise NotSupportedError("type %r not mapped to pg type" % typ)
-    type_oid = data.get("tid")
+    type_oid = data.get("typeoid")
     if type_oid == None:
         raise InternalError("type %r has no type_oid" % typ)
     elif type_oid == -1:
@@ -98,7 +98,7 @@ def pg_value(v, fc, **kwargs):
     data = py_types.get(typ)
     if data == None:
         raise NotSupportedError("type %r not mapped to pg type" % typ)
-    elif data.get("tid") == -1:
+    elif data.get("typeoid") == -1:
         # special case: NULL values
         return None
     if fc == 0:
@@ -359,19 +359,19 @@ def array_recv(data, **kwargs):
 
 
 py_types = {
-    bool: {"tid": 16, "txt_out": boolout},
-    int: {"tid": 23, "bin_out": int4send},
-    long: {"tid": 1700, "txt_out": numeric_out},
-    str: {"tid": 25, "txt_out": textout},
-    unicode: {"tid": 25, "txt_out": textout},
-    float: {"tid": 701, "bin_out": float8send},
-    decimal.Decimal: {"tid": 1700, "txt_out": numeric_out},
-    Bytea: {"tid": 17, "bin_out": byteasend},
-    datetime.datetime: {"tid": 1114, "bin_out": timestamp_send},
-    datetime.date: {"tid": 1082, "txt_out": date_out},
-    datetime.time: {"tid": 1083, "txt_out": time_out},
-    Interval: {"tid": 1186, "bin_out": interval_send},
-    type(None): {"tid": -1},
+    bool: {"typeoid": 16, "txt_out": boolout},
+    int: {"typeoid": 23, "bin_out": int4send},
+    long: {"typeoid": 1700, "txt_out": numeric_out},
+    str: {"typeoid": 25, "txt_out": textout},
+    unicode: {"typeoid": 25, "txt_out": textout},
+    float: {"typeoid": 701, "bin_out": float8send},
+    decimal.Decimal: {"typeoid": 1700, "txt_out": numeric_out},
+    Bytea: {"typeoid": 17, "bin_out": byteasend},
+    datetime.datetime: {"typeoid": 1114, "bin_out": timestamp_send},
+    datetime.date: {"typeoid": 1082, "txt_out": date_out},
+    datetime.time: {"typeoid": 1083, "txt_out": time_out},
+    Interval: {"typeoid": 1186, "bin_out": interval_send},
+    type(None): {"typeoid": -1},
 }
 
 pg_types = {
