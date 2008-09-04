@@ -389,9 +389,8 @@ def array_inspect(value):
 
     # supported array output
     typ = type(first_element)
-    if typ == int:
-        typeoid = 1007
-    else:
+    array_typeoid = py_array_types.get(typ)
+    if array_typeoid == None:
         raise ArrayContentNotSupportedError("type %r not supported as array contents" % typ)
 
     # check for homogenous array
@@ -402,7 +401,11 @@ def array_inspect(value):
     # check that all array dimensions are consistent
     array_check_dimensions(value)
 
-    return {"typeoid": typeoid, "bin_out": int_array_send}
+    type_data = py_types[typ]
+    return {
+        "typeoid": array_typeoid,
+        "bin_out": array_send(type_data["typeoid"], type_data["bin_out"])
+    }
 
 def array_find_first_element(arr):
     for v in arr:
@@ -455,20 +458,25 @@ def array_dim_lengths(arr):
     else:
         return [len(arr)]
 
-def int_array_send(arr, **kwargs):
-    has_null = array_has_null(arr)
-    dim_lengths = array_dim_lengths(arr)
-    data = struct.pack("!iii", len(dim_lengths), has_null, 23)
-    for i in dim_lengths:
-        data += struct.pack("!ii", i, 1)
-    for v in array_flatten(arr):
-        if v == None:
-            data += struct.pack("!i", -1)
-        else:
-            inner_data = int4send(v)
-            data += struct.pack("!i", len(inner_data))
-            data += inner_data
-    return data
+class array_send(object):
+    def __init__(self, typeoid, bin_out_func):
+        self.typeoid = typeoid
+        self.bin_out_func = bin_out_func
+
+    def __call__(self, arr, **kwargs):
+        has_null = array_has_null(arr)
+        dim_lengths = array_dim_lengths(arr)
+        data = struct.pack("!iii", len(dim_lengths), has_null, self.typeoid)
+        for i in dim_lengths:
+            data += struct.pack("!ii", i, 1)
+        for v in array_flatten(arr):
+            if v == None:
+                data += struct.pack("!i", -1)
+            else:
+                inner_data = self.bin_out_func(v, **kwargs)
+                data += struct.pack("!i", len(inner_data))
+                data += inner_data
+        return data
 
 py_types = {
     bool: {"typeoid": 16, "txt_out": boolout},
@@ -485,6 +493,12 @@ py_types = {
     Interval: {"typeoid": 1186, "bin_out": interval_send},
     type(None): {"typeoid": -1},
     list: {"inspect": array_inspect},
+}
+
+# py type -> pg array typeoid
+py_array_types = {
+    int: 1007,
+    float: 1022,
 }
 
 pg_types = {

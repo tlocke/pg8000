@@ -296,9 +296,16 @@ class Tests(unittest.TestCase):
         self.assert_(retval == ({"f1": [1, 2, 3]},),
                 "retrieved value match failed")
 
+    def testIntArrayWithNullRoundtrip(self):
         db.execute("SELECT $1 as f1", [1, None, 3])
         retval = tuple(db.iterate_dict())
         self.assert_(retval == ({"f1": [1, None, 3]},),
+                "retrieved value match failed")
+
+    def testFloatArrayRoundtrip(self):
+        db.execute("SELECT $1 as f1", [1.1, 2.2, 3.3])
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": [1.1, 2.2, 3.3]},),
                 "retrieved value match failed")
 
     # confirms that pg8000's binary output methods have the same output for
