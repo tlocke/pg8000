@@ -329,6 +329,29 @@ class Tests(unittest.TestCase):
         self.assert_(retval == ({"f1": [True, False, None]},),
                 "retrieved value match failed")
 
+    def testStringArrayOut(self):
+        db.execute("SELECT '{a,b,c}'::TEXT[] AS f1")
+        self.assert_(tuple(db.iterate_tuple())[0][0] == ["a", "b", "c"])
+        db.execute("SELECT '{a,b,c}'::CHAR[] AS f1")
+        self.assert_(tuple(db.iterate_tuple())[0][0] == ["a", "b", "c"])
+        db.execute("SELECT '{a,b,c}'::VARCHAR[] AS f1")
+        self.assert_(tuple(db.iterate_tuple())[0][0] == ["a", "b", "c"])
+        db.execute("SELECT '{a,b,c}'::CSTRING[] AS f1")
+        self.assert_(tuple(db.iterate_tuple())[0][0] == ["a", "b", "c"])
+        db.execute("SELECT '{a,b,c}'::NAME[] AS f1")
+        self.assert_(tuple(db.iterate_tuple())[0][0] == ["a", "b", "c"])
+
+    def testStringArrayRoundtrip(self):
+        db.execute("SELECT $1 as f1", [u"Hello!", u"World!", None])
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": [u"Hello!", u"World!", None]},),
+                "retrieved value match failed")
+
+        db.execute("SELECT $1 as f1", ["Hello!", "World!", None])
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"f1": ["Hello!", "World!", None]},),
+                "retrieved value match failed")
+
     def testArrayHasValue(self):
         from pg8000 import errors, types
         self.assertRaises(errors.ArrayContentEmptyError,
@@ -336,9 +359,10 @@ class Tests(unittest.TestCase):
 
     def testArrayContentNotSupported(self):
         from pg8000 import errors, types
-        # someday we might support string arrays, but not yet
+        # someday we might support numeric arrays, but we'd need binary
+        # support for the numeric format, which we don't have
         self.assertRaises(errors.ArrayContentNotSupportedError,
-                types.array_inspect, [["Hello!"],["Hello!"],["Hello!"]])
+                types.array_inspect, [[decimal.Decimal("1.1")],[None],[None]])
 
     def testArrayDimensions(self):
         from pg8000 import errors, types

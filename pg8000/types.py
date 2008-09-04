@@ -478,8 +478,8 @@ py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},
     int: {"typeoid": 23, "bin_out": int4send},
     long: {"typeoid": 1700, "txt_out": numeric_out},
-    str: {"typeoid": 25, "txt_out": textout},
-    unicode: {"typeoid": 25, "txt_out": textout},
+    str: {"typeoid": 25, "bin_out": textout},
+    unicode: {"typeoid": 25, "bin_out": textout},
     float: {"typeoid": 701, "bin_out": float8send},
     decimal.Decimal: {"typeoid": 1700, "txt_out": numeric_out},
     Bytea: {"typeoid": 17, "bin_out": byteasend},
@@ -496,33 +496,40 @@ py_array_types = {
     int: 1007,
     float: 1022,
     bool: 1000,
+    str: 1009,      # TEXT[]
+    unicode: 1009,  # TEXT[]
 }
 
 pg_types = {
     16: {"bin_in": boolrecv},
     17: {"bin_in": bytearecv},
-    19: {"txt_in": varcharin}, # name type
+    19: {"bin_in": varcharin}, # name type
     20: {"bin_in": int8recv},
     21: {"bin_in": int2recv},
     23: {"bin_in": int4recv},
-    25: {"txt_in": varcharin}, # TEXT type
+    25: {"bin_in": varcharin}, # TEXT type
     26: {"txt_in": numeric_in}, # oid type
     700: {"bin_in": float4recv},
     701: {"bin_in": float8recv},
     1000: {"bin_in": array_recv}, # BOOL[]
+    1003: {"bin_in": array_recv}, # NAME[]
     1005: {"bin_in": array_recv}, # INT2[]
     1007: {"bin_in": array_recv}, # INT4[]
+    1009: {"bin_in": array_recv}, # TEXT[]
+    1014: {"bin_in": array_recv}, # CHAR[]
+    1015: {"bin_in": array_recv}, # VARCHAR[]
     1016: {"bin_in": array_recv}, # INT8[]
     1021: {"bin_in": array_recv}, # FLOAT4[]
     1022: {"bin_in": array_recv}, # FLOAT8[]
-    1042: {"txt_in": varcharin}, # CHAR type
-    1043: {"txt_in": varcharin}, # VARCHAR type
+    1042: {"bin_in": varcharin}, # CHAR type
+    1043: {"bin_in": varcharin}, # VARCHAR type
     1082: {"txt_in": date_in},
     1083: {"txt_in": time_in},
     1114: {"bin_in": timestamp_recv},
     1184: {"bin_in": timestamptz_recv}, # timestamp w/ tz
     1186: {"bin_in": interval_recv},
+    1263: {"bin_in": array_recv}, # cstring[]
     1700: {"txt_in": numeric_in},
-    2275: {"txt_in": varcharin}, # cstring
+    2275: {"bin_in": varcharin}, # cstring
 }
 
