@@ -192,7 +192,7 @@ def float8send(v, **kwargs):
 def datetime_inspect(value):
     if value.tzinfo != None:
         # send as timestamptz if timezone is provided
-        return {"typeoid": 1184, "bin_out": timestamp_send}
+        return {"typeoid": 1184, "bin_out": timestamptz_send}
     else:
         # otherwise send as timestamp
         return {"typeoid": 1114, "bin_out": timestamp_send}
@@ -214,12 +214,7 @@ def timestamptz_recv(data, **kwargs):
     return timestamp_recv(data, **kwargs).replace(tzinfo=utc)
 
 def timestamp_send(v, integer_datetimes, **kwargs):
-    if v.tzinfo != None:
-        # timestamps should be sent as UTC.  If they have zone info,
-        # convert them.
-        delta = v.astimezone(utc) - datetime.datetime(2000, 1, 1, tzinfo=utc)
-    else:
-        delta = v - datetime.datetime(2000, 1, 1)
+    delta = v - datetime.datetime(2000, 1, 1)
     val = delta.microseconds + (delta.seconds * 1000000) + (delta.days * 86400000000)
     if integer_datetimes:
         # data is 64-bit integer representing milliseconds since 2000-01-01
@@ -227,6 +222,11 @@ def timestamp_send(v, integer_datetimes, **kwargs):
     else:
         # data is double-precision float representing seconds since 2000-01-01
         return struct.pack("!d", val / 1000.0 / 1000.0)
+
+def timestamptz_send(v, **kwargs):
+    # timestamps should be sent as UTC.  If they have zone info,
+    # convert them.
+    return timestamp_send(v.astimezone(utc).replace(tzinfo=None), **kwargs)
 
 def date_in(data, **kwargs):
     year = int(data[0:4])
