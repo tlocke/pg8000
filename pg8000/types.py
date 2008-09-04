@@ -320,6 +320,9 @@ def array_recv(data, **kwargs):
     dim, hasnull, typeoid = struct.unpack("!iii", data[:12])
     data = data[12:]
 
+    # get type conversion method for typeoid
+    conversion = pg_types[typeoid]["bin_in"]
+
     # Read dimension info
     dim_lengths = []
     element_count = 1
@@ -337,7 +340,7 @@ def array_recv(data, **kwargs):
         if element_len == -1:
             array_values.append(None)
         else:
-            array_values.append(int4recv(data[:element_len]))
+            array_values.append(conversion(data[:element_len], **kwargs))
             data = data[element_len:]
     if data != "":
         raise ArrayDataParseError("unexpected data left over after array read")
@@ -384,6 +387,7 @@ pg_types = {
     26: {"txt_in": numeric_in}, # oid type
     700: {"bin_in": float4recv},
     701: {"bin_in": float8recv},
+    1005: {"bin_in": array_recv},
     1007: {"bin_in": array_recv},
     1042: {"txt_in": varcharin}, # CHAR type
     1043: {"txt_in": varcharin}, # VARCHAR type
