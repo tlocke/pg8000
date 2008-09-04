@@ -120,24 +120,24 @@ class Tests(unittest.TestCase):
     def testTimestampTzRoundtrip(self):
         import pytz
         mst = pytz.timezone("America/Edmonton")
-        v1 = datetime.datetime(2001, 2, 3, 4, 5, 6, 170000, mst)
+        v1 = mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
         db.execute("SELECT $1 as f1", v1)
         retval = tuple(db.iterate_dict())
         v2 = retval[0]['f1']
         self.assert_(v2.tzinfo != None, "expected tzinfo on v2")
-        self.assert_(v1.astimezone(pg8000.types.utc) == v2.astimezone(pg8000.types.utc), "expected v1 == v2")
+        self.assert_(v1 == v2, "expected v1 == v2")
 
     def testTimestampMismatch(self):
         import pytz
-        mst = pytz.timezone("America/Denver")
-        db.execute("SET SESSION TIME ZONE 'America/Denver'")
+        mst = pytz.timezone("America/Edmonton")
+        db.execute("SET SESSION TIME ZONE 'America/Edmonton'")
         try:
             db.execute("CREATE TEMPORARY TABLE TestTz (f1 timestamp with time zone, f2 timestamp without time zone)")
             db.execute("INSERT INTO TestTz (f1, f2) VALUES ($1, $2)",
                     # insert timestamp into timestamptz field (v1)
                     datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
                     # insert timestamptz into timestamp field (v2)
-                    datetime.datetime(2001, 2, 3, 4, 5, 6, 170000, mst)
+                    mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
                 )
             db.execute("SELECT f1, f2 FROM TestTz")
             retval = tuple(db.iterate_dict())
