@@ -389,6 +389,8 @@ pg_types = {
     1005: {"bin_in": array_recv}, # INT2[]
     1007: {"bin_in": array_recv}, # INT4[]
     1016: {"bin_in": array_recv}, # INT8[]
+    1021: {"bin_in": array_recv}, # FLOAT4[]
+    1022: {"bin_in": array_recv}, # FLOAT8[]
     1042: {"txt_in": varcharin}, # CHAR type
     1043: {"txt_in": varcharin}, # VARCHAR type
     1082: {"txt_in": date_in},
