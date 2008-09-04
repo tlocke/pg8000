@@ -249,46 +249,46 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testInt4ArrayOut(self):
-        db.execute("SELECT '{1,2,3,4}'::INT[] AS f1, '{{1,2,3},{4,5,6}}'::INT[][] AS f2, '{{{1,2},{3,4}},{{5,6},{7,8}}}'::INT[][][] AS f3")
+        db.execute("SELECT '{1,2,3,4}'::INT[] AS f1, '{{1,2,3},{4,5,6}}'::INT[][] AS f2, '{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::INT[][][] AS f3")
         f1, f2, f3 = tuple(db.iterate_tuple())[0]
         self.assert_(f1 == [1, 2, 3, 4])
         self.assert_(f2 == [[1, 2, 3], [4, 5, 6]])
-        self.assert_(f3 == [[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        self.assert_(f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]])
 
     def testInt2ArrayOut(self):
-        db.execute("SELECT '{1,2,3,4}'::INT2[] AS f1, '{{1,2,3},{4,5,6}}'::INT2[][] AS f2, '{{{1,2},{3,4}},{{5,6},{7,8}}}'::INT2[][][] AS f3")
+        db.execute("SELECT '{1,2,3,4}'::INT2[] AS f1, '{{1,2,3},{4,5,6}}'::INT2[][] AS f2, '{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::INT2[][][] AS f3")
         f1, f2, f3 = tuple(db.iterate_tuple())[0]
         self.assert_(f1 == [1, 2, 3, 4])
         self.assert_(f2 == [[1, 2, 3], [4, 5, 6]])
-        self.assert_(f3 == [[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        self.assert_(f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]])
 
     def testInt8ArrayOut(self):
-        db.execute("SELECT '{1,2,3,4}'::INT8[] AS f1, '{{1,2,3},{4,5,6}}'::INT8[][] AS f2, '{{{1,2},{3,4}},{{5,6},{7,8}}}'::INT8[][][] AS f3")
+        db.execute("SELECT '{1,2,3,4}'::INT8[] AS f1, '{{1,2,3},{4,5,6}}'::INT8[][] AS f2, '{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::INT8[][][] AS f3")
         f1, f2, f3 = tuple(db.iterate_tuple())[0]
         self.assert_(f1 == [1, 2, 3, 4])
         self.assert_(f2 == [[1, 2, 3], [4, 5, 6]])
-        self.assert_(f3 == [[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        self.assert_(f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]])
 
     def testBoolArrayOut(self):
-        db.execute("SELECT '{TRUE,FALSE,FALSE,TRUE}'::BOOL[] AS f1, '{{TRUE,FALSE,TRUE},{FALSE,TRUE,FALSE}}'::BOOL[][] AS f2, '{{{TRUE,FALSE},{FALSE,TRUE}},{{TRUE,TRUE},{FALSE,FALSE}}}'::BOOL[][][] AS f3")
+        db.execute("SELECT '{TRUE,FALSE,FALSE,TRUE}'::BOOL[] AS f1, '{{TRUE,FALSE,TRUE},{FALSE,TRUE,FALSE}}'::BOOL[][] AS f2, '{{{TRUE,FALSE},{FALSE,TRUE}},{{NULL,TRUE},{FALSE,FALSE}}}'::BOOL[][][] AS f3")
         f1, f2, f3 = tuple(db.iterate_tuple())[0]
         self.assert_(f1 == [True, False, False, True])
         self.assert_(f2 == [[True, False, True], [False, True, False]])
-        self.assert_(f3 == [[[True, False], [False, True]], [[True, True], [False, False]]])
+        self.assert_(f3 == [[[True, False], [False, True]], [[None, True], [False, False]]])
 
     def testFloat4ArrayOut(self):
-        db.execute("SELECT '{1,2,3,4}'::FLOAT4[] AS f1, '{{1,2,3},{4,5,6}}'::FLOAT4[][] AS f2, '{{{1,2},{3,4}},{{5,6},{7,8}}}'::FLOAT4[][][] AS f3")
+        db.execute("SELECT '{1,2,3,4}'::FLOAT4[] AS f1, '{{1,2,3},{4,5,6}}'::FLOAT4[][] AS f2, '{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::FLOAT4[][][] AS f3")
         f1, f2, f3 = tuple(db.iterate_tuple())[0]
         self.assert_(f1 == [1, 2, 3, 4])
         self.assert_(f2 == [[1, 2, 3], [4, 5, 6]])
-        self.assert_(f3 == [[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        self.assert_(f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]])
 
     def testFloat8ArrayOut(self):
-        db.execute("SELECT '{1,2,3,4}'::FLOAT8[] AS f1, '{{1,2,3},{4,5,6}}'::FLOAT8[][] AS f2, '{{{1,2},{3,4}},{{5,6},{7,8}}}'::FLOAT8[][][] AS f3")
+        db.execute("SELECT '{1,2,3,4}'::FLOAT8[] AS f1, '{{1,2,3},{4,5,6}}'::FLOAT8[][] AS f2, '{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::FLOAT8[][][] AS f3")
         f1, f2, f3 = tuple(db.iterate_tuple())[0]
         self.assert_(f1 == [1, 2, 3, 4])
         self.assert_(f2 == [[1, 2, 3], [4, 5, 6]])
-        self.assert_(f3 == [[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        self.assert_(f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]])
 
     # confirms that pg8000's binary output methods have the same output for
     # a data type as the PG server
