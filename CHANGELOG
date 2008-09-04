@@ -1,3 +1,35 @@
+Version 1.05, 2008-09-03
+------------------------
+
+- Proper support for timestamptz field type:
+    - Reading a timestamptz field results in a datetime.datetime instance that
+    has a valid tzinfo property.  tzinfo is always UTC.
+    - Sending a datetime.datetime instance with a tzinfo value will be
+    sent as a timestamptz type, with the appropriate tz conversions done.
+
+- Map postgres < -- > python text encodings correctly.
+
+- Fix bug where underscores were not permitted in pyformat names.
+
+- Support "%s" in a pyformat strin.
+
+- Add cursor.connection DB-API extension.
+
+- Add cursor.next and cursor.__iter__ DB-API extensions.
+
+- DBAPI documentation improvements.
+
+- Don't attempt rollback in cursor.execute if a ConnectionClosedError occurs.
+
+- Add warning for accessing exceptions as attributes on the connection object,
+  as per DB-API spec.
+
+- Fix up open connection when an unexpected connection occurs, rather than
+  leaving the connection in an unusable state.
+
+- Use setuptools/egg package format.
+
+
 Version 1.04, 2008-05-12
 ------------------------
 
