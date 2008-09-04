@@ -32,7 +32,7 @@ __author__ = "Mathieu Fenniak"
 import datetime
 import decimal
 import struct
-from errors import NotSupportedError
+from errors import NotSupportedError, ArrayDataParseError
 
 try:
     from pytz import utc
@@ -316,6 +316,47 @@ def interval_send(data, integer_datetimes, **kwargs):
     else:
         return struct.pack("!dii", data.microseconds / 1000.0 / 1000.0, data.days, data.months)
 
+def array_recv(data, **kwargs):
+    dim, hasnull, typeoid = struct.unpack("!iii", data[:12])
+    data = data[12:]
+
+    # Read dimension info
+    dim_lengths = []
+    element_count = 1
+    for idim in range(dim):
+        dim_len, dim_lbound = struct.unpack("!ii", data[:8])
+        data = data[8:]
+        dim_lengths.append(dim_len)
+        element_count *= dim_len
+
+    # Read all array values
+    array_values = []
+    for i in range(element_count):
+        element_len, = struct.unpack("!i", data[:4])
+        data = data[4:]
+        if element_len == -1:
+            array_values.append(None)
+        else:
+            array_values.append(int4recv(data[:element_len]))
+            data = data[element_len:]
+    if data != "":
+        raise ArrayDataParseError("unexpected data left over after array read")
+
+    # at this point, {{1,2,3},{4,5,6}}::int[][] looks like [1,2,3,4,5,6].
+    # go through the dimensions and fix up the array contents to match
+    # expected dimensions
+    for dim_length in reversed(dim_lengths[1:]):
+        val = []
+        while array_values:
+            val.append(array_values[:dim_length])
+            array_values = array_values[dim_length:]
+        array_values = val
+
+    return array_values
+
+
+
+
 py_types = {
     bool: {"tid": 16, "txt_out": boolout},
     int: {"tid": 23, "bin_out": int4send},
@@ -343,6 +384,7 @@ pg_types = {
     26: {"txt_in": numeric_in}, # oid type
     700: {"bin_in": float4recv},
     701: {"bin_in": float8recv},
+    1007: {"bin_in": array_recv},
     1042: {"txt_in": varcharin}, # CHAR type
     1043: {"txt_in": varcharin}, # VARCHAR type
     1082: {"txt_in": date_in},

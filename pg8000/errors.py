@@ -63,3 +63,9 @@ class ProgrammingError(DatabaseError):
 class NotSupportedError(DatabaseError):
     pass
 
+##
+# An exception that is thrown when an internal error occurs trying to
+# decode binary array data from the server.
+class ArrayDataParseError(InternalError):
+    pass
+
