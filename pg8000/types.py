@@ -162,11 +162,11 @@ def py_value(v, description, **kwargs):
 def boolrecv(data, **kwargs):
     return data == "\x01"
 
-def boolout(v, **kwargs):
+def boolsend(v, **kwargs):
     if v:
-        return 't'
+        return "\x01"
     else:
-        return 'f'
+        return "\x00"
 
 def int2recv(data, **kwargs):
     return struct.unpack("!h", data)[0]
@@ -475,7 +475,7 @@ class array_send(object):
         return data
 
 py_types = {
-    bool: {"typeoid": 16, "txt_out": boolout},
+    bool: {"typeoid": 16, "bin_out": boolsend},
     int: {"typeoid": 23, "bin_out": int4send},
     long: {"typeoid": 1700, "txt_out": numeric_out},
     str: {"typeoid": 25, "txt_out": textout},
@@ -495,6 +495,7 @@ py_types = {
 py_array_types = {
     int: 1007,
     float: 1022,
+    bool: 1000,
 }
 
 pg_types = {
