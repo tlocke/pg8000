@@ -60,6 +60,7 @@ class Interval(object):
         return "<Interval %s months %s days %s microseconds>" % (self.months, self.days, self.microseconds)
 
     def __cmp__(self, other):
+        if other == None: return -1
         c = cmp(self.months, other.months)
         if c != 0: return c
         c = cmp(self.days, other.days)
@@ -71,15 +72,23 @@ def pg_type_info(typ):
     if isinstance(typ, dict):
         value = typ["value"]
         typ = typ["type"]
+
     data = py_types.get(typ)
     if data == None:
         raise NotSupportedError("type %r not mapped to pg type" % typ)
+
+    # permit the type data to be determined by the value, if provided
+    inspect_func = data.get("inspect")
+    if value != None and inspect_func != None:
+        data = inspect_func(value)
+
     type_oid = data.get("typeoid")
     if type_oid == None:
         raise InternalError("type %r has no type_oid" % typ)
     elif type_oid == -1:
         # special case: NULL values
         return type_oid, 0
+
     # prefer bin, but go with whatever exists
     if data.get("bin_out"):
         format = 1
@@ -87,20 +96,24 @@ def pg_type_info(typ):
         format = 0
     else:
         raise InternalError("no conversion fuction for type %r" % typ)
-    # if a value is provided, it's a date time, and it has timezone info,
-    # then switch the type oid to timestamp w/ tz
-    if type_oid == 1114 and value != None and value.tzinfo != None:
-        type_oid = 1184
+
     return type_oid, format
 
-def pg_value(v, fc, **kwargs):
-    typ = type(v)
+def pg_value(value, fc, **kwargs):
+    typ = type(value)
     data = py_types.get(typ)
     if data == None:
         raise NotSupportedError("type %r not mapped to pg type" % typ)
-    elif data.get("typeoid") == -1:
-        # special case: NULL values
+
+    # permit the type conversion to be determined by the value, if provided
+    inspect_func = data.get("inspect")
+    if value != None and inspect_func != None:
+        data = inspect_func(value)
+
+    # special case: NULL values
+    if data.get("typeoid") == -1:
         return None
+
     if fc == 0:
         func = data.get("txt_out")
     elif fc == 1:
@@ -109,7 +122,7 @@ def pg_value(v, fc, **kwargs):
         raise InternalError("unrecognized format code %r" % fc)
     if func == None:
         raise NotSupportedError("type %r, format code %r not supported" % (typ, fc))
-    return func(v, **kwargs)
+    return func(value, **kwargs)
 
 def py_type_info(description):
     type_oid = description['type_oid']
@@ -173,6 +186,14 @@ def float8recv(data, **kwargs):
 
 def float8send(v, **kwargs):
     return struct.pack("!d", v)
+
+def datetime_inspect(value):
+    if value.tzinfo != None:
+        # send as timestamptz if timezone is provided
+        return {"typeoid": 1184, "bin_out": timestamp_send}
+    else:
+        # otherwise send as timestamp
+        return {"typeoid": 1114, "bin_out": timestamp_send}
 
 def timestamp_recv(data, integer_datetimes, **kwargs):
     if integer_datetimes:
@@ -367,7 +388,7 @@ py_types = {
     float: {"typeoid": 701, "bin_out": float8send},
     decimal.Decimal: {"typeoid": 1700, "txt_out": numeric_out},
     Bytea: {"typeoid": 17, "bin_out": byteasend},
-    datetime.datetime: {"typeoid": 1114, "bin_out": timestamp_send},
+    datetime.datetime: {"typeoid": 1114, "bin_out": timestamp_send, "inspect": datetime_inspect},
     datetime.date: {"typeoid": 1082, "txt_out": date_out},
     datetime.time: {"typeoid": 1083, "txt_out": time_out},
     Interval: {"typeoid": 1186, "bin_out": interval_send},
