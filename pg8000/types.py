@@ -408,12 +408,8 @@ def array_inspect(value):
     }
 
 def array_find_first_element(arr):
-    for v in arr:
-        if isinstance(v, list):
-            retval = array_find_first_element(v)
-            if retval != None:
-                return retval
-        elif v != None:
+    for v in array_flatten(arr):
+        if v != None:
             return v
     return None
 
