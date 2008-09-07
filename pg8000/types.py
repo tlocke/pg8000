@@ -252,6 +252,18 @@ def numeric_in(data, **kwargs):
     else:
         return decimal.Decimal(data)
 
+def numeric_recv(data, **kwargs):
+    num_digits, weight, sign, scale = struct.unpack("!hhhh", data[:8])
+    data = data[8:]
+    digits = struct.unpack("!" + ("h" * num_digits), data)
+    weight = decimal.Decimal(weight)
+    retval = 0
+    for d in digits:
+        d = decimal.Decimal(d)
+        retval += d * (10000 ** weight)
+        weight -= 1
+    return retval
+
 def numeric_out(v, **kwargs):
     return str(v)
 
@@ -529,7 +541,7 @@ pg_types = {
     1184: {"bin_in": timestamptz_recv}, # timestamp w/ tz
     1186: {"bin_in": interval_recv},
     1263: {"bin_in": array_recv}, # cstring[]
-    1700: {"txt_in": numeric_in},
+    1700: {"bin_in": numeric_recv},
     2275: {"bin_in": varcharin}, # cstring
 }
 
