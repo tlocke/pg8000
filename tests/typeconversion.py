@@ -388,6 +388,12 @@ class Tests(unittest.TestCase):
         types.array_inspect([[1],[2],[3]])
         types.array_inspect([[[1]],[[2]],[[3]]])
 
+    def testMacaddr(self):
+        db.execute("SELECT macaddr '08002b:010203'")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"macaddr": "08:00:2b:01:02:03"},),
+                "retrieved value match failed")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -523,6 +523,7 @@ pg_types = {
     26: {"txt_in": numeric_in}, # oid type
     700: {"bin_in": float4recv},
     701: {"bin_in": float8recv},
+    829: {"txt_in": varcharin}, # MACADDR type
     1000: {"bin_in": array_recv}, # BOOL[]
     1003: {"bin_in": array_recv}, # NAME[]
     1005: {"bin_in": array_recv}, # INT2[]
