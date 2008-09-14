@@ -394,6 +394,14 @@ class Tests(unittest.TestCase):
         self.assert_(retval == ({"macaddr": "08:00:2b:01:02:03"},),
                 "retrieved value match failed")
 
+    def testUserType(self):
+        db.execute("DROP TYPE test_type")
+        db.execute("CREATE TYPE test_type AS (a INT, b FLOAT)")
+        db.recache_record_types()
+        db.execute("SELECT ROW(1, 2)::test_type")
+        retval = tuple(db.iterate_dict())
+        self.assert_(retval == ({"row": {"a": 1, "b": 2}},),
+                "retrieved value match failed")
 
 if __name__ == "__main__":
     unittest.main()
