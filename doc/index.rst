@@ -12,6 +12,7 @@ Contents:
     :maxdepth: 2
     
     dbapi
+    errors
 
 
 Indices and tables

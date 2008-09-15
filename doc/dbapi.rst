@@ -4,6 +4,9 @@
 .. module:: pg8000.dbapi
     :synopsis: DBAPI 2.0 compliant PostgreSQL interface using pg8000
 
+DBAPI Properties
+----------------
+
 .. attribute:: apilevel
     
     The DBAPI level supported, currently "2.0".
@@ -42,6 +45,16 @@
             printf format codes, eg. ``WHERE name=%s``
         pyformat
             Python format codes, eg. ``WHERE name=%(paramname)s``
+
+.. attribute:: STRING
+.. attribute:: BINARY
+.. attribute:: NUMBER
+.. attribute:: DATETIME
+.. attribute:: ROWID
+
+
+DBAPI Functions
+---------------
 
 .. function:: connect(user[, host, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False])
     
@@ -161,6 +174,9 @@
     :rtype: :class:`pg8000.types.Bytea`
 
 
+DBAPI Objects
+-------------
+
 .. class:: ConnectionWrapper
 
     A ``ConnectionWrapper`` instance represents a single physical connection
@@ -210,7 +226,7 @@
         All of the standard database exception types are accessible via
         connection instances.
 
-        This is a DB-API 2.0 extension.  Accessing any of these attributes will
+        This is a DBAPI 2.0 extension.  Accessing any of these attributes will
         generate a warning, eg. ``DB-API extension connection.DatabaseError
         used``.
 
@@ -223,28 +239,215 @@
     .. attribute:: arraysize
 
         This read/write attribute specifies the number of rows to fetch at a
-        time with :func:`CursorWrapper.fetchmany`.  It defaults to 1.
+        time with :meth:`fetchmany`.  It defaults to 1.
 
-    .. method:: fetchmany()
+    .. attribute:: connection
 
-        Fetch rows
+        This read-only attribute contains a reference to the connection object
+        (an instance of :class:`ConnectionWrapper`) on which the cursor was
+        created.
+
+        This attribute is part of a DBAPI 2.0 extension.  Accessing this
+        attribute will generate the following warning: ``DB-API extension
+        cursor.connection used``.
+
+    .. attribute:: rowcount
+
+        This read-only attribute contains the number of rows that the last
+        execute method produced (for query statements like ``SELECT``) or
+        affected (for modification statements like ``UPDATE``).
+
+        During a query statement, accessing this property requires reading the
+        entire result set into memory.  It is preferable to avoid using this
+        attribute to reduce memory usage.
+
+        The value is -1 in case no execute method has been performed on the
+        cursor, or there was no rowcount associated with the last operation.
+
+        This attribute is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    .. attribute:: description
+
+        This read-only attribute is a sequence of 7-item sequences.  Each value
+        contains information describing one result column.  The 7 items
+        returned for each column are (name, type_code, display_size,
+        internal_size, precision, scale, null_ok).  Only the first two values
+        are provided by the current implementation.
+
+        This attribute is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    .. method:: execute(operation, args=())
+
+        Executes a database operation.  Parameters may be provided as a
+        sequence, or as a mapping, depending upon the value of
+        :data:`pg8000.dbapi.paramstyle`.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :param operation:
+            The SQL statement to execute.
+
+        :param args:
+            If :data:`paramstyle` is ``qmark``, ``numeric``, or ``format``,
+            this argument should be an array of parameters to bind into the
+            statement.  If :data:`paramstyle` is ``named``, the argument should
+            be a dict mapping of parameters.  If the :data:`paramstyle` is
+            ``pyformat``, the argument value may be either an array or a
+            mapping.
+
+    .. method:: executemany(operation, parameter_sets)
+    
+        Prepare a database operation, and then execute it against all parameter
+        sequences or mappings provided.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :param operation:
+            The SQL statement to execute
+        :param parameter_sets:
+            A sequence of parameters to execute the statement with.  The values in
+            the sequence should be sequences or mappings of parameters, the same as
+            the args argument of the :meth:`execute` method.
+
+    .. method:: fetchone()
+
+        Fetch the next row of a query result set.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :returns:
+            A row as a sequence of field values, or ``None`` if no more rows
+            are available.
+
+    .. method:: fetchmany(size=None)
+
+        Fetches the next set of rows of a query result.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :param size:
+            
+            The number of rows to fetch when called.  If not provided, the
+            :attr:`arraysize` attribute value is used instead.
+
+        :returns:
         
+            A sequence, each entry of which is a sequence of field values
+            making up a row.  If no more rows are available, an empty sequence
+            will be returned.
+
+    .. method:: fetchall()
+
+        Fetches all remaining rows of a query result.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :returns:
+
+            A sequence, each entry of which is a sequence of field values
+            making up a row.
+
+    .. method:: close()
+
+        Closes the cursor.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    .. method:: next()
+    .. method:: __iter__()
+
+        A cursor object is iterable to retrieve the rows from a query.
+
+        This is a DBAPI 2.0 extension.  Accessing these methods will generate a
+        warning, ``DB-API extension cursor.next() used`` and ``DB-API extension
+        cursor.__iter__() used``.
+
+    .. method:: setinputsizes(sizes)
+    .. method:: setoutputsizes(size[,column])
+    
+        These methods are part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_, however, they are not
+        implemented by pg8000.
 
 
-.. attribute:: STRING
-.. attribute:: BINARY
-.. attribute:: NUMBER
-.. attribute:: DATETIME
-.. attribute:: ROWID
+DBAPI Exceptions
+----------------
 
-.. class:: Error
-.. class:: Warning
-.. class:: InterfaceError
-.. class:: DatabaseError
-.. class:: InternalError
-.. class:: OperationalError
-.. class:: ProgrammingError
-.. class:: IntegrityError
-.. class:: DataError
-.. class:: NotSupportedError
+.. class:: Warning(exceptions.StandardError)
+
+    See :class:`pg8000.errors.Warning`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. class:: Error(exceptions.StandardError)
+
+    See :class:`pg8000.errors.Error`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. class:: InterfaceError(Error)
+
+    See :class:`pg8000.errors.InterfaceError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. class:: DatabaseError(Error)
+
+    See :class:`pg8000.errors.DatabaseError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. class:: InternalError(DatabaseError)
+
+    See :class:`pg8000.errors.InternalError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. class:: OperationalError(DatabaseError)
+
+    See :class:`pg8000.errors.OperationalError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. class:: ProgrammingError(DatabaseError)
+
+    See :class:`pg8000.errors.ProgrammingError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. class:: IntegrityError(DatabaseError)
+
+    See :class:`pg8000.errors.IntegrityError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. class:: DataError(DatabaseError)
+
+    See :class:`pg8000.errors.DataError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. class:: NotSupportedError(DatabaseError)
+
+    See :class:`pg8000.errors.NotSupportedError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
 
