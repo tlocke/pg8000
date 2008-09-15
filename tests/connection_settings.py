@@ -19,5 +19,6 @@ db_local_win_connect = {
         "database": "mfenniak"
         }
 
-db_connect = db_local_connect
+import os
+db_connect = eval(os.environ["PG8000_TEST"])
 

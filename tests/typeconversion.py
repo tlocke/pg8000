@@ -1,4 +1,5 @@
 import unittest
+from pg8000 import errors
 import pg8000
 import datetime
 import decimal
@@ -353,19 +354,19 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testArrayHasValue(self):
-        from pg8000 import errors, types
+        from pg8000 import types
         self.assertRaises(errors.ArrayContentEmptyError,
                 types.array_inspect, [[None],[None],[None]])
 
     def testArrayContentNotSupported(self):
-        from pg8000 import errors, types
+        from pg8000 import types
         # someday we might support numeric arrays, but we'd need binary
         # support for the numeric format, which we don't have
         self.assertRaises(errors.ArrayContentNotSupportedError,
                 types.array_inspect, [[decimal.Decimal("1.1")],[None],[None]])
 
     def testArrayDimensions(self):
-        from pg8000 import errors, types
+        from pg8000 import types
         self.assertRaises(errors.ArrayDimensionsNotConsistentError,
                 types.array_inspect, [1,[2]])
         self.assertRaises(errors.ArrayDimensionsNotConsistentError,
@@ -378,7 +379,7 @@ class Tests(unittest.TestCase):
                 types.array_inspect, [[1,2,3],[4,[5],6]])
 
     def testArrayHomogenous(self):
-        from pg8000 import errors, types
+        from pg8000 import types
         self.assertRaises(errors.ArrayContentNotHomogenousError,
                 types.array_inspect, [[[1]],[[2]],[[3.1]]])
 
@@ -395,7 +396,11 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testUserType(self):
-        db.execute("DROP TYPE test_type")
+        try:
+            db.execute("DROP TYPE test_type")
+        except errors.DatabaseError, e:
+            self.assert_(e.args[1] == '42704', # type does not exist
+                "incorrect error for drop type")
         db.execute("CREATE TYPE test_type AS (a INT, b FLOAT)")
         db.recache_record_types()
         db.execute("SELECT ROW(1, 2)::test_type")

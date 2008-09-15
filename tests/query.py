@@ -1,79 +1,70 @@
 import unittest
-import pg8000
+from pg8000 import dbapi
 import threading
 from connection_settings import db_connect
-db = pg8000.Connection(**db_connect)
+
+db = dbapi.connect(**db_connect)
+cursor = db.cursor()
+
+from warnings import filterwarnings
+filterwarnings("ignore", "DB-API extension cursor.next()")
+filterwarnings("ignore", "DB-API extension cursor.__iter__()")
 
 # Tests relating to the basic operation of the database driver, driven by the
 # pg8000 custom interface.
 class Tests(unittest.TestCase):
     def setUp(self):
         try:
-            db.execute("DROP TABLE t1")
-        except pg8000.DatabaseError, e:
+            cursor.execute("DROP TABLE t1")
+        except dbapi.DatabaseError, e:
             # the only acceptable error is:
             self.assert_(e.args[1] == '42P01', # table does not exist
                     "incorrect error for drop table")
-        db.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
+        cursor.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
 
     def testDatabaseError(self):
-        self.assertRaises(pg8000.ProgrammingError, db.execute, "INSERT INTO t99 VALUES (1, 2, 3)")
+        self.assertRaises(dbapi.ProgrammingError, cursor.execute, "INSERT INTO t99 VALUES (1, 2, 3)")
 
     def testParallelQueries(self):
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 1, 1, None)
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 2, 10, None)
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 3, 100, None)
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 4, 1000, None)
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 5, 10000, None)
-        c1 = pg8000.Cursor(db)
-        c2 = pg8000.Cursor(db)
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
+        c1 = db.cursor()
+        c2 = db.cursor()
         c1.execute("SELECT f1, f2, f3 FROM t1")
-        for row in c1.iterate_tuple():
+        for row in c1:
             f1, f2, f3 = row
-            c2.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > $1", f1)
-            for row in c2.iterate_tuple():
+            c2.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (f1,))
+            for row in c2:
                 f1, f2, f3 = row
 
     def testInsertReturning(self):
-        db.begin()
         try:
-            db.execute("CREATE TABLE t2 (id serial, data text)")
+            cursor.execute("CREATE TABLE t2 (id serial, data text)")
 
             # Test INSERT ... RETURNING with one row...
-            db.execute("INSERT INTO t2 (data) VALUES ($1) RETURNING id", "test1")
-            row_id = db.read_dict()["id"]
-            db.execute("SELECT data FROM t2 WHERE id = $1", row_id)
-            self.assert_("test1" == db.read_dict()["data"])
-            self.assert_(db.row_count == 1)
+            cursor.execute("INSERT INTO t2 (data) VALUES (%s) RETURNING id", ("test1",))
+            row_id = cursor.fetchone()[0]
+            cursor.execute("SELECT data FROM t2 WHERE id = %s", (row_id,))
+            self.assert_("test1" == cursor.fetchone()[0])
+            self.assert_(cursor.rowcount == 1)
 
             # Test with multiple rows...
-            db.execute("INSERT INTO t2 (data) VALUES ($1), ($2), ($3) RETURNING id", "test2", "test3", "test4")
-            self.assert_(db.row_count == 3)
-            ids = tuple([x[0] for x in db.iterate_tuple()])
+            cursor.execute("INSERT INTO t2 (data) VALUES (%s), (%s), (%s) RETURNING id", ("test2", "test3", "test4"))
+            self.assert_(cursor.rowcount == 3)
+            ids = tuple([x[0] for x in cursor])
             self.assert_(len(ids) == 3)
         finally:
             db.rollback()
 
-    def testMultithreadedStatement(self):
-        # Note: Multithreading with a prepared statement is not highly
-        # recommended due to low performance.
-        s1 = pg8000.PreparedStatement(db, "INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", int, int, str)
-        def test(left, right):
-            for i in range(left, right):
-                s1.execute(i, id(threading.currentThread()), None)
-        t1 = threading.Thread(target=test, args=(1, 25))
-        t2 = threading.Thread(target=test, args=(25, 50))
-        t3 = threading.Thread(target=test, args=(50, 75))
-        t1.start(); t2.start(); t3.start()
-        t1.join(); t2.join(); t3.join()
-
     def testMultithreadedCursor(self):
         # Note: Multithreading with a cursor is not highly recommended due to
         # low performance.
-        cur = pg8000.Cursor(db)
         def test(left, right):
             for i in range(left, right):
-                cur.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", i, id(threading.currentThread()), None)
+                cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (i, id(threading.currentThread()), None))
         t1 = threading.Thread(target=test, args=(1, 25))
         t2 = threading.Thread(target=test, args=(25, 50))
         t3 = threading.Thread(target=test, args=(50, 75))
@@ -81,45 +72,46 @@ class Tests(unittest.TestCase):
         t1.join(); t2.join(); t3.join()
 
     def testRowCount(self):
+        global cursor
         expected_count = 57
-        s1 = pg8000.PreparedStatement(db, "INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", int, int, str)
-        for i in range(expected_count):
-            s1.execute(i, i, None)
+        cursor.executemany(
+                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+                ((i, i, None) for i in range(expected_count))
+        )
 
-        cur = pg8000.Cursor(db)
-        cur.execute("SELECT * FROM t1")
+        cursor.execute("SELECT * FROM t1")
 
         # Check row_count without doing any reading first...
-        self.assertEquals(expected_count, cur.row_count)
+        self.assertEquals(expected_count, cursor.rowcount)
 
-        # Check row_count after reading some rows, make sure it still works...
+        # Check rowcount after reading some rows, make sure it still works...
         for i in range(expected_count // 2):
-            cur.read_tuple()
-        self.assertEquals(expected_count, cur.row_count)
+            cursor.fetchone()
+        self.assertEquals(expected_count, cursor.rowcount)
 
-        # Restart the cursor, read a few rows, and then check row_count again...
-        cur = pg8000.Cursor(db)
-        cur.execute("SELECT * FROM t1")
+        # Restart the cursor, read a few rows, and then check rowcount again...
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM t1")
         for i in range(expected_count // 3):
-            cur.read_tuple()
-        self.assertEquals(expected_count, cur.row_count)
+            cursor.fetchone()
+        self.assertEquals(expected_count, cursor.rowcount)
 
         # Should be -1 for a command with no results
-        cur.execute("DROP TABLE t1")
-        self.assertEquals(-1, cur.row_count)
+        cursor.execute("DROP TABLE t1")
+        self.assertEquals(-1, cursor.rowcount)
 
     def testRowCountUpdate(self):
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 1, 1, None)
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 2, 10, None)
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 3, 100, None)
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 4, 1000, None)
-        db.execute("INSERT INTO t1 (f1, f2, f3) VALUES ($1, $2, $3)", 5, 10000, None)
-        db.execute("UPDATE t1 SET f3 = $1 WHERE f2 > 101", "Hello!")
-        self.assert_(db.row_count == 2)
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
+        cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
+        cursor.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", "Hello!")
+        self.assert_(cursor.rowcount == 2)
 
     def testIntOid(self):
         # https://bugs.launchpad.net/pg8000/+bug/230796
-        db.execute("SELECT typname FROM pg_type WHERE oid = $1", 100)
+        cursor.execute("SELECT typname FROM pg_type WHERE oid = %s", (100,))
 
 if __name__ == "__main__":
     unittest.main()
