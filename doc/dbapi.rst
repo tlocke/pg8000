@@ -381,72 +381,72 @@ DBAPI Objects
 DBAPI Exceptions
 ----------------
 
-.. class:: Warning(exceptions.StandardError)
+.. exception:: Warning(exceptions.StandardError)
 
-    See :class:`pg8000.errors.Warning`
-
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-.. class:: Error(exceptions.StandardError)
-
-    See :class:`pg8000.errors.Error`
+    See :exc:`pg8000.errors.Warning`
 
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
-.. class:: InterfaceError(Error)
+.. exception:: Error(exceptions.StandardError)
 
-    See :class:`pg8000.errors.InterfaceError`
-
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-.. class:: DatabaseError(Error)
-
-    See :class:`pg8000.errors.DatabaseError`
+    See :exc:`pg8000.errors.Error`
 
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
-.. class:: InternalError(DatabaseError)
+.. exception:: InterfaceError(Error)
 
-    See :class:`pg8000.errors.InternalError`
-
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-.. class:: OperationalError(DatabaseError)
-
-    See :class:`pg8000.errors.OperationalError`
+    See :exc:`pg8000.errors.InterfaceError`
 
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
-.. class:: ProgrammingError(DatabaseError)
+.. exception:: DatabaseError(Error)
 
-    See :class:`pg8000.errors.ProgrammingError`
-
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-.. class:: IntegrityError(DatabaseError)
-
-    See :class:`pg8000.errors.IntegrityError`
+    See :exc:`pg8000.errors.DatabaseError`
 
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
-.. class:: DataError(DatabaseError)
+.. exception:: InternalError(DatabaseError)
 
-    See :class:`pg8000.errors.DataError`
+    See :exc:`pg8000.errors.InternalError`
 
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
-.. class:: NotSupportedError(DatabaseError)
+.. exception:: OperationalError(DatabaseError)
 
-    See :class:`pg8000.errors.NotSupportedError`
+    See :exc:`pg8000.errors.OperationalError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: ProgrammingError(DatabaseError)
+
+    See :exc:`pg8000.errors.ProgrammingError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: IntegrityError(DatabaseError)
+
+    See :exc:`pg8000.errors.IntegrityError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: DataError(DatabaseError)
+
+    See :exc:`pg8000.errors.DataError`
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: NotSupportedError(DatabaseError)
+
+    See :exc:`pg8000.errors.NotSupportedError`
 
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.

@@ -11,56 +11,56 @@ exception types will be derived from the generic exceptions.
 Generic Exception Classes
 -------------------------
 
-.. class:: Warning(exceptions.StandardError)
+.. exception:: Warning(exceptions.StandardError)
 
     Generic exception raised for important database warnings like data
     truncations.  This exception is not currently used by pg8000.
 
-.. class:: Error(exceptions.StandardError)
+.. exception:: Error(exceptions.StandardError)
 
-    Generic exception that is the base class of all other error exceptions.
+    Generic exception that is the base exception of all other error exceptions.
 
-.. class:: InterfaceError(Error)
+.. exception:: InterfaceError(Error)
 
     Generic exception raised for errors that are related to the database interface
     rather than the database itself.  For example, if the interface attempts
     to use an SSL connection but the server refuses, an InterfaceError will
     be raised.
 
-.. class:: DatabaseError(Error)
+.. exception:: DatabaseError(Error)
 
     Generic exception raised for errors that are related to the database.  This
     exception is currently never raised by pg8000.
 
-.. class:: InternalError(DatabaseError)
+.. exception:: InternalError(DatabaseError)
 
     Generic exception raised when the database encounters an internal error.  This is
     currently only raised when unexpected state occurs in the pg8000 interface
     itself, and is typically the result of a interface bug.
 
-.. class:: OperationalError(DatabaseError)
+.. exception:: OperationalError(DatabaseError)
 
     Generic exception raised for errors that are related to the database's operation
     and not necessarily under the control of the programmer.  This exception is
     currently never raised by pg8000.
 
-.. class:: ProgrammingError(DatabaseError)
+.. exception:: ProgrammingError(DatabaseError)
 
     Generic exception raised for programming errors.  For example, this exception is
     raised if more parameter fields are in a query string than there are
     available parameters.
 
-.. class:: IntegrityError(DatabaseError)
+.. exception:: IntegrityError(DatabaseError)
 
     Generic exception raised when the relational integrity of the database is affected.
     This exception is not currently raised by pg8000.
 
-.. class:: DataError(DatabaseError)
+.. exception:: DataError(DatabaseError)
 
     Generic exception raised for errors that are due to problems with the processed
     data.  This exception is not currently raised by pg8000.
 
-.. class:: NotSupportedError(DatabaseError)
+.. exception:: NotSupportedError(DatabaseError)
 
     Generic exception raised in case a method or database API was used which is not
     supported by the database.
@@ -69,34 +69,34 @@ Generic Exception Classes
 Specific Exception Classes
 --------------------------
 
-.. class:: ConnectionClosedError(InterfaceError)
+.. exception:: ConnectionClosedError(InterfaceError)
 
     Raised when an attempt to use a connection fails due to the connection
     being closed.
 
-.. class:: ArrayDataParseError(InternalError)
+.. exception:: ArrayDataParseError(InternalError)
 
     An exception that is raised when an internal error occurs trying to decode
     binary array data received from the server.  This shouldn't occur unless
     changes to the binary wire format for arrays occur between PostgreSQL
     releases.
 
-.. class:: ArrayContentNotSupportedError(NotSupportedError)
+.. exception:: ArrayContentNotSupportedError(NotSupportedError)
 
     Raised when attempting to transmit an array where the base type is not
     supported for binary data transfer by the interface.
 
-.. class:: ArrayContentNotHomogenousError(ProgrammingError)
+.. exception:: ArrayContentNotHomogenousError(ProgrammingError)
 
     Raised when attempting to transmit an array that doesn't contain only a
     single type of object.
 
-.. class:: ArrayContentEmptyError(ProgrammingError)
+.. exception:: ArrayContentEmptyError(ProgrammingError)
 
     Raised when attempting to transmit an empty array.  The type oid of an
     empty array cannot be determined, and so sending them is not permitted.
 
-.. class:: ArrayDimensionsNotConsistentError(ProgrammingError)
+.. exception:: ArrayDimensionsNotConsistentError(ProgrammingError)
 
     Raised when attempting to transmit an array that has inconsistent
     multi-dimension sizes.
