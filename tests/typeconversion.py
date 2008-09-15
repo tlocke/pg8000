@@ -1,5 +1,5 @@
 import unittest
-from pg8000 import errors
+from pg8000 import errors, types
 import pg8000
 import datetime
 import decimal
@@ -102,7 +102,7 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testIntervalRoundtrip(self):
-        v = pg8000.types.Interval(microseconds=123456789, days=2, months=24)
+        v = types.Interval(microseconds=123456789, days=2, months=24)
         db.execute("SELECT $1 as f1", v)
         retval = tuple(db.iterate_dict())
         self.assert_(retval == ({"f1": v},),
@@ -114,8 +114,8 @@ class Tests(unittest.TestCase):
         dt = retval[0]['timestamptz']
         self.assert_(dt.tzinfo != None, "no tzinfo returned")
         self.assert_(
-                dt.astimezone(pg8000.types.utc) ==
-                datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pg8000.types.utc),
+                dt.astimezone(types.utc) ==
+                datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, types.utc),
                 "retrieved value match failed")
 
     def testTimestampTzRoundtrip(self):
@@ -236,7 +236,7 @@ class Tests(unittest.TestCase):
     def testIntervalOut(self):
         db.execute("SELECT '1 month 16 days 12 hours 32 minutes 64 seconds'::interval")
         retval = tuple(db.iterate_dict())
-        expected_value = pg8000.types.Interval(
+        expected_value = types.Interval(
                 microseconds = (12 * 60 * 60 * 1000 * 1000) + (32 * 60 * 1000 * 1000) + (64 * 1000 * 1000),
                 days = 16,
                 months = 1)
@@ -252,12 +252,11 @@ class Tests(unittest.TestCase):
     # confirms that pg8000's binary output methods have the same output for
     # a data type as the PG server
     def testBinaryOutputMethods(self):
-        from pg8000 import types
         methods = (
                 ("float8send", 22.2),
                 ("timestamp_send", datetime.datetime(2001, 2, 3, 4, 5, 6, 789)),
                 ("byteasend", pg8000.Bytea("\x01\x02")),
-                ("interval_send", pg8000.types.Interval(1234567, 123, 123)),
+                ("interval_send", types.Interval(1234567, 123, 123)),
         )
         for method_out, value in methods:
             db.execute("SELECT %s($1) as f1" % method_out, value)
@@ -354,19 +353,16 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testArrayHasValue(self):
-        from pg8000 import types
         self.assertRaises(errors.ArrayContentEmptyError,
                 types.array_inspect, [[None],[None],[None]])
 
     def testArrayContentNotSupported(self):
-        from pg8000 import types
         # someday we might support numeric arrays, but we'd need binary
         # support for the numeric format, which we don't have
         self.assertRaises(errors.ArrayContentNotSupportedError,
                 types.array_inspect, [[decimal.Decimal("1.1")],[None],[None]])
 
     def testArrayDimensions(self):
-        from pg8000 import types
         self.assertRaises(errors.ArrayDimensionsNotConsistentError,
                 types.array_inspect, [1,[2]])
         self.assertRaises(errors.ArrayDimensionsNotConsistentError,
@@ -379,12 +375,10 @@ class Tests(unittest.TestCase):
                 types.array_inspect, [[1,2,3],[4,[5],6]])
 
     def testArrayHomogenous(self):
-        from pg8000 import types
         self.assertRaises(errors.ArrayContentNotHomogenousError,
                 types.array_inspect, [[[1]],[[2]],[[3.1]]])
 
     def testArrayInspect(self):
-        from pg8000 import types
         types.array_inspect([1,2,3])
         types.array_inspect([[1],[2],[3]])
         types.array_inspect([[[1]],[[2]],[[3]]])
