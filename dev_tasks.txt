@@ -1,0 +1,15 @@
+ * user documentation for types module
+
+ * documentation that includes example code of common things to do
+    * common ops
+    * insert bytea
+    * timestamp manipulation
+
+ * record support that works better, based upon class definitions and using decorators; both in and out support
+
+ * replace generic exceptions with more specific exceptions
+
+ * remove interface.py and move such logic into dbapi.py
+    * document that fetchmany uses prepared statements
+ 
+ * remove in-code documentation that belongs in sphinx templates
