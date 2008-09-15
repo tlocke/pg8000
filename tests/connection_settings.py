@@ -19,5 +19,5 @@ db_local_win_connect = {
         "database": "mfenniak"
         }
 
-db_connect = db_local_win_connect
+db_connect = db_local_connect
 

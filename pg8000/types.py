@@ -126,10 +126,14 @@ def pg_value(value, fc, **kwargs):
         raise NotSupportedError("type %r, format code %r not supported" % (typ, fc))
     return func(value, **kwargs)
 
-def py_type_info(description):
+def py_type_info(description, record_field_names):
     type_oid = description['type_oid']
     data = pg_types.get(type_oid)
     if data == None:
+        record_data = record_field_names.get(type_oid)
+        if record_data != None:
+            # records are in bin format
+            return 1
         raise NotSupportedError("type oid %r not mapped to py type" % type_oid)
     # prefer bin, but go with whatever exists
     if data.get("bin_in"):
@@ -140,13 +144,17 @@ def py_type_info(description):
         raise InternalError("no conversion fuction for type oid %r" % type_oid)
     return format
 
-def py_value(v, description, **kwargs):
+def py_value(v, description, record_field_names, **kwargs):
     if v == None:
         # special case - NULL value
         return None
     type_oid = description['type_oid']
     format = description['format']
     data = pg_types.get(type_oid)
+    if data == None:
+        record_data = record_field_names.get(type_oid)
+        if record_data != None:
+            data = {"bin_in": record_recv(record_data)}
     if data == None:
         raise NotSupportedError("type oid %r not supported" % type_oid)
     if format == 0:
@@ -251,6 +259,18 @@ def numeric_in(data, **kwargs):
         return int(data)
     else:
         return decimal.Decimal(data)
+
+def numeric_recv(data, **kwargs):
+    num_digits, weight, sign, scale = struct.unpack("!hhhh", data[:8])
+    data = data[8:]
+    digits = struct.unpack("!" + ("h" * num_digits), data)
+    weight = decimal.Decimal(weight)
+    retval = 0
+    for d in digits:
+        d = decimal.Decimal(d)
+        retval += d * (10000 ** weight)
+        weight -= 1
+    return retval
 
 def numeric_out(v, **kwargs):
     return str(v)
@@ -474,6 +494,23 @@ class array_send(object):
                 data += inner_data
         return data
 
+class record_recv(object):
+    def __init__(self, record_field_names):
+        self.record_field_names = record_field_names
+
+    def __call__(self, data, **kwargs):
+        num_fields, = struct.unpack("!i", data[:4])
+        data = data[4:]
+        retval = {}
+        for i in range(num_fields):
+            typeoid, size = struct.unpack("!ii", data[:8])
+            data = data[8:]
+            conversion = pg_types[typeoid]["bin_in"]
+            value = conversion(data[:size], **kwargs)
+            data = data[size:]
+            retval[self.record_field_names[i]] = value
+        return retval
+
 py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},
     int: {"typeoid": 23, "bin_out": int4send},
@@ -511,6 +548,7 @@ pg_types = {
     26: {"txt_in": numeric_in}, # oid type
     700: {"bin_in": float4recv},
     701: {"bin_in": float8recv},
+    829: {"txt_in": varcharin}, # MACADDR type
     1000: {"bin_in": array_recv}, # BOOL[]
     1003: {"bin_in": array_recv}, # NAME[]
     1005: {"bin_in": array_recv}, # INT2[]
@@ -529,7 +567,7 @@ pg_types = {
     1184: {"bin_in": timestamptz_recv}, # timestamp w/ tz
     1186: {"bin_in": interval_recv},
     1263: {"bin_in": array_recv}, # cstring[]
-    1700: {"txt_in": numeric_in},
+    1700: {"bin_in": numeric_recv},
     2275: {"bin_in": varcharin}, # cstring
 }
 

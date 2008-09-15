@@ -491,3 +491,6 @@ class Connection(Cursor):
 
     is_closed = property(lambda self: self.c == None)
 
+    def recache_record_types(self):
+        self.c._cache_record_attnames()
+

@@ -864,6 +864,7 @@ class Connection(object):
     def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
         self._client_encoding = "ascii"
         self._integer_datetimes = False
+        self._record_field_names = {}
         if unix_sock == None and host != None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
@@ -942,12 +943,38 @@ class Connection(object):
         finally:
             self._sock_lock.release()
 
+        self._cache_record_attnames()
+
     def _ready_for_query(self, msg):
         self._state = "ready"
         return True
 
     def _receive_backend_key_data(self, msg):
         self._backend_key_data = msg
+
+    def _cache_record_attnames(self):
+        parse_retval = self.parse("",
+            """SELECT
+                pg_type.oid, attname
+            FROM
+                pg_type
+                INNER JOIN pg_attribute ON (attrelid = pg_type.typrelid)
+            WHERE typreceive::text = 'record_recv'
+            ORDER BY pg_type.oid, attnum""",
+            [])
+        row_desc, cmd = self.bind("tmp", "", (), parse_retval)
+        eod, rows = self.fetch_rows("tmp", 0, row_desc)
+
+        self._record_field_names = {}
+        typoid, attnames = None, []
+        for row in rows:
+            new_typoid, attname = row
+            if new_typoid != typoid and typoid != None:
+                self._record_field_names[typoid] = attnames
+                attnames = []
+            typoid = new_typoid
+            attnames.append(attname)
+        self._record_field_names[typoid] = attnames
 
     @sync_on_error
     def parse(self, statement, qs, param_types):
@@ -993,7 +1020,7 @@ class Connection(object):
             else:
                 # We've got row_desc that allows us to identify what we're going to
                 # get back from this statement.
-                output_fc = [types.py_type_info(f) for f in row_desc.fields]
+                output_fc = [types.py_type_info(f, self._record_field_names) for f in row_desc.fields]
             self._send(Bind(portal, statement, param_fc, params, output_fc, client_encoding = self._client_encoding, integer_datetimes = self._integer_datetimes))
             # We need to describe the portal after bind, since the return
             # format codes will be different (hopefully, always what we
@@ -1064,7 +1091,8 @@ class Connection(object):
                     msg.fields[i],
                     row_desc.fields[i],
                     client_encoding=self._client_encoding,
-                    integer_datetimes=self._integer_datetimes
+                    integer_datetimes=self._integer_datetimes,
+                    record_field_names=self._record_field_names
                 )
                 for i in range(len(msg.fields))
             ]
