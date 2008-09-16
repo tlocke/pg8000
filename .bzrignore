@@ -6,3 +6,4 @@ dist
 MANIFEST
 .hg
 *.orig
+tmp.out
