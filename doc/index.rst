@@ -13,6 +13,7 @@ Contents:
     
     dbapi
     errors
+    types
 
 
 Indices and tables
