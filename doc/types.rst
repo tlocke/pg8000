@@ -62,15 +62,33 @@ pg8000 Type Classes
     is defined in the measure of months, days, and microseconds; as such, the
     pg8000 interval type represents the same information.
 
+    .. method:: __init__(self, microseconds, days, months)
+    
+        Initializes an Interval instance with the given values for
+        microseconds, days, and months.
+
     .. attribute:: microseconds
 
         Measure of microseconds in the interval.
+
+        The microseconds attribute should typically be less than the number of
+        microseconds in a day, but there is no restriction ensuring this.
+        However, a value excessively large (greater than 2^64) may not be
+        transmittable to the PostgreSQL server.
 
     .. attribute:: days
 
         Measure of days in the interval.
 
+        The days value is stored on the PostgreSQL server as a 4-byte integer,
+        so setting the value to greater than 2^32 may not be transmittable to
+        the server.
+
     .. attribute:: months
 
         Measure of months in the interval.
+
+        The months value is stored on the PostgreSQL server as a 4-byte
+        integer, so setting the value to greater than 2^32 may not be
+        transmittable to the server.
 
