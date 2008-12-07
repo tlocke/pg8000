@@ -255,7 +255,7 @@ def time_out(v, **kwargs):
     return v.isoformat()
 
 def numeric_in(data, **kwargs):
-    if data.find(".") == -1:
+    if data.find(b".") == -1:
         return int(data)
     else:
         return decimal.Decimal(data)
