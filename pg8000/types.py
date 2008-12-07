@@ -32,7 +32,7 @@ __author__ = "Mathieu Fenniak"
 import datetime
 import decimal
 import struct
-from errors import (NotSupportedError, ArrayDataParseError, InternalError,
+from .errors import (NotSupportedError, ArrayDataParseError, InternalError,
         ArrayContentEmptyError, ArrayContentNotHomogenousError,
         ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError)
 
@@ -333,7 +333,7 @@ def encoding_convert(encoding):
     return pg_to_py_encodings.get(encoding.lower(), encoding)
 
 def varcharin(data, client_encoding, **kwargs):
-    return unicode(data, encoding_convert(client_encoding))
+    return str(data, encoding_convert(client_encoding))
 
 def textout(v, client_encoding, **kwargs):
     return v.encode(encoding_convert(client_encoding))
@@ -514,9 +514,9 @@ class record_recv(object):
 py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},
     int: {"typeoid": 23, "bin_out": int4send},
-    long: {"typeoid": 1700, "txt_out": numeric_out},
+    int: {"typeoid": 1700, "txt_out": numeric_out},
     str: {"typeoid": 25, "bin_out": textout},
-    unicode: {"typeoid": 25, "bin_out": textout},
+    str: {"typeoid": 25, "bin_out": textout},
     float: {"typeoid": 701, "bin_out": float8send},
     decimal.Decimal: {"typeoid": 1700, "txt_out": numeric_out},
     Bytea: {"typeoid": 17, "bin_out": byteasend},
@@ -534,7 +534,7 @@ py_array_types = {
     float: 1022,
     bool: 1000,
     str: 1009,      # TEXT[]
-    unicode: 1009,  # TEXT[]
+    str: 1009,  # TEXT[]
 }
 
 pg_types = {

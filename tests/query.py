@@ -1,7 +1,7 @@
 import unittest
 from pg8000 import dbapi
 import threading
-from connection_settings import db_connect
+from .connection_settings import db_connect
 
 db = dbapi.connect(**db_connect)
 cursor = db.cursor()
@@ -16,7 +16,7 @@ class Tests(unittest.TestCase):
     def setUp(self):
         try:
             cursor.execute("DROP TABLE t1")
-        except dbapi.DatabaseError, e:
+        except dbapi.DatabaseError as e:
             # the only acceptable error is:
             self.assert_(e.args[1] == '42P01', # table does not exist
                     "incorrect error for drop table")

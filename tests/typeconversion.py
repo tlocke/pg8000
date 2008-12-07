@@ -3,7 +3,7 @@ from pg8000 import errors, types, dbapi
 import datetime
 import decimal
 import struct
-from connection_settings import db_connect
+from .connection_settings import db_connect
 
 db = dbapi.connect(**db_connect)
 cursor = db.cursor()
@@ -68,19 +68,19 @@ class Tests(unittest.TestCase):
     def testStrRoundtrip(self):
         cursor.execute("SELECT %s as f1", ("hello world",))
         retval = cursor.fetchall()
-        self.assert_(retval[0][0] == u"hello world",
+        self.assert_(retval[0][0] == "hello world",
                 "retrieved value match failed")
 
     def testUnicodeRoundtrip(self):
-        cursor.execute("SELECT %s as f1", (u"hello \u0173 world",))
+        cursor.execute("SELECT %s as f1", ("hello \u0173 world",))
         retval = cursor.fetchall()
-        self.assert_(retval[0][0] == u"hello \u0173 world",
+        self.assert_(retval[0][0] == "hello \u0173 world",
                 "retrieved value match failed")
 
     def testLongRoundtrip(self):
-        cursor.execute("SELECT %s as f1", (50000000000000L,))
+        cursor.execute("SELECT %s as f1", (50000000000000,))
         retval = cursor.fetchall()
-        self.assert_(retval[0][0] == 50000000000000L,
+        self.assert_(retval[0][0] == 50000000000000,
                 "retrieved value match failed")
 
     def testIntRoundtrip(self):
@@ -220,19 +220,19 @@ class Tests(unittest.TestCase):
     def testVarcharOut(self):
         cursor.execute("SELECT 'hello'::varchar(20)")
         retval = cursor.fetchall()
-        self.assert_(retval[0][0] == u"hello",
+        self.assert_(retval[0][0] == "hello",
                 "retrieved value match failed")
 
     def testCharOut(self):
         cursor.execute("SELECT 'hello'::char(20)")
         retval = cursor.fetchall()
-        self.assert_(retval[0][0] == u"hello               ",
+        self.assert_(retval[0][0] == "hello               ",
                 "retrieved value match failed")
 
     def testTextOut(self):
         cursor.execute("SELECT 'hello'::text")
         retval = cursor.fetchall()
-        self.assert_(retval[0][0] == u"hello",
+        self.assert_(retval[0][0] == "hello",
                 "retrieved value match failed")
 
     def testIntervalOut(self):
@@ -344,9 +344,9 @@ class Tests(unittest.TestCase):
         self.assert_(cursor.fetchone()[0] == ["a", "b", "c"])
 
     def testStringArrayRoundtrip(self):
-        cursor.execute("SELECT %s as f1", ([u"Hello!", u"World!", None],))
+        cursor.execute("SELECT %s as f1", (["Hello!", "World!", None],))
         retval = cursor.fetchall()
-        self.assert_(retval[0][0] == [u"Hello!", u"World!", None],
+        self.assert_(retval[0][0] == ["Hello!", "World!", None],
                 "retrieved value match failed")
 
         cursor.execute("SELECT %s as f1", (["Hello!", "World!", None],))
@@ -394,7 +394,7 @@ class Tests(unittest.TestCase):
     def testUserType(self):
         try:
             cursor.execute("DROP TYPE test_type")
-        except errors.DatabaseError, e:
+        except errors.DatabaseError as e:
             self.assert_(e.args[1] == '42704', # type does not exist
                 "incorrect error for drop type")
         cursor.execute("CREATE TYPE test_type AS (a INT, b FLOAT)")

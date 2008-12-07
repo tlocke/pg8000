@@ -1,6 +1,6 @@
 import unittest
 from pg8000 import DBAPI, DatabaseError
-from connection_settings import db_connect
+from .connection_settings import db_connect
 
 db = DBAPI.connect(**db_connect)
 
@@ -39,7 +39,7 @@ class Tests(unittest.TestCase):
         for i in range(1, 4):
             try:
                 db.cursor().execute("DROP TABLE t1")
-            except DatabaseError, e:
+            except DatabaseError as e:
                 # the only acceptable error is:
                 self.assert_(e.args[1] == '42P01', # table does not exist
                         "incorrect error for drop table")

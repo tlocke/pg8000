@@ -1,6 +1,6 @@
 import unittest
 import pg8000
-from connection_settings import db_connect
+from .connection_settings import db_connect
 
 # Tests related to connecting to a database.
 class Tests(unittest.TestCase):

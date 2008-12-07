@@ -32,12 +32,12 @@ __author__ = "Mathieu Fenniak"
 import socket
 import threading
 import struct
-import md5
-from cStringIO import StringIO
+import hashlib
+from io import StringIO
 
-from errors import *
-from util import MulticastDelegate
-import types
+from .errors import *
+from .util import MulticastDelegate
+from . import types
 
 ##
 # An SSLRequest message.  To initiate an SSL-encrypted connection, an
@@ -432,7 +432,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
     def ok(self, conn, user, password=None, **kwargs):
         if password == None:
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
-        pwd = "md5" + md5.new(md5.new(password + user).hexdigest() + self.salt).hexdigest()
+        pwd = "md5" + hashlib.md5(hashlib.md5(password + user).hexdigest() + self.salt).hexdigest()
         conn._send(PasswordMessage(pwd))
 
         reader = MessageReader(conn)
@@ -621,7 +621,7 @@ class NoticeResponse(object):
     }
 
     def __init__(self, **kwargs):
-        for arg, value in kwargs.items():
+        for arg, value in list(kwargs.items()):
             setattr(self, arg, value)
 
     def __repr__(self):
@@ -656,7 +656,7 @@ class NoticeResponse(object):
 # hasattr before accessing.
 class ErrorResponse(object):
     def __init__(self, **kwargs):
-        for arg, value in kwargs.items():
+        for arg, value in list(kwargs.items()):
             setattr(self, arg, value)
 
     def __repr__(self):

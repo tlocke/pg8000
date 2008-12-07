@@ -30,9 +30,9 @@
 __author__ = "Mathieu Fenniak"
 
 import socket
-import protocol
+from . import protocol
 import threading
-from errors import *
+from .errors import *
 
 class DataIterator(object):
     def __init__(self, obj, func):
@@ -42,7 +42,7 @@ class DataIterator(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         retval = self.func(self.obj)
         if retval == None:
             raise StopIteration()
@@ -220,7 +220,7 @@ class PreparedStatement(object):
         retval = {}
         for i in range(len(self._row_desc.fields)):
             col_name = self._row_desc.fields[i]['name']
-            if retval.has_key(col_name):
+            if col_name in retval:
                 raise InterfaceError("cannot return dict of row when two columns have the same name (%r)" % (col_name,))
             retval[col_name] = row[i]
         return retval
@@ -402,7 +402,7 @@ class Connection(Cursor):
         try:
             self.c = protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout, ssl=ssl)
             self.c.authenticate(user, password=password, database=database)
-        except socket.error, e:
+        except socket.error as e:
             raise InterfaceError("communication error", e)
         Cursor.__init__(self, self)
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")

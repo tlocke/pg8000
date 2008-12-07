@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-import dbapi20
+from . import dbapi20
 import unittest
 import pg8000
-from connection_settings import db_connect
+from .connection_settings import db_connect
 
 class Tests(dbapi20.DatabaseAPI20Test):
     driver = pg8000.DBAPI
