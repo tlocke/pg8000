@@ -41,7 +41,7 @@ class Tests(unittest.TestCase):
                 db.cursor().execute("DROP TABLE t1")
             except DatabaseError as e:
                 # the only acceptable error is:
-                self.assert_(e.args[1] == '42P01', # table does not exist
+                self.assert_(e.args[1] == b'42P01', # table does not exist
                         "incorrect error for drop table")
 
     def testClosedConnection(self):

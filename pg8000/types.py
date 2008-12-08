@@ -49,7 +49,7 @@ except ImportError:
             return ZERO
     utc = UTC()
 
-class Bytea(str):
+class Bytea(bytes):
     pass
 
 class Interval(object):
@@ -168,13 +168,13 @@ def py_value(v, description, record_field_names, **kwargs):
     return func(v, **kwargs)
 
 def boolrecv(data, **kwargs):
-    return data == "\x01"
+    return data == b"\x01"
 
 def boolsend(v, **kwargs):
     if v:
-        return "\x01"
+        return b"\x01"
     else:
-        return "\x00"
+        return b"\x00"
 
 def int2recv(data, **kwargs):
     return struct.unpack("!h", data)[0]
@@ -273,7 +273,7 @@ def numeric_recv(data, **kwargs):
     return retval
 
 def numeric_out(v, **kwargs):
-    return str(v)
+    return str(v).encode("ascii")
 
 # PostgreSQL encodings:
 #   http://www.postgresql.org/docs/8.3/interactive/multibyte.html
@@ -513,7 +513,7 @@ class record_recv(object):
 
 py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},
-    int: {"typeoid": 23, "bin_out": int4send},
+    #int: {"typeoid": 23, "bin_out": int4send},
     int: {"typeoid": 1700, "txt_out": numeric_out},
     str: {"typeoid": 25, "bin_out": textout},
     str: {"typeoid": 25, "bin_out": textout},

@@ -149,7 +149,10 @@ class Bind(object):
                 fc = self.in_fc[0]
             else:
                 fc = self.in_fc[i]
-            self.params.append(types.pg_value(params[i], fc, **kwargs))
+            value = types.pg_value(params[i], fc, **kwargs)
+            if value != None and not isinstance(value, bytes):
+                raise InternalError("converting value %r to pgsql value returned non-bytes" % params[i])
+            self.params.append(value)
         self.out_fc = out_fc
 
     def __repr__(self):
@@ -300,7 +303,7 @@ class Flush(object):
         return b'H\x00\x00\x00\x04'
 
     def __repr__(self):
-        return b"<Flush>"
+        return "<Flush>"
 
 ##
 # Causes the backend to close the current transaction (if not in a BEGIN/COMMIT
@@ -427,12 +430,12 @@ class AuthenticationMD5Password(AuthenticationRequest):
     # Additional message data:
     #  Byte4 - Hash salt.
     def __init__(self, data):
-        self.salt = "".join(struct.unpack("4c", data))
+        self.salt = b"".join(struct.unpack("4c", data))
 
     def ok(self, conn, user, password=None, **kwargs):
         if password == None:
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
-        pwd = b"md5" + hashlib.md5(hashlib.md5(password + user).hexdigest() + self.salt).hexdigest()
+        pwd = b"md5" + hashlib.md5(hashlib.md5(password.encode("ascii") + user.encode("ascii")).hexdigest().encode("ascii") + self.salt).hexdigest().encode("ascii")
         conn._send(PasswordMessage(pwd))
 
         reader = MessageReader(conn)
@@ -824,17 +827,20 @@ class MessageReader(object):
                 if isinstance(msg, msg_class):
                     msg_handled = True
                     retval = handler(msg, *args, **kwargs)
+                    print("received", msg, "handler = ", retval)
                     if retval:
                         # The handler returned a true value, meaning that the
                         # message loop should be aborted.
                         if exc != None:
                             raise exc
+                        print("handle_messages returned", retval)
                         return retval
                     elif hasattr(self, "_retval"):
                         # The handler told us to return -- used for non-true
                         # return values
                         if exc != None:
                             raise exc
+                        print("handle_messages returned", self._retval)
                         return self._retval
             if msg_handled:
                 continue
@@ -856,8 +862,10 @@ def sync_on_error(fn):
         try:
             return fn(self, *args, **kwargs)
         except:
-            self._sync()
-            raise
+            try:
+                self._sync()
+            finally:
+                raise
     return _fn
 
 class Connection(object):
@@ -880,7 +888,7 @@ class Connection(object):
         if ssl:
             self._send(SSLRequest())
             resp = self._sock.recv(1)
-            if resp == 'S':
+            if resp == b'S':
                 self._sock = SSLWrapper(socket.ssl(self._sock))
             else:
                 raise InterfaceError("server refuses SSL")
@@ -902,8 +910,8 @@ class Connection(object):
             raise InternalError("connection state must be %s, is %s" % (state, self._state))
 
     def _send(self, msg):
-        #print "_send(%r)" % msg
         data = msg.serialize()
+        print("_send(%r, %s)" % (msg, repr(data)))
         self._sock.sendall(data)
 
     def _read_bytes(self, byte_count):
@@ -917,10 +925,11 @@ class Connection(object):
         bytes = self._read_bytes(5)
         message_code = bytes[0]
         data_len = struct.unpack("!i", bytes[1:])[0] - 4
+        #print("message_code = %r, data_len = %r" % (message_code, data_len))
         bytes = self._read_bytes(data_len)
         assert len(bytes) == data_len
         msg = message_types[message_code].createFromData(bytes)
-        #print "_read_message() -> %r" % msg
+        print("_read_message() -> %r" % msg)
         return msg
 
     def authenticate(self, user, **kwargs):
@@ -943,7 +952,7 @@ class Connection(object):
         finally:
             self._sock_lock.release()
 
-        self._cache_record_attnames()
+        #self._cache_record_attnames()
 
     def _ready_for_query(self, msg):
         self._state = "ready"
@@ -990,11 +999,11 @@ class Connection(object):
             reader = MessageReader(self)
 
             # ParseComplete is good.
-            reader.add_message(ParseComplete, lambda msg: 0)
+            reader.add_message(ParseComplete, lambda msg: False)
 
             # Well, we don't really care -- we're going to send whatever we
             # want and let the database deal with it.  But thanks anyways!
-            reader.add_message(ParameterDescription, lambda msg: 0)
+            reader.add_message(ParameterDescription, lambda msg: False)
 
             # We're not waiting for a row description.  Return something
             # destinctive to let bind know that there is no output.
@@ -1032,7 +1041,7 @@ class Connection(object):
             reader = MessageReader(self)
 
             # BindComplete is good -- just ignore
-            reader.add_message(BindComplete, lambda msg: 0)
+            reader.add_message(BindComplete, lambda msg: False)
 
             # NoData in this case means we're not executing a query.  As a
             # result, we won't be fetching rows, so we'll never execute the
@@ -1051,13 +1060,15 @@ class Connection(object):
 
     def _bind_nodata(self, msg, portal, old_reader):
         # Bind message returned NoData, causing us to execute the command.
+        print("_bind_nodata")
         self._send(Execute(portal, 0))
         self._send(Sync())
 
+        print("_bind_nodata wait for CommandComplete then RFQ")
         output = {}
         reader = MessageReader(self)
         reader.add_message(CommandComplete, lambda msg, out: out.setdefault('msg', msg) and False, output)
-        reader.add_message(ReadyForQuery, lambda msg: 1)
+        reader.add_message(ReadyForQuery, lambda msg: True)
         reader.delay_raising_exception = True
         reader.handle_messages()
 
@@ -1074,7 +1085,7 @@ class Connection(object):
 
             reader = MessageReader(self)
             reader.add_message(DataRow, self._fetch_datarow, rows, row_desc)
-            reader.add_message(PortalSuspended, lambda msg: 1)
+            reader.add_message(PortalSuspended, lambda msg: True)
             reader.add_message(CommandComplete, self._fetch_commandcomplete, portal)
             retval = reader.handle_messages()
 
@@ -1116,6 +1127,7 @@ class Connection(object):
     # Send a Sync message, then read and discard all messages until we
     # receive a ReadyForQuery message.
     def _sync(self):
+        print(repr("_sync"))
         self._send(Sync())
         reader = MessageReader(self)
         reader.ignore_unhandled_messages = True
@@ -1133,8 +1145,8 @@ class Connection(object):
             self._send(Sync())
 
             reader = MessageReader(self)
-            reader.add_message(CloseComplete, lambda msg: 0)
-            reader.add_message(ReadyForQuery, lambda msg: 1)
+            reader.add_message(CloseComplete, lambda msg: False)
+            reader.add_message(ReadyForQuery, lambda msg: True)
             reader.handle_messages()
         finally:
             self._sock_lock.release()
@@ -1150,8 +1162,8 @@ class Connection(object):
             self._send(Sync())
 
             reader = MessageReader(self)
-            reader.add_message(CloseComplete, lambda msg: 0)
-            reader.add_message(ReadyForQuery, lambda msg: 1)
+            reader.add_message(CloseComplete, lambda msg: False)
+            reader.add_message(ReadyForQuery, lambda msg: True)
             reader.handle_messages()
         finally:
             self._sock_lock.release()
@@ -1167,9 +1179,9 @@ class Connection(object):
 
     def _onParameterStatusReceived(self, msg):
         if msg.key == "client_encoding":
-            self._client_encoding = msg.value
+            self._client_encoding = msg.value.decode("ascii")
         elif msg.key == "integer_datetimes":
-            self._integer_datetimes = (msg.value == "on")
+            self._integer_datetimes = (msg.value == b"on")
 
     def handleNoticeResponse(self, msg):
         self.NoticeReceived(msg)
