@@ -170,13 +170,10 @@ def py_value(v, description, record_field_names, **kwargs):
     return func(v, **kwargs)
 
 def boolrecv(data, **kwargs):
-    return data == b"\x01"
+    return struct.unpack("?", data)[0]
 
 def boolsend(v, **kwargs):
-    if v:
-        return b"\x01"
-    else:
-        return b"\x00"
+    return struct.pack("?", v)
 
 min_int2, max_int2 = -2 ** 15, 2 ** 15
 min_int4, max_int4 = -2 ** 31, 2 ** 31
@@ -366,7 +363,6 @@ def byteasend(v, **kwargs):
 def bytearecv(data, **kwargs):
     return Bytea(data)
 
-# interval support does not provide a Python-usable interval object yet
 def interval_recv(data, integer_datetimes, **kwargs):
     if integer_datetimes:
         microseconds, days, months = struct.unpack("!qii", data)
