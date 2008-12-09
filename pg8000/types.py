@@ -250,7 +250,7 @@ def date_out(v, **kwargs):
 def time_in(data, **kwargs):
     hour = int(data[0:2])
     minute = int(data[3:5])
-    sec = decimal.Decimal(data[6:])
+    sec = decimal.Decimal(data[6:].decode("ascii"))
     return datetime.time(hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
 def time_out(v, **kwargs):
@@ -387,7 +387,7 @@ def array_recv(data, **kwargs):
         else:
             array_values.append(conversion(data[:element_len], **kwargs))
             data = data[element_len:]
-    if data != "":
+    if data != b"":
         raise ArrayDataParseError("unexpected data left over after array read")
 
     # at this point, {{1,2,3},{4,5,6}}::int[][] looks like [1,2,3,4,5,6].
