@@ -432,15 +432,34 @@ def array_inspect(value):
     # supported array output
     typ = type(first_element)
     if issubclass(typ, int):
-        # special int array support -- send as an int8 array until improved
-        # in the future...
-        array_typeoid = 1016
+        # special int array support -- send as smallest possible array type
         special_int_support = True
+        int2_ok, int4_ok, int8_ok = True, True, True
+        for v in array_flatten(value):
+            if v == None:
+                continue
+            if min_int2 < v < max_int2:
+                continue
+            int2_ok = False
+            if min_int4 < value < max_int4:
+                continue
+            int4_ok = False
+            if min_int8 < value < max_int8:
+                continue
+            int8_ok = False
+        if int2_ok:
+            array_typeoid = 1005 # INT2[]
+        elif int4_ok:
+            array_typeoid = 1007 # INT4[]
+        elif int8_ok:
+            array_typeoid = 1016 # INT8[]
+        else:
+            raise ArrayContentNotSupportedError("numeric not supported as array contents")
     else:
+        special_int_support = False
         array_typeoid = py_array_types.get(typ)
         if array_typeoid == None:
             raise ArrayContentNotSupportedError("type %r not supported as array contents" % typ)
-        special_int_support = False
 
     # check for homogenous array
     for v in array_flatten(value):
@@ -451,7 +470,12 @@ def array_inspect(value):
     array_check_dimensions(value)
 
     if special_int_support:
-        type_data = {"typeoid": 20, "bin_out": int8send}
+        if array_typeoid == 1005:
+            type_data = {"typeoid": 21, "bin_out": int2send}
+        elif array_typeoid == 1007:
+            type_data = {"typeoid": 23, "bin_out": int4send}
+        elif array_typeoid == 1016:
+            type_data = {"typeoid": 20, "bin_out": int8send}
     else:
         type_data = py_types[typ]
     return {
