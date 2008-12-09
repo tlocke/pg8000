@@ -73,11 +73,16 @@ class StartupMessage(object):
     #   String - Parameter value
     def serialize(self):
         protocol = 196608
-        val = struct.pack("!i", protocol)
-        val += b"user\x00" + self.user.encode("ascii") + b"\x00"
+        val = bytearray()
+        val.extend(struct.pack("!i", protocol))
+        val.extend(b"user\x00")
+        val.extend(self.user.encode("ascii"))
+        val.append(0)
         if self.database:
-            val += b"database\x00" + self.database.encode("ascii") + b"\x00"
-        val += b"\x00"
+            val.extend(b"database\x00")
+            val.extend(self.database.encode("ascii"))
+            val.append(0)
+        val.append(0)
         val = struct.pack("!i", len(val) + 4) + val
         return val
 
