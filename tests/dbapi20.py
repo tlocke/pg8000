@@ -278,7 +278,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             self.assertEqual(len(cur.description[0]),7,
                 'cursor.description[x] tuples must have 7 elements'
                 )
-            self.assertEqual(cur.description[0][0].lower(),'name',
+            self.assertEqual(cur.description[0][0].lower(),b'name',
                 'cursor.description[x][0] must return column name'
                 )
             self.assertEqual(cur.description[0][1],self.driver.STRING,
