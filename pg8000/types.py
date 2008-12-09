@@ -431,9 +431,16 @@ def array_inspect(value):
 
     # supported array output
     typ = type(first_element)
-    array_typeoid = py_array_types.get(typ)
-    if array_typeoid == None:
-        raise ArrayContentNotSupportedError("type %r not supported as array contents" % typ)
+    if issubclass(typ, int):
+        # special int array support -- send as an int8 array until improved
+        # in the future...
+        array_typeoid = 1016
+        special_int_support = True
+    else:
+        array_typeoid = py_array_types.get(typ)
+        if array_typeoid == None:
+            raise ArrayContentNotSupportedError("type %r not supported as array contents" % typ)
+        special_int_support = False
 
     # check for homogenous array
     for v in array_flatten(value):
@@ -443,7 +450,10 @@ def array_inspect(value):
     # check that all array dimensions are consistent
     array_check_dimensions(value)
 
-    type_data = py_types[typ]
+    if special_int_support:
+        type_data = {"typeoid": 20, "bin_out": int8send}
+    else:
+        type_data = py_types[typ]
     return {
         "typeoid": array_typeoid,
         "bin_out": array_send(type_data["typeoid"], type_data["bin_out"])
@@ -551,7 +561,6 @@ py_types = {
 
 # py type -> pg array typeoid
 py_array_types = {
-    int: 1007,
     float: 1022,
     bool: 1000,
     str: 1009,      # TEXT[]
