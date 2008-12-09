@@ -858,15 +858,12 @@ def sync_on_error(fn):
     def _fn(self, *args, **kwargs):
         with self._sock_lock:
             try:
-            self._sock_lock.acquire()
                 return fn(self, *args, **kwargs)
             except:
                 try:
                     self._sync()
                 finally:
                     raise
-        finally:
-            self._sock_lock.release()
     return _fn
 
 class Connection(object):
