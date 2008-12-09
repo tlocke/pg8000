@@ -1154,9 +1154,9 @@ class Connection(object):
             self._state = "closed"
 
     def _onParameterStatusReceived(self, msg):
-        if msg.key == "client_encoding":
+        if msg.key == b"client_encoding":
             self._client_encoding = msg.value.decode("ascii")
-        elif msg.key == "integer_datetimes":
+        elif msg.key == b"integer_datetimes":
             self._integer_datetimes = (msg.value == b"on")
 
     def handleNoticeResponse(self, msg):

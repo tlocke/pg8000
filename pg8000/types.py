@@ -254,7 +254,7 @@ def time_in(data, **kwargs):
     return datetime.time(hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
 def time_out(v, **kwargs):
-    return v.isoformat()
+    return textout(v.isoformat(), **kwargs)
 
 def numeric_in(data, **kwargs):
     if data.find(b".") == -1:
