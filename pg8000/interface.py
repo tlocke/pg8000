@@ -48,6 +48,9 @@ class DataIterator(object):
             raise StopIteration()
         return retval
 
+statement_number_lock = threading.Lock()
+statement_number = 0
+
 ##
 # This class represents a prepared statement.  A prepared statement is
 # pre-parsed on the server, which reduces the need to parse the query every
@@ -86,11 +89,18 @@ class PreparedStatement(object):
     row_cache_size = 100
 
     def __init__(self, connection, statement, *types, **kwargs):
+        global statement_number
         if connection == None or connection.c == None:
             raise InterfaceError("connection not provided")
+        try:
+            statement_number_lock.acquire()
+            self._statement_number = statement_number
+            statement_number += 1
+        finally:
+            statement_number_lock.release()
         self.c = connection.c
         self._portal_name = None
-        self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s_%s" % (id(self.c), id(self)))
+        self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s" % self._statement_number)
         self._row_desc = None
         self._cached_rows = []
         self._ongoing_row_count = 0
@@ -98,11 +108,7 @@ class PreparedStatement(object):
         self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
         self._lock = threading.RLock()
 
-    def __del__(self):
-        # This __del__ should work with garbage collection / non-instant
-        # cleanup.  It only really needs to be called right away if the same
-        # object id (and therefore the same statement name) might be reused
-        # soon, and clearly that wouldn't happen in a GC situation.
+    def close(self):
         if self._statement_name != "": # don't close unnamed statement
             self.c.close_statement(self._statement_name)
         if self._portal_name != None:
@@ -129,7 +135,7 @@ class PreparedStatement(object):
             if self._portal_name != None:
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
-            self._portal_name = "pg8000_portal_%s_%s" % (id(self.c), id(self))
+            self._portal_name = "pg8000_portal_%s" % self._statement_number
             self._row_desc, cmd = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
             if self._row_desc:
                 # We execute our cursor right away to fill up our cache.  This
@@ -250,6 +256,11 @@ class PreparedStatement(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def iterate_dict(self):
         return DataIterator(self, PreparedStatement.read_dict)
+
+    def close(self):
+        if self._stmt != None:
+            self._stmt.close()
+            self._stmt = None
 
 ##
 # The Cursor class allows multiple queries to be performed concurrently with a

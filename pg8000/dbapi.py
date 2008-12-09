@@ -373,7 +373,9 @@ class CursorWrapper(object):
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
     def close(self):
-        self.cursor = None
+        if self.cursor != None:
+            self.cursor.close()
+            self.cursor = None
         self._override_rowcount = None
 
     def next(self):
@@ -462,6 +464,11 @@ class ConnectionWrapper(object):
             raise ConnectionClosedError()
         self.conn.close()
         self.conn = None
+
+    def recache_record_types(self):
+        if self.conn == None:
+            raise ConnectionClosedError()
+        self.conn.recache_record_types()
 
 
 ##
