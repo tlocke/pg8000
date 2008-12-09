@@ -1,3 +1,21 @@
+Version 1.06, 2008-12-09
+------------------------
+
+- pg8000-py3: a branch of pg8000 fully supporting Python 3.0.
+
+- New Sphinx-based documentation.
+
+- Support for PostgreSQL array types -- INT2[], INT4[], INT8[], FLOAT[],
+  DOUBLE[], BOOL[], and TEXT[].  New support permits both sending and
+  receiving these values.
+
+- Limited support for receiving RECORD types.  If a record type is received,
+  it will be translated into a Python dict object.
+
+- Fixed potential threading bug where the socket lock could be lost during 
+  error handling.
+
+
 Version 1.05, 2008-09-03
 ------------------------
 
