@@ -114,16 +114,20 @@ class Parse(object):
     # For each parameter:
     #   Int32 - The OID of the parameter data type.
     def serialize(self):
-        val = self.ps.encode("ascii") + b"\x00" + self.qs.encode("ascii") + b"\x00"
-        val = val + struct.pack("!h", len(self.type_oids))
+        val = bytearray()
+        val.extend(self.ps.encode("ascii"))
+        val.append(0)
+        val.extend(self.qs.encode("ascii"))
+        val.append(0)
+        val.extend(struct.pack("!h", len(self.type_oids)))
         for oid in self.type_oids:
             # Parse message doesn't seem to handle the -1 type_oid for NULL
             # values that other messages handle.  So we'll provide type_oid 705,
             # the PG "unknown" type.
             if oid == -1: oid = 705
-            val = val + struct.pack("!i", oid)
-        val = struct.pack("!i", len(val) + 4) + val
-        val = b"P" + val
+            val.extend(struct.pack("!i", oid))
+        val[0:0] = struct.pack("!i", len(val) + 4)
+        val[0:0] = b"P"
         return val
 
 
