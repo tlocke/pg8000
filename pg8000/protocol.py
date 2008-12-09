@@ -437,6 +437,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
         pwd = b"md5" + hashlib.md5(hashlib.md5(password.encode("ascii") + user.encode("ascii")).hexdigest().encode("ascii") + self.salt).hexdigest().encode("ascii")
         conn._send(PasswordMessage(pwd))
+        conn._flush()
 
         reader = MessageReader(conn)
         reader.add_message(AuthenticationRequest, lambda msg, reader: reader.return_value(msg.ok(conn, user)), reader)
@@ -885,6 +886,7 @@ class Connection(object):
             self._sock.connect(unix_sock)
         if ssl:
             self._send(SSLRequest())
+            self._flush()
             resp = self._sock.recv(1)
             if resp == b'S':
                 self._sock = SSLWrapper(socket.ssl(self._sock))
@@ -893,6 +895,8 @@ class Connection(object):
         else:
             # settimeout causes ssl failure, on windows.  Python bug 1462352.
             self._sock.settimeout(socket_timeout)
+
+        self._sock = self._sock.makefile(mode="rwb", buffering=1024)
         self._state = "noauth"
         self._backend_key_data = None
         self._sock_lock = threading.Lock()
@@ -911,13 +915,16 @@ class Connection(object):
         assert self._sock_lock.locked()
         data = msg.serialize()
         #print("_send(%r, %s)" % (msg, repr(data)))
-        self._sock.sendall(data)
+        self._sock.write(data)
+
+    def _flush(self):
+        assert self._sock_lock.locked()
+        self._sock.flush()
 
     def _read_bytes(self, byte_count):
-        retval = b""
-        while len(retval) < byte_count:
-            tmp = self._sock.recv(byte_count - len(retval))
-            retval += tmp
+        retval = self._sock.read(byte_count)
+        # should read in one op since it is a buffered reader
+        assert len(retval) == byte_count
         return retval
 
     def _read_message(self):
@@ -935,6 +942,7 @@ class Connection(object):
         self.verifyState("noauth")
         with self._sock_lock:
             self._send(StartupMessage(user, database=kwargs.get("database",None)))
+            self._flush()
             msg = self._read_message()
             if not isinstance(msg, AuthenticationRequest):
                 raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
@@ -990,6 +998,7 @@ class Connection(object):
         self._send(Parse(statement, qs, param_types))
         self._send(DescribePreparedStatement(statement))
         self._send(Flush())
+        self._flush()
 
         reader = MessageReader(self)
 
@@ -1027,6 +1036,7 @@ class Connection(object):
         # requested).
         self._send(DescribePortal(portal))
         self._send(Flush())
+        self._flush()
 
         # Read responses from server...
         reader = MessageReader(self)
@@ -1050,6 +1060,7 @@ class Connection(object):
         # Bind message returned NoData, causing us to execute the command.
         self._send(Execute(portal, 0))
         self._send(Sync())
+        self._flush()
 
         output = {}
         reader = MessageReader(self)
@@ -1066,6 +1077,7 @@ class Connection(object):
 
         self._send(Execute(portal, row_count))
         self._send(Flush())
+        self._flush()
         rows = []
 
         reader = MessageReader(self)
@@ -1095,6 +1107,7 @@ class Connection(object):
     def _fetch_commandcomplete(self, msg, portal):
         self._send(ClosePortal(portal))
         self._send(Sync())
+        self._flush()
 
         reader = MessageReader(self)
         reader.add_message(ReadyForQuery, self._fetch_commandcomplete_rfq)
@@ -1113,6 +1126,7 @@ class Connection(object):
         # it is assumed _sync is called from sync_on_error, which holds
         # a _sock_lock throughout the call
         self._send(Sync())
+        self._flush()
         reader = MessageReader(self)
         reader.ignore_unhandled_messages = True
         reader.add_message(ReadyForQuery, lambda msg: True)
@@ -1126,6 +1140,7 @@ class Connection(object):
         with self._sock_lock:
             self._send(ClosePreparedStatement(statement))
             self._send(Sync())
+            self._flush()
 
             reader = MessageReader(self)
             reader.add_message(CloseComplete, lambda msg: False)
@@ -1139,6 +1154,7 @@ class Connection(object):
         with self._sock_lock:
             self._send(ClosePortal(portal))
             self._send(Sync())
+            self._flush()
 
             reader = MessageReader(self)
             reader.add_message(CloseComplete, lambda msg: False)
@@ -1148,6 +1164,7 @@ class Connection(object):
     def close(self):
         with self._sock_lock:
             self._send(Terminate())
+            self._flush()
             self._sock.close()
             self._state = "closed"
 
