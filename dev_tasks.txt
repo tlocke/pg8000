@@ -16,3 +16,5 @@
 
  * properly close all PreparedStatement instances during tests
 
+ * add unit tests for int 2/4/8 + numeric send boundaries
+

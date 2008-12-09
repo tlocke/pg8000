@@ -90,9 +90,9 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testByteaRoundtrip(self):
-        cursor.execute("SELECT %s as f1", (dbapi.Binary("\x00\x01\x02\x03\x02\x01\x00"),))
+        cursor.execute("SELECT %s as f1", (dbapi.Binary(b"\x00\x01\x02\x03\x02\x01\x00"),))
         retval = cursor.fetchall()
-        self.assert_(retval[0][0] == "\x00\x01\x02\x03\x02\x01\x00",
+        self.assert_(retval[0][0] == b"\x00\x01\x02\x03\x02\x01\x00",
                 "retrieved value match failed")
 
     def testTimestampRoundtrip(self):
@@ -259,7 +259,7 @@ class Tests(unittest.TestCase):
         methods = (
                 ("float8send", 22.2),
                 ("timestamp_send", datetime.datetime(2001, 2, 3, 4, 5, 6, 789)),
-                ("byteasend", dbapi.Binary("\x01\x02")),
+                ("byteasend", dbapi.Binary(b"\x01\x02")),
                 ("interval_send", types.Interval(1234567, 123, 123)),
         )
         for method_out, value in methods:
@@ -397,7 +397,7 @@ class Tests(unittest.TestCase):
         try:
             cursor.execute("DROP TYPE test_type")
         except errors.DatabaseError as e:
-            self.assert_(e.args[1] == '42704', # type does not exist
+            self.assert_(e.args[1] == b'42704', # type does not exist
                 "incorrect error for drop type")
         cursor.execute("CREATE TYPE test_type AS (a INT, b FLOAT)")
         db.recache_record_types()

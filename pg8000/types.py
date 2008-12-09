@@ -178,8 +178,25 @@ def boolsend(v, **kwargs):
     else:
         return b"\x00"
 
+min_int2, max_int2 = -2 ** 15, 2 ** 15
+min_int4, max_int4 = -2 ** 31, 2 ** 31
+min_int8, max_int8 = -2 ** 63, 2 ** 63
+
+def int_inspect(value):
+    if min_int2 < value < max_int2:
+        return {"typeoid": 21, "bin_out": int2send}
+    elif min_int4 < value < max_int4:
+        return {"typeoid": 23, "bin_out": int4send}
+    elif min_int8 < value < max_int8:
+        return {"typeoid": 20, "bin_out": int8send}
+    else:
+        return {"typeoid": 1700, "txt_out": numeric_out}
+
 def int2recv(data, **kwargs):
     return struct.unpack("!h", data)[0]
+
+def int2send(v, **kwargs):
+    return struct.pack("!h", v)
 
 def int4recv(data, **kwargs):
     return struct.unpack("!i", data)[0]
@@ -189,6 +206,9 @@ def int4send(v, **kwargs):
 
 def int8recv(data, **kwargs):
     return struct.unpack("!q", data)[0]
+
+def int8send(v, **kwargs):
+    return struct.pack("!q", v)
 
 def float4recv(data, **kwargs):
     return struct.unpack("!f", data)[0]
@@ -245,7 +265,7 @@ def date_in(data, **kwargs):
     return datetime.date(year, month, day)
 
 def date_out(v, **kwargs):
-    return v.isoformat()
+    return textout(v.isoformat(), **kwargs)
 
 def time_in(data, **kwargs):
     hour = int(data[0:2])
@@ -341,7 +361,7 @@ def textout(v, client_encoding, **kwargs):
     return v.encode(encoding_convert(client_encoding))
 
 def byteasend(v, **kwargs):
-    return str(v)
+    return v
 
 def bytearecv(data, **kwargs):
     return Bytea(data)
@@ -515,8 +535,7 @@ class record_recv(object):
 
 py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},
-    #int: {"typeoid": 23, "bin_out": int4send},
-    int: {"typeoid": 1700, "txt_out": numeric_out},
+    int: {"inspect": int_inspect},
     str: {"typeoid": 25, "bin_out": textout},
     str: {"typeoid": 25, "bin_out": textout},
     float: {"typeoid": 701, "bin_out": float8send},
