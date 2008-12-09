@@ -19,6 +19,13 @@ db_local_win_connect = {
         "database": "mfenniak"
         }
 
+db_oracledev2_connect = {
+        "host": "oracledev2",
+        "user": "mfenniak",
+        "password": "password",
+        "database": "mfenniak"
+        }
+
 import os
 db_connect = eval(os.environ["PG8000_TEST"])
 

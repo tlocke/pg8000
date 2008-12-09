@@ -30,9 +30,9 @@
 __author__ = "Mathieu Fenniak"
 
 import socket
-import protocol
+from . import protocol
 import threading
-from errors import *
+from .errors import *
 
 class DataIterator(object):
     def __init__(self, obj, func):
@@ -42,7 +42,7 @@ class DataIterator(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         retval = self.func(self.obj)
         if retval == None:
             raise StopIteration()
@@ -92,12 +92,9 @@ class PreparedStatement(object):
         global statement_number
         if connection == None or connection.c == None:
             raise InterfaceError("connection not provided")
-        try:
-            statement_number_lock.acquire()
+        with statement_number_lock:
             self._statement_number = statement_number
             statement_number += 1
-        finally:
-            statement_number_lock.release()
         self.c = connection.c
         self._portal_name = None
         self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s" % self._statement_number)
@@ -226,7 +223,7 @@ class PreparedStatement(object):
         retval = {}
         for i in range(len(self._row_desc.fields)):
             col_name = self._row_desc.fields[i]['name']
-            if retval.has_key(col_name):
+            if col_name in retval:
                 raise InterfaceError("cannot return dict of row when two columns have the same name (%r)" % (col_name,))
             retval[col_name] = row[i]
         return retval
@@ -363,6 +360,11 @@ class Cursor(object):
     def iterate_dict(self):
         return self._stmt.iterate_dict()
 
+    def close(self):
+        if self._stmt != None:
+            self._stmt.close()
+            self._stmt = None
+
 ##
 # This class represents a connection to a PostgreSQL database.
 # <p>
@@ -413,7 +415,7 @@ class Connection(Cursor):
         try:
             self.c = protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout, ssl=ssl)
             self.c.authenticate(user, password=password, database=database)
-        except socket.error, e:
+        except socket.error as e:
             raise InterfaceError("communication error", e)
         Cursor.__init__(self, self)
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")

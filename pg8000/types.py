@@ -32,7 +32,7 @@ __author__ = "Mathieu Fenniak"
 import datetime
 import decimal
 import struct
-from errors import (NotSupportedError, ArrayDataParseError, InternalError,
+from .errors import (NotSupportedError, ArrayDataParseError, InternalError,
         ArrayContentEmptyError, ArrayContentNotHomogenousError,
         ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError)
 
@@ -49,7 +49,7 @@ except ImportError:
             return ZERO
     utc = UTC()
 
-class Bytea(str):
+class Bytea(bytes):
     pass
 
 class Interval(object):
@@ -61,13 +61,15 @@ class Interval(object):
     def __repr__(self):
         return "<Interval %s months %s days %s microseconds>" % (self.months, self.days, self.microseconds)
 
-    def __cmp__(self, other):
-        if other == None: return -1
-        c = cmp(self.months, other.months)
-        if c != 0: return c
-        c = cmp(self.days, other.days)
-        if c != 0: return c
-        return cmp(self.microseconds, other.microseconds)
+    def __eq__(self, other):
+        return other != None and \
+                isinstance(other, Interval) and \
+                self.months == other.months and \
+                self.days == other.days and \
+                self.microseconds == other.microseconds
+
+    def __neq__(self, other):
+        return not self.__eq__(other)
 
 def pg_type_info(typ):
     value = None
@@ -168,16 +170,30 @@ def py_value(v, description, record_field_names, **kwargs):
     return func(v, **kwargs)
 
 def boolrecv(data, **kwargs):
-    return data == "\x01"
+    return struct.unpack("?", data)[0]
 
 def boolsend(v, **kwargs):
-    if v:
-        return "\x01"
+    return struct.pack("?", v)
+
+min_int2, max_int2 = -2 ** 15, 2 ** 15
+min_int4, max_int4 = -2 ** 31, 2 ** 31
+min_int8, max_int8 = -2 ** 63, 2 ** 63
+
+def int_inspect(value):
+    if min_int2 < value < max_int2:
+        return {"typeoid": 21, "bin_out": int2send}
+    elif min_int4 < value < max_int4:
+        return {"typeoid": 23, "bin_out": int4send}
+    elif min_int8 < value < max_int8:
+        return {"typeoid": 20, "bin_out": int8send}
     else:
-        return "\x00"
+        return {"typeoid": 1700, "txt_out": numeric_out}
 
 def int2recv(data, **kwargs):
     return struct.unpack("!h", data)[0]
+
+def int2send(v, **kwargs):
+    return struct.pack("!h", v)
 
 def int4recv(data, **kwargs):
     return struct.unpack("!i", data)[0]
@@ -187,6 +203,9 @@ def int4send(v, **kwargs):
 
 def int8recv(data, **kwargs):
     return struct.unpack("!q", data)[0]
+
+def int8send(v, **kwargs):
+    return struct.pack("!q", v)
 
 def float4recv(data, **kwargs):
     return struct.unpack("!f", data)[0]
@@ -243,19 +262,19 @@ def date_in(data, **kwargs):
     return datetime.date(year, month, day)
 
 def date_out(v, **kwargs):
-    return v.isoformat()
+    return textout(v.isoformat(), **kwargs)
 
 def time_in(data, **kwargs):
     hour = int(data[0:2])
     minute = int(data[3:5])
-    sec = decimal.Decimal(data[6:])
+    sec = decimal.Decimal(data[6:].decode("ascii"))
     return datetime.time(hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
 def time_out(v, **kwargs):
-    return v.isoformat()
+    return textout(v.isoformat(), **kwargs)
 
 def numeric_in(data, **kwargs):
-    if data.find(".") == -1:
+    if data.find(b".") == -1:
         return int(data)
     else:
         return decimal.Decimal(data)
@@ -273,7 +292,7 @@ def numeric_recv(data, **kwargs):
     return retval
 
 def numeric_out(v, **kwargs):
-    return str(v)
+    return str(v).encode("ascii")
 
 # PostgreSQL encodings:
 #   http://www.postgresql.org/docs/8.3/interactive/multibyte.html
@@ -333,18 +352,17 @@ def encoding_convert(encoding):
     return pg_to_py_encodings.get(encoding.lower(), encoding)
 
 def varcharin(data, client_encoding, **kwargs):
-    return unicode(data, encoding_convert(client_encoding))
+    return str(data, encoding_convert(client_encoding))
 
 def textout(v, client_encoding, **kwargs):
     return v.encode(encoding_convert(client_encoding))
 
 def byteasend(v, **kwargs):
-    return str(v)
+    return v
 
 def bytearecv(data, **kwargs):
     return Bytea(data)
 
-# interval support does not provide a Python-usable interval object yet
 def interval_recv(data, integer_datetimes, **kwargs):
     if integer_datetimes:
         microseconds, days, months = struct.unpack("!qii", data)
@@ -385,7 +403,7 @@ def array_recv(data, **kwargs):
         else:
             array_values.append(conversion(data[:element_len], **kwargs))
             data = data[element_len:]
-    if data != "":
+    if data != b"":
         raise ArrayDataParseError("unexpected data left over after array read")
 
     # at this point, {{1,2,3},{4,5,6}}::int[][] looks like [1,2,3,4,5,6].
@@ -409,9 +427,35 @@ def array_inspect(value):
 
     # supported array output
     typ = type(first_element)
-    array_typeoid = py_array_types.get(typ)
-    if array_typeoid == None:
-        raise ArrayContentNotSupportedError("type %r not supported as array contents" % typ)
+    if issubclass(typ, int):
+        # special int array support -- send as smallest possible array type
+        special_int_support = True
+        int2_ok, int4_ok, int8_ok = True, True, True
+        for v in array_flatten(value):
+            if v == None:
+                continue
+            if min_int2 < v < max_int2:
+                continue
+            int2_ok = False
+            if min_int4 < v < max_int4:
+                continue
+            int4_ok = False
+            if min_int8 < v < max_int8:
+                continue
+            int8_ok = False
+        if int2_ok:
+            array_typeoid = 1005 # INT2[]
+        elif int4_ok:
+            array_typeoid = 1007 # INT4[]
+        elif int8_ok:
+            array_typeoid = 1016 # INT8[]
+        else:
+            raise ArrayContentNotSupportedError("numeric not supported as array contents")
+    else:
+        special_int_support = False
+        array_typeoid = py_array_types.get(typ)
+        if array_typeoid == None:
+            raise ArrayContentNotSupportedError("type %r not supported as array contents" % typ)
 
     # check for homogenous array
     for v in array_flatten(value):
@@ -421,7 +465,15 @@ def array_inspect(value):
     # check that all array dimensions are consistent
     array_check_dimensions(value)
 
-    type_data = py_types[typ]
+    if special_int_support:
+        if array_typeoid == 1005:
+            type_data = {"typeoid": 21, "bin_out": int2send}
+        elif array_typeoid == 1007:
+            type_data = {"typeoid": 23, "bin_out": int4send}
+        elif array_typeoid == 1016:
+            type_data = {"typeoid": 20, "bin_out": int8send}
+    else:
+        type_data = py_types[typ]
     return {
         "typeoid": array_typeoid,
         "bin_out": array_send(type_data["typeoid"], type_data["bin_out"])
@@ -513,10 +565,9 @@ class record_recv(object):
 
 py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},
-    int: {"typeoid": 23, "bin_out": int4send},
-    long: {"typeoid": 1700, "txt_out": numeric_out},
+    int: {"inspect": int_inspect},
     str: {"typeoid": 25, "bin_out": textout},
-    unicode: {"typeoid": 25, "bin_out": textout},
+    str: {"typeoid": 25, "bin_out": textout},
     float: {"typeoid": 701, "bin_out": float8send},
     decimal.Decimal: {"typeoid": 1700, "txt_out": numeric_out},
     Bytea: {"typeoid": 17, "bin_out": byteasend},
@@ -530,11 +581,10 @@ py_types = {
 
 # py type -> pg array typeoid
 py_array_types = {
-    int: 1007,
     float: 1022,
     bool: 1000,
     str: 1009,      # TEXT[]
-    unicode: 1009,  # TEXT[]
+    str: 1009,  # TEXT[]
 }
 
 pg_types = {
