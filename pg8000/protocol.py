@@ -757,7 +757,7 @@ class CommandComplete(object):
         values = data[:-1].split(b" ")
         args = {}
         args['command'] = values[0]
-        if args['command'] in ("INSERT", "DELETE", "UPDATE", "MOVE", "FETCH", "COPY"):
+        if args['command'] in (b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY"):
             args['rows'] = int(values[-1])
             if args['command'] == "INSERT":
                 args['oid'] = int(values[1])

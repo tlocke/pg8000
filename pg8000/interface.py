@@ -105,16 +105,12 @@ class PreparedStatement(object):
         self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
         self._lock = threading.RLock()
 
-    #def __del__(self):
-    #    # This __del__ should work with garbage collection / non-instant
-    #    # cleanup.  It only really needs to be called right away if the same
-    #    # object id (and therefore the same statement name) might be reused
-    #    # soon, and clearly that wouldn't happen in a GC situation.
-    #    if self._statement_name != "": # don't close unnamed statement
-    #        self.c.close_statement(self._statement_name)
-    #    if self._portal_name != None:
-    #        self.c.close_portal(self._portal_name)
-    #        self._portal_name = None
+    def close(self):
+        if self._statement_name != "": # don't close unnamed statement
+            self.c.close_statement(self._statement_name)
+        if self._portal_name != None:
+            self.c.close_portal(self._portal_name)
+            self._portal_name = None
 
     row_description = property(lambda self: self._getRowDescription())
     def _getRowDescription(self):

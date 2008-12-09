@@ -13,3 +13,6 @@
     * document that fetchmany uses prepared statements
  
  * remove in-code documentation that belongs in sphinx templates
+
+ * properly close all PreparedStatement instances during tests
+
