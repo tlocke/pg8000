@@ -270,9 +270,12 @@ class Describe(object):
     # Byte1 - 'S' for prepared statement, 'P' for portal.
     # String - The name of the item to close.
     def serialize(self):
-        val = self.typ + self.name.encode("ascii") + b"\x00"
-        val = struct.pack("!i", len(val) + 4) + val
-        val = b"D" + val
+        val = bytearray()
+        val.extend(self.typ)
+        val.extend(self.name.encode("ascii"))
+        val.append(0)
+        val[0:0] = struct.pack("!i", len(val) + 4)
+        val[0:0] = b"D"
         return val
 
 
@@ -341,9 +344,11 @@ class PasswordMessage(object):
     # Int32 - Message length including self.
     # String - The password.  Password may be encrypted.
     def serialize(self):
-        val = self.pwd + b"\x00"
-        val = struct.pack("!i", len(val) + 4) + val
-        val = b"p" + val
+        val = bytearray()
+        val.extend(self.pwd)
+        val.append(0)
+        val[0:0] = struct.pack("!i", len(val) + 4)
+        val[0:0] = b"p"
         return val
 
 
@@ -366,9 +371,12 @@ class Execute(object):
     # Int32 -   Maximum number of rows to return, if portal contains a query that
     #           returns rows.  0 = no limit.
     def serialize(self):
-        val = self.portal.encode("ascii") + b"\x00" + struct.pack("!i", self.row_count)
-        val = struct.pack("!i", len(val) + 4) + val
-        val = b"E" + val
+        val = bytearray()
+        val.extend(self.portal.encode("ascii"))
+        val.append(0)
+        val.extend(struct.pack("!i", self.row_count))
+        val[0:0] = struct.pack("!i", len(val) + 4)
+        val[0:0] = b"E"
         return val
 
 
