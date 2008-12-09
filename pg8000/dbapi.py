@@ -373,7 +373,9 @@ class CursorWrapper(object):
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
     def close(self):
-        self.cursor = None
+        if self.cursor != None:
+            self.cursor.close()
+            self.cursor = None
         self._override_rowcount = None
 
     def __next__(self):

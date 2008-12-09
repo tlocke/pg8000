@@ -355,6 +355,11 @@ class Cursor(object):
     def iterate_dict(self):
         return self._stmt.iterate_dict()
 
+    def close(self):
+        if self._stmt != None:
+            self._stmt.close()
+            self._stmt = None
+
 ##
 # This class represents a connection to a PostgreSQL database.
 # <p>
