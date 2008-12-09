@@ -463,6 +463,11 @@ class ConnectionWrapper(object):
         self.conn.close()
         self.conn = None
 
+    def recache_record_types(self):
+        if self.conn == None:
+            raise ConnectionClosedError()
+        self.conn.recache_record_types()
+
 
 ##
 # Creates a DBAPI 2.0 compatible interface to a PostgreSQL database.

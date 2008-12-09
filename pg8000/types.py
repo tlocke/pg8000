@@ -61,13 +61,15 @@ class Interval(object):
     def __repr__(self):
         return "<Interval %s months %s days %s microseconds>" % (self.months, self.days, self.microseconds)
 
-    def __cmp__(self, other):
-        if other == None: return -1
-        c = cmp(self.months, other.months)
-        if c != 0: return c
-        c = cmp(self.days, other.days)
-        if c != 0: return c
-        return cmp(self.microseconds, other.microseconds)
+    def __eq__(self, other):
+        return other != None and \
+                isinstance(other, Interval) and \
+                self.months == other.months and \
+                self.days == other.days and \
+                self.microseconds == other.microseconds
+
+    def __neq__(self, other):
+        return not self.__eq__(other)
 
 def pg_type_info(typ):
     value = None
