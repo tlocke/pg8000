@@ -32,12 +32,12 @@ __author__ = "Mathieu Fenniak"
 import socket
 import threading
 import struct
-import md5
-from cStringIO import StringIO
+import hashlib
+from io import BytesIO
 
-from errors import *
-from util import MulticastDelegate
-import types
+from .errors import *
+from .util import MulticastDelegate
+from . import types
 
 ##
 # An SSLRequest message.  To initiate an SSL-encrypted connection, an
@@ -74,10 +74,10 @@ class StartupMessage(object):
     def serialize(self):
         protocol = 196608
         val = struct.pack("!i", protocol)
-        val += "user\x00" + self.user + "\x00"
+        val += b"user\x00" + self.user.encode("ascii") + b"\x00"
         if self.database:
-            val += "database\x00" + self.database + "\x00"
-        val += "\x00"
+            val += b"database\x00" + self.database.encode("ascii") + b"\x00"
+        val += b"\x00"
         val = struct.pack("!i", len(val) + 4) + val
         return val
 
@@ -109,7 +109,7 @@ class Parse(object):
     # For each parameter:
     #   Int32 - The OID of the parameter data type.
     def serialize(self):
-        val = self.ps + "\x00" + self.qs + "\x00"
+        val = self.ps.encode("ascii") + b"\x00" + self.qs.encode("ascii") + b"\x00"
         val = val + struct.pack("!h", len(self.type_oids))
         for oid in self.type_oids:
             # Parse message doesn't seem to handle the -1 type_oid for NULL
@@ -118,7 +118,7 @@ class Parse(object):
             if oid == -1: oid = 705
             val = val + struct.pack("!i", oid)
         val = struct.pack("!i", len(val) + 4) + val
-        val = "P" + val
+        val = b"P" + val
         return val
 
 
@@ -149,7 +149,10 @@ class Bind(object):
                 fc = self.in_fc[0]
             else:
                 fc = self.in_fc[i]
-            self.params.append(types.pg_value(params[i], fc, **kwargs))
+            value = types.pg_value(params[i], fc, **kwargs)
+            if value != None and not isinstance(value, bytes):
+                raise InternalError("converting value %r to pgsql value returned non-bytes" % params[i])
+            self.params.append(value)
         self.out_fc = out_fc
 
     def __repr__(self):
@@ -172,9 +175,9 @@ class Bind(object):
     # For each result-column format code:
     #   Int16 - The format code.
     def serialize(self):
-        retval = StringIO()
-        retval.write(self.portal + "\x00")
-        retval.write(self.ps + "\x00")
+        retval = BytesIO()
+        retval.write(self.portal.encode("ascii") + b"\x00")
+        retval.write(self.ps.encode("ascii") + b"\x00")
         retval.write(struct.pack("!h", len(self.in_fc)))
         for fc in self.in_fc:
             retval.write(struct.pack("!h", fc))
@@ -191,7 +194,7 @@ class Bind(object):
             retval.write(struct.pack("!h", fc))
         val = retval.getvalue()
         val = struct.pack("!i", len(val) + 4) + val
-        val = "B" + val
+        val = b"B" + val
         return val
 
 
@@ -214,9 +217,9 @@ class Close(object):
     # Byte1 - 'S' for prepared statement, 'P' for portal.
     # String - The name of the item to close.
     def serialize(self):
-        val = self.typ + self.name + "\x00"
+        val = self.typ + self.name.encode("ascii") + b"\x00"
         val = struct.pack("!i", len(val) + 4) + val
-        val = "C" + val
+        val = b"C" + val
         return val
 
 
@@ -226,7 +229,7 @@ class Close(object):
 # Stability: This is an internal class.  No stability guarantee is made.
 class ClosePortal(Close):
     def __init__(self, name):
-        Close.__init__(self, "P", name)
+        Close.__init__(self, b"P", name)
 
 
 ##
@@ -235,7 +238,7 @@ class ClosePortal(Close):
 # Stability: This is an internal class.  No stability guarantee is made.
 class ClosePreparedStatement(Close):
     def __init__(self, name):
-        Close.__init__(self, "S", name)
+        Close.__init__(self, b"S", name)
 
 
 ##
@@ -258,9 +261,9 @@ class Describe(object):
     # Byte1 - 'S' for prepared statement, 'P' for portal.
     # String - The name of the item to close.
     def serialize(self):
-        val = self.typ + self.name + "\x00"
+        val = self.typ + self.name.encode("ascii") + b"\x00"
         val = struct.pack("!i", len(val) + 4) + val
-        val = "D" + val
+        val = b"D" + val
         return val
 
 
@@ -270,7 +273,7 @@ class Describe(object):
 # Stability: This is an internal class.  No stability guarantee is made.
 class DescribePortal(Describe):
     def __init__(self, name):
-        Describe.__init__(self, "P", name)
+        Describe.__init__(self, b"P", name)
 
     def __repr__(self):
         return "<DescribePortal %r>" % (self.name)
@@ -282,7 +285,7 @@ class DescribePortal(Describe):
 # Stability: This is an internal class.  No stability guarantee is made.
 class DescribePreparedStatement(Describe):
     def __init__(self, name):
-        Describe.__init__(self, "S", name)
+        Describe.__init__(self, b"S", name)
 
     def __repr__(self):
         return "<DescribePreparedStatement %r>" % (self.name)
@@ -297,7 +300,7 @@ class Flush(object):
     # Byte1('H') - Identifies the message as a flush command.
     # Int32(4) - Length of message, including self.
     def serialize(self):
-        return 'H\x00\x00\x00\x04'
+        return b'H\x00\x00\x00\x04'
 
     def __repr__(self):
         return "<Flush>"
@@ -311,7 +314,7 @@ class Sync(object):
     # Byte1('S') - Identifies the message as a sync command.
     # Int32(4) - Length of message, including self.
     def serialize(self):
-        return 'S\x00\x00\x00\x04'
+        return b'S\x00\x00\x00\x04'
 
     def __repr__(self):
         return "<Sync>"
@@ -329,9 +332,9 @@ class PasswordMessage(object):
     # Int32 - Message length including self.
     # String - The password.  Password may be encrypted.
     def serialize(self):
-        val = self.pwd + "\x00"
+        val = self.pwd + b"\x00"
         val = struct.pack("!i", len(val) + 4) + val
-        val = "p" + val
+        val = b"p" + val
         return val
 
 
@@ -354,9 +357,9 @@ class Execute(object):
     # Int32 -   Maximum number of rows to return, if portal contains a query that
     #           returns rows.  0 = no limit.
     def serialize(self):
-        val = self.portal + "\x00" + struct.pack("!i", self.row_count)
+        val = self.portal.encode("ascii") + b"\x00" + struct.pack("!i", self.row_count)
         val = struct.pack("!i", len(val) + 4) + val
-        val = "E" + val
+        val = b"E" + val
         return val
 
 
@@ -371,7 +374,7 @@ class Terminate(object):
     # Byte1('X') - Identifies the message as a terminate message.
     # Int32(4) - Message length, including self.
     def serialize(self):
-        return 'X\x00\x00\x00\x04'
+        return b'X\x00\x00\x00\x04'
 
 ##
 # Base class of all Authentication[*] messages.
@@ -427,12 +430,12 @@ class AuthenticationMD5Password(AuthenticationRequest):
     # Additional message data:
     #  Byte4 - Hash salt.
     def __init__(self, data):
-        self.salt = "".join(struct.unpack("4c", data))
+        self.salt = b"".join(struct.unpack("4c", data))
 
     def ok(self, conn, user, password=None, **kwargs):
         if password == None:
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
-        pwd = "md5" + md5.new(md5.new(password + user).hexdigest() + self.salt).hexdigest()
+        pwd = b"md5" + hashlib.md5(hashlib.md5(password.encode("ascii") + user.encode("ascii")).hexdigest().encode("ascii") + self.salt).hexdigest().encode("ascii")
         conn._send(PasswordMessage(pwd))
 
         reader = MessageReader(conn)
@@ -467,8 +470,8 @@ class ParameterStatus(object):
     # String - Runtime parameter name.
     # String - Runtime parameter value.
     def createFromData(data):
-        key = data[:data.find("\x00")]
-        value = data[data.find("\x00")+1:-1]
+        key = data[:data.find(b"\x00")]
+        value = data[data.find(b"\x00")+1:-1]
         return ParameterStatus(key, value)
     createFromData = staticmethod(createFromData)
 
@@ -569,7 +572,7 @@ class ReadyForQuery(object):
 
     def __repr__(self):
         return "<ReadyForQuery %s>" % \
-                {"I": "Idle", "T": "Idle in Transaction", "E": "Idle in Failed Transaction"}[self.status]
+                {b"I": "Idle", b"T": "Idle in Transaction", b"E": "Idle in Failed Transaction"}[self.status]
 
     # Byte1('Z') - Identifier.
     # Int32(5) - Message length, including self.
@@ -606,22 +609,22 @@ class ReadyForQuery(object):
 # hasattr before accessing.
 class NoticeResponse(object):
     responseKeys = {
-        "S": "severity",  # always present
-        "C": "code",      # always present
-        "M": "msg",       # always present
-        "D": "detail",
-        "H": "hint",
-        "P": "position",
-        "p": "_position",
-        "q": "_query",
-        "W": "where",
-        "F": "file",
-        "L": "line",
-        "R": "routine",
+        b"S": "severity",  # always present
+        b"C": "code",      # always present
+        b"M": "msg",       # always present
+        b"D": "detail",
+        b"H": "hint",
+        b"P": "position",
+        b"p": "_position",
+        b"q": "_query",
+        b"W": "where",
+        b"F": "file",
+        b"L": "line",
+        b"R": "routine",
     }
 
     def __init__(self, **kwargs):
-        for arg, value in kwargs.items():
+        for arg, value in list(kwargs.items()):
             setattr(self, arg, value)
 
     def __repr__(self):
@@ -629,9 +632,9 @@ class NoticeResponse(object):
 
     def dataIntoDict(data):
         retval = {}
-        for s in data.split("\x00"):
+        for s in data.split(b"\x00"):
             if not s: continue
-            key, value = s[0], s[1:]
+            key, value = s[0:1], s[1:]
             key = NoticeResponse.responseKeys.get(key, key)
             retval[key] = value
         return retval
@@ -656,7 +659,7 @@ class NoticeResponse(object):
 # hasattr before accessing.
 class ErrorResponse(object):
     def __init__(self, **kwargs):
-        for arg, value in kwargs.items():
+        for arg, value in list(kwargs.items()):
             setattr(self, arg, value)
 
     def __repr__(self):
@@ -706,10 +709,10 @@ class NotificationResponse(object):
     def createFromData(data):
         backend_pid = struct.unpack("!i", data[:4])[0]
         data = data[4:]
-        null = data.find("\x00")
-        condition = data[:null]
+        null = data.find(b"\x00")
+        condition = data[:null].decode("ascii")
         data = data[null+1:]
-        null = data.find("\x00")
+        null = data.find(b"\x00")
         additional_info = data[:null]
         return NotificationResponse(backend_pid, condition, additional_info)
     createFromData = staticmethod(createFromData)
@@ -734,7 +737,7 @@ class RowDescription(object):
         data = data[2:]
         fields = []
         for i in range(count):
-            null = data.find("\x00")
+            null = data.find(b"\x00")
             field = {"name": data[:null]}
             data = data[null+1:]
             field["table_oid"], field["column_attrnum"], field["type_oid"], field["type_size"], field["type_modifier"], field["format"] = struct.unpack("!ihihih", data[:18])
@@ -751,10 +754,10 @@ class CommandComplete(object):
         self.oid = oid
 
     def createFromData(data):
-        values = data[:-1].split(" ")
+        values = data[:-1].split(b" ")
         args = {}
         args['command'] = values[0]
-        if args['command'] in ("INSERT", "DELETE", "UPDATE", "MOVE", "FETCH", "COPY"):
+        if args['command'] in (b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY"):
             args['rows'] = int(values[-1])
             if args['command'] == "INSERT":
                 args['oid'] = int(values[1])
@@ -853,14 +856,14 @@ class MessageReader(object):
 
 def sync_on_error(fn):
     def _fn(self, *args, **kwargs):
-        try:
-            self._sock_lock.acquire()
-            return fn(self, *args, **kwargs)
-        except:
-            self._sync()
-            raise
-        finally:
-            self._sock_lock.release()
+        with self._sock_lock:
+            try:
+                return fn(self, *args, **kwargs)
+            except:
+                try:
+                    self._sync()
+                finally:
+                    raise
     return _fn
 
 class Connection(object):
@@ -883,7 +886,7 @@ class Connection(object):
         if ssl:
             self._send(SSLRequest())
             resp = self._sock.recv(1)
-            if resp == 'S':
+            if resp == b'S':
                 self._sock = SSLWrapper(socket.ssl(self._sock))
             else:
                 raise InterfaceError("server refuses SSL")
@@ -906,12 +909,12 @@ class Connection(object):
 
     def _send(self, msg):
         assert self._sock_lock.locked()
-        #print "_send(%r)" % msg
         data = msg.serialize()
+        #print("_send(%r, %s)" % (msg, repr(data)))
         self._sock.sendall(data)
 
     def _read_bytes(self, byte_count):
-        retval = ""
+        retval = b""
         while len(retval) < byte_count:
             tmp = self._sock.recv(byte_count - len(retval))
             retval += tmp
@@ -925,13 +928,12 @@ class Connection(object):
         bytes = self._read_bytes(data_len)
         assert len(bytes) == data_len
         msg = message_types[message_code].createFromData(bytes)
-        #print "_read_message() -> %r" % msg
+        #print("_read_message() -> %r" % msg)
         return msg
 
     def authenticate(self, user, **kwargs):
         self.verifyState("noauth")
-        self._sock_lock.acquire()
-        try:
+        with self._sock_lock:
             self._send(StartupMessage(user, database=kwargs.get("database",None)))
             msg = self._read_message()
             if not isinstance(msg, AuthenticationRequest):
@@ -945,10 +947,8 @@ class Connection(object):
             reader.add_message(ReadyForQuery, self._ready_for_query)
             reader.add_message(BackendKeyData, self._receive_backend_key_data)
             reader.handle_messages()
-        finally:
-            self._sock_lock.release()
 
-        self._cache_record_attnames()
+        #self._cache_record_attnames()
 
     def _ready_for_query(self, msg):
         self._state = "ready"
@@ -994,11 +994,11 @@ class Connection(object):
         reader = MessageReader(self)
 
         # ParseComplete is good.
-        reader.add_message(ParseComplete, lambda msg: 0)
+        reader.add_message(ParseComplete, lambda msg: False)
 
         # Well, we don't really care -- we're going to send whatever we
         # want and let the database deal with it.  But thanks anyways!
-        reader.add_message(ParameterDescription, lambda msg: 0)
+        reader.add_message(ParameterDescription, lambda msg: False)
 
         # We're not waiting for a row description.  Return something
         # destinctive to let bind know that there is no output.
@@ -1032,7 +1032,7 @@ class Connection(object):
         reader = MessageReader(self)
 
         # BindComplete is good -- just ignore
-        reader.add_message(BindComplete, lambda msg: 0)
+        reader.add_message(BindComplete, lambda msg: False)
 
         # NoData in this case means we're not executing a query.  As a
         # result, we won't be fetching rows, so we'll never execute the
@@ -1054,7 +1054,7 @@ class Connection(object):
         output = {}
         reader = MessageReader(self)
         reader.add_message(CommandComplete, lambda msg, out: out.setdefault('msg', msg) and False, output)
-        reader.add_message(ReadyForQuery, lambda msg: 1)
+        reader.add_message(ReadyForQuery, lambda msg: True)
         reader.delay_raising_exception = True
         reader.handle_messages()
 
@@ -1070,7 +1070,7 @@ class Connection(object):
 
         reader = MessageReader(self)
         reader.add_message(DataRow, self._fetch_datarow, rows, row_desc)
-        reader.add_message(PortalSuspended, lambda msg: 1)
+        reader.add_message(PortalSuspended, lambda msg: True)
         reader.add_message(CommandComplete, self._fetch_commandcomplete, portal)
         retval = reader.handle_messages()
 
@@ -1122,48 +1122,40 @@ class Connection(object):
         if self._state == "closed":
             return
         self.verifyState("ready")
-        self._sock_lock.acquire()
-        try:
+
+        with self._sock_lock:
             self._send(ClosePreparedStatement(statement))
             self._send(Sync())
 
             reader = MessageReader(self)
-            reader.add_message(CloseComplete, lambda msg: 0)
-            reader.add_message(ReadyForQuery, lambda msg: 1)
+            reader.add_message(CloseComplete, lambda msg: False)
+            reader.add_message(ReadyForQuery, lambda msg: True)
             reader.handle_messages()
-        finally:
-            self._sock_lock.release()
 
     def close_portal(self, portal):
         if self._state == "closed":
             return
         self.verifyState("ready")
-        self._sock_lock.acquire()
-        try:
+        with self._sock_lock:
             self._send(ClosePortal(portal))
             self._send(Sync())
 
             reader = MessageReader(self)
-            reader.add_message(CloseComplete, lambda msg: 0)
-            reader.add_message(ReadyForQuery, lambda msg: 1)
+            reader.add_message(CloseComplete, lambda msg: False)
+            reader.add_message(ReadyForQuery, lambda msg: True)
             reader.handle_messages()
-        finally:
-            self._sock_lock.release()
 
     def close(self):
-        self._sock_lock.acquire()
-        try:
+        with self._sock_lock:
             self._send(Terminate())
             self._sock.close()
             self._state = "closed"
-        finally:
-            self._sock_lock.release()
 
     def _onParameterStatusReceived(self, msg):
-        if msg.key == "client_encoding":
-            self._client_encoding = msg.value
-        elif msg.key == "integer_datetimes":
-            self._integer_datetimes = (msg.value == "on")
+        if msg.key == b"client_encoding":
+            self._client_encoding = msg.value.decode("ascii")
+        elif msg.key == b"integer_datetimes":
+            self._integer_datetimes = (msg.value == b"on")
 
     def handleNoticeResponse(self, msg):
         self.NoticeReceived(msg)
@@ -1175,22 +1167,22 @@ class Connection(object):
         self.NotificationReceived(msg)
 
 message_types = {
-    "N": NoticeResponse,
-    "R": AuthenticationRequest,
-    "S": ParameterStatus,
-    "K": BackendKeyData,
-    "Z": ReadyForQuery,
-    "T": RowDescription,
-    "E": ErrorResponse,
-    "D": DataRow,
-    "C": CommandComplete,
-    "1": ParseComplete,
-    "2": BindComplete,
-    "3": CloseComplete,
-    "s": PortalSuspended,
-    "n": NoData,
-    "t": ParameterDescription,
-    "A": NotificationResponse,
+    b"N"[0]: NoticeResponse,
+    b"R"[0]: AuthenticationRequest,
+    b"S"[0]: ParameterStatus,
+    b"K"[0]: BackendKeyData,
+    b"Z"[0]: ReadyForQuery,
+    b"T"[0]: RowDescription,
+    b"E"[0]: ErrorResponse,
+    b"D"[0]: DataRow,
+    b"C"[0]: CommandComplete,
+    b"1"[0]: ParseComplete,
+    b"2"[0]: BindComplete,
+    b"3"[0]: CloseComplete,
+    b"s"[0]: PortalSuspended,
+    b"n"[0]: NoData,
+    b"t"[0]: ParameterDescription,
+    b"A"[0]: NotificationResponse,
     }
 
 

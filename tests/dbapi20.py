@@ -174,8 +174,8 @@ class DatabaseAPI20Test(unittest.TestCase):
     def test_Exceptions(self):
         # Make sure required exceptions exist, and are in the
         # defined heirarchy.
-        self.failUnless(issubclass(self.driver.Warning,StandardError))
-        self.failUnless(issubclass(self.driver.Error,StandardError))
+        self.failUnless(issubclass(self.driver.Warning,Exception))
+        self.failUnless(issubclass(self.driver.Error,Exception))
         self.failUnless(
             issubclass(self.driver.InterfaceError,self.driver.Error)
             )
@@ -278,7 +278,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             self.assertEqual(len(cur.description[0]),7,
                 'cursor.description[x] tuples must have 7 elements'
                 )
-            self.assertEqual(cur.description[0][0].lower(),'name',
+            self.assertEqual(cur.description[0][0].lower(),b'name',
                 'cursor.description[x][0] must return column name'
                 )
             self.assertEqual(cur.description[0][1],self.driver.STRING,
@@ -703,7 +703,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             that returns two result sets, first the 
 	    number of rows in booze then "name from booze"
         '''
-        raise NotImplementedError,'Helper not implemented'
+        raise NotImplementedError('Helper not implemented')
         #sql="""
         #    create procedure deleteme as
         #    begin
@@ -715,7 +715,7 @@ class DatabaseAPI20Test(unittest.TestCase):
 
     def help_nextset_tearDown(self,cur):
         'If cleaning up is needed after nextSetTest'
-        raise NotImplementedError,'Helper not implemented'
+        raise NotImplementedError('Helper not implemented')
         #cur.execute("drop procedure deleteme")
 
     def test_nextset(self):
@@ -748,7 +748,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             con.close()
 
     def test_nextset(self):
-        raise NotImplementedError,'Drivers need to override this test'
+        raise NotImplementedError('Drivers need to override this test')
 
     def test_arraysize(self):
         # Not much here - rest of the tests for this are in test_fetchmany
@@ -783,7 +783,7 @@ class DatabaseAPI20Test(unittest.TestCase):
 
     def test_setoutputsize(self):
         # Real test for setoutputsize is driver dependant
-        raise NotImplementedError,'Driver need to override this test'
+        raise NotImplementedError('Driver need to override this test')
 
     def test_None(self):
         con = self._connect()
@@ -820,8 +820,8 @@ class DatabaseAPI20Test(unittest.TestCase):
         # self.assertEqual(str(t1),str(t2))
 
     def test_Binary(self):
-        b = self.driver.Binary('Something')
-        b = self.driver.Binary('')
+        b = self.driver.Binary(b'Something')
+        b = self.driver.Binary(b'')
 
     def test_STRING(self):
         self.failUnless(hasattr(self.driver,'STRING'),
