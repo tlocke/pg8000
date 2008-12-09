@@ -91,10 +91,33 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testIntRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", (100,))
-        retval = self.cursor.fetchall()
-        self.assert_(retval[0][0] == 100,
-                "retrieved value match failed")
+        int2 = 21
+        int4 = 23
+        int8 = 20
+        #numeric = 1700
+        test_values = [
+            (0, int2),
+            (-32767, int2),
+            (-32768, int4),
+            (+32767, int2),
+            (+32768, int4),
+            (-2147483647, int4),
+            (-2147483648, int8),
+            (+2147483647, int4),
+            (+2147483648, int8),
+            (-9223372036854775807, int8),
+            (+9223372036854775807, int8),
+            #(-9223372036854775808, numeric),
+            #(+9223372036854775808, numeric),
+        ]
+        for value, typoid in test_values:
+            self.cursor.execute("SELECT %s as f1", (value,))
+            retval = self.cursor.fetchall()
+            self.assert_(retval[0][0] == value,
+                    "retrieved value match failed")
+            column_name, column_typeoid, *junk = self.cursor.description[0]
+            self.assert_(column_typeoid == typoid,
+                    "type should be INT2[]")
 
     def testByteaRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", (dbapi.Binary(b"\x00\x01\x02\x03\x02\x01\x00"),))
@@ -317,11 +340,33 @@ class Tests(unittest.TestCase):
         self.assert_(f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]])
 
     def testIntArrayRoundtrip(self):
+        # send small int array, should be sent as INT2[]
         self.cursor.execute("SELECT %s as f1", ([1, 2, 3],))
         retval = self.cursor.fetchall()
         self.assert_(retval[0][0] == [1, 2, 3],
                 "retrieved value match failed")
+        column_name, column_typeoid, *junk = self.cursor.description[0]
+        self.assert_(column_typeoid == 1005,
+                "type should be INT2[]")
 
+        # a larger value should kick it up to INT4[]...
+        self.cursor.execute("SELECT %s as f1", ([70000, 2, 3],))
+        retval = self.cursor.fetchall()
+        self.assert_(retval[0][0] == [70000, 2, 3],
+                "retrieved value match failed")
+        column_name, column_typeoid, *junk = self.cursor.description[0]
+        self.assert_(column_typeoid == 1007,
+                "type should be INT4[]")
+
+        # a much larger value should kick it up to INT8[]...
+        self.cursor.execute("SELECT %s as f1", ([7000000000, 2, 3],))
+        retval = self.cursor.fetchall()
+        self.assert_(retval[0][0] == [7000000000, 2, 3],
+                "retrieved value match failed")
+        column_name, column_typeoid, *junk = self.cursor.description[0]
+        self.assert_(column_typeoid == 1016,
+                "type should be INT8[]")
+        
     def testIntArrayWithNullRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", ([1, None, 3],))
         retval = self.cursor.fetchall()
@@ -372,6 +417,8 @@ class Tests(unittest.TestCase):
         # support for the numeric format, which we don't have
         self.assertRaises(errors.ArrayContentNotSupportedError,
                 types.array_inspect, [[decimal.Decimal("1.1")],[None],[None]])
+        self.assertRaises(errors.ArrayContentNotSupportedError,
+                types.array_inspect, [[2 ** 65],[None],[None]])
 
     def testArrayDimensions(self):
         self.assertRaises(errors.ArrayDimensionsNotConsistentError,

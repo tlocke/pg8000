@@ -441,10 +441,10 @@ def array_inspect(value):
             if min_int2 < v < max_int2:
                 continue
             int2_ok = False
-            if min_int4 < value < max_int4:
+            if min_int4 < v < max_int4:
                 continue
             int4_ok = False
-            if min_int8 < value < max_int8:
+            if min_int8 < v < max_int8:
                 continue
             int8_ok = False
         if int2_ok:
