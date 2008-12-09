@@ -48,6 +48,9 @@ class DataIterator(object):
             raise StopIteration()
         return retval
 
+statement_number_lock = threading.Lock()
+statement_number = 0
+
 ##
 # This class represents a prepared statement.  A prepared statement is
 # pre-parsed on the server, which reduces the need to parse the query every
@@ -86,11 +89,15 @@ class PreparedStatement(object):
     row_cache_size = 100
 
     def __init__(self, connection, statement, *types, **kwargs):
+        global statement_number
         if connection == None or connection.c == None:
             raise InterfaceError("connection not provided")
+        with statement_number_lock:
+            self._statement_number = statement_number
+            statement_number += 1
         self.c = connection.c
         self._portal_name = None
-        self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s_%s" % (id(self.c), id(self)))
+        self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s" % self._statement_number)
         self._row_desc = None
         self._cached_rows = []
         self._ongoing_row_count = 0
@@ -129,7 +136,7 @@ class PreparedStatement(object):
             if self._portal_name != None:
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
-            self._portal_name = "pg8000_portal_%s_%s" % (id(self.c), id(self))
+            self._portal_name = "pg8000_portal_%s" % self._statement_number
             self._row_desc, cmd = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
             if self._row_desc:
                 # We execute our cursor right away to fill up our cache.  This
