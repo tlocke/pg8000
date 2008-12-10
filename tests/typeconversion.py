@@ -394,6 +394,10 @@ class Tests(unittest.TestCase):
         self.cursor.execute("SELECT '{a,b,c}'::NAME[] AS f1")
         self.assert_(self.cursor.fetchone()[0] == ["a", "b", "c"])
 
+    def testNumericArrayOut(self):
+        self.cursor.execute("SELECT '{1.1,2.2,3.3}'::numeric[] AS f1")
+        self.assert_(self.cursor.fetchone()[0] == [decimal.Decimal("1.1"), decimal.Decimal("2.2"), decimal.Decimal("3.3")])
+
     def testStringArrayRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", (["Hello!", "World!", None],))
         retval = self.cursor.fetchall()

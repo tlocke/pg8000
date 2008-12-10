@@ -613,7 +613,6 @@ py_types = {
 
 # py type -> pg array typeoid
 py_array_types = {
-    int: 1007,
     float: 1022,
     bool: 1000,
     str: 1009,      # TEXT[]
@@ -649,6 +648,7 @@ pg_types = {
     1114: {"bin_in": timestamp_recv},
     1184: {"bin_in": timestamptz_recv}, # timestamp w/ tz
     1186: {"bin_in": interval_recv},
+    1231: {"bin_in": array_recv}, # NUMERIC[]
     1263: {"bin_in": array_recv}, # cstring[]
     1700: {"bin_in": numeric_recv},
     2275: {"bin_in": varcharin}, # cstring
