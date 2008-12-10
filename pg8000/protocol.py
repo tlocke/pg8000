@@ -434,6 +434,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
         pwd = "md5" + md5.new(md5.new(password + user).hexdigest() + self.salt).hexdigest()
         conn._send(PasswordMessage(pwd))
+        conn._flush()
 
         reader = MessageReader(conn)
         reader.add_message(AuthenticationRequest, lambda msg, reader: reader.return_value(msg.ok(conn, user)), reader)
@@ -868,6 +869,8 @@ class Connection(object):
         self._client_encoding = "ascii"
         self._integer_datetimes = False
         self._record_field_names = {}
+        self._sock_buf = ""
+        self._send_sock_buf = ""
         if unix_sock == None and host != None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
@@ -882,6 +885,7 @@ class Connection(object):
             self._sock.connect(unix_sock)
         if ssl:
             self._send(SSLRequest())
+            self._flush()
             resp = self._sock.recv(1)
             if resp == 'S':
                 self._sock = SSLWrapper(socket.ssl(self._sock))
@@ -908,13 +912,21 @@ class Connection(object):
         assert self._sock_lock.locked()
         #print "_send(%r)" % msg
         data = msg.serialize()
-        self._sock.sendall(data)
+        self._send_sock_buf += data
+    
+    def _flush(self):
+        assert self._sock_lock.locked()
+        self._sock.sendall(self._send_sock_buf)
+        self._send_sock_buf = ""
 
     def _read_bytes(self, byte_count):
         retval = ""
         while len(retval) < byte_count:
-            tmp = self._sock.recv(byte_count - len(retval))
-            retval += tmp
+            if len(self._sock_buf) == 0:
+                self._sock_buf = self._sock.recv(4096)
+            addt_data = self._sock_buf[0:min(len(self._sock_buf), (byte_count - len(retval)))]
+            self._sock_buf = self._sock_buf[len(addt_data):]
+            retval += addt_data
         return retval
 
     def _read_message(self):
@@ -933,6 +945,7 @@ class Connection(object):
         self._sock_lock.acquire()
         try:
             self._send(StartupMessage(user, database=kwargs.get("database",None)))
+            self._flush()
             msg = self._read_message()
             if not isinstance(msg, AuthenticationRequest):
                 raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
@@ -990,6 +1003,7 @@ class Connection(object):
         self._send(Parse(statement, qs, param_types))
         self._send(DescribePreparedStatement(statement))
         self._send(Flush())
+        self._flush()
 
         reader = MessageReader(self)
 
@@ -1027,6 +1041,7 @@ class Connection(object):
         # requested).
         self._send(DescribePortal(portal))
         self._send(Flush())
+        self._flush()
 
         # Read responses from server...
         reader = MessageReader(self)
@@ -1050,6 +1065,7 @@ class Connection(object):
         # Bind message returned NoData, causing us to execute the command.
         self._send(Execute(portal, 0))
         self._send(Sync())
+        self._flush()
 
         output = {}
         reader = MessageReader(self)
@@ -1066,6 +1082,7 @@ class Connection(object):
 
         self._send(Execute(portal, row_count))
         self._send(Flush())
+        self._flush()
         rows = []
 
         reader = MessageReader(self)
@@ -1095,6 +1112,7 @@ class Connection(object):
     def _fetch_commandcomplete(self, msg, portal):
         self._send(ClosePortal(portal))
         self._send(Sync())
+        self._flush()
 
         reader = MessageReader(self)
         reader.add_message(ReadyForQuery, self._fetch_commandcomplete_rfq)
@@ -1113,6 +1131,7 @@ class Connection(object):
         # it is assumed _sync is called from sync_on_error, which holds
         # a _sock_lock throughout the call
         self._send(Sync())
+        self._flush()
         reader = MessageReader(self)
         reader.ignore_unhandled_messages = True
         reader.add_message(ReadyForQuery, lambda msg: True)
@@ -1126,6 +1145,7 @@ class Connection(object):
         try:
             self._send(ClosePreparedStatement(statement))
             self._send(Sync())
+            self._flush()
 
             reader = MessageReader(self)
             reader.add_message(CloseComplete, lambda msg: 0)
@@ -1142,6 +1162,7 @@ class Connection(object):
         try:
             self._send(ClosePortal(portal))
             self._send(Sync())
+            self._flush()
 
             reader = MessageReader(self)
             reader.add_message(CloseComplete, lambda msg: 0)
@@ -1154,6 +1175,7 @@ class Connection(object):
         self._sock_lock.acquire()
         try:
             self._send(Terminate())
+            self._flush()
             self._sock.close()
             self._state = "closed"
         finally:
