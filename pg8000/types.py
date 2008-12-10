@@ -53,10 +53,38 @@ class Bytea(str):
     pass
 
 class Interval(object):
-    def __init__(self, microseconds, days, months):
+    def __init__(self, microseconds=0, days=0, months=0):
         self.microseconds = microseconds
         self.days = days
         self.months = months
+
+    def _setMicroseconds(self, value):
+        if not isinstance(value, int) and not isinstance(value, long):
+            raise TypeError("microseconds must be an int or long")
+        elif not (min_int8 < value < max_int8):
+            raise OverflowError("microseconds must be representable as a 64-bit integer")
+        else:
+            self._microseconds = value
+
+    def _setDays(self, value):
+        if not isinstance(value, int) and not isinstance(value, long):
+            raise TypeError("days must be an int or long")
+        elif not (min_int4 < value < max_int4):
+            raise OverflowError("days must be representable as a 32-bit integer")
+        else:
+            self._days = value
+
+    def _setMonths(self, value):
+        if not isinstance(value, int) and not isinstance(value, long):
+            raise TypeError("months must be an int or long")
+        elif not (min_int4 < value < max_int4):
+            raise OverflowError("months must be representable as a 32-bit integer")
+        else:
+            self._months = value
+
+    microseconds = property(lambda self: self._microseconds, _setMicroseconds)
+    days = property(lambda self: self._days, _setDays)
+    months = property(lambda self: self._months, _setMonths)
 
     def __repr__(self):
         return "<Interval %s months %s days %s microseconds>" % (self.months, self.days, self.microseconds)
