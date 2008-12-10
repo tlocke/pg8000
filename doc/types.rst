@@ -73,22 +73,23 @@ pg8000 Type Classes
 
         The microseconds attribute should typically be less than the number of
         microseconds in a day, but there is no restriction ensuring this.
-        However, a value excessively large (greater than 2^64) may not be
-        transmittable to the PostgreSQL server.
+        However, the microseconds value is constrained to fit into a signed
+        64-bit integer.  Any attempt to set a value too large or too small
+        will result in an OverflowError being raised.
 
     .. attribute:: days
 
         Measure of days in the interval.
 
-        The days value is stored on the PostgreSQL server as a 4-byte integer,
-        so setting the value to greater than 2^32 may not be transmittable to
-        the server.
+        The days value is constrained to fit into a signed 32-bit integer.
+        Any attempt to set a value too large or too small will result in an
+        OverflowError being raised.
 
     .. attribute:: months
 
         Measure of months in the interval.
 
-        The months value is stored on the PostgreSQL server as a 4-byte
-        integer, so setting the value to greater than 2^32 may not be
-        transmittable to the server.
+        The months value is constrained to fit into a signed 32-bit integer.
+        Any attempt to set a value too large or too small will result in an
+        OverflowError being raised.
 
