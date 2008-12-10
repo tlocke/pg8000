@@ -567,7 +567,6 @@ py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},
     int: {"inspect": int_inspect},
     str: {"typeoid": 25, "bin_out": textout},
-    str: {"typeoid": 25, "bin_out": textout},
     float: {"typeoid": 701, "bin_out": float8send},
     decimal.Decimal: {"typeoid": 1700, "txt_out": numeric_out},
     Bytea: {"typeoid": 17, "bin_out": byteasend},
