@@ -16,8 +16,7 @@ class Tests(unittest.TestCase):
 
     def testNotify(self):
         self._notify = None
-        try:
-            db = pg8000.Connection(**db_connect)
+        with closing(pg8000.Connection(**db_connect)) as db:
             db.NotificationReceived += self._notifyReceived
             try:
                 db.execute("LISTEN test")
@@ -28,8 +27,6 @@ class Tests(unittest.TestCase):
             finally:
                 db.NotificationReceived -= self._notifyReceived
                 del self._notify
-        finally:
-            db.close()
 
     def _notifyReceived(self, msg):
         self._notify = msg
