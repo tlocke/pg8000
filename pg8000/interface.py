@@ -257,11 +257,6 @@ class PreparedStatement(object):
     def iterate_dict(self):
         return DataIterator(self, PreparedStatement.read_dict)
 
-    def close(self):
-        if self._stmt != None:
-            self._stmt.close()
-            self._stmt = None
-
 ##
 # The Cursor class allows multiple queries to be performed concurrently with a
 # single PostgreSQL connection.  The Cursor object is implemented internally by
@@ -362,6 +357,11 @@ class Cursor(object):
     @require_stmt
     def iterate_dict(self):
         return self._stmt.iterate_dict()
+
+    def close(self):
+        if self._stmt != None:
+            self._stmt.close()
+            self._stmt = None
 
 ##
 # This class represents a connection to a PostgreSQL database.

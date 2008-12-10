@@ -1,6 +1,7 @@
 import unittest
 import pg8000
-from connection_settings import db_connect
+from contextlib import closing
+from .connection_settings import db_connect
 
 # Tests related to connecting to a database.
 class Tests(unittest.TestCase):
@@ -15,17 +16,20 @@ class Tests(unittest.TestCase):
 
     def testNotify(self):
         self._notify = None
-        db = pg8000.Connection(**db_connect)
-        db.NotificationReceived += self._notifyReceived
         try:
-            db.execute("LISTEN test")
-            db.execute("NOTIFY test")
-            db.execute("VALUES (1, 2), (3, 4), (5, 6)")
-            self.assert_(self._notify != None)
-            self.assertEquals("test", self._notify.condition)
+            db = pg8000.Connection(**db_connect)
+            db.NotificationReceived += self._notifyReceived
+            try:
+                db.execute("LISTEN test")
+                db.execute("NOTIFY test")
+                db.execute("VALUES (1, 2), (3, 4), (5, 6)")
+                self.assert_(self._notify != None)
+                self.assertEquals("test", self._notify.condition)
+            finally:
+                db.NotificationReceived -= self._notifyReceived
+                del self._notify
         finally:
-            db.NotificationReceived -= self._notifyReceived
-            del self._notify
+            db.close()
 
     def _notifyReceived(self, msg):
         self._notify = msg

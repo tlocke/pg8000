@@ -429,19 +429,54 @@ def array_inspect(value):
 
     # supported array output
     typ = type(first_element)
-    array_typeoid = py_array_types.get(typ)
-    if array_typeoid == None:
-        raise ArrayContentNotSupportedError("type %r not supported as array contents" % typ)
+    if issubclass(typ, int) or issubclass(typ, long):
+        # special int array support -- send as smallest possible array type
+        special_int_support = True
+        int2_ok, int4_ok, int8_ok = True, True, True
+        for v in array_flatten(value):
+            if v == None:
+                continue
+            if min_int2 < v < max_int2:
+                continue
+            int2_ok = False
+            if min_int4 < v < max_int4:
+                continue
+            int4_ok = False
+            if min_int8 < v < max_int8:
+                continue
+            int8_ok = False
+        if int2_ok:
+            array_typeoid = 1005 # INT2[]
+        elif int4_ok:
+            array_typeoid = 1007 # INT4[]
+        elif int8_ok:
+            array_typeoid = 1016 # INT8[]
+        else:
+            raise ArrayContentNotSupportedError("numeric not supported as array contents")
+    else:
+        special_int_support = False
+        array_typeoid = py_array_types.get(typ)
+        if array_typeoid == None:
+            raise ArrayContentNotSupportedError("type %r not supported as array contents" % typ)
 
     # check for homogenous array
     for v in array_flatten(value):
-        if v != None and not isinstance(v, typ):
+        if v != None and not (isinstance(v, typ) or (typ == long and isinstance(v, int)) or (typ == int and isinstance(v, long))):
             raise ArrayContentNotHomogenousError("not all array elements are of type %r" % typ)
 
     # check that all array dimensions are consistent
     array_check_dimensions(value)
 
     type_data = py_types[typ]
+    if special_int_support:
+        if array_typeoid == 1005:
+            type_data = {"typeoid": 21, "bin_out": int2send}
+        elif array_typeoid == 1007:
+            type_data = {"typeoid": 23, "bin_out": int4send}
+        elif array_typeoid == 1016:
+            type_data = {"typeoid": 20, "bin_out": int8send}
+    else:
+        type_data = py_types[typ]
     return {
         "typeoid": array_typeoid,
         "bin_out": array_send(type_data["typeoid"], type_data["bin_out"])
