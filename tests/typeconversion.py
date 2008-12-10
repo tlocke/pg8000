@@ -55,10 +55,11 @@ class Tests(unittest.TestCase):
                 "SELECT %s as f1", (None,))
 
     def testDecimalRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", (decimal.Decimal('1.1'),))
-        retval = self.cursor.fetchall()
-        self.assert_(retval[0][0] == decimal.Decimal('1.1'),
-                "retrieved value match failed")
+        values = "1.1", "-1.1", "10000", "20000", "-1000000000.123456789"
+        for v in values:
+            self.cursor.execute("SELECT %s as f1", (decimal.Decimal(v),))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], decimal.Decimal(v))
 
     def testFloatRoundtrip(self):
         # This test ensures that the binary float value doesn't change in a
@@ -398,6 +399,13 @@ class Tests(unittest.TestCase):
         self.cursor.execute("SELECT '{1.1,2.2,3.3}'::numeric[] AS f1")
         self.assert_(self.cursor.fetchone()[0] == [decimal.Decimal("1.1"), decimal.Decimal("2.2"), decimal.Decimal("3.3")])
 
+    def testNumericArrayRoundtrip(self):
+        v = [decimal.Decimal("1.1"), None, decimal.Decimal("3.3")]
+        self.cursor.execute("SELECT %s as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assert_(retval[0][0] == v,
+                "retrieved value match failed")
+
     def testStringArrayRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", (["Hello!", "World!", None],))
         retval = self.cursor.fetchall()
@@ -414,12 +422,10 @@ class Tests(unittest.TestCase):
                 types.array_inspect, [[None],[None],[None]])
 
     def testArrayContentNotSupported(self):
-        # someday we might support numeric arrays, but we'd need binary
-        # support for the numeric format, which we don't have
+        class Kajigger(object):
+            pass
         self.assertRaises(errors.ArrayContentNotSupportedError,
-                types.array_inspect, [[decimal.Decimal("1.1")],[None],[None]])
-        self.assertRaises(errors.ArrayContentNotSupportedError,
-                types.array_inspect, [[2 ** 65],[None],[None]])
+                types.array_inspect, [[Kajigger()],[None],[None]])
 
     def testArrayDimensions(self):
         self.assertRaises(errors.ArrayDimensionsNotConsistentError,

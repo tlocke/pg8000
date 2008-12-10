@@ -32,6 +32,7 @@ __author__ = "Mathieu Fenniak"
 import datetime
 import decimal
 import struct
+import math
 from errors import (NotSupportedError, ArrayDataParseError, InternalError,
         ArrayContentEmptyError, ArrayContentNotHomogenousError,
         ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError)
@@ -216,7 +217,7 @@ def int_inspect(value):
     elif min_int8 < value < max_int8:
         return {"typeoid": 20, "bin_out": int8send}
     else:
-        return {"typeoid": 1700, "txt_out": numeric_out}
+        return {"typeoid": 1700, "bin_out": numeric_send}
 
 def int2recv(data, **kwargs):
     return struct.unpack("!h", data)[0]
@@ -318,6 +319,25 @@ def numeric_recv(data, **kwargs):
         d = decimal.Decimal(d)
         retval += d * (10000 ** weight)
         weight -= 1
+    if sign:
+        retval *= -1
+    return retval
+
+def numeric_send(v, **kwargs):
+    sign = 0
+    if v < 0:
+        sign = 16384
+        v *= -1
+    max_weight = decimal.Decimal(int(math.floor(math.log(v) / math.log(10000))))
+    weight = max_weight
+    digits = []
+    while v != 0:
+        digit = int(math.floor(v / (10000 ** weight)))
+        v = v - (digit * (10000 ** weight))
+        weight -= 1
+        digits.append(digit)
+    retval = struct.pack("!hhhh", len(digits), max_weight, sign, 0)
+    retval += struct.pack("!" + ("h" * len(digits)), *digits)
     return retval
 
 def numeric_out(v, **kwargs):
@@ -601,7 +621,7 @@ py_types = {
     str: {"typeoid": 25, "bin_out": textout},
     unicode: {"typeoid": 25, "bin_out": textout},
     float: {"typeoid": 701, "bin_out": float8send},
-    decimal.Decimal: {"typeoid": 1700, "txt_out": numeric_out},
+    decimal.Decimal: {"typeoid": 1700, "bin_out": numeric_send},
     Bytea: {"typeoid": 17, "bin_out": byteasend},
     datetime.datetime: {"typeoid": 1114, "bin_out": timestamp_send, "inspect": datetime_inspect},
     datetime.date: {"typeoid": 1082, "txt_out": date_out},
@@ -617,6 +637,7 @@ py_array_types = {
     bool: 1000,
     str: 1009,      # TEXT[]
     unicode: 1009,  # TEXT[]
+    decimal.Decimal: 1231, # NUMERIC[]
 }
 
 pg_types = {
