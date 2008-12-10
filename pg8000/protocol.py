@@ -870,7 +870,8 @@ class Connection(object):
         self._integer_datetimes = False
         self._record_field_names = {}
         self._sock_buf = ""
-        self._send_sock_buf = ""
+        self._sock_buf_pos = 0
+        self._send_sock_buf = []
         if unix_sock == None and host != None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
@@ -912,22 +913,27 @@ class Connection(object):
         assert self._sock_lock.locked()
         #print "_send(%r)" % msg
         data = msg.serialize()
-        self._send_sock_buf += data
+        self._send_sock_buf.append(data)
     
     def _flush(self):
         assert self._sock_lock.locked()
-        self._sock.sendall(self._send_sock_buf)
-        self._send_sock_buf = ""
+        self._sock.sendall("".join(self._send_sock_buf))
+        del self._send_sock_buf[:]
 
     def _read_bytes(self, byte_count):
-        retval = ""
-        while len(retval) < byte_count:
-            if len(self._sock_buf) == 0:
-                self._sock_buf = self._sock.recv(4096)
-            addt_data = self._sock_buf[0:min(len(self._sock_buf), (byte_count - len(retval)))]
-            self._sock_buf = self._sock_buf[len(addt_data):]
-            retval += addt_data
-        return retval
+        retval = []
+        bytes_read = 0
+        while bytes_read < byte_count:
+            if self._sock_buf_pos == len(self._sock_buf):
+                self._sock_buf = self._sock.recv(1024)
+                self._sock_buf_pos = 0
+            rpos = min(len(self._sock_buf), self._sock_buf_pos + (byte_count - bytes_read))
+            addt_data = self._sock_buf[self._sock_buf_pos:rpos]
+            bytes_read += (rpos - self._sock_buf_pos)
+            assert bytes_read <= byte_count
+            self._sock_buf_pos = rpos
+            retval.append(addt_data)
+        return "".join(retval)
 
     def _read_message(self):
         assert self._sock_lock.locked()
