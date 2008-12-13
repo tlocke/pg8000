@@ -32,6 +32,7 @@ __author__ = "Mathieu Fenniak"
 import datetime
 import decimal
 import struct
+import math
 from .errors import (NotSupportedError, ArrayDataParseError, InternalError,
         ArrayContentEmptyError, ArrayContentNotHomogenousError,
         ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError)
@@ -53,10 +54,38 @@ class Bytea(bytes):
     pass
 
 class Interval(object):
-    def __init__(self, microseconds, days, months):
+    def __init__(self, microseconds=0, days=0, months=0):
         self.microseconds = microseconds
         self.days = days
         self.months = months
+
+    def _setMicroseconds(self, value):
+        if not isinstance(value, int) and not isinstance(value, long):
+            raise TypeError("microseconds must be an int or long")
+        elif not (min_int8 < value < max_int8):
+            raise OverflowError("microseconds must be representable as a 64-bit integer")
+        else:
+            self._microseconds = value
+
+    def _setDays(self, value):
+        if not isinstance(value, int) and not isinstance(value, long):
+            raise TypeError("days must be an int or long")
+        elif not (min_int4 < value < max_int4):
+            raise OverflowError("days must be representable as a 32-bit integer")
+        else:
+            self._days = value
+
+    def _setMonths(self, value):
+        if not isinstance(value, int) and not isinstance(value, long):
+            raise TypeError("months must be an int or long")
+        elif not (min_int4 < value < max_int4):
+            raise OverflowError("months must be representable as a 32-bit integer")
+        else:
+            self._months = value
+
+    microseconds = property(lambda self: self._microseconds, _setMicroseconds)
+    days = property(lambda self: self._days, _setDays)
+    months = property(lambda self: self._months, _setMonths)
 
     def __repr__(self):
         return "<Interval %s months %s days %s microseconds>" % (self.months, self.days, self.microseconds)
@@ -187,7 +216,7 @@ def int_inspect(value):
     elif min_int8 < value < max_int8:
         return {"typeoid": 20, "bin_out": int8send}
     else:
-        return {"typeoid": 1700, "txt_out": numeric_out}
+        return {"typeoid": 1700, "bin_out": numeric_send}
 
 def int2recv(data, **kwargs):
     return struct.unpack("!h", data)[0]
@@ -289,6 +318,25 @@ def numeric_recv(data, **kwargs):
         d = decimal.Decimal(d)
         retval += d * (10000 ** weight)
         weight -= 1
+    if sign:
+        retval *= -1
+    return retval
+
+def numeric_send(v, **kwargs):
+    sign = 0
+    if v < 0:
+        sign = 16384
+        v *= -1
+    max_weight = decimal.Decimal(int(math.floor(math.log(v) / math.log(10000))))
+    weight = max_weight
+    digits = []
+    while v != 0:
+        digit = int(math.floor(v / (10000 ** weight)))
+        v = v - (digit * (10000 ** weight))
+        weight -= 1
+        digits.append(digit)
+    retval = struct.pack("!hhhh", len(digits), max_weight, sign, 0)
+    retval += struct.pack("!" + ("h" * len(digits)), *digits)
     return retval
 
 def numeric_out(v, **kwargs):
@@ -567,9 +615,8 @@ py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},
     int: {"inspect": int_inspect},
     str: {"typeoid": 25, "bin_out": textout},
-    str: {"typeoid": 25, "bin_out": textout},
     float: {"typeoid": 701, "bin_out": float8send},
-    decimal.Decimal: {"typeoid": 1700, "txt_out": numeric_out},
+    decimal.Decimal: {"typeoid": 1700, "bin_out": numeric_send},
     Bytea: {"typeoid": 17, "bin_out": byteasend},
     datetime.datetime: {"typeoid": 1114, "bin_out": timestamp_send, "inspect": datetime_inspect},
     datetime.date: {"typeoid": 1082, "txt_out": date_out},
@@ -585,6 +632,7 @@ py_array_types = {
     bool: 1000,
     str: 1009,      # TEXT[]
     str: 1009,  # TEXT[]
+    decimal.Decimal: 1231, # NUMERIC[]
 }
 
 pg_types = {
@@ -616,6 +664,7 @@ pg_types = {
     1114: {"bin_in": timestamp_recv},
     1184: {"bin_in": timestamptz_recv}, # timestamp w/ tz
     1186: {"bin_in": interval_recv},
+    1231: {"bin_in": array_recv}, # NUMERIC[]
     1263: {"bin_in": array_recv}, # cstring[]
     1700: {"bin_in": numeric_recv},
     2275: {"bin_in": varcharin}, # cstring
