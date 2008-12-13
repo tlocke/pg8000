@@ -29,6 +29,8 @@ setup(
             "Intended Audience :: Developers",
             "License :: OSI Approved :: BSD License",
             "Programming Language :: Python",
+            "Programming Language :: Python :: 2.5",
+            "Programming Language :: Python :: 2.6",
             "Operating System :: OS Independent",
             "Topic :: Database :: Front-Ends",
             "Topic :: Software Development :: Libraries :: Python Modules",
