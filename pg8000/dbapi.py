@@ -395,6 +395,11 @@ class CursorWrapper(object):
     def setoutputsize(self, size, column=None):
         pass
 
+    def fileno(self):
+        return self.cursor.fileno()
+    
+    def isready(self):
+        return self.cursor.isready()
 
 ##
 # The class of object returned by the {@link #connect connect method}.
@@ -416,7 +421,13 @@ class ConnectionWrapper(object):
 
     def __init__(self, **kwargs):
         self.conn = interface.Connection(**kwargs)
+        self.notifies = []
+        self.conn.NotificationReceived += self._notificationReceived
         self.conn.begin()
+
+    def _notificationReceived(self, notice):
+        # psycopg2 compatible notification interface
+        self.notifies.append((notice.backend_pid, notice.condition))
 
     ##
     # Creates a {@link #CursorWrapper CursorWrapper} object bound to this

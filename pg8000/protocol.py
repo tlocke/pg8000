@@ -30,6 +30,7 @@
 __author__ = "Mathieu Fenniak"
 
 import socket
+import select
 import threading
 import struct
 import md5
@@ -1201,6 +1202,22 @@ class Connection(object):
 
     def handleNotificationResponse(self, msg):
         self.NotificationReceived(msg)
+
+    def fileno(self):
+        # This should be safe to do without a lock
+        return self._sock.fileno()
+    
+    def isready(self):
+        self._sock_lock.acquire()
+        try:
+            rlst, _wlst, _xlst = select.select([self], [], [], 0)
+            if not rlst:
+                return False
+                
+            self._sync()
+            return True
+        finally:
+            self._sock_lock.release()
 
 message_types = {
     "N": NoticeResponse,

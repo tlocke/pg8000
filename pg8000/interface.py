@@ -363,6 +363,24 @@ class Cursor(object):
             self._stmt.close()
             self._stmt = None
 
+
+    ##
+    # Return the fileno of the underlying socket for this cursor's connection.
+    # <p>
+    # Stability: Added in v1.07, stability guaranteed for v1.xx.
+    def fileno(self):
+        return self.connection.fileno()
+
+    ##
+    # Poll the underlying socket for this cursor and sync if there is data waiting
+    # to be read. This has the effect of flushing asynchronous messages from the
+    # backend. Returns True if messages were read, False otherwise.
+    # <p>
+    # Stability: Added in v1.07, stability guaranteed for v1.xx.
+    def isready(self):
+        return self.connection.isready()
+    
+
 ##
 # This class represents a connection to a PostgreSQL database.
 # <p>
@@ -505,3 +523,19 @@ class Connection(Cursor):
     def recache_record_types(self):
         self.c._cache_record_attnames()
 
+    ##
+    # Return the fileno of the underlying socket for this connection.
+    # <p>
+    # Stability: Added in v1.07, stability guaranteed for v1.xx.
+    def fileno(self):
+        return self.c.fileno()
+
+    ##
+    # Poll the underlying socket for this connection and sync if there is data
+    # waiting to be read. This has the effect of flushing asynchronous
+    # messages from the backend. Returns True if messages were read, False
+    # otherwise.
+    # <p>
+    # Stability: Added in v1.07, stability guaranteed for v1.xx.
+    def isready(self):
+        return self.c.isready()
