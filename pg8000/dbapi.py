@@ -315,6 +315,34 @@ class CursorWrapper(object):
             self._connection.rollback()
             raise
 
+    def copy_from(self, fileobj, table, sep='\t', null=None):
+        q = "COPY %s FROM stdout DELIMITER '%s'" % (table, sep)
+        if null is not None:
+            q += " NULL '%s'" % (null,)
+        self.copy_execute(fileobj, q)
+
+    def copy_to(self, fileobj, table, sep='\t', null=None):
+        q = "COPY %s TO stdout DELIMITER '%s'" % (table, sep)
+        if null is not None:
+            q += " NULL '%s'" % (null,)
+        self.copy_execute(fileobj, q)
+    
+    def copy_execute(self, fileobj, operation, args=()):
+        if self.cursor == None:
+            raise InterfaceError("cursor is closed")
+        new_query, new_args = convert_paramstyle(paramstyle, operation, args)
+        try:
+            self.cursor.copy_execute(fileobj, new_query, *new_args)
+        except ConnectionClosedError:
+            # can't rollback in this case
+            raise
+        except:
+            # any error will rollback the transaction to-date
+            import traceback; traceback.print_exc()
+            self._connection.rollback()
+            raise
+
+
     ##
     # Prepare a database operation and then execute it against all parameter
     # sequences or mappings provided.

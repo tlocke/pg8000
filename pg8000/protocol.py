@@ -745,7 +745,6 @@ class RowDescription(object):
         return RowDescription(fields)
     createFromData = staticmethod(createFromData)
 
-
 class CommandComplete(object):
     def __init__(self, command, rows=None, oid=None):
         self.command = command
@@ -785,6 +784,65 @@ class DataRow(object):
         return DataRow(fields)
     createFromData = staticmethod(createFromData)
 
+
+class CopyData(object):
+    # "d": CopyData,
+    def __init__(self, data):
+        self.data = data
+
+    def createFromData(data):
+        return CopyData(data)
+    createFromData = staticmethod(createFromData)
+    
+    def serialize(self):
+        return 'd' + struct.pack('!i', len(self.data) + 4) + self.data
+
+
+class CopyDone(object):
+    # Byte1('c') - Identifier.
+    # Int32(4) - Message length, including self.
+
+    def createFromData(data):
+        return CopyDone()
+
+    createFromData = staticmethod(createFromData)
+    
+    def serialize(self):
+        return 'c\x00\x00\x00\x04'
+
+class CopyOutResponse(object):
+    # Byte1('H')
+    # Int32(4) - Length of message contents in bytes, including self.
+    # Int8(1) - 0 textual, 1 binary
+    # Int16(2) - Number of columns
+    # Int16(N) - Format codes for each column (0 text, 1 binary)
+
+    def __init__(self, is_binary, column_formats):
+        self.is_binary = is_binary
+        self.column_formats = column_formats
+    
+    def createFromData(data):
+        is_binary, num_cols = struct.unpack('!bh', data[:3])
+        column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
+        return CopyOutResponse(is_binary, column_formats)
+
+    createFromData = staticmethod(createFromData)
+
+
+class CopyInResponse(object):
+    # Byte1('G')
+    # Otherwise the same as CopyOutResponse
+    
+    def __init__(self, is_binary, column_formats):
+        self.is_binary = is_binary
+        self.column_formats = column_formats
+    
+    def createFromData(data):
+        is_binary, num_cols = struct.unpack('!bh', data[:3])
+        column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
+        return CopyInResponse(is_binary, column_formats)
+
+    createFromData = staticmethod(createFromData)
 
 class SSLWrapper(object):
     def __init__(self, sslobj):
@@ -873,6 +931,7 @@ class Connection(object):
         self._sock_buf = ""
         self._sock_buf_pos = 0
         self._send_sock_buf = []
+        self._block_size = 8192
         if unix_sock == None and host != None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
@@ -1068,6 +1127,77 @@ class Connection(object):
 
         return reader.handle_messages()
 
+    @sync_on_error
+    def copy_bind(self, fileobj, portal, statement, params, parse_data):
+        self.verifyState("ready")
+
+        row_desc, param_fc = parse_data
+        if row_desc == None:
+            # no data coming out
+            output_fc = ()
+        else:
+            # We've got row_desc that allows us to identify what we're going to
+            # get back from this statement.
+            output_fc = [types.py_type_info(f, self._record_field_names) for f in row_desc.fields]
+        self._send(Bind(portal, statement, param_fc, params, output_fc, client_encoding = self._client_encoding, integer_datetimes = self._integer_datetimes))
+        # We need to describe the portal after bind, since the return
+        # format codes will be different (hopefully, always what we
+        # requested).
+        self._send(DescribePortal(portal))
+        self._send(Flush())
+        self._flush()
+
+        # Read responses from server...
+        reader = MessageReader(self)
+
+        # BindComplete is good -- just ignore
+        reader.add_message(BindComplete, lambda msg: 0)
+
+        # NoData in this case means we're not executing a query.  As a
+        # result, we won't be fetching rows, so we'll never execute the
+        # portal we just created... unless we execute it right away, which
+        # we'll do.
+        reader.add_message(NoData, self._copy_bind_nodata, fileobj, portal, reader)
+
+        return reader.handle_messages()
+
+    def _copy_in_response(self, copyin, fileobj, old_reader):
+        while True:
+            data = fileobj.read(self._block_size)
+            if not data:
+                break
+            self._send(CopyData(data))
+            self._flush()
+        self._send(CopyDone())
+        self._send(Sync())
+        self._flush()
+
+    def _copy_out_response(self, copyout, fileobj, old_reader):
+        reader = MessageReader(self)
+        reader.add_message(CopyData, self._copy_data, fileobj)
+        reader.add_message(CopyDone, lambda msg: 1)
+        reader.handle_messages()
+
+    def _copy_data(self, copydata, fileobj):
+        fileobj.write(copydata.data)
+
+    def _copy_bind_nodata(self, msg, fileobj, portal, old_reader):
+        # Bind message returned NoData, causing us to execute the command.
+        self._send(Execute(portal, 0))
+        self._send(Sync())
+        self._flush()
+
+        output = {}
+        reader = MessageReader(self)
+        reader.add_message(CopyOutResponse, self._copy_out_response, fileobj, reader)
+        reader.add_message(CopyInResponse, self._copy_in_response, fileobj, reader)
+        reader.add_message(CommandComplete, lambda msg, out: out.setdefault('msg', msg) and False, output)
+        reader.add_message(ReadyForQuery, self._ready_for_query)
+        reader.delay_raising_exception = False
+        reader.handle_messages()
+
+        old_reader.return_value((None, 1))
+
     def _bind_nodata(self, msg, portal, old_reader):
         # Bind message returned NoData, causing us to execute the command.
         self._send(Execute(portal, 0))
@@ -1236,6 +1366,10 @@ message_types = {
     "n": NoData,
     "t": ParameterDescription,
     "A": NotificationResponse,
+    "c": CopyDone,
+    "d": CopyData,
+    "G": CopyInResponse,
+    "H": CopyOutResponse,
     }
 
 

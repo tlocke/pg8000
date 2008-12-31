@@ -152,6 +152,27 @@ class PreparedStatement(object):
         finally:
             self._lock.release()
 
+    ##
+    # Run the SQL COPY prepared statement with the given parameters.
+    # <p>
+    # Stability: Added in v1.07, stability guaranteed for v1.xx.
+    def copy_execute(self, fileobj, *args):
+        self._lock.acquire()
+        try:
+            if not self._command_complete:
+                # cleanup last execute
+                self._cached_rows = []
+                self._ongoing_row_count = 0
+            if self._portal_name != None:
+                self.c.close_portal(self._portal_name)
+            self._command_complete = False
+            self._portal_name = "pg8000_portal_%s" % self._statement_number
+            res = self.c.copy_bind(fileobj, self._portal_name, self._statement_name, args, self._parse_row_desc)
+            self._command_complete = True
+            self._ongoing_row_count = -1
+        finally:
+            self._lock.release()
+
     def _fill_cache(self):
         self._lock.acquire()
         try:
@@ -304,6 +325,24 @@ class Cursor(object):
             self._stmt.execute(*args)
         finally:
             self.connection._unnamed_prepared_statement_lock.release()
+
+    ##
+    # Run an SQL COPY statement using this cursor.  The SQL statement can have
+    # parameters in the form of $1, $2, $3, etc., which will be filled in by
+    # the additional arguments passed to this function.
+    # <p>
+    # Stability: Added in v1.07, stability guaranteed for v1.xx.
+    # @param query      The SQL statement to execute.
+    def copy_execute(self, fileobj, query, *args):
+        if self.connection.is_closed:
+            raise ConnectionClosedError()
+        self.connection._unnamed_prepared_statement_lock.acquire()
+        try:
+            self._stmt = PreparedStatement(self.connection, query, statement_name="", *[{"type": type(x), "value": x} for x in args])
+            self._stmt.copy_execute(fileobj, *args)
+        finally:
+            self.connection._unnamed_prepared_statement_lock.release()
+
 
     ##
     # Return a count of the number of rows currently being read.  If possible,
