@@ -33,6 +33,7 @@ import datetime
 import time
 import interface
 import types
+import threading
 from errors import *
 
 from warnings import warn
@@ -454,12 +455,17 @@ class ConnectionWrapper(object):
     def __init__(self, **kwargs):
         self.conn = interface.Connection(**kwargs)
         self.notifies = []
+        self.notifies_lock = threading.Lock()
         self.conn.NotificationReceived += self._notificationReceived
         self.conn.begin()
 
     def _notificationReceived(self, notice):
+        try:
         # psycopg2 compatible notification interface
-        self.notifies.append((notice.backend_pid, notice.condition))
+            self.notifies_lock.acquire()
+            self.notifies.append((notice.backend_pid, notice.condition))
+        finally:
+            self.notifies_lock.release()
 
     ##
     # Creates a {@link #CursorWrapper CursorWrapper} object bound to this

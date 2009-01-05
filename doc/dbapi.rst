@@ -212,22 +212,49 @@ DBAPI Objects
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
 
+    .. attribute:: notifies
+
+        A list of server-side notifications received by this database
+        connection (via the LISTEN/NOTIFY PostgreSQL commands).  Each list
+        element is a two-element tuple containing the PostgreSQL backend PID
+        that issued the notify, and the notification name.
+
+        PostgreSQL will only send notifications to a client between
+        transactions.  The contents of this property are generally only
+        populated after a commit or rollback of the current transaction.
+
+        This list can be modified by a client application to clean out
+        notifications as they are handled.  However, inspecting or modifying
+        this collection should only be done while holding the
+        :attr:`notifies_lock` lock in order to guarantee thread-safety.
+
+        This attribute is not part of the DBAPI standard; it is a pg8000
+        extension.
+
+    .. attribute:: notifies_lock
+
+        A ``threading.Lock`` object that should be held to read or modify the
+        contents of the :attr:`notifies` list.
+
+        This attribute is not part of the DBAPI standard; it is a pg8000
+        extension.
+
     .. attribute:: Error
-    .. attribute:: Warning
-    .. attribute:: InterfaceError
-    .. attribute:: DatabaseError
-    .. attribute:: InternalError
-    .. attribute:: OperationalError
-    .. attribute:: ProgrammingError
-    .. attribute:: IntegrityError
-    .. attribute:: DataError
-    .. attribute:: NotSupportedError
+                   Warning
+                   InterfaceError
+                   DatabaseError
+                   InternalError
+                   OperationalError
+                   ProgrammingError
+                   IntegrityError
+                   DataError
+                   NotSupportedError
 
         All of the standard database exception types are accessible via
         connection instances.
 
         This is a DBAPI 2.0 extension.  Accessing any of these attributes will
-        generate a warning, eg. ``DB-API extension connection.DatabaseError
+        generate the warning ``DB-API extension connection.DatabaseError
         used``.
 
 
