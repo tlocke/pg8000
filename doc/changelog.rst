@@ -14,6 +14,15 @@ Version 1.07, yyyy-mm-dd
   connection objects to provide access to server-side event notifications.
   Thanks again to Bob Ippolito for the original patch.
 
+- Improved performance using buffered socket I/O.
+
+- Added valid range checks for :class:`~pg8000.types.Interval` attributes.
+
+- Added binary transmission of :class:`~decimal.Decimal` values.  This permits
+  full support for NUMERIC[] types, both send and receive.
+
+- New `Sphinx <http://sphinx.pocoo.org/>`_-based website and documentation.
+
 
 Version 1.06, 2008-12-09
 ------------------------
