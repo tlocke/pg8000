@@ -355,9 +355,9 @@ DBAPI Objects
             making up a row.
 
     .. method:: copy_from(fileobj, table, sep='\t', null=None)
-    .. method:: copy_from(fileobj, query=)
-    .. method:: copy_to(fileobj, table, sep='\t', null=None)
-    .. method:: copy_to(fileobj, query=)
+                copy_from(fileobj, query=)
+                copy_to(fileobj, table, sep='\t', null=None)
+                copy_to(fileobj, query=)
 
         Performs a PostgreSQL COPY query to stream data in or out of the
         PostgreSQL server.
