@@ -389,21 +389,36 @@ DBAPI Objects
         Performs a PostgreSQL COPY query to stream data in or out of the
         PostgreSQL server.
 
-        For the copy_from method, the ``fileobj`` parameter must be a file-like
-        object that supports the ``read`` method.  For the copy_to method, the
-        object must support the ``write`` method.
-        
-        If the ``table`` parameter is provided, a text COPY command is
-        constructed in the form of ``COPY table (TO/FROM) STDOUT ...`` with the
-        supplied seperator and null-text value.
-
-        Alternatively, a fully COPY query can be provided with the query
-        keyword argument.  This permits the usage of additional COPY directives
-        that may be supported by the server.
-
         These methods are not part of the standard DBAPI, they are a pg8000
-        extension as of pg8000 v1.07.   They are designed to be compatible with
-        similar methods provided by psycopg2.
+        extension.   They are designed to be compatible with similar methods
+        provided by psycopg2.
+
+        :param fileobj:
+
+            A file-like object that data is read from or written to.  For
+            copy_from, the object have a ``read`` method; for copy_to, the
+            object must have a ``write`` method.
+
+        :param table:
+
+            When the table parameter is provided, a COPY query will be constructed
+            in the form of ``COPY table (TO/FROM) STDOUT``.
+
+        :param sep:
+
+            Used only when table is provided, this adds a ``DELIMITER AS``
+            clause to the COPY query.
+
+        :param null:
+
+            Used only when table is provided, this adds a ``NULL AS`` clause to
+            the COPY query.
+
+        :param query:
+        
+            A complete COPY query to be used to generate or insert data.  This
+            permits the use of any COPY directives that are supported by the
+            server.
 
     .. method:: close()
 
