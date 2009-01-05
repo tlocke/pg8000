@@ -95,3 +95,9 @@ class ArrayDimensionsNotConsistentError(ProgrammingError):
 # to operate on.
 class CopyQueryOrTableRequiredError(ProgrammingError):
     pass
+
+# Raised if a COPY query is executed without using copy_to or copy_from
+# functions to provide a data stream.
+class CopyQueryWithoutStreamError(ProgrammingError):
+    pass
+

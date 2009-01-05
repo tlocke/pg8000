@@ -1046,7 +1046,7 @@ class Connection(object):
             WHERE typreceive::text = 'record_recv'
             ORDER BY pg_type.oid, attnum""",
             [])
-        row_desc, cmd = self.bind("tmp", "", (), parse_retval)
+        row_desc, cmd = self.bind("tmp", "", (), parse_retval, None)
         eod, rows = self.fetch_rows("tmp", 0, row_desc)
 
         self._record_field_names = {}
@@ -1090,7 +1090,7 @@ class Connection(object):
         return reader.handle_messages()
 
     @sync_on_error
-    def bind(self, portal, statement, params, parse_data):
+    def bind(self, portal, statement, params, parse_data, copy_stream):
         self.verifyState("ready")
 
         row_desc, param_fc = parse_data
@@ -1119,7 +1119,7 @@ class Connection(object):
         # result, we won't be fetching rows, so we'll never execute the
         # portal we just created... unless we execute it right away, which
         # we'll do.
-        reader.add_message(NoData, self._bind_nodata, portal, reader)
+        reader.add_message(NoData, self._bind_nodata, portal, reader, copy_stream)
 
         # Return the new row desc, since it will have the format types we
         # asked the server for
@@ -1127,41 +1127,9 @@ class Connection(object):
 
         return reader.handle_messages()
 
-    @sync_on_error
-    def copy_bind(self, fileobj, portal, statement, params, parse_data):
-        self.verifyState("ready")
-
-        row_desc, param_fc = parse_data
-        if row_desc == None:
-            # no data coming out
-            output_fc = ()
-        else:
-            # We've got row_desc that allows us to identify what we're going to
-            # get back from this statement.
-            output_fc = [types.py_type_info(f, self._record_field_names) for f in row_desc.fields]
-        self._send(Bind(portal, statement, param_fc, params, output_fc, client_encoding = self._client_encoding, integer_datetimes = self._integer_datetimes))
-        # We need to describe the portal after bind, since the return
-        # format codes will be different (hopefully, always what we
-        # requested).
-        self._send(DescribePortal(portal))
-        self._send(Flush())
-        self._flush()
-
-        # Read responses from server...
-        reader = MessageReader(self)
-
-        # BindComplete is good -- just ignore
-        reader.add_message(BindComplete, lambda msg: 0)
-
-        # NoData in this case means we're not executing a query.  As a
-        # result, we won't be fetching rows, so we'll never execute the
-        # portal we just created... unless we execute it right away, which
-        # we'll do.
-        reader.add_message(NoData, self._copy_bind_nodata, fileobj, portal, reader)
-
-        return reader.handle_messages()
-
     def _copy_in_response(self, copyin, fileobj, old_reader):
+        if fileobj == None:
+            raise CopyQueryWithoutStreamError()
         while True:
             data = fileobj.read(self._block_size)
             if not data:
@@ -1173,6 +1141,8 @@ class Connection(object):
         self._flush()
 
     def _copy_out_response(self, copyout, fileobj, old_reader):
+        if fileobj == None:
+            raise CopyQueryWithoutStreamError()
         reader = MessageReader(self)
         reader.add_message(CopyData, self._copy_data, fileobj)
         reader.add_message(CopyDone, lambda msg: 1)
@@ -1181,7 +1151,7 @@ class Connection(object):
     def _copy_data(self, copydata, fileobj):
         fileobj.write(copydata.data)
 
-    def _copy_bind_nodata(self, msg, fileobj, portal, old_reader):
+    def _bind_nodata(self, msg, portal, old_reader, copy_stream):
         # Bind message returned NoData, causing us to execute the command.
         self._send(Execute(portal, 0))
         self._send(Sync())
@@ -1189,23 +1159,8 @@ class Connection(object):
 
         output = {}
         reader = MessageReader(self)
-        reader.add_message(CopyOutResponse, self._copy_out_response, fileobj, reader)
-        reader.add_message(CopyInResponse, self._copy_in_response, fileobj, reader)
-        reader.add_message(CommandComplete, lambda msg, out: out.setdefault('msg', msg) and False, output)
-        reader.add_message(ReadyForQuery, self._ready_for_query)
-        reader.delay_raising_exception = False
-        reader.handle_messages()
-
-        old_reader.return_value((None, 1))
-
-    def _bind_nodata(self, msg, portal, old_reader):
-        # Bind message returned NoData, causing us to execute the command.
-        self._send(Execute(portal, 0))
-        self._send(Sync())
-        self._flush()
-
-        output = {}
-        reader = MessageReader(self)
+        reader.add_message(CopyOutResponse, self._copy_out_response, copy_stream, reader)
+        reader.add_message(CopyInResponse, self._copy_in_response, copy_stream, reader)
         reader.add_message(CommandComplete, lambda msg, out: out.setdefault('msg', msg) and False, output)
         reader.add_message(ReadyForQuery, lambda msg: 1)
         reader.delay_raising_exception = True

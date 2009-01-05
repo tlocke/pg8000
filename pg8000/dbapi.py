@@ -333,12 +333,11 @@ class CursorWrapper(object):
                 query += " NULL '%s'" % (null,)
         self.copy_execute(fileobj, query)
     
-    def copy_execute(self, fileobj, operation, args=()):
+    def copy_execute(self, fileobj, query):
         if self.cursor == None:
             raise InterfaceError("cursor is closed")
-        new_query, new_args = convert_paramstyle(paramstyle, operation, args)
         try:
-            self.cursor.copy_execute(fileobj, new_query, *new_args)
+            self.cursor.execute(query, stream=fileobj)
         except ConnectionClosedError:
             # can't rollback in this case
             raise
@@ -347,7 +346,6 @@ class CursorWrapper(object):
             import traceback; traceback.print_exc()
             self._connection.rollback()
             raise
-
 
     ##
     # Prepare a database operation and then execute it against all parameter

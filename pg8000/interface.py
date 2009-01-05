@@ -125,7 +125,7 @@ class PreparedStatement(object):
     # Run the SQL prepared statement with the given parameters.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def execute(self, *args):
+    def execute(self, *args, **kwargs):
         self._lock.acquire()
         try:
             if not self._command_complete:
@@ -136,7 +136,7 @@ class PreparedStatement(object):
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
             self._portal_name = "pg8000_portal_%s" % self._statement_number
-            self._row_desc, cmd = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc)
+            self._row_desc, cmd = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc, kwargs.get("stream"))
             if self._row_desc:
                 # We execute our cursor right away to fill up our cache.  This
                 # prevents the cursor from being destroyed, apparently, by a rogue
@@ -149,27 +149,6 @@ class PreparedStatement(object):
                 self._ongoing_row_count = -1
                 if cmd != None and cmd.rows != None:
                     self._ongoing_row_count = cmd.rows
-        finally:
-            self._lock.release()
-
-    ##
-    # Run the SQL COPY prepared statement with the given parameters.
-    # <p>
-    # Stability: Added in v1.07, stability guaranteed for v1.xx.
-    def copy_execute(self, fileobj, *args):
-        self._lock.acquire()
-        try:
-            if not self._command_complete:
-                # cleanup last execute
-                self._cached_rows = []
-                self._ongoing_row_count = 0
-            if self._portal_name != None:
-                self.c.close_portal(self._portal_name)
-            self._command_complete = False
-            self._portal_name = "pg8000_portal_%s" % self._statement_number
-            res = self.c.copy_bind(fileobj, self._portal_name, self._statement_name, args, self._parse_row_desc)
-            self._command_complete = True
-            self._ongoing_row_count = -1
         finally:
             self._lock.release()
 
@@ -316,13 +295,13 @@ class Cursor(object):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     # @param query      The SQL statement to execute.
-    def execute(self, query, *args):
+    def execute(self, query, *args, **kwargs):
         if self.connection.is_closed:
             raise ConnectionClosedError()
         self.connection._unnamed_prepared_statement_lock.acquire()
         try:
             self._stmt = PreparedStatement(self.connection, query, statement_name="", *[{"type": type(x), "value": x} for x in args])
-            self._stmt.execute(*args)
+            self._stmt.execute(*args, **kwargs)
         finally:
             self.connection._unnamed_prepared_statement_lock.release()
 
