@@ -278,7 +278,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             self.assertEqual(len(cur.description[0]),7,
                 'cursor.description[x] tuples must have 7 elements'
                 )
-            self.assertEqual(cur.description[0][0].lower(),'name',
+            self.assertEqual(cur.description[0][0].lower(),b'name',
                 'cursor.description[x][0] must return column name'
                 )
             self.assertEqual(cur.description[0][1],self.driver.STRING,
@@ -820,8 +820,8 @@ class DatabaseAPI20Test(unittest.TestCase):
         # self.assertEqual(str(t1),str(t2))
 
     def test_Binary(self):
-        b = self.driver.Binary('Something')
-        b = self.driver.Binary('')
+        b = self.driver.Binary(b'Something')
+        b = self.driver.Binary(b'')
 
     def test_STRING(self):
         self.failUnless(hasattr(self.driver,'STRING'),

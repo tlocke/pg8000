@@ -116,14 +116,14 @@ class Tests(unittest.TestCase):
             retval = self.cursor.fetchall()
             self.assert_(retval[0][0] == value,
                     "retrieved value match failed")
-            column_name, column_typeoid = self.cursor.description[0][0:2]
+            column_name, column_typeoid, *junk = self.cursor.description[0]
             self.assert_(column_typeoid == typoid,
                     "type should be INT2[]")
 
     def testByteaRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", (dbapi.Binary("\x00\x01\x02\x03\x02\x01\x00"),))
+        self.cursor.execute("SELECT %s as f1", (dbapi.Binary(b"\x00\x01\x02\x03\x02\x01\x00"),))
         retval = self.cursor.fetchall()
-        self.assert_(retval[0][0] == "\x00\x01\x02\x03\x02\x01\x00",
+        self.assert_(retval[0][0] == b"\x00\x01\x02\x03\x02\x01\x00",
                 "retrieved value match failed")
 
     def testTimestampRoundtrip(self):
@@ -150,49 +150,52 @@ class Tests(unittest.TestCase):
                 datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, types.utc),
                 "retrieved value match failed")
 
-    def testTimestampTzRoundtrip(self):
-        import pytz
-        mst = pytz.timezone("America/Edmonton")
-        v1 = mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
-        self.cursor.execute("SELECT %s as f1", (v1,))
-        retval = self.cursor.fetchall()
-        v2 = retval[0][0]
-        self.assert_(v2.tzinfo != None, "expected tzinfo on v2")
-        self.assert_(v1 == v2, "expected v1 == v2")
+    # Disabled until a Python 3 pytz is available.
+    #def testTimestampTzRoundtrip(self):
+    #    import pytz
+    #    mst = pytz.timezone("America/Edmonton")
+    #    v1 = mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
+    #    self.cursor.execute("SELECT %s as f1", (v1,))
+    #    retval = self.cursor.fetchall()
+    #    v2 = retval[0][0]
+    #    self.assert_(v2.tzinfo != None, "expected tzinfo on v2")
+    #    self.assert_(v1 == v2, "expected v1 == v2")
 
-    def testTimestampMismatch(self):
-        import pytz
-        mst = pytz.timezone("America/Edmonton")
-        self.cursor.execute("SET SESSION TIME ZONE 'America/Edmonton'")
-        try:
-            self.cursor.execute("CREATE TEMPORARY TABLE TestTz (f1 timestamp with time zone, f2 timestamp without time zone)")
-            self.cursor.execute("INSERT INTO TestTz (f1, f2) VALUES (%s, %s)", (
-                    # insert timestamp into timestamptz field (v1)
-                    datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
-                    # insert timestamptz into timestamp field (v2)
-                    mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
-                )
-            )
-            self.cursor.execute("SELECT f1, f2 FROM TestTz")
-            retval = self.cursor.fetchall()
-    
-            # when inserting a timestamp into a timestamptz field, postgresql
-            # assumes that it is in local time.  So the value that comes out
-            # will be the server's local time interpretation of v1.  We've set
-            # the server's TZ to MST, the time should be...
-            f1 = retval[0][0]
-            self.assert_(f1 == datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pytz.utc),
-                    "retrieved value match failed")
-    
-            # inserting the timestamptz into a timestamp field, pg8000
-            # converts the value into UTC, and then the PG server converts
-            # it into local time for insertion into the field.  When we query
-            # for it, we get the same time back, like the tz was dropped.
-            f2 = retval[0][1]
-            self.assert_(f2 == datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
-                    "retrieved value match failed")
-        finally:
-            self.cursor.execute("SET SESSION TIME ZONE DEFAULT")
+    # Disabled until a Python 3 pytz is available.
+    #def testTimestampMismatch(self):
+    #    import pytz
+    #    mst = pytz.timezone("America/Edmonton")
+    #    self.cursor.execute("SET SESSION TIME ZONE 'America/Edmonton'")
+    #    try:
+    #        self.cursor.execute("CREATE TEMPORARY TABLE TestTz (f1 timestamp with time zone, f2 timestamp without time zone)")
+    #        self.cursor.execute("INSERT INTO TestTz (f1, f2) VALUES (%s, %s)", (
+    #                # insert timestamp into timestamptz field (v1)
+    #                datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
+    #                # insert timestamptz into timestamp field (v2)
+    #                mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
+    #            )
+    #        )
+    #        self.cursor.execute("SELECT f1, f2 FROM TestTz")
+    #        retval = self.cursor.fetchall()
+    #
+    #        # when inserting a timestamp into a timestamptz field, postgresql
+    #        # assumes that it is in local time.  So the value that comes out
+    #        # will be the server's local time interpretation of v1.  We've set
+    #        # the server's TZ to MST, the time should be...
+    #        f1 = retval[0][0]
+    #        self.assert_(f1 == datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pytz.utc),
+    #                "retrieved value match failed")
+    #
+    #        # inserting the timestamptz into a timestamp field, pg8000
+    #        # converts the value into UTC, and then the PG server converts
+    #        # it into local time for insertion into the field.  When we query
+    #        # for it, we get the same time back, like the tz was dropped.
+    #        f2 = retval[0][1]
+    #        self.assert_(f2 == datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
+    #                "retrieved value match failed")
+    #    finally:
+    #        self.cursor.execute("SET SESSION TIME ZONE DEFAULT")
+
 
     def testNameOut(self):
         # select a field that is of "name" type:
@@ -287,7 +290,7 @@ class Tests(unittest.TestCase):
         methods = (
                 ("float8send", 22.2),
                 ("timestamp_send", datetime.datetime(2001, 2, 3, 4, 5, 6, 789)),
-                ("byteasend", dbapi.Binary("\x01\x02")),
+                ("byteasend", dbapi.Binary(b"\x01\x02")),
                 ("interval_send", types.Interval(1234567, 123, 123)),
         )
         for method_out, value in methods:
@@ -343,7 +346,7 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assert_(retval[0][0] == [1, 2, 3],
                 "retrieved value match failed")
-        column_name, column_typeoid = self.cursor.description[0][0:2]
+        column_name, column_typeoid, *junk = self.cursor.description[0]
         self.assert_(column_typeoid == 1005,
                 "type should be INT2[]")
 
@@ -352,7 +355,7 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assert_(retval[0][0] == [70000, 2, 3],
                 "retrieved value match failed")
-        column_name, column_typeoid = self.cursor.description[0][0:2]
+        column_name, column_typeoid, *junk = self.cursor.description[0]
         self.assert_(column_typeoid == 1007,
                 "type should be INT4[]")
 
@@ -361,7 +364,7 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assert_(retval[0][0] == [7000000000, 2, 3],
                 "retrieved value match failed")
-        column_name, column_typeoid = self.cursor.description[0][0:2]
+        column_name, column_typeoid, *junk = self.cursor.description[0]
         self.assert_(column_typeoid == 1016,
                 "type should be INT8[]")
         
@@ -457,8 +460,8 @@ class Tests(unittest.TestCase):
     def testUserType(self):
         try:
             self.cursor.execute("DROP TYPE test_type")
-        except errors.DatabaseError, e:
-            self.assert_(e.args[1] == '42704', # type does not exist
+        except errors.DatabaseError as e:
+            self.assert_(e.args[1] == b'42704', # type does not exist
                 "incorrect error for drop type")
         self.cursor.execute("CREATE TYPE test_type AS (a INT, b FLOAT)")
         db.recache_record_types()

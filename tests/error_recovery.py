@@ -1,5 +1,3 @@
-from __future__ import with_statement
-
 import unittest
 from pg8000 import DBAPI, DatabaseError
 from contextlib import closing
@@ -43,9 +41,9 @@ class Tests(unittest.TestCase):
             try:
                 with closing(db.cursor()) as cursor:
                     cursor.execute("DROP TABLE t1")
-            except DatabaseError, e:
+            except DatabaseError as e:
                 # the only acceptable error is:
-                self.assert_(e.args[1] == '42P01', # table does not exist
+                self.assert_(e.args[1] == b'42P01', # table does not exist
                         "incorrect error for drop table")
 
     def testClosedConnection(self):

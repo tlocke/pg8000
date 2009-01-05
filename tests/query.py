@@ -1,5 +1,3 @@
-from __future__ import with_statement
-
 import unittest
 import threading
 from contextlib import closing
@@ -19,9 +17,9 @@ class Tests(unittest.TestCase):
         with closing(db.cursor()) as cursor:
             try:
                 cursor.execute("DROP TABLE t1")
-            except dbapi.DatabaseError, e:
+            except dbapi.DatabaseError as e:
                 # the only acceptable error is:
-                self.assert_(e.args[1] == '42P01', # table does not exist
+                self.assert_(e.args[1] == b'42P01', # table does not exist
                         "incorrect error for drop table")
             cursor.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
 

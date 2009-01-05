@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 
-import ez_setup
-ez_setup.use_setuptools()
-
-from setuptools import setup
+from distutils.core import setup
 
 long_description = \
 """pg8000 is a Pure-Python interface to the PostgreSQL database engine.  It is one
@@ -16,14 +13,14 @@ pg8000's name comes from the belief that it is probably about the 8000th
 PostgreSQL interface for Python."""
 
 setup(
-        name="pg8000",
+        name="pg8000-py3",
         version="1.07",
         description="PostgreSQL interface library",
         long_description=long_description,
         author="Mathieu Fenniak",
         author_email="biziqe@mathieu.fenniak.net",
         url="http://pybrary.net/pg8000/",
-        download_url="http://pybrary.net/pg8000/pg8000-1.07.tar.gz",
+        download_url="http://pybrary.net/pg8000/pg8000-py3-1.07.tar.gz",
         classifiers = [
             "Development Status :: 4 - Beta",
             "Intended Audience :: Developers",
@@ -34,8 +31,6 @@ setup(
             "Topic :: Software Development :: Libraries :: Python Modules",
         ],
         keywords="postgresql dbapi",
-        zip_safe=True,
-        tests_require=["pytz"],
         packages = ("pg8000",),
     )
 
