@@ -1,5 +1,3 @@
-from __future__ import with_statement
-
 import unittest
 import pg8000
 import datetime
@@ -15,9 +13,9 @@ class Tests(unittest.TestCase):
         with closing(db2.cursor()) as c:
             try:
                 c.execute("DROP TABLE t1")
-            except pg8000.DatabaseError, e:
+            except pg8000.DatabaseError as e:
                 # the only acceptable error is:
-                self.assert_(e.args[1] == '42P01', # table does not exist
+                self.assert_(e.args[1] == b'42P01', # table does not exist
                         "incorrect error for drop table")
             c.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
             c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
@@ -150,8 +148,8 @@ class Tests(unittest.TestCase):
                 "TimestampFromTicks constructor value match failed")
 
     def testBinary(self):
-        v = dbapi.Binary("\x00\x01\x02\x03\x02\x01\x00")
-        self.assert_(v == "\x00\x01\x02\x03\x02\x01\x00",
+        v = dbapi.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
+        self.assert_(v == b"\x00\x01\x02\x03\x02\x01\x00",
                 "Binary value match failed")
         self.assert_(isinstance(v, pg8000.Bytea),
                 "Binary type match failed")
