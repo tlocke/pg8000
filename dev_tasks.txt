@@ -14,9 +14,6 @@
  
  * remove in-code documentation that belongs in sphinx templates
 
- * fixup COPY support
-   * documentation
-
  * review notify patch
    * unit tests
 

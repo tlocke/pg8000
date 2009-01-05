@@ -354,6 +354,30 @@ DBAPI Objects
             A sequence, each entry of which is a sequence of field values
             making up a row.
 
+    .. method:: copy_from(fileobj, table, sep='\t', null=None)
+    .. method:: copy_from(fileobj, query=)
+    .. method:: copy_to(fileobj, table, sep='\t', null=None)
+    .. method:: copy_to(fileobj, query=)
+
+        Performs a PostgreSQL COPY query to stream data in or out of the
+        PostgreSQL server.
+
+        For the copy_from method, the ``fileobj`` parameter must be a file-like
+        object that supports the ``read`` method.  For the copy_to method, the
+        object must support the ``write`` method.
+        
+        If the ``table`` parameter is provided, a text COPY command is
+        constructed in the form of ``COPY table (TO/FROM) STDOUT ...`` with the
+        supplied seperator and null-text value.
+
+        Alternatively, a fully COPY query can be provided with the query
+        keyword argument.  This permits the usage of additional COPY directives
+        that may be supported by the server.
+
+        These methods are not part of the standard DBAPI, they are a pg8000
+        extension as of pg8000 v1.07.   They are designed to be compatible with
+        similar methods provided by psycopg2.
+
     .. method:: close()
 
         Closes the cursor.

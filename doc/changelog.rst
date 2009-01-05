@@ -1,6 +1,14 @@
 Release History
 ================
 
+Version 1.07, yyyy-mm-dd
+------------------------
+
+- Added support for copy_to and copy_from methods on cursor objects, to allow
+  the usage of the PostgreSQL COPY queries.  Thanks to Bob Ippolito for the
+  original patch.
+
+
 Version 1.06, 2008-12-09
 ------------------------
 
