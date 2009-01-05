@@ -230,6 +230,8 @@ DBAPI Objects
 
         This attribute is not part of the DBAPI standard; it is a pg8000
         extension.
+        
+        .. versionadded:: 1.07
 
     .. attribute:: notifies_lock
 
@@ -238,6 +240,8 @@ DBAPI Objects
 
         This attribute is not part of the DBAPI standard; it is a pg8000
         extension.
+
+        .. versionadded:: 1.07
 
     .. attribute:: Error
                    Warning
@@ -410,15 +414,20 @@ DBAPI Objects
             clause to the COPY query.
 
         :param null:
-
             Used only when table is provided, this adds a ``NULL AS`` clause to
             the COPY query.
 
         :param query:
-        
             A complete COPY query to be used to generate or insert data.  This
             permits the use of any COPY directives that are supported by the
             server.
+
+        :raises: 
+
+            :exc:`~pg8000.errors.CopyQueryOrTableRequiredError` when neither
+            *table* nor *query* parameters are provided.
+
+        .. versionadded:: 1.07
 
     .. method:: close()
 

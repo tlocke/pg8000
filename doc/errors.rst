@@ -101,3 +101,20 @@ Specific Exception Classes
     Raised when attempting to transmit an array that has inconsistent
     multi-dimension sizes.
 
+.. exception:: CopyQueryOrTableRequiredError(ProgrammingError)
+
+    Raised when :meth:`~pg8000.dbapi.CursorWrapper.copy_to` or
+    :meth:`~pg8000.dbapi.CursorWrapper.copy_from` are called without specifying
+    the ``table`` or ``query`` keyword parameters.
+
+    .. versionadded:: 1.07
+
+.. exception:: CopyQueryWithoutStreamError(ProgrammingError)
+
+    Raised when :meth:`~pg8000.dbapi.CursorWrapper.execute` is used to execute
+    a ``COPY ...`` query, rather than
+    :meth:`~pg8000.dbapi.CursorWrapper.copy_to` or
+    :meth:`~pg8000.dbapi.CursorWrapper.copy_from`.
+
+    .. versionadded:: 1.07
+
