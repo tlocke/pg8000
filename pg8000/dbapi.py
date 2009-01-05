@@ -315,17 +315,23 @@ class CursorWrapper(object):
             self._connection.rollback()
             raise
 
-    def copy_from(self, fileobj, table, sep='\t', null=None):
-        q = "COPY %s FROM stdout DELIMITER '%s'" % (table, sep)
-        if null is not None:
-            q += " NULL '%s'" % (null,)
-        self.copy_execute(fileobj, q)
+    def copy_from(self, fileobj, table=None, sep='\t', null=None, query=None):
+        if query == None:
+            if table == None:
+                raise CopyQueryOrTableRequiredError()
+            query = "COPY %s FROM stdout DELIMITER '%s'" % (table, sep)
+            if null is not None:
+                query += " NULL '%s'" % (null,)
+        self.copy_execute(fileobj, query)
 
-    def copy_to(self, fileobj, table, sep='\t', null=None):
-        q = "COPY %s TO stdout DELIMITER '%s'" % (table, sep)
-        if null is not None:
-            q += " NULL '%s'" % (null,)
-        self.copy_execute(fileobj, q)
+    def copy_to(self, fileobj, table=None, sep='\t', null=None, query=None):
+        if query == None:
+            if table == None:
+                raise CopyQueryOrTableRequiredError()
+            query = "COPY %s TO stdout DELIMITER '%s'" % (table, sep)
+            if null is not None:
+                query += " NULL '%s'" % (null,)
+        self.copy_execute(fileobj, query)
     
     def copy_execute(self, fileobj, operation, args=()):
         if self.cursor == None:

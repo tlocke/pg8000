@@ -91,3 +91,7 @@ class ArrayContentEmptyError(ProgrammingError):
 class ArrayDimensionsNotConsistentError(ProgrammingError):
     pass
 
+# A cursor's copy_to or copy_from argument was not provided a table or query
+# to operate on.
+class CopyQueryOrTableRequiredError(ProgrammingError):
+    pass
