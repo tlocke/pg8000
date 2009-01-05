@@ -4,9 +4,15 @@ Release History
 Version 1.07, yyyy-mm-dd
 ------------------------
 
-- Added support for copy_to and copy_from methods on cursor objects, to allow
-  the usage of the PostgreSQL COPY queries.  Thanks to Bob Ippolito for the
-  original patch.
+- Added support for :meth:`~pg8000.dbapi.CursorWrapper.copy_to` and
+  :meth:`~pg8000.dbapi.CursorWrapper.copy_from` methods on cursor objects, to
+  allow the usage of the PostgreSQL COPY queries.  Thanks to Bob Ippolito for
+  the original patch.
+
+- Added the :attr:`~pg8000.dbapi.ConnectionWrapper.notifies` and
+  :attr:`~pg8000.dbapi.ConnectionWrapper.notifies_lock` attributes to DBAPI
+  connection objects to provide access to server-side event notifications.
+  Thanks again to Bob Ippolito for the original patch.
 
 
 Version 1.06, 2008-12-09

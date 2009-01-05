@@ -181,11 +181,11 @@ DBAPI Objects
 
     A ``ConnectionWrapper`` instance represents a single physical connection
     to a PostgreSQL database.  To construct an instance of this class, use the
-    :func:`pg8000.dbapi.connect` function.
+    :func:`~pg8000.dbapi.connect` function.
 
     .. method:: cursor()
 
-        Creates a :class:`pg8000.dbapi.CursorWrapper` instance bound to this
+        Creates a :class:`~pg8000.dbapi.CursorWrapper` instance bound to this
         connection.
 
         This function is part of the `DBAPI 2.0 specification
@@ -233,8 +233,8 @@ DBAPI Objects
 
     .. attribute:: notifies_lock
 
-        A ``threading.Lock`` object that should be held to read or modify the
-        contents of the :attr:`notifies` list.
+        A :class:`threading.Lock` object that should be held to read or modify
+        the contents of the :attr:`notifies` list.
 
         This attribute is not part of the DBAPI standard; it is a pg8000
         extension.
