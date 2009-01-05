@@ -1134,7 +1134,6 @@ class Connection(object):
         return reader.handle_messages()
 
     def _copy_in_response(self, copyin, fileobj, old_reader):
-        print("_copy_in_response")
         if fileobj == None:
             raise CopyQueryWithoutStreamError()
         while True:
@@ -1148,7 +1147,6 @@ class Connection(object):
         self._flush()
 
     def _copy_out_response(self, copyout, fileobj, old_reader):
-        print("_copy_out_response")
         if fileobj == None:
             raise CopyQueryWithoutStreamError()
         reader = MessageReader(self)
