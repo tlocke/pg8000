@@ -1,7 +1,7 @@
 Release History
 ================
 
-Version 1.07, yyyy-mm-dd
+Version 1.07, 2009-01-06
 ------------------------
 
 - Added support for :meth:`~pg8000.dbapi.CursorWrapper.copy_to` and
