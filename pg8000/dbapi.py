@@ -31,10 +31,10 @@ __author__ = "Mathieu Fenniak"
 
 import datetime
 import time
-import interface
-import types
+from . import interface
+from . import types
+from .errors import *
 import threading
-from errors import *
 
 from warnings import warn
 
@@ -416,7 +416,7 @@ class CursorWrapper(object):
         self.cursor = None
         self._override_rowcount = None
 
-    def next(self):
+    def __next__(self):
         warn("DB-API extension cursor.next() used", stacklevel=2)
         retval = self.fetchone()
         if retval == None:
