@@ -102,7 +102,7 @@ def convert_paramstyle(src_style, query, args):
                 i += 1
                 param_idx = len(output_args)
                 if param_idx == len(args):
-                    raise ProgrammingError("too many parameter fields, not enough parameters")
+                    raise QueryParameterIndexError("too many parameter fields, not enough parameters")
                 output_args.append(args[param_idx])
                 output_query += "$" + str(param_idx + 1)
             elif src_style == "numeric" and c == ":":
@@ -111,7 +111,7 @@ def convert_paramstyle(src_style, query, args):
                     output_query += "$" + query[i]
                     i += 1
                 else:
-                    raise ProgrammingError("numeric parameter : does not have numeric arg")
+                    raise QueryParameterParseError("numeric parameter : does not have numeric arg")
             elif src_style == "named" and c == ":":
                 name = ""
                 while 1:
@@ -124,7 +124,7 @@ def convert_paramstyle(src_style, query, args):
                     else:
                         break
                 if name == "":
-                    raise ProgrammingError("empty name of named parameter")
+                    raise QueryParameterParseError("empty name of named parameter")
                 idx = mapping_to_idx.get(name)
                 if idx == None:
                     idx = len(output_args)
@@ -138,16 +138,16 @@ def convert_paramstyle(src_style, query, args):
                     if query[i] == "s":
                         param_idx = len(output_args)
                         if param_idx == len(args):
-                            raise ProgrammingError("too many parameter fields, not enough parameters")
+                            raise QueryParameterIndexError("too many parameter fields, not enough parameters")
                         output_args.append(args[param_idx])
                         output_query += "$" + str(param_idx + 1)
                     elif query[i] == "%":
                         output_query += "%"
                     else:
-                        raise ProgrammingError("Only %s and %% are supported")
+                        raise QueryParameterParseError("Only %s and %% are supported")
                     i += 1
                 else:
-                    raise ProgrammingError("numeric parameter : does not have numeric arg")
+                    raise QueryParameterParseError("format parameter % does not have format code")
             elif src_style == "pyformat" and c == "%":
                 i += 1
                 if i < len(query) and i > 1:
@@ -156,7 +156,7 @@ def convert_paramstyle(src_style, query, args):
                         # begin mapping name
                         end_idx = query.find(')', i)
                         if end_idx == -1:
-                            raise ProgrammingError("began pyformat dict read, but couldn't find end of name")
+                            raise QueryParameterParseError("began pyformat dict read, but couldn't find end of name")
                         else:
                             name = query[i:end_idx]
                             i = end_idx + 1
@@ -170,7 +170,7 @@ def convert_paramstyle(src_style, query, args):
                                     mapping_to_idx[name] = idx
                                 output_query += "$" + str(idx)
                             else:
-                                raise ProgrammingError("format not specified or not supported (only %(...)s supported)")
+                                raise QueryParameterParseError("format not specified or not supported (only %(...)s supported)")
                     elif query[i] == "%":
                         output_query += "%"
                     elif query[i] == "s":
@@ -178,6 +178,8 @@ def convert_paramstyle(src_style, query, args):
                         # support for format instead.
                         i -= 1
                         src_style = "format"
+                    else:
+                        raise QueryParameterParseError("Only %(name)s, %s and %% are supported")
             else:
                 i += 1
                 output_query += c
@@ -199,7 +201,7 @@ def convert_paramstyle(src_style, query, args):
                         # good.  We already output the first percent sign.
                         i += 1
                     else:
-                        raise ProgrammingError("'%" + query[i] + "' not supported in quoted string")
+                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
         elif state == 2:
             output_query += c
             i += 1
@@ -212,7 +214,7 @@ def convert_paramstyle(src_style, query, args):
                         # good.  We already output the first percent sign.
                         i += 1
                     else:
-                        raise ProgrammingError("'%" + query[i] + "' not supported in quoted string")
+                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
         elif state == 3:
             output_query += c
             i += 1
@@ -230,7 +232,7 @@ def convert_paramstyle(src_style, query, args):
                         # good.  We already output the first percent sign.
                         i += 1
                     else:
-                        raise ProgrammingError("'%" + query[i] + "' not supported in quoted string")
+                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
 
     return output_query, tuple(output_args)
 
@@ -270,7 +272,7 @@ class CursorWrapper(object):
 
     def _getRowCount(self):
         if self.cursor == None:
-            raise InterfaceError("cursor is closed")
+            raise CursorClosedError()
         if self._override_rowcount != None:
             return self._override_rowcount
         return self.cursor.row_count
@@ -300,7 +302,7 @@ class CursorWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     def execute(self, operation, args=()):
         if self.cursor == None:
-            raise InterfaceError("cursor is closed")
+            raise CursorClosedError()
         self._override_rowcount = None
         self._execute(operation, args)
 
@@ -336,7 +338,7 @@ class CursorWrapper(object):
     
     def copy_execute(self, fileobj, query):
         if self.cursor == None:
-            raise InterfaceError("cursor is closed")
+            raise CursorClosedError()
         try:
             self.cursor.execute(query, stream=fileobj)
         except ConnectionClosedError:
@@ -369,7 +371,7 @@ class CursorWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     def fetchone(self):
         if self.cursor == None:
-            raise InterfaceError("cursor is closed")
+            raise CursorClosedError()
         return self.cursor.read_tuple()
 
     ##
@@ -398,7 +400,7 @@ class CursorWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     def fetchall(self):
         if self.cursor == None:
-            raise InterfaceError("cursor is closed")
+            raise CursorClosedError()
         return tuple(self.cursor.iterate_tuple())
 
     ##

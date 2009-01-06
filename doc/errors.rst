@@ -74,6 +74,11 @@ Specific Exception Classes
     Raised when an attempt to use a connection fails due to the connection
     being closed.
 
+.. exception:: CursorClosedError(InterfaceError)
+
+    Raised when an attempt to use a cursor fails due to the cursor
+    being closed.
+
 .. exception:: ArrayDataParseError(InternalError)
 
     An exception that is raised when an internal error occurs trying to decode
@@ -115,6 +120,19 @@ Specific Exception Classes
     a ``COPY ...`` query, rather than
     :meth:`~pg8000.dbapi.CursorWrapper.copy_to` or
     :meth:`~pg8000.dbapi.CursorWrapper.copy_from`.
+
+    .. versionadded:: 1.07
+
+.. exception:: QueryParameterIndexError(ProgrammingError)
+
+    Raised when parameters in queries can't be matched with provided parameter
+    values.
+
+    .. versionadded:: 1.07
+
+.. exception:: QueryParameterParseError(ProgrammingError)
+
+    A parsing error occurred while trying to parse parameters in a query.
 
     .. versionadded:: 1.07
 
