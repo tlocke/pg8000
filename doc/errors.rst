@@ -22,10 +22,10 @@ Generic Exception Classes
 
 .. exception:: InterfaceError(Error)
 
-    Generic exception raised for errors that are related to the database interface
-    rather than the database itself.  For example, if the interface attempts
-    to use an SSL connection but the server refuses, an InterfaceError will
-    be raised.
+    Generic exception raised for errors that are related to the database
+    interface rather than the database itself.  For example, if the interface
+    attempts to use an SSL connection but the server refuses, an InterfaceError
+    will be raised.
 
 .. exception:: DatabaseError(Error)
 
@@ -34,36 +34,36 @@ Generic Exception Classes
 
 .. exception:: InternalError(DatabaseError)
 
-    Generic exception raised when the database encounters an internal error.  This is
-    currently only raised when unexpected state occurs in the pg8000 interface
-    itself, and is typically the result of a interface bug.
+    Generic exception raised when the database encounters an internal error.
+    This is currently only raised when unexpected state occurs in the pg8000
+    interface itself, and is typically the result of a interface bug.
 
 .. exception:: OperationalError(DatabaseError)
 
-    Generic exception raised for errors that are related to the database's operation
-    and not necessarily under the control of the programmer.  This exception is
-    currently never raised by pg8000.
+    Generic exception raised for errors that are related to the database's
+    operation and not necessarily under the control of the programmer.  This
+    exception is currently never raised by pg8000.
 
 .. exception:: ProgrammingError(DatabaseError)
 
-    Generic exception raised for programming errors.  For example, this exception is
-    raised if more parameter fields are in a query string than there are
-    available parameters.
+    Generic exception raised for programming errors.  For example, this
+    exception is raised if more parameter fields are in a query string than
+    there are available parameters.
 
 .. exception:: IntegrityError(DatabaseError)
 
-    Generic exception raised when the relational integrity of the database is affected.
-    This exception is not currently raised by pg8000.
+    Generic exception raised when the relational integrity of the database is
+    affected.  This exception is not currently raised by pg8000.
 
 .. exception:: DataError(DatabaseError)
 
-    Generic exception raised for errors that are due to problems with the processed
-    data.  This exception is not currently raised by pg8000.
+    Generic exception raised for errors that are due to problems with the
+    processed data.  This exception is not currently raised by pg8000.
 
 .. exception:: NotSupportedError(DatabaseError)
 
-    Generic exception raised in case a method or database API was used which is not
-    supported by the database.
+    Generic exception raised in case a method or database API was used which is
+    not supported by the database.
 
 
 Specific Exception Classes
@@ -72,6 +72,11 @@ Specific Exception Classes
 .. exception:: ConnectionClosedError(InterfaceError)
 
     Raised when an attempt to use a connection fails due to the connection
+    being closed.
+
+.. exception:: CursorClosedError(InterfaceError)
+
+    Raised when an attempt to use a cursor fails due to the cursor
     being closed.
 
 .. exception:: ArrayDataParseError(InternalError)
@@ -115,6 +120,19 @@ Specific Exception Classes
     a ``COPY ...`` query, rather than
     :meth:`~pg8000.dbapi.CursorWrapper.copy_to` or
     :meth:`~pg8000.dbapi.CursorWrapper.copy_from`.
+
+    .. versionadded:: 1.07
+
+.. exception:: QueryParameterIndexError(ProgrammingError)
+
+    Raised when parameters in queries can't be matched with provided parameter
+    values.
+
+    .. versionadded:: 1.07
+
+.. exception:: QueryParameterParseError(ProgrammingError)
+
+    A parsing error occurred while trying to parse parameters in a query.
 
     .. versionadded:: 1.07
 

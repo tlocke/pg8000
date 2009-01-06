@@ -42,6 +42,10 @@ class ConnectionClosedError(InterfaceError):
     def __init__(self):
         InterfaceError.__init__(self, "connection is closed")
 
+class CursorClosedError(InterfaceError):
+    def __init__(self):
+        InterfaceError.__init__(self, "cursor is closed")
+
 class DatabaseError(Error):
     pass
 
@@ -99,5 +103,13 @@ class CopyQueryOrTableRequiredError(ProgrammingError):
 # Raised if a COPY query is executed without using copy_to or copy_from
 # functions to provide a data stream.
 class CopyQueryWithoutStreamError(ProgrammingError):
+    pass
+
+# When query parameters don't match up with query args.
+class QueryParameterIndexError(ProgrammingError):
+    pass
+
+# Some sort of parse error occured during query parameterization.
+class QueryParameterParseError(ProgrammingError):
     pass
 
