@@ -85,7 +85,7 @@ class PreparedStatement(object):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.  It is
     # possible that implementation changes in the future could cause this
-    # parameter to be ignored.O
+    # parameter to be ignored.
     row_cache_size = 100
 
     def __init__(self, connection, statement, *types, **kwargs):
