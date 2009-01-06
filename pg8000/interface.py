@@ -306,24 +306,6 @@ class Cursor(object):
             self.connection._unnamed_prepared_statement_lock.release()
 
     ##
-    # Run an SQL COPY statement using this cursor.  The SQL statement can have
-    # parameters in the form of $1, $2, $3, etc., which will be filled in by
-    # the additional arguments passed to this function.
-    # <p>
-    # Stability: Added in v1.07, stability guaranteed for v1.xx.
-    # @param query      The SQL statement to execute.
-    def copy_execute(self, fileobj, query, *args):
-        if self.connection.is_closed:
-            raise ConnectionClosedError()
-        self.connection._unnamed_prepared_statement_lock.acquire()
-        try:
-            self._stmt = PreparedStatement(self.connection, query, statement_name="", *[{"type": type(x), "value": x} for x in args])
-            self._stmt.copy_execute(fileobj, *args)
-        finally:
-            self.connection._unnamed_prepared_statement_lock.release()
-
-
-    ##
     # Return a count of the number of rows currently being read.  If possible,
     # please avoid using this function.  It requires reading the entire result
     # set from the database to determine the number of rows being returned.
