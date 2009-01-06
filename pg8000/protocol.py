@@ -33,7 +33,7 @@ import socket
 import select
 import threading
 import struct
-import md5
+import hashlib
 from cStringIO import StringIO
 
 from errors import *
@@ -433,7 +433,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
     def ok(self, conn, user, password=None, **kwargs):
         if password == None:
             raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
-        pwd = "md5" + md5.new(md5.new(password + user).hexdigest() + self.salt).hexdigest()
+        pwd = "md5" + hashlib.md5(hashlib.md5(password + user).hexdigest() + self.salt).hexdigest()
         conn._send(PasswordMessage(pwd))
         conn._flush()
 
