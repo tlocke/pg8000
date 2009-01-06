@@ -35,6 +35,12 @@ Python 3
 * `pg8000-py3-1.07.tar.gz <dist/pg8000-py3-1.07.tar.gz>`_
 * `pg8000-py3-1.07.zip <dist/pg8000-py3-1.07.zip>`_
 
+Mercurial Repository
+--------------------
+
+* http://hg.pybrary.net/pg8000/
+* http://hg.pybrary.net/pg8000-py3/
+
 
 Documentation
 =============
