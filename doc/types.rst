@@ -62,10 +62,10 @@ pg8000 Type Classes
     is defined in the measure of months, days, and microseconds; as such, the
     pg8000 interval type represents the same information.
 
-    Note that values of the :attr:`microseconds`, :attr:`days` and :attr:`months`
-    properties are independently measured and cannot be converted to each
-    other.  A month may be 28, 29, 30, or 31 days, and a day may contain one or
-    two leap seconds.
+    Note that values of the :attr:`microseconds`, :attr:`days` and
+    :attr:`months` properties are independently measured and cannot be
+    converted to each other.  A month may be 28, 29, 30, or 31 days, and a day
+    may occasionally be lengthened slightly by a leap second.
 
     .. method:: __init__(self, microseconds, days, months)
     
