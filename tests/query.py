@@ -123,6 +123,11 @@ class Tests(unittest.TestCase):
             # https://bugs.launchpad.net/pg8000/+bug/230796
             cursor.execute("SELECT typname FROM pg_type WHERE oid = %s", (100,))
 
+    def testUnicodeQuery(self):
+        with closing(db.cursor()) as cursor:
+            cursor.execute(u"CREATE TEMPORARY TABLE \u043c\u0435\u0441\u0442\u043e (\u0438\u043c\u044f VARCHAR(50), \u0430\u0434\u0440\u0435\u0441 VARCHAR(250))")
+
+
 if __name__ == "__main__":
     unittest.main()
 

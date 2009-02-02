@@ -94,6 +94,8 @@ class StartupMessage(object):
 #                   parameters in the query string.
 class Parse(object):
     def __init__(self, ps, qs, type_oids):
+        if isinstance(qs, unicode):
+            raise TypeError("qs must be encoded byte data")
         self.ps = ps
         self.qs = qs
         self.type_oids = type_oids
@@ -970,6 +972,8 @@ class Connection(object):
             raise InternalError("connection state must be %s, is %s" % (state, self._state))
 
     def _send(self, msg):
+        if isinstance(msg, unicode):
+            raise TypeError("can't send unicode data")
         assert self._sock_lock.locked()
         #print "_send(%r)" % msg
         data = msg.serialize()
@@ -1066,7 +1070,7 @@ class Connection(object):
 
         type_info = [types.pg_type_info(x) for x in param_types]
         param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
-        self._send(Parse(statement, qs, param_types))
+        self._send(Parse(statement, qs.encode(self._client_encoding), param_types))
         self._send(DescribePreparedStatement(statement))
         self._send(Flush())
         self._flush()
