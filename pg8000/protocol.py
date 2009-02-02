@@ -972,11 +972,11 @@ class Connection(object):
             raise InternalError("connection state must be %s, is %s" % (state, self._state))
 
     def _send(self, msg):
-        if isinstance(msg, unicode):
-            raise TypeError("can't send unicode data")
         assert self._sock_lock.locked()
         #print "_send(%r)" % msg
         data = msg.serialize()
+        if not isinstance(data, str):
+            raise TypeError("bytes data expected")
         self._send_sock_buf.append(data)
     
     def _flush(self):
