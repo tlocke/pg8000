@@ -1,5 +1,10 @@
 {% extends "!layout.html" %}
 
+{% block extrahead %}
+    <script type="text/javascript" src="http://www.google-analytics.com/ga.js"></script>
+    <script type="text/javascript"> try { var pageTracker = _gat._getTracker("UA-271129-2"); pageTracker._trackPageview(); } catch(err) {} </script>
+{% endblock %}
+
 {% block sidebarsearch %}
     {{ super() }}
     <br />
