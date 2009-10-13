@@ -576,7 +576,8 @@ def array_dim_lengths(arr):
         retval.extend(array_dim_lengths(v0))
     else:
         return [len(arr)]
-
+    return retval
+    
 class array_send(object):
     def __init__(self, typeoid, bin_out_func):
         self.typeoid = typeoid
