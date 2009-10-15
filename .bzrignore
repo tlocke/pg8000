@@ -1,9 +1,0 @@
-build
-*.pyc
-*.swp
-tmp
-dist
-MANIFEST
-.hg
-*.orig
-tmp.out
