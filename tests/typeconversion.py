@@ -347,6 +347,15 @@ class Tests(unittest.TestCase):
         self.assert_(column_typeoid == 1005,
                 "type should be INT2[]")
 
+        # test multi-dimensional array, should be sent as INT2[]
+        self.cursor.execute("SELECT %s as f1", ([[1, 2], [3, 4]],))
+        retval = self.cursor.fetchall()
+        self.assert_(retval[0][0] == [[1, 2], [3, 4]],
+                "retrieved value match failed")
+        column_name, column_typeoid = self.cursor.description[0][0:2]
+        self.assert_(column_typeoid == 1005,
+                "type should be INT2[]")
+
         # a larger value should kick it up to INT4[]...
         self.cursor.execute("SELECT %s as f1", ([70000, 2, 3],))
         retval = self.cursor.fetchall()
