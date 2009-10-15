@@ -99,6 +99,8 @@ class StartupMessage(object):
 #                   parameters in the query string.
 class Parse(object):
     def __init__(self, ps, qs, type_oids):
+        if isinstance(qs, str):
+            raise TypeError("qs must be encoded byte data")
         self.ps = ps
         self.qs = qs
         self.type_oids = type_oids
@@ -118,7 +120,7 @@ class Parse(object):
         val = bytearray()
         val.extend(self.ps.encode("ascii"))
         val.append(0)
-        val.extend(self.qs.encode("ascii"))
+        val.extend(self.qs)
         val.append(0)
         val.extend(struct.pack("!h", len(self.type_oids)))
         for oid in self.type_oids:
@@ -991,6 +993,8 @@ class Connection(object):
     def _send(self, msg):
         assert self._sock_lock.locked()
         data = msg.serialize()
+        if not isinstance(data, bytes) and not isinstance(data, bytearray):
+            raise TypeError("bytes data expected, got %s instead" % data)
         #print("_send(%r, %s)" % (msg, repr(data)))
         self._sock.write(data)
 
@@ -1072,7 +1076,7 @@ class Connection(object):
 
         type_info = [types.pg_type_info(x) for x in param_types]
         param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
-        self._send(Parse(statement, qs, param_types))
+        self._send(Parse(statement, qs.encode(self._client_encoding), param_types))
         self._send(DescribePreparedStatement(statement))
         self._send(Flush())
         self._flush()

@@ -1,6 +1,12 @@
 Release History
 ================
 
+Development
+-----------
+
+- Removed usage of deprecated :mod:`md5` module, replaced with :mod:`hashlib`.
+  Thanks to Gavin Sherry for the patch.
+
 Version 1.07, 2009-01-06
 ------------------------
 

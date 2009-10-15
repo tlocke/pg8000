@@ -335,7 +335,7 @@ def numeric_send(v, **kwargs):
         v = v - (digit * (10000 ** weight))
         weight -= 1
         digits.append(digit)
-    retval = struct.pack("!hhhh", len(digits), max_weight, sign, 0)
+    retval = struct.pack("!hhhh", len(digits), int(max_weight), sign, 0)
     retval += struct.pack("!" + ("h" * len(digits)), *digits)
     return retval
 
@@ -573,7 +573,8 @@ def array_dim_lengths(arr):
         retval.extend(array_dim_lengths(v0))
     else:
         return [len(arr)]
-
+    return retval
+    
 class array_send(object):
     def __init__(self, typeoid, bin_out_func):
         self.typeoid = typeoid

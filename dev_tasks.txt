@@ -19,3 +19,5 @@
   * review notify patch
    * unit tests
 
+ * Support "void" return type from funcs, bug report from Ken Sell
+
