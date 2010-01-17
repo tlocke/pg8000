@@ -1016,22 +1016,26 @@ class Connection(object):
         try:
             self._send(StartupMessage(user, database=kwargs.get("database",None)))
             self._flush()
-            msg = self._read_message()
-            if not isinstance(msg, AuthenticationRequest):
-                raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
+
+            reader = MessageReader(self)
+            reader.add_message(AuthenticationRequest, self._authentication_request(user, **kwargs))
+            reader.handle_messages()
+        finally:
+            self._sock_lock.release()
+        self._cache_record_attnames()
+
+    def _authentication_request(self, user, **kwargs):
+        def _func(msg):
+            assert self._sock_lock.locked()
             if not msg.ok(self, user, **kwargs):
                 raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
-
             self._state = "auth"
-
             reader = MessageReader(self)
             reader.add_message(ReadyForQuery, self._ready_for_query)
             reader.add_message(BackendKeyData, self._receive_backend_key_data)
             reader.handle_messages()
-        finally:
-            self._sock_lock.release()
-
-        self._cache_record_attnames()
+            return 1
+        return _func
 
     def _ready_for_query(self, msg):
         self._state = "ready"
