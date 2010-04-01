@@ -1256,7 +1256,7 @@ class Connection(object):
 
     def _onParameterStatusReceived(self, msg):
         if msg.key == "client_encoding":
-            self._client_encoding = msg.value
+            self._client_encoding = types.pg_to_py_encodings[msg.value.lower()]
         elif msg.key == "integer_datetimes":
             self._integer_datetimes = (msg.value == "on")
 
