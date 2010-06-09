@@ -463,19 +463,6 @@ class Tests(unittest.TestCase):
         self.assert_(retval[0][0] == "08:00:2b:01:02:03",
                 "retrieved value match failed")
 
-    def testUserType(self):
-        try:
-            self.cursor.execute("DROP TYPE test_type")
-        except errors.DatabaseError, e:
-            self.assert_(e.args[1] == '42704', # type does not exist
-                "incorrect error for drop type")
-        self.cursor.execute("CREATE TYPE test_type AS (a INT, b FLOAT)")
-        db.recache_record_types()
-        self.cursor.execute("SELECT ROW(1, 2)::test_type")
-        retval = self.cursor.fetchall()
-        self.assert_(retval[0][0] == {"a": 1, "b": 2},
-                "retrieved value match failed")
-
 if __name__ == "__main__":
     unittest.main()
 
