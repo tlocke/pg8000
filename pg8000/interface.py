@@ -438,6 +438,7 @@ class Connection(Cursor):
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
         self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
         self._unnamed_prepared_statement_lock = threading.RLock()
+        self.in_transaction = False
 
     ##
     # An event handler that is fired when NOTIFY occurs for a notification that
@@ -491,6 +492,8 @@ class Connection(Cursor):
         if self.is_closed:
             raise ConnectionClosedError()
         self._begin.execute()
+        self.in_transaction = True
+
 
     ##
     # Commits the running transaction.
@@ -500,6 +503,7 @@ class Connection(Cursor):
         if self.is_closed:
             raise ConnectionClosedError()
         self._commit.execute()
+        self.in_transaction = False
 
     ##
     # Rolls back the running transaction.
@@ -509,6 +513,7 @@ class Connection(Cursor):
         if self.is_closed:
             raise ConnectionClosedError()
         self._rollback.execute()
+        self.in_transaction = False
 
     ##
     # Closes an open connection.
