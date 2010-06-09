@@ -934,6 +934,7 @@ class Connection(object):
         self._sock_buf_pos = 0
         self._send_sock_buf = []
         self._block_size = 8192
+        self._sock_lock = threading.Lock()
         if unix_sock == None and host != None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
@@ -947,19 +948,22 @@ class Connection(object):
         elif unix_sock != None:
             self._sock.connect(unix_sock)
         if ssl:
-            self._send(SSLRequest())
-            self._flush()
-            resp = self._sock.recv(1)
-            if resp == 'S':
-                self._sock = SSLWrapper(socket.ssl(self._sock))
-            else:
-                raise InterfaceError("server refuses SSL")
+            self._sock_lock.acquire()
+            try:
+                self._send(SSLRequest())
+                self._flush()
+                resp = self._sock.recv(1)
+                if resp == 'S':
+                    self._sock = SSLWrapper(socket.ssl(self._sock))
+                else:
+                    raise InterfaceError("server refuses SSL")
+            finally:
+                self._sock_lock.release()
         else:
             # settimeout causes ssl failure, on windows.  Python bug 1462352.
             self._sock.settimeout(socket_timeout)
         self._state = "noauth"
         self._backend_key_data = None
-        self._sock_lock = threading.Lock()
 
         self.NoticeReceived = MulticastDelegate()
         self.ParameterStatusReceived = MulticastDelegate()
