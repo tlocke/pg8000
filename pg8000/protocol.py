@@ -30,6 +30,7 @@
 __author__ = "Mathieu Fenniak"
 
 import socket
+import ssl as sslmodule
 import select
 import threading
 import struct
@@ -846,14 +847,6 @@ class CopyInResponse(object):
 
     createFromData = staticmethod(createFromData)
 
-class SSLWrapper(object):
-    def __init__(self, sslobj):
-        self.sslobj = sslobj
-    def send(self, data):
-        self.sslobj.write(data)
-    def recv(self, num):
-        return self.sslobj.read(num)
-
 
 class MessageReader(object):
     def __init__(self, connection):
@@ -953,7 +946,7 @@ class Connection(object):
                 self._flush()
                 resp = self._sock.recv(1)
                 if resp == 'S':
-                    self._sock = SSLWrapper(socket.ssl(self._sock))
+                    self._sock = sslmodule.wrap_socket(self._sock)
                 else:
                     raise InterfaceError("server refuses SSL")
             finally:
@@ -1260,7 +1253,7 @@ class Connection(object):
 
     def _onParameterStatusReceived(self, msg):
         if msg.key == "client_encoding":
-            self._client_encoding = types.pg_to_py_encodings[msg.value.lower()]
+            self._client_encoding = types.encoding_convert(msg.value)
         elif msg.key == "integer_datetimes":
             self._integer_datetimes = (msg.value == "on")
 
