@@ -308,8 +308,8 @@ class CursorWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     @require_open_cursor
     def execute(self, operation, args=()):
-        if not self.connection.in_transaction:
-            self.connection.begin()
+        if not self._connection.in_transaction:
+            self._connection.begin()
         self._override_rowcount = None
         self._execute(operation, args)
 
@@ -363,8 +363,8 @@ class CursorWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     @require_open_cursor
     def executemany(self, operation, parameter_sets):
-        if not self.connection.in_transaction:
-            self.connection.begin()		
+        if not self._connection.in_transaction:
+            self._connection.begin()
         self._override_rowcount = 0
         for parameters in parameter_sets:
             self._execute(operation, parameters)
