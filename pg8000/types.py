@@ -157,14 +157,10 @@ def pg_value(value, fc, **kwargs):
         raise NotSupportedError("type %r, format code %r not supported" % (typ, fc))
     return func(value, **kwargs)
 
-def py_type_info(description, record_field_names):
+def py_type_info(description):
     type_oid = description['type_oid']
     data = pg_types.get(type_oid)
     if data == None:
-        record_data = record_field_names.get(type_oid)
-        if record_data != None:
-            # records are in bin format
-            return 1
         raise NotSupportedError("type oid %r not mapped to py type" % type_oid)
     # prefer bin, but go with whatever exists
     if data.get("bin_in"):
@@ -175,17 +171,13 @@ def py_type_info(description, record_field_names):
         raise InternalError("no conversion fuction for type oid %r" % type_oid)
     return format
 
-def py_value(v, description, record_field_names, **kwargs):
+def py_value(v, description, **kwargs):
     if v == None:
         # special case - NULL value
         return None
     type_oid = description['type_oid']
     format = description['format']
     data = pg_types.get(type_oid)
-    if data == None:
-        record_data = record_field_names.get(type_oid)
-        if record_data != None:
-            data = {"bin_in": record_recv(record_data)}
     if data == None:
         raise NotSupportedError("type oid %r not supported" % type_oid)
     if format == 0:
@@ -397,7 +389,10 @@ pg_to_py_encodings = {
 }
 
 def encoding_convert(encoding):
-    return pg_to_py_encodings.get(encoding.lower(), encoding)
+    encoding = encoding.lower()
+    if isinstance(encoding, bytes):
+        encoding = encoding.decode("ascii")
+    return pg_to_py_encodings.get(encoding, encoding)
 
 def varcharin(data, client_encoding, **kwargs):
     return str(data, encoding_convert(client_encoding))
@@ -594,23 +589,6 @@ class array_send(object):
                 data += struct.pack("!i", len(inner_data))
                 data += inner_data
         return data
-
-class record_recv(object):
-    def __init__(self, record_field_names):
-        self.record_field_names = record_field_names
-
-    def __call__(self, data, **kwargs):
-        num_fields, = struct.unpack("!i", data[:4])
-        data = data[4:]
-        retval = {}
-        for i in range(num_fields):
-            typeoid, size = struct.unpack("!ii", data[:8])
-            data = data[8:]
-            conversion = pg_types[typeoid]["bin_in"]
-            value = conversion(data[:size], **kwargs)
-            data = data[size:]
-            retval[self.record_field_names[i]] = value
-        return retval
 
 py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},

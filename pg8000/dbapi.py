@@ -308,6 +308,8 @@ class CursorWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     @require_open_cursor
     def execute(self, operation, args=()):
+        if not self._connection.in_transaction:
+            self._connection.begin()
         self._override_rowcount = None
         self._execute(operation, args)
 
@@ -361,6 +363,8 @@ class CursorWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     @require_open_cursor
     def executemany(self, operation, parameter_sets):
+        if not self._connection.in_transaction:
+            self._connection.begin()
         self._override_rowcount = 0
         for parameters in parameter_sets:
             self._execute(operation, parameters)
@@ -466,11 +470,20 @@ class ConnectionWrapper(object):
         warn("DB-API extension connection.%s used" % error.__name__, stacklevel=3)
         return error
 
+    @property
+    def in_transaction(self):
+        if self.conn:
+             return self.conn.in_transaction
+        return False
+
     def __init__(self, **kwargs):
         self.conn = interface.Connection(**kwargs)
         self.notifies = []
         self.notifies_lock = threading.Lock()
         self.conn.NotificationReceived += self._notificationReceived
+
+    @require_open_connection
+    def begin(self):
         self.conn.begin()
 
     def _notificationReceived(self, notice):
@@ -505,7 +518,6 @@ class ConnectionWrapper(object):
         # statements on other threads.  Support for that type of lock will
         # be done later.
         self.conn.commit()
-        self.conn.begin()
 
     ##
     # Rolls back the current database transaction.
@@ -515,7 +527,6 @@ class ConnectionWrapper(object):
     def rollback(self):
         # see bug description in commit.
         self.conn.rollback()
-        self.conn.begin()
 
     ##
     # Closes the database connection.
@@ -525,10 +536,6 @@ class ConnectionWrapper(object):
     def close(self):
         self.conn.close()
         self.conn = None
-
-    @require_open_connection
-    def recache_record_types(self):
-        self.conn.recache_record_types()
 
 
 ##

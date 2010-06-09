@@ -1,5 +1,5 @@
-db_joy_connect = {
-        "host": "joy",
+db_stewart_connect = {
+        "host": "127.0.0.1",
         "user": "pg8000-test",
         "database": "pg8000-test",
         "password": "pg8000-test",

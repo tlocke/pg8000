@@ -30,6 +30,7 @@
 __author__ = "Mathieu Fenniak"
 
 import socket
+import ssl as sslmodule
 import select
 import threading
 import struct
@@ -866,14 +867,6 @@ class CopyInResponse(object):
 
     createFromData = staticmethod(createFromData)
 
-class SSLWrapper(object):
-    def __init__(self, sslobj):
-        self.sslobj = sslobj
-    def send(self, data):
-        self.sslobj.write(data)
-    def recv(self, num):
-        return self.sslobj.read(num)
-
 
 class MessageReader(object):
     def __init__(self, connection):
@@ -949,8 +942,11 @@ class Connection(object):
     def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
         self._client_encoding = "ascii"
         self._integer_datetimes = False
-        self._record_field_names = {}
+        self._sock_buf = ""
+        self._sock_buf_pos = 0
+        self._send_sock_buf = []
         self._block_size = 8192
+        self._sock_lock = threading.Lock()
         if unix_sock == None and host != None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
@@ -964,13 +960,17 @@ class Connection(object):
         elif unix_sock != None:
             self._sock.connect(unix_sock)
         if ssl:
-            self._send(SSLRequest())
-            self._flush()
-            resp = self._sock.recv(1)
-            if resp == b'S':
-                self._sock = SSLWrapper(socket.ssl(self._sock))
-            else:
-                raise InterfaceError("server refuses SSL")
+            self._sock_lock.acquire()
+            try:
+                self._send(SSLRequest())
+                self._flush()
+                resp = self._sock.recv(1)
+                if resp == 'S':
+                    self._sock = sslmodule.wrap_socket(self._sock)
+                else:
+                    raise InterfaceError("server refuses SSL")
+            finally:
+                self._sock_lock.release()
         else:
             # settimeout causes ssl failure, on windows.  Python bug 1462352.
             self._sock.settimeout(socket_timeout)
@@ -978,7 +978,6 @@ class Connection(object):
         self._sock = self._sock.makefile(mode="rwb", buffering=1024)
         self._state = "noauth"
         self._backend_key_data = None
-        self._sock_lock = threading.Lock()
 
         self.NoticeReceived = MulticastDelegate()
         self.ParameterStatusReceived = MulticastDelegate()
@@ -1024,20 +1023,23 @@ class Connection(object):
         with self._sock_lock:
             self._send(StartupMessage(user, database=kwargs.get("database",None)))
             self._flush()
-            msg = self._read_message()
-            if not isinstance(msg, AuthenticationRequest):
-                raise InternalError("StartupMessage was responded to with non-AuthenticationRequest msg %r" % msg)
+
+            reader = MessageReader(self)
+            reader.add_message(AuthenticationRequest, self._authentication_request(user, **kwargs))
+            reader.handle_messages()
+
+    def _authentication_request(self, user, **kwargs):
+        def _func(msg):
+            assert self._sock_lock.locked()
             if not msg.ok(self, user, **kwargs):
                 raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
-
             self._state = "auth"
-
             reader = MessageReader(self)
             reader.add_message(ReadyForQuery, self._ready_for_query)
             reader.add_message(BackendKeyData, self._receive_backend_key_data)
             reader.handle_messages()
-
-        #self._cache_record_attnames()
+            return 1
+        return _func
 
     def _ready_for_query(self, msg):
         self._state = "ready"
@@ -1045,30 +1047,6 @@ class Connection(object):
 
     def _receive_backend_key_data(self, msg):
         self._backend_key_data = msg
-
-    def _cache_record_attnames(self):
-        parse_retval = self.parse("",
-            """SELECT
-                pg_type.oid, attname
-            FROM
-                pg_type
-                INNER JOIN pg_attribute ON (attrelid = pg_type.typrelid)
-            WHERE typreceive::text = 'record_recv'
-            ORDER BY pg_type.oid, attnum""",
-            [])
-        row_desc, cmd = self.bind("tmp", "", (), parse_retval, None)
-        eod, rows = self.fetch_rows("tmp", 0, row_desc)
-
-        self._record_field_names = {}
-        typoid, attnames = None, []
-        for row in rows:
-            new_typoid, attname = row
-            if new_typoid != typoid and typoid != None:
-                self._record_field_names[typoid] = attnames
-                attnames = []
-            typoid = new_typoid
-            attnames.append(attname)
-        self._record_field_names[typoid] = attnames
 
     @sync_on_error
     def parse(self, statement, qs, param_types):
@@ -1110,7 +1088,7 @@ class Connection(object):
         else:
             # We've got row_desc that allows us to identify what we're going to
             # get back from this statement.
-            output_fc = [types.py_type_info(f, self._record_field_names) for f in row_desc.fields]
+            output_fc = [types.py_type_info(f) for f in row_desc.fields]
         self._send(Bind(portal, statement, param_fc, params, output_fc, client_encoding = self._client_encoding, integer_datetimes = self._integer_datetimes))
         # We need to describe the portal after bind, since the return
         # format codes will be different (hopefully, always what we
@@ -1205,7 +1183,6 @@ class Connection(object):
                     row_desc.fields[i],
                     client_encoding=self._client_encoding,
                     integer_datetimes=self._integer_datetimes,
-                    record_field_names=self._record_field_names
                 )
                 for i in range(len(msg.fields))
             ]
@@ -1277,7 +1254,7 @@ class Connection(object):
 
     def _onParameterStatusReceived(self, msg):
         if msg.key == b"client_encoding":
-            self._client_encoding = msg.value.decode("ascii")
+            self._client_encoding = types.encoding_convert(msg.value)
         elif msg.key == b"integer_datetimes":
             self._integer_datetimes = (msg.value == b"on")
 

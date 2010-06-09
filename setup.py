@@ -14,13 +14,13 @@ PostgreSQL interface for Python."""
 
 setup(
         name="pg8000-py3",
-        version="1.07",
+        version="1.08",
         description="PostgreSQL interface library",
         long_description=long_description,
         author="Mathieu Fenniak",
         author_email="biziqe@mathieu.fenniak.net",
         url="http://pybrary.net/pg8000/",
-        download_url="http://pybrary.net/pg8000/dist/pg8000-py3-1.07.tar.gz",
+        download_url="http://pybrary.net/pg8000/dist/pg8000-py3-1.08.tar.gz",
         classifiers = [
             "Development Status :: 4 - Beta",
             "Intended Audience :: Developers",

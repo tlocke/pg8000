@@ -116,7 +116,7 @@ class Tests(unittest.TestCase):
             retval = self.cursor.fetchall()
             self.assert_(retval[0][0] == value,
                     "retrieved value match failed")
-            column_name, column_typeoid, *junk = self.cursor.description[0]
+            column_name, column_typeoid = self.cursor.description[0][0:2]
             self.assert_(column_typeoid == typoid,
                     "type should be INT2[]")
 
@@ -177,7 +177,7 @@ class Tests(unittest.TestCase):
     #        )
     #        self.cursor.execute("SELECT f1, f2 FROM TestTz")
     #        retval = self.cursor.fetchall()
-    #
+    # 
     #        # when inserting a timestamp into a timestamptz field, postgresql
     #        # assumes that it is in local time.  So the value that comes out
     #        # will be the server's local time interpretation of v1.  We've set
@@ -185,7 +185,7 @@ class Tests(unittest.TestCase):
     #        f1 = retval[0][0]
     #        self.assert_(f1 == datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pytz.utc),
     #                "retrieved value match failed")
-    #
+    # 
     #        # inserting the timestamptz into a timestamp field, pg8000
     #        # converts the value into UTC, and then the PG server converts
     #        # it into local time for insertion into the field.  When we query
@@ -195,7 +195,6 @@ class Tests(unittest.TestCase):
     #                "retrieved value match failed")
     #    finally:
     #        self.cursor.execute("SET SESSION TIME ZONE DEFAULT")
-
 
     def testNameOut(self):
         # select a field that is of "name" type:
@@ -346,7 +345,7 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assert_(retval[0][0] == [1, 2, 3],
                 "retrieved value match failed")
-        column_name, column_typeoid, *junk = self.cursor.description[0]
+        column_name, column_typeoid = self.cursor.description[0][0:2]
         self.assert_(column_typeoid == 1005,
                 "type should be INT2[]")
 
@@ -364,7 +363,7 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assert_(retval[0][0] == [70000, 2, 3],
                 "retrieved value match failed")
-        column_name, column_typeoid, *junk = self.cursor.description[0]
+        column_name, column_typeoid = self.cursor.description[0][0:2]
         self.assert_(column_typeoid == 1007,
                 "type should be INT4[]")
 
@@ -373,7 +372,7 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assert_(retval[0][0] == [7000000000, 2, 3],
                 "retrieved value match failed")
-        column_name, column_typeoid, *junk = self.cursor.description[0]
+        column_name, column_typeoid = self.cursor.description[0][0:2]
         self.assert_(column_typeoid == 1016,
                 "type should be INT8[]")
         
@@ -464,19 +463,6 @@ class Tests(unittest.TestCase):
         self.cursor.execute("SELECT macaddr '08002b:010203'")
         retval = self.cursor.fetchall()
         self.assert_(retval[0][0] == "08:00:2b:01:02:03",
-                "retrieved value match failed")
-
-    def testUserType(self):
-        try:
-            self.cursor.execute("DROP TYPE test_type")
-        except errors.DatabaseError as e:
-            self.assert_(e.args[1] == b'42704', # type does not exist
-                "incorrect error for drop type")
-        self.cursor.execute("CREATE TYPE test_type AS (a INT, b FLOAT)")
-        db.recache_record_types()
-        self.cursor.execute("SELECT ROW(1, 2)::test_type")
-        retval = self.cursor.fetchall()
-        self.assert_(retval[0][0] == {"a": 1, "b": 2},
                 "retrieved value match failed")
 
 if __name__ == "__main__":
