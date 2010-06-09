@@ -19,21 +19,19 @@ modified BSD license.
 Download
 ========
 
-The latest release of pg8000 is version 1.07, released on January 6th, 2009.
+The latest release of pg8000 is version 1.08, released on June 8th, 2010.
 
 Python 2
 --------
 
-* `pg8000-1.07.tar.gz <dist/pg8000-1.07.tar.gz>`_
-* `pg8000-1.07.zip <dist/pg8000-1.07.zip>`_
-* `pg8000-1.07-py2.5.egg <dist/pg8000-1.07-py2.5.egg>`_
-* `pg8000-1.07.win32.exe <dist/pg8000-1.07.win32.exe>`_
+* `pg8000-1.08.tar.gz <dist/pg8000-1.08.tar.gz>`_
+* `pg8000-1.08.zip <dist/pg8000-1.08.zip>`_
 
 Python 3
 --------
 
-* `pg8000-py3-1.07.tar.gz <dist/pg8000-py3-1.07.tar.gz>`_
-* `pg8000-py3-1.07.zip <dist/pg8000-py3-1.07.zip>`_
+* `pg8000-py3-1.08.tar.gz <dist/pg8000-py3-1.08.tar.gz>`_
+* `pg8000-py3-1.08.zip <dist/pg8000-py3-1.08.zip>`_
 
 Git Source Repository
 ---------------------
