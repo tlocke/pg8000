@@ -46,6 +46,12 @@ DBAPI Properties
         pyformat
             Python format codes, eg. ``WHERE name=%(paramname)s``
 
+.. attribute:: paramstyle
+
+    String property containing the database version as reported by the server.
+
+    This is an extension to the DBAP specification.
+
 .. attribute:: STRING
 .. attribute:: BINARY
 .. attribute:: NUMBER
