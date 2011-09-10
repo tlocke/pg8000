@@ -30,7 +30,10 @@
 __author__ = "Mathieu Fenniak"
 
 import socket
-import ssl as sslmodule
+try:
+    import ssl as sslmodule
+except ImportError:
+    sslmodule = None
 import select
 import threading
 import struct
@@ -945,8 +948,10 @@ class Connection(object):
                 self._send(SSLRequest())
                 self._flush()
                 resp = self._sock.recv(1)
-                if resp == 'S':
+                if resp == 'S' and sslmodule is not None:
                     self._sock = sslmodule.wrap_socket(self._sock)
+                elif sslmodule is None:
+                    raise InterfaceError("SSL required but ssl module not available in this python installation")
                 else:
                     raise InterfaceError("server refuses SSL")
             finally:
