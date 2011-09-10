@@ -396,7 +396,10 @@ def varcharin(data, client_encoding, **kwargs):
     return unicode(data, encoding_convert(client_encoding))
 
 def textout(v, client_encoding, **kwargs):
-    return v.encode(encoding_convert(client_encoding))
+    if isinstance(v, unicode):
+        return v.encode(encoding_convert(client_encoding))
+    else:
+        return v
 
 def byteasend(v, **kwargs):
     return str(v)
