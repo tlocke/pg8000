@@ -542,3 +542,8 @@ class Connection(Cursor):
     def isready(self):
         return self.c.isready()
 
+    ##
+    # Return the server_version as reported from the connected server.
+    # Raises InterfaceError if no version has been reported from the server.
+    def server_version(self):
+        return self.c.server_version()

@@ -537,6 +537,14 @@ class ConnectionWrapper(object):
         self.conn.close()
         self.conn = None
 
+    ##
+    # Returns the "server_version" string provided by the connected server.
+    # <p>
+    # Stability: Extension of the DBAPI 2.0 specification.
+    @property
+    @require_open_connection
+    def server_version(self):
+        return self.conn.server_version()
 
 ##
 # Creates a DBAPI 2.0 compatible interface to a PostgreSQL database.

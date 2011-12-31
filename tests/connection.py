@@ -33,6 +33,9 @@ class Tests(unittest.TestCase):
         finally:
             db.close()
 
+    def testServerVersion(self):
+        with closing(dbapi.connect(**db_connect)) as db:
+            self.assertRegexpMatches(db.server_version, r'\d{1,2}\.\d(\.\d)?')
 
 if __name__ == "__main__":
     unittest.main()
