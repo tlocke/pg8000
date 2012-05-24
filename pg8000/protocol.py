@@ -922,6 +922,7 @@ class Connection(object):
     def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
         self._client_encoding = "ascii"
         self._integer_datetimes = False
+        self._server_version = None
         self._sock_buf = ""
         self._sock_buf_pos = 0
         self._send_sock_buf = []
@@ -1256,6 +1257,8 @@ class Connection(object):
             self._client_encoding = types.encoding_convert(msg.value)
         elif msg.key == "integer_datetimes":
             self._integer_datetimes = (msg.value == "on")
+        elif msg.key == "server_version":
+            self._server_version = msg.value
 
     def handleNoticeResponse(self, msg):
         self.NoticeReceived(msg)
@@ -1281,6 +1284,13 @@ class Connection(object):
             return True
         finally:
             self._sock_lock.release()
+
+    def server_version(self):
+        self.verifyState("ready")
+        if not self._server_version:
+            raise InterfaceError("Server did not provide server_version parameter.")
+        return self._server_version
+
 
 message_types = {
     "N": NoticeResponse,
