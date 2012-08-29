@@ -70,14 +70,22 @@ def convert_paramstyle(src_style, query, args):
     state = 0
     output_query = ""
     output_args = []
-    if src_style == "numeric":
+
+    qmark = src_style == "qmark"
+    numeric = src_style == "numeric"
+    named = src_style == "named"
+    format = src_style == "format"
+    pyformat = src_style == "pyformat"
+
+    if numeric:
         output_args = args
-    elif src_style in ("pyformat", "named"):
+    elif pyformat or named:
         mapping_to_idx = {}
+    querylen = len(query)
     i = 0
-    while 1:
-        if i == len(query):
-            break
+
+
+    while i != querylen:
         c = query[i]
         # print "begin loop", repr(i), repr(c), repr(state)
         if state == 0:
@@ -92,31 +100,33 @@ def convert_paramstyle(src_style, query, args):
             elif c == 'E':
                 # check for escaped single-quote string
                 i += 1
-                if i < len(query) and i > 1 and query[i] == "'":
+                if i < querylen and i > 1 and query[i] == "'":
                     i += 1
                     output_query += "E'"
                     state = 3
                 else:
                     output_query += c
-            elif src_style == "qmark" and c == "?":
+            elif qmark and c == "?":
                 i += 1
                 param_idx = len(output_args)
                 if param_idx == len(args):
-                    raise QueryParameterIndexError("too many parameter fields, not enough parameters")
+                    raise QueryParameterIndexError(
+                        "too many parameter fields, not enough parameters")
                 output_args.append(args[param_idx])
                 output_query += "$" + str(param_idx + 1)
-            elif src_style == "numeric" and c == ":":
+            elif numeric and c == ":":
                 i += 1
-                if i < len(query) and i > 1 and query[i].isdigit():
+                if i < querylen and i > 1 and query[i].isdigit():
                     output_query += "$" + query[i]
                     i += 1
                 else:
-                    raise QueryParameterParseError("numeric parameter : does not have numeric arg")
-            elif src_style == "named" and c == ":":
+                    raise QueryParameterParseError(
+                            "numeric parameter : does not have numeric arg")
+            elif named and c == ":":
                 name = ""
                 while 1:
                     i += 1
-                    if i == len(query):
+                    if i == querylen:
                         break
                     c = query[i]
                     if c.isalnum() or c == '_':
@@ -124,7 +134,8 @@ def convert_paramstyle(src_style, query, args):
                     else:
                         break
                 if name == "":
-                    raise QueryParameterParseError("empty name of named parameter")
+                    raise QueryParameterParseError(
+                                    "empty name of named parameter")
                 idx = mapping_to_idx.get(name)
                 if idx == None:
                     idx = len(output_args)
@@ -132,35 +143,41 @@ def convert_paramstyle(src_style, query, args):
                     idx += 1
                     mapping_to_idx[name] = idx
                 output_query += "$" + str(idx)
-            elif src_style == "format" and c == "%":
+            elif format and c == "%":
                 i += 1
-                if i < len(query) and i > 1:
+                if i < querylen and i > 1:
                     if query[i] == "s":
                         param_idx = len(output_args)
                         if param_idx == len(args):
-                            raise QueryParameterIndexError("too many parameter fields, not enough parameters")
+                            raise QueryParameterIndexError(
+                                    "too many parameter fields, not "
+                                    "enough parameters")
                         output_args.append(args[param_idx])
                         output_query += "$" + str(param_idx + 1)
                     elif query[i] == "%":
                         output_query += "%"
                     else:
-                        raise QueryParameterParseError("Only %s and %% are supported")
+                        raise QueryParameterParseError(
+                                "Only %s and %% are supported")
                     i += 1
                 else:
-                    raise QueryParameterParseError("format parameter % does not have format code")
+                    raise QueryParameterParseError(
+                                "format parameter % does not have format code")
             elif src_style == "pyformat" and c == "%":
                 i += 1
-                if i < len(query) and i > 1:
+                if i < querylen and i > 1:
                     if query[i] == "(":
                         i += 1
                         # begin mapping name
                         end_idx = query.find(')', i)
                         if end_idx == -1:
-                            raise QueryParameterParseError("began pyformat dict read, but couldn't find end of name")
+                            raise QueryParameterParseError(
+                                    "began pyformat dict read, but couldn't "
+                                    "find end of name")
                         else:
                             name = query[i:end_idx]
                             i = end_idx + 1
-                            if i < len(query) and query[i] == "s":
+                            if i < querylen and query[i] == "s":
                                 i += 1
                                 idx = mapping_to_idx.get(name)
                                 if idx == None:
@@ -170,16 +187,20 @@ def convert_paramstyle(src_style, query, args):
                                     mapping_to_idx[name] = idx
                                 output_query += "$" + str(idx)
                             else:
-                                raise QueryParameterParseError("format not specified or not supported (only %(...)s supported)")
+                                raise QueryParameterParseError(
+                                    "format not specified or not supported "
+                                    "(only %(...)s supported)")
                     elif query[i] == "%":
                         output_query += "%"
                     elif query[i] == "s":
                         # we have a %s in a pyformat query string.  Assume
                         # support for format instead.
                         i -= 1
-                        src_style = "format"
+                        format = True
+                        pyformat = False
                     else:
-                        raise QueryParameterParseError("Only %(name)s, %s and %% are supported")
+                        raise QueryParameterParseError(
+                                    "Only %(name)s, %s and %% are supported")
             else:
                 i += 1
                 output_query += c
@@ -188,51 +209,54 @@ def convert_paramstyle(src_style, query, args):
             i += 1
             if c == "'":
                 # Could be a double ''
-                if i < len(query) and query[i] == "'":
+                if i < querylen and query[i] == "'":
                     # is a double quote.
                     output_query += query[i]
                     i += 1
                 else:
                     state = 0
-            elif src_style in ("pyformat","format") and c == "%":
+            elif (pyformat or format) and c == "%":
                 # hm... we're only going to support an escaped percent sign
-                if i < len(query):
+                if i < querylen:
                     if query[i] == "%":
                         # good.  We already output the first percent sign.
                         i += 1
                     else:
-                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
+                        raise QueryParameterParseError("'%" + query[i] +
+                                    "' not supported in quoted string")
         elif state == 2:
             output_query += c
             i += 1
             if c == '"':
                 state = 0
-            elif src_style in ("pyformat","format") and c == "%":
+            elif (pyformat or format) and c == "%":
                 # hm... we're only going to support an escaped percent sign
-                if i < len(query):
+                if i < querylen:
                     if query[i] == "%":
                         # good.  We already output the first percent sign.
                         i += 1
                     else:
-                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
+                        raise QueryParameterParseError("'%" + query[i] +
+                                        "' not supported in quoted string")
         elif state == 3:
             output_query += c
             i += 1
             if c == "\\":
                 # check for escaped single-quote
-                if i < len(query) and query[i] == "'":
+                if i < querylen and query[i] == "'":
                     output_query += "'"
                     i += 1
             elif c == "'":
                 state = 0
-            elif src_style in ("pyformat","format") and c == "%":
+            elif (pyformat or format) and c == "%":
                 # hm... we're only going to support an escaped percent sign
-                if i < len(query):
+                if i < querylen:
                     if query[i] == "%":
                         # good.  We already output the first percent sign.
                         i += 1
                     else:
-                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
+                        raise QueryParameterParseError("'%" + query[i] +
+                                        "' not supported in quoted string")
 
     return output_query, tuple(output_args)
 
@@ -342,7 +366,7 @@ class CursorWrapper(object):
             if null is not None:
                 query += " NULL '%s'" % (null,)
         self.copy_execute(fileobj, query)
-    
+
     @require_open_cursor
     def copy_execute(self, fileobj, query):
         try:
@@ -440,7 +464,7 @@ class CursorWrapper(object):
     @require_open_cursor
     def fileno(self):
         return self.cursor.fileno()
-    
+
     @require_open_cursor
     def isready(self):
         return self.cursor.isready()
