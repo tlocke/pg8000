@@ -34,8 +34,9 @@ import time
 import interface
 import types
 import threading
+from collections import deque
 from errors import *
-
+import re
 from warnings import warn
 
 ##
@@ -59,6 +60,9 @@ threadsafety = 3
 # and pyformat).
 paramstyle = 'format' # paramstyle can be changed to any DB-API paramstyle
 
+_name_reg = re.compile(r'\:([a-zA-Z0-9_]+)')
+_pyformat_reg = re.compile(r'%\((.+?)\)(.)')
+
 def convert_paramstyle(src_style, query, args):
     # I don't see any way to avoid scanning the query string char by char,
     # so we might as well take that careful approach and create a
@@ -81,11 +85,14 @@ def convert_paramstyle(src_style, query, args):
         output_args = args
     elif pyformat or named:
         mapping_to_idx = {}
+    else:
+        args = deque(args)
+        param_idx = 0
+    idx = 0
     querylen = len(query)
     i = 0
 
-
-    while i != querylen:
+    while i < querylen:
         c = query[i]
         # print "begin loop", repr(i), repr(c), repr(state)
         if state == 0:
@@ -108,12 +115,13 @@ def convert_paramstyle(src_style, query, args):
                     output_query += c
             elif qmark and c == "?":
                 i += 1
-                param_idx = len(output_args)
-                if param_idx == len(args):
+                param_idx += 1
+                try:
+                    output_args.append(args.popleft())
+                except IndexError:
                     raise QueryParameterIndexError(
                         "too many parameter fields, not enough parameters")
-                output_args.append(args[param_idx])
-                output_query += "$" + str(param_idx + 1)
+                output_query += "$" + str(param_idx)
             elif numeric and c == ":":
                 i += 1
                 if i < querylen and i > 1 and query[i].isdigit():
@@ -123,37 +131,33 @@ def convert_paramstyle(src_style, query, args):
                     raise QueryParameterParseError(
                             "numeric parameter : does not have numeric arg")
             elif named and c == ":":
-                name = ""
-                while 1:
-                    i += 1
-                    if i == querylen:
-                        break
-                    c = query[i]
-                    if c.isalnum() or c == '_':
-                        name += c
-                    else:
-                        break
-                if name == "":
+                m = _name_reg.match(query[i:])
+                if not m:
                     raise QueryParameterParseError(
                                     "empty name of named parameter")
-                idx = mapping_to_idx.get(name)
-                if idx == None:
-                    idx = len(output_args)
+                else:
+                    name = m.group(1)
+                    i += len(name) + 1
+                if name not in mapping_to_idx:
+                    # assert idx == len(output_args)
                     output_args.append(args[name])
                     idx += 1
                     mapping_to_idx[name] = idx
+                else:
+                    idx = mapping_to_idx[name]
                 output_query += "$" + str(idx)
             elif format and c == "%":
                 i += 1
                 if i < querylen and i > 1:
                     if query[i] == "s":
-                        param_idx = len(output_args)
-                        if param_idx == len(args):
+                        param_idx += 1
+                        try:
+                            output_args.append(args.popleft())
+                        except IndexError:
                             raise QueryParameterIndexError(
                                     "too many parameter fields, not "
                                     "enough parameters")
-                        output_args.append(args[param_idx])
-                        output_query += "$" + str(param_idx + 1)
+                        output_query += "$" + str(param_idx)
                     elif query[i] == "%":
                         output_query += "%"
                     else:
@@ -163,34 +167,27 @@ def convert_paramstyle(src_style, query, args):
                 else:
                     raise QueryParameterParseError(
                                 "format parameter % does not have format code")
-            elif src_style == "pyformat" and c == "%":
-                i += 1
-                if i < querylen and i > 1:
-                    if query[i] == "(":
-                        i += 1
-                        # begin mapping name
-                        end_idx = query.find(')', i)
-                        if end_idx == -1:
-                            raise QueryParameterParseError(
-                                    "began pyformat dict read, but couldn't "
-                                    "find end of name")
-                        else:
-                            name = query[i:end_idx]
-                            i = end_idx + 1
-                            if i < querylen and query[i] == "s":
-                                i += 1
-                                idx = mapping_to_idx.get(name)
-                                if idx == None:
-                                    idx = len(output_args)
-                                    output_args.append(args[name])
-                                    idx += 1
-                                    mapping_to_idx[name] = idx
-                                output_query += "$" + str(idx)
-                            else:
-                                raise QueryParameterParseError(
-                                    "format not specified or not supported "
-                                    "(only %(...)s supported)")
-                    elif query[i] == "%":
+            elif pyformat and c == "%":
+                m = _pyformat_reg.match(query[i:])
+                if m:
+                    name, type_ = m.group(1, 2)
+                    if type_ != "s":
+                        raise QueryParameterParseError(
+                            "format not specified or not supported "
+                            "(only %(...)s supported)")
+                    i += len(m.group(0))
+                    if name not in mapping_to_idx:
+                        # assert idx == len(output_args)
+                        output_args.append(args[name])
+                        idx += 1
+                        mapping_to_idx[name] = idx
+                    else:
+                        idx = mapping_to_idx[name]
+                    output_query += "$" + str(idx)
+                else:
+                    i += 1
+
+                    if query[i] == "%":
                         output_query += "%"
                     elif query[i] == "s":
                         # we have a %s in a pyformat query string.  Assume
@@ -198,6 +195,8 @@ def convert_paramstyle(src_style, query, args):
                         i -= 1
                         format = True
                         pyformat = False
+                        args = deque(args)
+                        param_idx = 0
                     else:
                         raise QueryParameterParseError(
                                     "Only %(name)s, %s and %% are supported")
