@@ -854,7 +854,7 @@ class CopyInResponse(object):
 class MessageReader(object):
     def __init__(self, connection):
         self._conn = connection
-        self._msgs = []
+        self._msgs = {}
 
         # If true, raise exception from an ErrorResponse after messages are
         # processed.  This can be used to leave the connection in a usable
@@ -865,22 +865,23 @@ class MessageReader(object):
         self.ignore_unhandled_messages = False
 
     def add_message(self, msg_class, handler, *args, **kwargs):
-        self._msgs.append((msg_class, handler, args, kwargs))
+        self._msgs[msg_class] = (handler, args, kwargs)
 
     def clear_messages(self):
-        self._msgs = []
+        self._msgs = {}
 
     def return_value(self, value):
         self._retval = value
 
     def handle_messages(self):
         exc = None
-        while 1:
+        while True:
             msg = self._conn._read_message()
-            msg_handled = False
-            for (msg_class, handler, args, kwargs) in self._msgs:
-                if isinstance(msg, msg_class):
-                    msg_handled = True
+
+            for cls_key in type(msg).__mro__[0:-1]:
+                if cls_key in self._msgs:
+                    handler, args, kwargs = self._msgs[cls_key]
+
                     retval = handler(msg, *args, **kwargs)
                     if retval:
                         # The handler returned a true value, meaning that the
@@ -894,20 +895,21 @@ class MessageReader(object):
                         if exc != None:
                             raise exc
                         return self._retval
-            if msg_handled:
-                continue
-            elif isinstance(msg, ErrorResponse):
-                exc = msg.createException()
-                if not self.delay_raising_exception:
-                    raise exc
-            elif isinstance(msg, NoticeResponse):
-                self._conn.handleNoticeResponse(msg)
-            elif isinstance(msg, ParameterStatus):
-                self._conn.handleParameterStatus(msg)
-            elif isinstance(msg, NotificationResponse):
-                self._conn.handleNotificationResponse(msg)
-            elif not self.ignore_unhandled_messages:
-                raise InternalError("Unexpected response msg %r" % (msg))
+                    else:
+                        break
+            else:
+                if isinstance(msg, ErrorResponse):
+                    exc = msg.createException()
+                    if not self.delay_raising_exception:
+                        raise exc
+                elif isinstance(msg, NoticeResponse):
+                    self._conn.handleNoticeResponse(msg)
+                elif isinstance(msg, ParameterStatus):
+                    self._conn.handleParameterStatus(msg)
+                elif isinstance(msg, NotificationResponse):
+                    self._conn.handleNotificationResponse(msg)
+                elif not self.ignore_unhandled_messages:
+                    raise InternalError("Unexpected response msg %r" % (msg))
 
 def sync_on_error(fn):
     def _fn(self, *args, **kwargs):
@@ -922,7 +924,8 @@ def sync_on_error(fn):
     return _fn
 
 class Connection(object):
-    def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
+    def __init__(self, unix_sock=None, host=None, port=5432,
+                    socket_timeout=60, ssl=False):
         self._client_encoding = "ascii"
         self._integer_datetimes = False
         self._server_version = None
@@ -935,7 +938,9 @@ class Connection(object):
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
             if not hasattr(socket, "AF_UNIX"):
-                raise InterfaceError("attempt to connect to unix socket on unsupported platform")
+                raise InterfaceError(
+                        "attempt to connect to unix socket on "
+                        "unsupported platform")
             self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         else:
             raise ProgrammingError("one of host or unix_sock must be provided")
@@ -952,7 +957,9 @@ class Connection(object):
                 if resp == 'S' and sslmodule is not None:
                     self._sock = sslmodule.wrap_socket(self._sock)
                 elif sslmodule is None:
-                    raise InterfaceError("SSL required but ssl module not available in this python installation")
+                    raise InterfaceError(
+                                "SSL required but ssl module not available in "
+                                "this python installation")
                 else:
                     raise InterfaceError("server refuses SSL")
             finally:
@@ -1050,7 +1057,8 @@ class Connection(object):
         self.verifyState("ready")
 
         type_info = [types.pg_type_info(x) for x in param_types]
-        param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
+        param_types, param_fc = [x[0] for x in type_info], \
+                                [x[1] for x in type_info]
         self._send(Parse(statement, qs.encode(self._client_encoding), param_types))
         self._send(DescribePreparedStatement(statement))
         self._send(Flush())
@@ -1086,7 +1094,11 @@ class Connection(object):
             # We've got row_desc that allows us to identify what we're going to
             # get back from this statement.
             output_fc = [types.py_type_info(f) for f in row_desc.fields]
-        self._send(Bind(portal, statement, param_fc, params, output_fc, client_encoding = self._client_encoding, integer_datetimes = self._integer_datetimes))
+        self._send(
+                    Bind(portal, statement, param_fc, params,
+                            output_fc, client_encoding = self._client_encoding,
+                            integer_datetimes = self._integer_datetimes)
+                )
         # We need to describe the portal after bind, since the return
         # format codes will be different (hopefully, always what we
         # requested).

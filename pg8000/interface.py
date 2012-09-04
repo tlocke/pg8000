@@ -300,7 +300,9 @@ class Cursor(object):
             raise ConnectionClosedError()
         self.connection._unnamed_prepared_statement_lock.acquire()
         try:
-            self._stmt = PreparedStatement(self.connection, query, statement_name="", *[{"type": type(x), "value": x} for x in args])
+            self._stmt = PreparedStatement(self.connection, query,
+                            statement_name="",
+                            *[{"type": type(x), "value": x} for x in args])
             self._stmt.execute(*args, **kwargs)
         finally:
             self.connection._unnamed_prepared_statement_lock.release()
@@ -425,15 +427,19 @@ class Cursor(object):
 # Defaults to 60 seconds.
 #
 # @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
-class Connection(Cursor):
-    def __init__(self, user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
+class Connection(object):
+    def __init__(self, user, host=None, unix_sock=None, port=5432,
+                    database=None, password=None,
+                    socket_timeout=60, ssl=False):
         self._row_desc = None
         try:
-            self.c = protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout, ssl=ssl)
+            self.c = protocol.Connection(unix_sock=unix_sock, host=host,
+                                            port=port,
+                                            socket_timeout=socket_timeout,
+                                            ssl=ssl)
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
             raise InterfaceError("communication error", e)
-        Cursor.__init__(self, self)
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
         self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
