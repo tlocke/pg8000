@@ -799,7 +799,7 @@ class CopyData(object):
     def createFromData(data):
         return CopyData(data)
     createFromData = staticmethod(createFromData)
-    
+
     def serialize(self):
         return 'd' + struct.pack('!i', len(self.data) + 4) + self.data
 
@@ -812,7 +812,7 @@ class CopyDone(object):
         return CopyDone()
 
     createFromData = staticmethod(createFromData)
-    
+
     def serialize(self):
         return 'c\x00\x00\x00\x04'
 
@@ -826,7 +826,7 @@ class CopyOutResponse(object):
     def __init__(self, is_binary, column_formats):
         self.is_binary = is_binary
         self.column_formats = column_formats
-    
+
     def createFromData(data):
         is_binary, num_cols = struct.unpack('!bh', data[:3])
         column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
@@ -838,11 +838,11 @@ class CopyOutResponse(object):
 class CopyInResponse(object):
     # Byte1('G')
     # Otherwise the same as CopyOutResponse
-    
+
     def __init__(self, is_binary, column_formats):
         self.is_binary = is_binary
         self.column_formats = column_formats
-    
+
     def createFromData(data):
         is_binary, num_cols = struct.unpack('!bh', data[:3])
         column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
@@ -872,7 +872,7 @@ class MessageReader(object):
 
     def return_value(self, value):
         self._retval = value
-    
+
     def handle_messages(self):
         exc = None
         while 1:
@@ -980,7 +980,7 @@ class Connection(object):
         if not isinstance(data, str):
             raise TypeError("bytes data expected")
         self._send_sock_buf.append(data)
-    
+
     def _flush(self):
         assert self._sock_lock.locked()
         self._sock.sendall("".join(self._send_sock_buf))
@@ -1277,14 +1277,14 @@ class Connection(object):
     def fileno(self):
         # This should be safe to do without a lock
         return self._sock.fileno()
-    
+
     def isready(self):
         self._sock_lock.acquire()
         try:
             rlst, _wlst, _xlst = select.select([self], [], [], 0)
             if not rlst:
                 return False
-                
+
             self._sync()
             return True
         finally:

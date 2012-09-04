@@ -96,7 +96,7 @@ class Tests(unittest.TestCase):
                     f1, f2, f3 = row
         finally:
             dbapi.paramstyle = orig_paramstyle
-    
+
     def testPyformat(self):
         orig_paramstyle = dbapi.paramstyle
         try:

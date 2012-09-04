@@ -8,7 +8,7 @@ DBAPI Properties
 ----------------
 
 .. attribute:: apilevel
-    
+
     The DBAPI level supported, currently "2.0".
 
     This property is part of the `DBAPI 2.0 specification
@@ -63,7 +63,7 @@ DBAPI Functions
 ---------------
 
 .. function:: connect(user[, host, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False])
-    
+
     Creates a connection to a PostgreSQL database.
 
     This function is part of the `DBAPI 2.0 specification
@@ -125,7 +125,7 @@ DBAPI Functions
 .. function:: Time(hour, minute, second)
 
     Construct an object holding a time value.
-    
+
     This function is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
@@ -134,7 +134,7 @@ DBAPI Functions
 .. function:: Timestamp(year, month, day, hour, minute, second)
 
     Construct an object holding a timestamp value.
-    
+
     This function is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
@@ -198,7 +198,7 @@ DBAPI Objects
         <http://www.python.org/dev/peps/pep-0249/>`_.
 
     .. method:: commit()
-    
+
         Commits the current database transaction.
 
         This function is part of the `DBAPI 2.0 specification
@@ -236,7 +236,7 @@ DBAPI Objects
 
         This attribute is not part of the DBAPI standard; it is a pg8000
         extension.
-        
+
         .. versionadded:: 1.07
 
     .. attribute:: notifies_lock
@@ -336,7 +336,7 @@ DBAPI Objects
             mapping.
 
     .. method:: executemany(operation, parameter_sets)
-    
+
         Prepare a database operation, and then execute it against all parameter
         sequences or mappings provided.
 
@@ -369,12 +369,12 @@ DBAPI Objects
         <http://www.python.org/dev/peps/pep-0249/>`_.
 
         :param size:
-            
+
             The number of rows to fetch when called.  If not provided, the
             :attr:`arraysize` attribute value is used instead.
 
         :returns:
-        
+
             A sequence, each entry of which is a sequence of field values
             making up a row.  If no more rows are available, an empty sequence
             will be returned.
@@ -428,7 +428,7 @@ DBAPI Objects
             permits the use of any COPY directives that are supported by the
             server.
 
-        :raises: 
+        :raises:
 
             :exc:`~pg8000.errors.CopyQueryOrTableRequiredError` when neither
             *table* nor *query* parameters are provided.
@@ -453,7 +453,7 @@ DBAPI Objects
 
     .. method:: setinputsizes(sizes)
     .. method:: setoutputsizes(size[,column])
-    
+
         These methods are part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_, however, they are not
         implemented by pg8000.

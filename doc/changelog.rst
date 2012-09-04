@@ -57,7 +57,7 @@ Version 1.06, 2008-12-09
 - Limited support for receiving RECORD types.  If a record type is received,
   it will be translated into a Python dict object.
 
-- Fixed potential threading bug where the socket lock could be lost during 
+- Fixed potential threading bug where the socket lock could be lost during
   error handling.
 
 

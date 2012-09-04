@@ -47,7 +47,7 @@ Contents
 
 .. toctree::
     :maxdepth: 2
-    
+
     interactiveexample
     dbapi
     errors

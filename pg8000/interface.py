@@ -379,7 +379,7 @@ class Cursor(object):
     # Stability: Added in v1.07, stability guaranteed for v1.xx.
     def isready(self):
         return self.connection.isready()
-    
+
 
 ##
 # This class represents a connection to a PostgreSQL database.

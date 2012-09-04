@@ -572,7 +572,7 @@ def array_dim_lengths(arr):
     else:
         return [len(arr)]
     return retval
-    
+
 class array_send(object):
     def __init__(self, typeoid, bin_out_func):
         self.typeoid = typeoid

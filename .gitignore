@@ -4,3 +4,5 @@
 build
 tmp
 dist
+.venv
+test*.py
