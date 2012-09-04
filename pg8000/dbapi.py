@@ -36,8 +36,8 @@ import types
 import threading
 from collections import deque
 from errors import *
+import errors
 import re
-from warnings import warn
 
 ##
 # The DBAPI level supported.  Currently 2.0.  This property is part of the
@@ -285,7 +285,6 @@ class CursorWrapper(object):
     connection = property(lambda self: self._getConnection())
 
     def _getConnection(self):
-        warn("DB-API extension cursor.connection used", stacklevel=3)
         return self._connection
 
     ##
@@ -479,6 +478,18 @@ def require_open_connection(fn):
 ##
 # The class of object returned by the {@link #connect connect method}.
 class ConnectionWrapper(object):
+
+    # DBAPI Extension: supply exceptions as
+    # attributes on the connection
+    Warning = errors.Warning
+    Error = errors.Error
+    InterfaceError = errors.InterfaceError
+    DatabaseError = errors.DatabaseError
+    OperationalError = errors.OperationalError
+    IntegrityError = errors.IntegrityError
+    InternalError = errors.InternalError
+    ProgrammingError = errors.ProgrammingError
+    NotSupportedError = errors.NotSupportedError
 
     @property
     def in_transaction(self):

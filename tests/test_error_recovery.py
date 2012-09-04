@@ -52,7 +52,7 @@ class Tests(unittest.TestCase):
         my_db = DBAPI.connect(**db_connect)
         cursor = my_db.cursor()
         my_db.close()
-        self.assertRaises(db.InterfaceError, cursor.execute, "VALUES ('hw1'::text)")
+        self.assertRaises(DBAPI.InterfaceError, cursor.execute, "VALUES ('hw1'::text)")
 
 if __name__ == "__main__":
     unittest.main()
