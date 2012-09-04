@@ -41,75 +41,24 @@ class Tests(unittest.TestCase):
                         break
                     f1, f2, f3 = row
 
-    def testQmark(self):
-        orig_paramstyle = dbapi.paramstyle
-        try:
-            dbapi.paramstyle = "qmark"
-            with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > ?", (3,))
-                while 1:
-                    row = c1.fetchone()
-                    if row == None:
-                        break
-                    f1, f2, f3 = row
-        finally:
-            dbapi.paramstyle = orig_paramstyle
-
-    def testNumeric(self):
-        orig_paramstyle = dbapi.paramstyle
-        try:
-            dbapi.paramstyle = "numeric"
-            with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :1", (3,))
-                while 1:
-                    row = c1.fetchone()
-                    if row == None:
-                        break
-                    f1, f2, f3 = row
-        finally:
-            dbapi.paramstyle = orig_paramstyle
-
-    def testNamed(self):
-        orig_paramstyle = dbapi.paramstyle
-        try:
-            dbapi.paramstyle = "named"
-            with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
-                while 1:
-                    row = c1.fetchone()
-                    if row == None:
-                        break
-                    f1, f2, f3 = row
-        finally:
-            dbapi.paramstyle = orig_paramstyle
 
     def testFormat(self):
-        orig_paramstyle = dbapi.paramstyle
-        try:
-            dbapi.paramstyle = "format"
-            with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (3,))
-                while 1:
-                    row = c1.fetchone()
-                    if row == None:
-                        break
-                    f1, f2, f3 = row
-        finally:
-            dbapi.paramstyle = orig_paramstyle
+        with closing(db2.cursor()) as c1:
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (3,))
+            while 1:
+                row = c1.fetchone()
+                if row == None:
+                    break
+                f1, f2, f3 = row
 
     def testPyformat(self):
-        orig_paramstyle = dbapi.paramstyle
-        try:
-            dbapi.paramstyle = "pyformat"
-            with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
-                while 1:
-                    row = c1.fetchone()
-                    if row == None:
-                        break
-                    f1, f2, f3 = row
-        finally:
-            dbapi.paramstyle = orig_paramstyle
+        with closing(db2.cursor()) as c1:
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
+            while 1:
+                row = c1.fetchone()
+                if row == None:
+                    break
+                f1, f2, f3 = row
 
     def testArraysize(self):
         with closing(db2.cursor()) as c1:
@@ -189,6 +138,55 @@ class Tests(unittest.TestCase):
                 assert next_f1 > f1
                 f1 = next_f1
 
+    def test_incorrect_positional_param_scalar(self):
+        with closing(db2.cursor()) as cursor:
+            self.assertRaises(
+                dbapi.ProgrammingError,
+                cursor.execute,
+                "select %s",
+                "not a tuple"
+            )
+
+    def test_incorrect_positional_param_too_few(self):
+        with closing(db2.cursor()) as cursor:
+            self.assertRaises(
+                dbapi.ProgrammingError,
+                cursor.execute,
+                "select %s %s %s",
+                (1, 2)
+            )
+
+    def test_incorrect_positional_param_too_many(self):
+        with closing(db2.cursor()) as cursor:
+            self.assertRaises(
+                dbapi.ProgrammingError,
+                cursor.execute,
+                "select %s %s",
+                (1, 2, 3, 4, 5)
+            )
+
+    def test_incorrect_dict_param_initial(self):
+        with closing(db2.cursor()) as cursor:
+            self.assertRaises(
+                dbapi.ProgrammingError,
+                cursor.execute,
+                "select %(param1)s %(param2)s",
+                {"q": "hi", "p": "there"}
+            )
+
+    def test_incorrect_dict_param_later(self):
+        with closing(db2.cursor()) as cursor:
+            self.assertRaises(
+                dbapi.ProgrammingError,
+                cursor.executemany,
+                "select %(param1)s %(param2)s",
+                [
+                    {"param1": "hi", "param2": "there"},
+                    {"q": "hi", "p": "there"}
+                ]
+
+
+            )
 
 if __name__ == "__main__":
     unittest.main()

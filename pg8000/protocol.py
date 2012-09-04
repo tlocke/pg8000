@@ -26,6 +26,7 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+from __future__ import absolute_import
 
 __author__ = "Mathieu Fenniak"
 
@@ -40,9 +41,8 @@ import struct
 import hashlib
 from cStringIO import StringIO
 
-from errors import *
-from util import MulticastDelegate
-import types
+from .util import MulticastDelegate
+from . import types, errors
 
 ##
 # An SSLRequest message.  To initiate an SSL-encrypted connection, an
@@ -213,7 +213,7 @@ class Bind(object):
 class Close(object):
     def __init__(self, typ, name):
         if len(typ) != 1:
-            raise InternalError("Close typ must be 1 char")
+            raise errors.InternalError("Close typ must be 1 char")
         self.typ = typ
         self.name = name
 
@@ -257,7 +257,7 @@ class ClosePreparedStatement(Close):
 class Describe(object):
     def __init__(self, typ, name):
         if len(typ) != 1:
-            raise InternalError("Describe typ must be 1 char")
+            raise errors.InternalError("Describe typ must be 1 char")
         self.typ = typ
         self.name = name
 
@@ -410,11 +410,11 @@ class AuthenticationRequest(object):
         if klass != None:
             return klass(data[4:])
         else:
-            raise NotSupportedError("authentication method %r not supported" % (ident,))
+            raise errors.NotSupportedError("authentication method %r not supported" % (ident,))
     createFromData = staticmethod(createFromData)
 
     def ok(self, conn, user, **kwargs):
-        raise InternalError("ok method should be overridden on AuthenticationRequest instance")
+        raise errors.InternalError("ok method should be overridden on AuthenticationRequest instance")
 
 ##
 # A message representing that the backend accepting the provided username
@@ -439,7 +439,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
 
     def ok(self, conn, user, password=None, **kwargs):
         if password == None:
-            raise InterfaceError(
+            raise errors.InterfaceError(
                         "server requesting MD5 password authentication, "
                         "but no password was provided")
         pwd = "md5" + hashlib.md5(hashlib.md5(password + user).hexdigest() +
@@ -457,7 +457,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
 
     def _ok_error(self, msg):
         if msg.code == "28000":
-            raise InterfaceError("md5 password authentication failed")
+            raise errors.InterfaceError("md5 password authentication failed")
         else:
             raise msg.createException()
 
@@ -681,7 +681,7 @@ class ErrorResponse(object):
         return "<ErrorResponse %s %s %r>" % (self.severity, self.code, self.msg)
 
     def createException(self):
-        return ProgrammingError(self.severity, self.code, self.msg)
+        return errors.ProgrammingError(self.severity, self.code, self.msg)
 
     def createFromData(data):
         return ErrorResponse(**NoticeResponse.dataIntoDict(data))
@@ -923,7 +923,7 @@ class MessageReader(object):
                 elif isinstance(msg, NotificationResponse):
                     self._conn.handleNotificationResponse(msg)
                 elif not self.ignore_unhandled_messages:
-                    raise InternalError("Unexpected response msg %r" % (msg))
+                    raise errors.InternalError("Unexpected response msg %r" % (msg))
 
 def sync_on_error(fn):
     def _fn(self, *args, **kwargs):
@@ -952,12 +952,12 @@ class Connection(object):
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         elif unix_sock != None:
             if not hasattr(socket, "AF_UNIX"):
-                raise InterfaceError(
+                raise errors.InterfaceError(
                         "attempt to connect to unix socket on "
                         "unsupported platform")
             self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         else:
-            raise ProgrammingError("one of host or unix_sock must be provided")
+            raise errors.ProgrammingError("one of host or unix_sock must be provided")
         if unix_sock == None and host != None:
             self._sock.connect((host, port))
         elif unix_sock != None:
@@ -971,11 +971,11 @@ class Connection(object):
                 if resp == 'S' and sslmodule is not None:
                     self._sock = sslmodule.wrap_socket(self._sock)
                 elif sslmodule is None:
-                    raise InterfaceError(
+                    raise errors.InterfaceError(
                                 "SSL required but ssl module not available in "
                                 "this python installation")
                 else:
-                    raise InterfaceError("server refuses SSL")
+                    raise errors.InterfaceError("server refuses SSL")
             finally:
                 self._sock_lock.release()
         else:
@@ -992,7 +992,7 @@ class Connection(object):
 
     def verifyState(self, state):
         if self._state != state:
-            raise InternalError("connection state must be %s, is %s" %
+            raise errors.InternalError("connection state must be %s, is %s" %
                                         (state, self._state))
 
     def _send(self, msg):
@@ -1056,7 +1056,7 @@ class Connection(object):
         def _func(msg):
             assert self._sock_lock.locked()
             if not msg.ok(self, user, **kwargs):
-                raise InterfaceError(
+                raise errors.InterfaceError(
                         "authentication method %s failed" %
                         msg.__class__.__name__)
             self._state = "auth"
@@ -1149,7 +1149,7 @@ class Connection(object):
 
     def _copy_in_response(self, copyin, fileobj, old_reader):
         if fileobj == None:
-            raise CopyQueryWithoutStreamError()
+            raise errors.CopyQueryWithoutStreamError()
         while True:
             data = fileobj.read(self._block_size)
             if not data:
@@ -1162,7 +1162,7 @@ class Connection(object):
 
     def _copy_out_response(self, copyout, fileobj, old_reader):
         if fileobj == None:
-            raise CopyQueryWithoutStreamError()
+            raise errors.CopyQueryWithoutStreamError()
         reader = MessageReader(self)
         reader.add_message(CopyData, self._copy_data, fileobj)
         reader.add_message(CopyDone, lambda msg: 1)
@@ -1328,7 +1328,7 @@ class Connection(object):
     def server_version(self):
         self.verifyState("ready")
         if not self._server_version:
-            raise InterfaceError("Server did not provide server_version parameter.")
+            raise errors.InterfaceError("Server did not provide server_version parameter.")
         return self._server_version
 
 

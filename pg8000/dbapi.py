@@ -27,17 +27,15 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+from __future__ import absolute_import
+
 __author__ = "Mathieu Fenniak"
 
+from . import util, errors, interface, types
+from .errors import *
 import datetime
 import time
-import interface
-import types
 import threading
-from collections import deque
-from errors import *
-import errors
-import re
 
 ##
 # The DBAPI level supported.  Currently 2.0.  This property is part of the
@@ -58,206 +56,8 @@ threadsafety = 3
 # Unlike the DBAPI specification, this value is not constant.  It can be
 # changed to any standard paramstyle value (ie. qmark, numeric, named, format,
 # and pyformat).
-paramstyle = 'format'  # paramstyle can be changed to any DB-API paramstyle
+paramstyle = 'pyformat'  # paramstyle can be changed to any DB-API paramstyle
 
-_name_reg = re.compile(r'\:([a-zA-Z0-9_]+)')
-_pyformat_reg = re.compile(r'%\((.+?)\)(.)')
-
-def convert_paramstyle(src_style, query, args):
-    # I don't see any way to avoid scanning the query string char by char,
-    # so we might as well take that careful approach and create a
-    # state-based scanner.  We'll use int variables for the state.
-    #  0 -- outside quoted string
-    #  1 -- inside single-quote string '...'
-    #  2 -- inside quoted identifier   "..."
-    #  3 -- inside escaped single-quote string, E'...'
-    state = 0
-    output_query = ""
-    output_args = []
-
-    qmark = src_style == "qmark"
-    numeric = src_style == "numeric"
-    named = src_style == "named"
-    format = src_style == "format"
-    pyformat = src_style == "pyformat"
-
-    if numeric:
-        output_args = args
-    elif pyformat or named:
-        mapping_to_idx = {}
-    else:
-        args = deque(args)
-        param_idx = 0
-    idx = 0
-    querylen = len(query)
-    i = 0
-
-    while i < querylen:
-        c = query[i]
-        # print "begin loop", repr(i), repr(c), repr(state)
-        if state == 0:
-            if c == "'":
-                i += 1
-                output_query += c
-                state = 1
-            elif c == '"':
-                i += 1
-                output_query += c
-                state = 2
-            elif c == 'E':
-                # check for escaped single-quote string
-                i += 1
-                if i < querylen and i > 1 and query[i] == "'":
-                    i += 1
-                    output_query += "E'"
-                    state = 3
-                else:
-                    output_query += c
-            elif qmark and c == "?":
-                i += 1
-                param_idx += 1
-                try:
-                    output_args.append(args.popleft())
-                except IndexError:
-                    raise QueryParameterIndexError(
-                        "too many parameter fields, not enough parameters")
-                output_query += "$" + str(param_idx)
-            elif numeric and c == ":":
-                i += 1
-                if i < querylen and i > 1 and query[i].isdigit():
-                    output_query += "$" + query[i]
-                    i += 1
-                else:
-                    raise QueryParameterParseError(
-                            "numeric parameter : does not have numeric arg")
-            elif named and c == ":":
-                m = _name_reg.match(query[i:])
-                if not m:
-                    raise QueryParameterParseError(
-                                    "empty name of named parameter")
-                else:
-                    name = m.group(1)
-                    i += len(name) + 1
-                if name not in mapping_to_idx:
-                    # assert idx == len(output_args)
-                    output_args.append(args[name])
-                    idx += 1
-                    mapping_to_idx[name] = idx
-                else:
-                    idx = mapping_to_idx[name]
-                output_query += "$" + str(idx)
-            elif format and c == "%":
-                i += 1
-                if i < querylen and i > 1:
-                    if query[i] == "s":
-                        param_idx += 1
-                        try:
-                            output_args.append(args.popleft())
-                        except IndexError:
-                            raise QueryParameterIndexError(
-                                    "too many parameter fields, not "
-                                    "enough parameters")
-                        output_query += "$" + str(param_idx)
-                    elif query[i] == "%":
-                        output_query += "%"
-                    else:
-                        raise QueryParameterParseError(
-                                "Only %s and %% are supported")
-                    i += 1
-                else:
-                    raise QueryParameterParseError(
-                                "format parameter % does not have format code")
-            elif pyformat and c == "%":
-                m = _pyformat_reg.match(query[i:])
-                if m:
-                    name, type_ = m.group(1, 2)
-                    if type_ != "s":
-                        raise QueryParameterParseError(
-                            "format not specified or not supported "
-                            "(only %(...)s supported)")
-                    i += len(m.group(0))
-                    if name not in mapping_to_idx:
-                        # assert idx == len(output_args)
-                        output_args.append(args[name])
-                        idx += 1
-                        mapping_to_idx[name] = idx
-                    else:
-                        idx = mapping_to_idx[name]
-                    output_query += "$" + str(idx)
-                else:
-                    i += 1
-
-                    if query[i] == "%":
-                        output_query += "%"
-                    elif query[i] == "s":
-                        # we have a %s in a pyformat query string.  Assume
-                        # support for format instead.
-                        i -= 1
-                        format = True
-                        pyformat = False
-                        args = deque(args)
-                        param_idx = 0
-                    else:
-                        raise QueryParameterParseError(
-                                    "Only %(name)s, %s and %% are supported")
-            else:
-                i += 1
-                output_query += c
-        elif state == 1:
-            output_query += c
-            i += 1
-            if c == "'":
-                # Could be a double ''
-                if i < querylen and query[i] == "'":
-                    # is a double quote.
-                    output_query += query[i]
-                    i += 1
-                else:
-                    state = 0
-            elif (pyformat or format) and c == "%":
-                # hm... we're only going to support an escaped percent sign
-                if i < querylen:
-                    if query[i] == "%":
-                        # good.  We already output the first percent sign.
-                        i += 1
-                    else:
-                        raise QueryParameterParseError("'%" + query[i] +
-                                    "' not supported in quoted string")
-        elif state == 2:
-            output_query += c
-            i += 1
-            if c == '"':
-                state = 0
-            elif (pyformat or format) and c == "%":
-                # hm... we're only going to support an escaped percent sign
-                if i < querylen:
-                    if query[i] == "%":
-                        # good.  We already output the first percent sign.
-                        i += 1
-                    else:
-                        raise QueryParameterParseError("'%" + query[i] +
-                                        "' not supported in quoted string")
-        elif state == 3:
-            output_query += c
-            i += 1
-            if c == "\\":
-                # check for escaped single-quote
-                if i < querylen and query[i] == "'":
-                    output_query += "'"
-                    i += 1
-            elif c == "'":
-                state = 0
-            elif (pyformat or format) and c == "%":
-                # hm... we're only going to support an escaped percent sign
-                if i < querylen:
-                    if query[i] == "%":
-                        # good.  We already output the first percent sign.
-                        i += 1
-                    else:
-                        raise QueryParameterParseError("'%" + query[i] +
-                                        "' not supported in quoted string")
-
-    return output_query, tuple(output_args)
 
 def require_open_cursor(fn):
     def _fn(self, *args, **kwargs):
@@ -335,12 +135,41 @@ class CursorWrapper(object):
         if not self._connection.in_transaction:
             self._connection.begin()
         self._override_rowcount = None
-        self._execute(operation, args)
+        if hasattr(args, 'keys'):
+            query, param_fn = util.coerce_named(operation, args)
+        else:
+            query, param_fn = util.coerce_positional(operation, args)
+        self._execute(query, param_fn(args))
 
-    def _execute(self, operation, args=()):
-        new_query, new_args = convert_paramstyle(paramstyle, operation, args)
+    ##
+    # Prepare a database operation and then execute it against all parameter
+    # sequences or mappings provided.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
+    @require_open_cursor
+    def executemany(self, operation, parameter_sets):
+        if not self._connection.in_transaction:
+            self._connection.begin()
+        self._override_rowcount = 0
+
+        query = None
+        for parameters in parameter_sets:
+            if not query:
+                if hasattr(parameters, 'keys'):
+                    query, param_fn = util.coerce_named(operation, parameters)
+                else:
+                    query, param_fn = util.coerce_positional(operation, parameters)
+
+
+            self._execute(query, param_fn(parameters))
+            if self.cursor.row_count == -1 or self._override_rowcount == -1:
+                self._override_rowcount = -1
+            else:
+                self._override_rowcount += self.cursor.row_count
+
+    def _execute(self, operation, args):
         try:
-            self.cursor.execute(new_query, *new_args)
+            self.cursor.execute(operation, *args)
         except ConnectionClosedError:
             # can't rollback in this case
             raise
@@ -381,22 +210,6 @@ class CursorWrapper(object):
             self._connection.rollback()
             raise
 
-    ##
-    # Prepare a database operation and then execute it against all parameter
-    # sequences or mappings provided.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
-    @require_open_cursor
-    def executemany(self, operation, parameter_sets):
-        if not self._connection.in_transaction:
-            self._connection.begin()
-        self._override_rowcount = 0
-        for parameters in parameter_sets:
-            self._execute(operation, parameters)
-            if self.cursor.row_count == -1 or self._override_rowcount == -1:
-                self._override_rowcount = -1
-            else:
-                self._override_rowcount += self.cursor.row_count
 
     ##
     # Fetch the next row of a query result set, returning a single sequence, or

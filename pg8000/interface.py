@@ -26,13 +26,14 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+from __future__ import absolute_import
 
 __author__ = "Mathieu Fenniak"
 
 import socket
-import protocol
 import threading
-from errors import *
+
+from . import protocol, errors
 
 class DataIterator(object):
     def __init__(self, obj, func):
@@ -91,7 +92,7 @@ class PreparedStatement(object):
     def __init__(self, connection, statement, *types, **kwargs):
         global statement_number
         if connection == None or connection.c == None:
-            raise InterfaceError("connection not provided")
+            raise errors.InterfaceError("connection not provided")
         try:
             statement_number_lock.acquire()
             self._statement_number = statement_number
@@ -161,7 +162,7 @@ class PreparedStatement(object):
         self._lock.acquire()
         try:
             if self._cached_rows:
-                raise InternalError("attempt to fill cache that isn't empty")
+                raise errors.InternalError("attempt to fill cache that isn't empty")
             end_of_data, rows = self.c.fetch_rows(self._portal_name,
                                                 self.row_cache_size,
                                                 self._row_desc)
@@ -173,7 +174,7 @@ class PreparedStatement(object):
 
     def _fetch(self):
         if not self._row_desc:
-            raise ProgrammingError("no result set")
+            raise errors.ProgrammingError("no result set")
         self._lock.acquire()
         try:
             if not self._cached_rows:
@@ -217,7 +218,7 @@ class PreparedStatement(object):
                 if end_of_data:
                     self._command_complete = True
                 else:
-                    raise InternalError("fetch_rows(0) did not hit end of data")
+                    raise errors.InternalError("fetch_rows(0) did not hit end of data")
             return self._ongoing_row_count + len(self._cached_rows)
         finally:
             self._lock.release()
@@ -236,7 +237,7 @@ class PreparedStatement(object):
         for i in range(len(self._row_desc.fields)):
             col_name = self._row_desc.fields[i]['name']
             if retval.has_key(col_name):
-                raise InterfaceError("cannot return dict of row when two "
+                raise errors.InterfaceError("cannot return dict of row when two "
                                     "columns have the same name (%r)" %
                                     (col_name,))
             retval[col_name] = row[i]
@@ -289,7 +290,7 @@ class Cursor(object):
     def require_stmt(func):
         def retval(self, *args, **kwargs):
             if self._stmt == None:
-                raise ProgrammingError("attempting to use unexecuted cursor")
+                raise errors.ProgrammingError("attempting to use unexecuted cursor")
             return func(self, *args, **kwargs)
         return retval
 
@@ -308,7 +309,7 @@ class Cursor(object):
     # @param query      The SQL statement to execute.
     def execute(self, query, *args, **kwargs):
         if self.connection.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self.connection._unnamed_prepared_statement_lock.acquire()
         try:
             self._stmt = PreparedStatement(self.connection, query,
@@ -451,7 +452,7 @@ class Connection(object):
                                             ssl=ssl)
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
-            raise InterfaceError("communication error", e)
+            raise errors.InterfaceError("communication error", e)
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
         self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
@@ -509,7 +510,7 @@ class Connection(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def begin(self):
         if self.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self._begin.execute()
         self.in_transaction = True
 
@@ -520,7 +521,7 @@ class Connection(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def commit(self):
         if self.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self._commit.execute()
         self.in_transaction = False
 
@@ -530,7 +531,7 @@ class Connection(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def rollback(self):
         if self.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self._rollback.execute()
         self.in_transaction = False
 
@@ -538,7 +539,7 @@ class Connection(object):
     # Closes an open connection.
     def close(self):
         if self.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self.c.close()
         self.c = None
 
