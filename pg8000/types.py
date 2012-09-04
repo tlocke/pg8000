@@ -403,6 +403,7 @@ pg_to_py_encodings = {
     "win1256": "cp1256",
     "win1257": "cp1257",
     "win1258": "cp1258",
+    "unicode": "utf8"
 }
 
 def encoding_convert(encoding):

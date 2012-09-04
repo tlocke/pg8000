@@ -122,7 +122,8 @@ class Parse(object):
             # Parse message doesn't seem to handle the -1 type_oid for NULL
             # values that other messages handle.  So we'll provide type_oid 705,
             # the PG "unknown" type.
-            if oid == -1: oid = 705
+            if oid == -1:
+                oid = 705
             val = val + struct.pack("!i", oid)
         val = struct.pack("!i", len(val) + 4) + val
         val = "P" + val
@@ -438,13 +439,19 @@ class AuthenticationMD5Password(AuthenticationRequest):
 
     def ok(self, conn, user, password=None, **kwargs):
         if password == None:
-            raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
-        pwd = "md5" + hashlib.md5(hashlib.md5(password + user).hexdigest() + self.salt).hexdigest()
+            raise InterfaceError(
+                        "server requesting MD5 password authentication, "
+                        "but no password was provided")
+        pwd = "md5" + hashlib.md5(hashlib.md5(password + user).hexdigest() +
+                                        self.salt).hexdigest()
         conn._send(PasswordMessage(pwd))
         conn._flush()
 
         reader = MessageReader(conn)
-        reader.add_message(AuthenticationRequest, lambda msg, reader: reader.return_value(msg.ok(conn, user)), reader)
+        reader.add_message(AuthenticationRequest,
+                        lambda msg, reader: reader.return_value(
+                                                msg.ok(conn, user)),
+                        reader)
         reader.add_message(ErrorResponse, self._ok_error)
         return reader.handle_messages()
 
@@ -577,7 +584,8 @@ class ReadyForQuery(object):
 
     def __repr__(self):
         return "<ReadyForQuery %s>" % \
-                {"I": "Idle", "T": "Idle in Transaction", "E": "Idle in Failed Transaction"}[self.status]
+                {"I": "Idle", "T": "Idle in Transaction",
+                        "E": "Idle in Failed Transaction"}[self.status]
 
     # Byte1('Z') - Identifier.
     # Int32(5) - Message length, including self.
@@ -633,7 +641,8 @@ class NoticeResponse(object):
             setattr(self, arg, value)
 
     def __repr__(self):
-        return "<NoticeResponse %s %s %r>" % (self.severity, self.code, self.msg)
+        return "<NoticeResponse %s %s %r>" % (
+                                self.severity, self.code, self.msg)
 
     def dataIntoDict(data):
         retval = {}
