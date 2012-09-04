@@ -100,7 +100,8 @@ class PreparedStatement(object):
             statement_number_lock.release()
         self.c = connection.c
         self._portal_name = None
-        self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s" % self._statement_number)
+        self._statement_name = kwargs.get("statement_name",
+                            "pg8000_statement_%s" % self._statement_number)
         self._row_desc = None
         self._cached_rows = []
         self._ongoing_row_count = 0
@@ -109,7 +110,7 @@ class PreparedStatement(object):
         self._lock = threading.RLock()
 
     def close(self):
-        if self._statement_name != "": # don't close unnamed statement
+        if self._statement_name != "":  # don't close unnamed statement
             self.c.close_statement(self._statement_name)
         if self._portal_name != None:
             self.c.close_portal(self._portal_name)
@@ -136,13 +137,17 @@ class PreparedStatement(object):
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
             self._portal_name = "pg8000_portal_%s" % self._statement_number
-            self._row_desc, cmd = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc, kwargs.get("stream"))
+            self._row_desc, cmd = self.c.bind(self._portal_name,
+                                        self._statement_name, args,
+                                        self._parse_row_desc,
+                                        kwargs.get("stream"))
             if self._row_desc:
-                # We execute our cursor right away to fill up our cache.  This
-                # prevents the cursor from being destroyed, apparently, by a rogue
-                # Sync between Bind and Execute.  Since it is quite likely that
-                # data will be read from us right away anyways, this seems a safe
-                # move for now.
+                # We execute our cursor right away to fill up our
+                # cache.  This prevents the cursor from being
+                # destroyed, apparently, by a rogue Sync between Bind
+                # and Execute.  Since it is quite likely that data
+                # will be read from us right away anyways, this seems
+                # a safe move for now.
                 self._fill_cache()
             else:
                 self._command_complete = True
@@ -157,7 +162,9 @@ class PreparedStatement(object):
         try:
             if self._cached_rows:
                 raise InternalError("attempt to fill cache that isn't empty")
-            end_of_data, rows = self.c.fetch_rows(self._portal_name, self.row_cache_size, self._row_desc)
+            end_of_data, rows = self.c.fetch_rows(self._portal_name,
+                                                self.row_cache_size,
+                                                self._row_desc)
             self._cached_rows = rows
             if end_of_data:
                 self._command_complete = True
@@ -174,9 +181,10 @@ class PreparedStatement(object):
                     return None
                 self._fill_cache()
                 if self._command_complete and not self._cached_rows:
-                    # fill cache tells us the command is complete, but yet we have
-                    # no rows after filling our cache.  This is a special case when
-                    # a query returns no rows.
+                    # fill cache tells us the command is complete, but
+                    # yet we have no rows after filling our cache.
+                    # This is a special case when a query returns no
+                    # rows.
                     return None
             row = self._cached_rows.pop(0)
             self._ongoing_row_count += 1
@@ -203,7 +211,8 @@ class PreparedStatement(object):
         self._lock.acquire()
         try:
             if not self._command_complete:
-                end_of_data, rows = self.c.fetch_rows(self._portal_name, 0, self._row_desc)
+                end_of_data, rows = self.c.fetch_rows(self._portal_name,
+                                                        0, self._row_desc)
                 self._cached_rows += rows
                 if end_of_data:
                     self._command_complete = True
@@ -227,7 +236,9 @@ class PreparedStatement(object):
         for i in range(len(self._row_desc.fields)):
             col_name = self._row_desc.fields[i]['name']
             if retval.has_key(col_name):
-                raise InterfaceError("cannot return dict of row when two columns have the same name (%r)" % (col_name,))
+                raise InterfaceError("cannot return dict of row when two "
+                                    "columns have the same name (%r)" %
+                                    (col_name,))
             retval[col_name] = row[i]
         return retval
 
@@ -374,9 +385,10 @@ class Cursor(object):
         return self.connection.fileno()
 
     ##
-    # Poll the underlying socket for this cursor and sync if there is data waiting
-    # to be read. This has the effect of flushing asynchronous messages from the
-    # backend. Returns True if messages were read, False otherwise.
+    # Poll the underlying socket for this cursor and sync if there is
+    # data waiting to be read. This has the effect of flushing
+    # asynchronous messages from the backend. Returns True if messages
+    # were read, False otherwise.
     # <p>
     # Stability: Added in v1.07, stability guaranteed for v1.xx.
     def isready(self):
@@ -487,7 +499,8 @@ class Connection(object):
     # Stability: Added in v1.03, stability guaranteed for v1.xx.
     ParameterStatusReceived = property(
             lambda self: getattr(self.c, "ParameterStatusReceived"),
-            lambda self, value: setattr(self.c, "ParameterStatusReceived", value)
+            lambda self, value: setattr(self.c,
+                                "ParameterStatusReceived", value)
     )
 
     ##

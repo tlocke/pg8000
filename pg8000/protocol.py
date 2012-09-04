@@ -476,7 +476,7 @@ class ParameterStatus(object):
     # String - Runtime parameter value.
     def createFromData(data):
         key = data[:data.find("\x00")]
-        value = data[data.find("\x00")+1:-1]
+        value = data[data.find("\x00") + 1:-1]
         return ParameterStatus(key, value)
     createFromData = staticmethod(createFromData)
 
@@ -638,7 +638,8 @@ class NoticeResponse(object):
     def dataIntoDict(data):
         retval = {}
         for s in data.split("\x00"):
-            if not s: continue
+            if not s:
+                continue
             key, value = s[0], s[1:]
             key = NoticeResponse.responseKeys.get(key, key)
             retval[key] = value
@@ -709,14 +710,15 @@ class NotificationResponse(object):
     additional_info = property(lambda self: self._additional_info)
 
     def __repr__(self):
-        return "<NotificationResponse %s %s %r>" % (self.backend_pid, self.condition, self.additional_info)
+        return "<NotificationResponse %s %s %r>" % (self.backend_pid,
+                        self.condition, self.additional_info)
 
     def createFromData(data):
         backend_pid = struct.unpack("!i", data[:4])[0]
         data = data[4:]
         null = data.find("\x00")
         condition = data[:null]
-        data = data[null+1:]
+        data = data[null + 1:]
         null = data.find("\x00")
         additional_info = data[:null]
         return NotificationResponse(backend_pid, condition, additional_info)
@@ -728,7 +730,7 @@ class ParameterDescription(object):
         self.type_oids = type_oids
     def createFromData(data):
         count = struct.unpack("!h", data[:2])[0]
-        type_oids = struct.unpack("!" + "i"*count, data[2:])
+        type_oids = struct.unpack("!" + "i" * count, data[2:])
         return ParameterDescription(type_oids)
     createFromData = staticmethod(createFromData)
 
@@ -744,8 +746,10 @@ class RowDescription(object):
         for i in range(count):
             null = data.find("\x00")
             field = {"name": data[:null]}
-            data = data[null+1:]
-            field["table_oid"], field["column_attrnum"], field["type_oid"], field["type_size"], field["type_modifier"], field["format"] = struct.unpack("!ihihih", data[:18])
+            data = data[null + 1:]
+            field["table_oid"], field["column_attrnum"], field["type_oid"], \
+                field["type_size"], field["type_modifier"], \
+                field["format"] = struct.unpack("!ihihih", data[:18])
             data = data[18:]
             fields.append(field)
         return RowDescription(fields)
@@ -761,7 +765,8 @@ class CommandComplete(object):
         values = data[:-1].split(" ")
         args = {}
         args['command'] = values[0]
-        if args['command'] in ("INSERT", "DELETE", "UPDATE", "MOVE", "FETCH", "COPY"):
+        if args['command'] in ("INSERT", "DELETE", "UPDATE", "MOVE",
+                                    "FETCH", "COPY"):
             args['rows'] = int(values[-1])
             if args['command'] == "INSERT":
                 args['oid'] = int(values[1])
@@ -978,7 +983,8 @@ class Connection(object):
 
     def verifyState(self, state):
         if self._state != state:
-            raise InternalError("connection state must be %s, is %s" % (state, self._state))
+            raise InternalError("connection state must be %s, is %s" %
+                                        (state, self._state))
 
     def _send(self, msg):
         assert self._sock_lock.locked()
@@ -1000,7 +1006,8 @@ class Connection(object):
             if self._sock_buf_pos == len(self._sock_buf):
                 self._sock_buf = self._sock.recv(1024)
                 self._sock_buf_pos = 0
-            rpos = min(len(self._sock_buf), self._sock_buf_pos + (byte_count - bytes_read))
+            rpos = min(len(self._sock_buf), self._sock_buf_pos +
+                                        (byte_count - bytes_read))
             addt_data = self._sock_buf[self._sock_buf_pos:rpos]
             bytes_read += (rpos - self._sock_buf_pos)
             assert bytes_read <= byte_count
@@ -1023,11 +1030,15 @@ class Connection(object):
         self.verifyState("noauth")
         self._sock_lock.acquire()
         try:
-            self._send(StartupMessage(user, database=kwargs.get("database",None)))
+            self._send(
+                        StartupMessage(user,
+                            database=kwargs.get("database", None))
+                    )
             self._flush()
 
             reader = MessageReader(self)
-            reader.add_message(AuthenticationRequest, self._authentication_request(user, **kwargs))
+            reader.add_message(AuthenticationRequest,
+                                self._authentication_request(user, **kwargs))
             reader.handle_messages()
         finally:
             self._sock_lock.release()
@@ -1036,7 +1047,9 @@ class Connection(object):
         def _func(msg):
             assert self._sock_lock.locked()
             if not msg.ok(self, user, **kwargs):
-                raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
+                raise InterfaceError(
+                        "authentication method %s failed" %
+                        msg.__class__.__name__)
             self._state = "auth"
             reader = MessageReader(self)
             reader.add_message(ReadyForQuery, self._ready_for_query)
@@ -1059,7 +1072,8 @@ class Connection(object):
         type_info = [types.pg_type_info(x) for x in param_types]
         param_types, param_fc = [x[0] for x in type_info], \
                                 [x[1] for x in type_info]
-        self._send(Parse(statement, qs.encode(self._client_encoding), param_types))
+        self._send(Parse(statement, qs.encode(self._client_encoding),
+                                            param_types))
         self._send(DescribePreparedStatement(statement))
         self._send(Flush())
         self._flush()
@@ -1096,8 +1110,8 @@ class Connection(object):
             output_fc = [types.py_type_info(f) for f in row_desc.fields]
         self._send(
                     Bind(portal, statement, param_fc, params,
-                            output_fc, client_encoding = self._client_encoding,
-                            integer_datetimes = self._integer_datetimes)
+                            output_fc, client_encoding=self._client_encoding,
+                            integer_datetimes=self._integer_datetimes)
                 )
         # We need to describe the portal after bind, since the return
         # format codes will be different (hopefully, always what we

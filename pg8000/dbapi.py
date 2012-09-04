@@ -58,7 +58,7 @@ threadsafety = 3
 # Unlike the DBAPI specification, this value is not constant.  It can be
 # changed to any standard paramstyle value (ie. qmark, numeric, named, format,
 # and pyformat).
-paramstyle = 'format' # paramstyle can be changed to any DB-API paramstyle
+paramstyle = 'format'  # paramstyle can be changed to any DB-API paramstyle
 
 _name_reg = re.compile(r'\:([a-zA-Z0-9_]+)')
 _pyformat_reg = re.compile(r'%\((.+?)\)(.)')
@@ -267,7 +267,8 @@ def require_open_cursor(fn):
     return _fn
 
 ##
-# The class of object returned by the {@link #ConnectionWrapper.cursor cursor method}.
+# The class of object returned by the
+# {@link #ConnectionWrapper.cursor cursor method}.
 class CursorWrapper(object):
     def __init__(self, conn, connection):
         self.cursor = interface.Cursor(conn)
@@ -321,7 +322,8 @@ class CursorWrapper(object):
             return None
         columns = []
         for col in self.cursor.row_description:
-            columns.append((col["name"], col["type_oid"], None, None, None, None, None))
+            columns.append((col["name"], col["type_oid"],
+                                None, None, None, None, None))
         return columns
 
     ##
@@ -375,7 +377,8 @@ class CursorWrapper(object):
             raise
         except:
             # any error will rollback the transaction to-date
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
             self._connection.rollback()
             raise
 
@@ -444,14 +447,12 @@ class CursorWrapper(object):
         self._override_rowcount = None
 
     def next(self):
-        warn("DB-API extension cursor.next() used", stacklevel=2)
         retval = self.fetchone()
         if retval == None:
             raise StopIteration()
         return retval
 
     def __iter__(self):
-        warn("DB-API extension cursor.__iter__() used", stacklevel=2)
         return self
 
     def setinputsizes(self, sizes):
@@ -478,25 +479,11 @@ def require_open_connection(fn):
 ##
 # The class of object returned by the {@link #connect connect method}.
 class ConnectionWrapper(object):
-    # DBAPI Extension: supply exceptions as attributes on the connection
-    Warning = property(lambda self: self._getError(Warning))
-    Error = property(lambda self: self._getError(Error))
-    InterfaceError = property(lambda self: self._getError(InterfaceError))
-    DatabaseError = property(lambda self: self._getError(DatabaseError))
-    OperationalError = property(lambda self: self._getError(OperationalError))
-    IntegrityError = property(lambda self: self._getError(IntegrityError))
-    InternalError = property(lambda self: self._getError(InternalError))
-    ProgrammingError = property(lambda self: self._getError(ProgrammingError))
-    NotSupportedError = property(lambda self: self._getError(NotSupportedError))
-
-    def _getError(self, error):
-        warn("DB-API extension connection.%s used" % error.__name__, stacklevel=3)
-        return error
 
     @property
     def in_transaction(self):
         if self.conn:
-             return self.conn.in_transaction
+            return self.conn.in_transaction
         return False
 
     def __init__(self, **kwargs):
@@ -606,7 +593,8 @@ class ConnectionWrapper(object):
 # @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
 #
 # @return An instance of {@link #ConnectionWrapper ConnectionWrapper}.
-def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
+def connect(user, host=None, unix_sock=None, port=5432, database=None,
+                    password=None, socket_timeout=60, ssl=False):
     return ConnectionWrapper(user=user, host=host,
             unix_sock=unix_sock, port=port, database=database,
             password=password, socket_timeout=socket_timeout, ssl=ssl)
