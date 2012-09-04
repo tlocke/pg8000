@@ -51,3 +51,6 @@ def coerce_named(query, paramset):
     except KeyError, k:
         raise errors.ProgrammingError(
                         "Parameter %s not present" % k.message)
+
+def class_memoized(fn):
+    return fn()
