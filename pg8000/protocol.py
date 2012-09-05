@@ -982,7 +982,6 @@ class Connection(object):
         self._integer_datetimes = False
         self._server_version = None
         self._sock_buf = ""
-        self._send_sock_buf = ""
         self._sock_lock = threading.Lock()
         if unix_sock is None and host is not None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1031,10 +1030,7 @@ class Connection(object):
                                         (state, self._state))
 
     def _flush_messages(self, *msg):
-        for m in msg:
-            self._send_sock_buf += m
-        self._sock.sendall(self._send_sock_buf)
-        self._send_sock_buf = ""
+        self._sock.sendall("".join(msg))
 
     def _read_bytes(self, byte_count):
         retval = ""
@@ -1262,8 +1258,7 @@ class Connection(object):
             context.output.setdefault('msg', msg)
             return CONTINUE_READ_LOOP
         reader.add_message(CommandComplete, cmd_complete)
-        reader.add_message(ReadyForQuery,
-                            lambda conn, msg, context: SUCCESS_READ_LOOP)
+        reader.add_message(ReadyForQuery, SUCCESS_READ_LOOP)
         reader.delay_raising_exception = True
         return reader
 
