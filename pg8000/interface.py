@@ -108,7 +108,7 @@ class PreparedStatement(object):
         self._ongoing_row_count = 0
         self._command_complete = True
         self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
-        self._lock = threading.RLock()
+        self._lock = threading.Lock()
 
     def close(self):
         if self._statement_name != "":  # don't close unnamed statement
@@ -159,18 +159,17 @@ class PreparedStatement(object):
             self._lock.release()
 
     def _fill_cache(self):
-        self._lock.acquire()
-        try:
-            if self._cached_rows:
-                raise errors.InternalError("attempt to fill cache that isn't empty")
-            end_of_data, rows = self.c.fetch_rows(self._portal_name,
-                                                self.row_cache_size,
-                                                self._row_desc)
-            self._cached_rows = rows
-            if end_of_data:
-                self._command_complete = True
-        finally:
-            self._lock.release()
+        # note: not threadsafe by itself, is only
+        # called by execute() and _fetch() which both establish
+        # a lock.
+        if self._cached_rows:
+            raise errors.InternalError("attempt to fill cache that isn't empty")
+        end_of_data, rows = self.c.fetch_rows(self._portal_name,
+                                            self.row_cache_size,
+                                            self._row_desc)
+        self._cached_rows = rows
+        if end_of_data:
+            self._command_complete = True
 
     def _fetch(self):
         if not self._row_desc:

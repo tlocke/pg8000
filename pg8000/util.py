@@ -54,3 +54,10 @@ def coerce_named(query, paramset):
 
 def class_memoized(fn):
     return fn()
+
+class symbol(object):
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return "<symbol '%s>" % self.name

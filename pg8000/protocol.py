@@ -42,8 +42,7 @@ import hashlib
 import collections
 from cStringIO import StringIO
 
-from .util import MulticastDelegate, class_memoized
-from . import types, errors
+from . import types, errors, util
 
 ##
 # An SSLRequest message.  To initiate an SSL-encrypted connection, an
@@ -826,9 +825,13 @@ class CopyInResponse(object):
 
     createFromData = staticmethod(createFromData)
 
-SUCCESS_READ_LOOP = object()
-ABORT_READ_LOOP = object()
+SUCCESS_READ_LOOP = util.symbol('success_read_loop')
+ABORT_READ_LOOP = util.symbol('abort_read_loop')
 
+STATE_READY = util.symbol('state_ready')
+STATE_CLOSED = util.symbol('state_closed')
+STATE_NOAUTH = util.symbol('state_noauth')
+STATE_AUTH = util.symbol('state_auth')
 
 class MessageReader(object):
     def __init__(self, args):
@@ -844,7 +847,15 @@ class MessageReader(object):
         self.ignore_unhandled_messages = False
 
     def add_message(self, msg_class, handler, *args, **kwargs):
-        self._msgs[msg_class] = handler
+        # store the handler keyed against
+        # the given message class as well as all
+        # subclasses, so that any message subclass can be
+        # matched with one lookup
+        stack = [msg_class]
+        while stack:
+            cls_ = stack.pop()
+            stack.extend(cls_.__subclasses__())
+            self._msgs[cls_] = handler
 
     def __call__(self, conn, *args):
         args = self.args(*args)
@@ -852,18 +863,25 @@ class MessageReader(object):
         while True:
             msg = conn._read_message()
 
-            for cls_key in type(msg).__mro__[0:-1]:
-                if cls_key in self._msgs:
-                    handler = self._msgs[cls_key]
-                    retval = handler(conn, msg, args)
-                    if retval is SUCCESS_READ_LOOP:
-                        if exc != None:
-                            raise exc
-                        return True
-                    elif retval is ABORT_READ_LOOP:
-                        break
-                    else:
-                        return retval
+            cls_key = msg.__class__
+            if cls_key in self._msgs:
+                handler = self._msgs[cls_key]
+                if handler is SUCCESS_READ_LOOP:
+                    if exc != None:
+                        raise exc
+                    return True
+                elif handler is ABORT_READ_LOOP:
+                    continue
+
+                retval = handler(conn, msg, args)
+                if retval is SUCCESS_READ_LOOP:
+                    if exc != None:
+                        raise exc
+                    return True
+                elif retval is ABORT_READ_LOOP:
+                    continue
+                else:
+                    return retval
             else:
                 if isinstance(msg, ErrorResponse):
                     exc = msg.createException()
@@ -903,7 +921,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
 
         return self._authentication_reader(conn, self, user)
 
-    @class_memoized
+    @util.class_memoized
     def _authentication_reader():
         reader = MessageReader(args=('pw', 'user',))
         reader.add_message(AuthenticationRequest,
@@ -979,17 +997,17 @@ class Connection(object):
         else:
             # settimeout causes ssl failure, on windows.  Python bug 1462352.
             self._sock.settimeout(socket_timeout)
-        self._state = "noauth"
+        self._state = STATE_NOAUTH
         self._backend_key_data = None
 
-        self.NoticeReceived = MulticastDelegate()
-        self.ParameterStatusReceived = MulticastDelegate()
-        self.NotificationReceived = MulticastDelegate()
+        self.NoticeReceived = util.MulticastDelegate()
+        self.ParameterStatusReceived = util.MulticastDelegate()
+        self.NotificationReceived = util.MulticastDelegate()
 
         self.ParameterStatusReceived += self._onParameterStatusReceived
 
     def verifyState(self, state):
-        if self._state != state:
+        if self._state is not state:
             raise errors.InternalError("connection state must be %s, is %s" %
                                         (state, self._state))
 
@@ -1034,7 +1052,7 @@ class Connection(object):
         return msg
 
     def authenticate(self, user, **kwargs):
-        self.verifyState("noauth")
+        self.verifyState(STATE_NOAUTH)
         self._sock_lock.acquire()
         try:
             self._send(
@@ -1047,7 +1065,7 @@ class Connection(object):
         finally:
             self._sock_lock.release()
 
-    @class_memoized
+    @util.class_memoized
     def _authenticate_reader():
         reader = MessageReader(args=('user', 'kwargs'))
         def auth_request(connection, msg, context):
@@ -1062,11 +1080,11 @@ class Connection(object):
             raise errors.InterfaceError(
                     "authentication method %s failed" %
                     msg.__class__.__name__)
-        self._state = "auth"
+        self._state = STATE_AUTH
         self._auth_request_reader(self)
         return SUCCESS_READ_LOOP
 
-    @class_memoized
+    @util.class_memoized
     def _auth_request_reader():
         reader = MessageReader(args=())
         reader.add_message(ReadyForQuery,
@@ -1077,7 +1095,7 @@ class Connection(object):
         return reader
 
     def _ready_for_query(self, msg):
-        self._state = "ready"
+        self._state = STATE_READY
         return SUCCESS_READ_LOOP
 
     def _receive_backend_key_data(self, msg):
@@ -1086,7 +1104,7 @@ class Connection(object):
 
     @sync_on_error
     def parse(self, statement, qs, param_types):
-        self.verifyState("ready")
+        self.verifyState(STATE_READY)
 
         type_info = [types.pg_type_info(x) for x in param_types]
         param_types, param_fc = [x[0] for x in type_info], \
@@ -1099,17 +1117,15 @@ class Connection(object):
 
         return self._parse_reader(self, param_fc)
 
-    @class_memoized
+    @util.class_memoized
     def _parse_reader():
         reader = MessageReader(args=('param_fc',))
         # ParseComplete is good.
-        reader.add_message(ParseComplete,
-                            lambda conn, msg, context: ABORT_READ_LOOP)
+        reader.add_message(ParseComplete, ABORT_READ_LOOP)
 
         # Well, we don't really care -- we're going to send whatever we
         # want and let the database deal with it.  But thanks anyways!
-        reader.add_message(ParameterDescription,
-                            lambda conn, msg, context: ABORT_READ_LOOP)
+        reader.add_message(ParameterDescription, ABORT_READ_LOOP)
 
         # We're not waiting for a row description.  Return something
         # destinctive to let bind know that there is no output.
@@ -1124,7 +1140,7 @@ class Connection(object):
 
     @sync_on_error
     def bind(self, portal, statement, params, parse_data, copy_stream):
-        self.verifyState("ready")
+        self.verifyState(STATE_READY)
 
         row_desc, param_fc = parse_data
         if row_desc == None:
@@ -1149,13 +1165,12 @@ class Connection(object):
         # Read responses from server...
         return self._bind_reader(self, portal, copy_stream)
 
-    @class_memoized
+    @util.class_memoized
     def _bind_reader():
         reader = MessageReader(args=('portal', 'copy_stream'))
 
         # BindComplete is good -- just ignore
-        reader.add_message(BindComplete,
-                                lambda conn, msg, context: ABORT_READ_LOOP)
+        reader.add_message(BindComplete, ABORT_READ_LOOP)
 
         # NoData in this case means we're not executing a query.  As a
         # result, we won't be fetching rows, so we'll never execute the
@@ -1196,14 +1211,13 @@ class Connection(object):
 
         return ABORT_READ_LOOP
 
-    @class_memoized
+    @util.class_memoized
     def _copy_out_response_reader():
         reader = MessageReader(args=('fileobj',))
         reader.add_message(CopyData,
                             lambda conn, msg, context:
                                     conn._copy_data(msg, context.fileobj))
-        reader.add_message(CopyDone,
-                        lambda conn, msg, context: SUCCESS_READ_LOOP)
+        reader.add_message(CopyDone, SUCCESS_READ_LOOP)
         return reader
 
     def _copy_data(self, copydata, fileobj):
@@ -1225,7 +1239,7 @@ class Connection(object):
         # "setdefault()" line
         return (None, output['msg'])
 
-    @class_memoized
+    @util.class_memoized
     def _bind_nodata_response_reader():
         reader = MessageReader(args=('copy_stream', 'output'))
         reader.add_message(CopyOutResponse, lambda conn, msg, context:
@@ -1243,7 +1257,7 @@ class Connection(object):
 
     @sync_on_error
     def fetch_rows(self, portal, row_count, row_desc):
-        self.verifyState("ready")
+        self.verifyState(STATE_READY)
 
         self._send(Execute(portal, row_count))
         self._send(Flush())
@@ -1256,7 +1270,7 @@ class Connection(object):
         # end of the available data for this command
         return (retval == 2), rows
 
-    @class_memoized
+    @util.class_memoized
     def _fetch_row_reader():
         reader = MessageReader(args=('rows', 'row_desc', 'portal'))
         reader.add_message(DataRow,
@@ -1293,19 +1307,18 @@ class Connection(object):
 
         return 2  # signal end-of-data
 
-    @class_memoized
+    @util.class_memoized
     def _fetch_commandcomplete_reader():
         reader = MessageReader(args=())
         reader.add_message(ReadyForQuery,
                     lambda conn, msg, context:
                         conn._fetch_commandcomplete_rfq(msg)
                     )
-        reader.add_message(CloseComplete, lambda conn, msg, context:
-                                    ABORT_READ_LOOP)
+        reader.add_message(CloseComplete, ABORT_READ_LOOP)
         return reader
 
     def _fetch_commandcomplete_rfq(self, msg):
-        self._state = "ready"
+        self._state = STATE_READY
         return SUCCESS_READ_LOOP
 
     # Send a Sync message, then read and discard all messages until we
@@ -1317,18 +1330,17 @@ class Connection(object):
         self._flush()
         self._sync_reader(self)
 
-    @class_memoized
+    @util.class_memoized
     def _sync_reader():
         reader = MessageReader(args=())
         reader.ignore_unhandled_messages = True
-        reader.add_message(ReadyForQuery,
-                        lambda conn, msg, context: SUCCESS_READ_LOOP)
+        reader.add_message(ReadyForQuery, SUCCESS_READ_LOOP)
         return reader
 
     def close_statement(self, statement):
-        if self._state == "closed":
+        if self._state is STATE_CLOSED:
             return
-        self.verifyState("ready")
+        self.verifyState(STATE_READY)
         self._sock_lock.acquire()
         try:
             self._send(ClosePreparedStatement(statement))
@@ -1339,19 +1351,17 @@ class Connection(object):
         finally:
             self._sock_lock.release()
 
-    @class_memoized
+    @util.class_memoized
     def _close_reader():
         reader = MessageReader(args=())
-        reader.add_message(CloseComplete,
-                        lambda conn, msg, context: ABORT_READ_LOOP)
-        reader.add_message(ReadyForQuery,
-                        lambda conn, msg, context: SUCCESS_READ_LOOP)
+        reader.add_message(CloseComplete, ABORT_READ_LOOP)
+        reader.add_message(ReadyForQuery, SUCCESS_READ_LOOP)
         return reader
 
     def close_portal(self, portal):
-        if self._state == "closed":
+        if self._state is STATE_CLOSED:
             return
-        self.verifyState("ready")
+        self.verifyState(STATE_READY)
         self._sock_lock.acquire()
         try:
             self._send(ClosePortal(portal))
@@ -1369,7 +1379,7 @@ class Connection(object):
             self._send(Terminate())
             self._flush()
             self._sock.close()
-            self._state = "closed"
+            self._state = STATE_CLOSED
         finally:
             self._sock_lock.release()
 
@@ -1407,7 +1417,7 @@ class Connection(object):
             self._sock_lock.release()
 
     def server_version(self):
-        self.verifyState("ready")
+        self.verifyState(STATE_READY)
         if not self._server_version:
             raise errors.InterfaceError(
                         "Server did not provide server_version parameter.")
