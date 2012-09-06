@@ -108,7 +108,7 @@ class Tests(unittest.TestCase):
     def testRowCount(self):
         with closing(db2.cursor()) as c1:
             c1.execute("SELECT * FROM t1")
-            self.assertEquals(5, c1.rowcount)
+            self.assertEquals(-1, c1.rowcount)
 
             c1.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", ("Hello!",))
             self.assertEquals(2, c1.rowcount)

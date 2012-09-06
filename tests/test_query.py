@@ -55,11 +55,11 @@ class Tests(unittest.TestCase):
                 row_id = cursor.fetchone()[0]
                 cursor.execute("SELECT data FROM t2 WHERE id = %s", (row_id,))
                 self.assert_("test1" == cursor.fetchone()[0])
-                self.assert_(cursor.rowcount == 1)
+                self.assert_(cursor.rowcount == -1)
 
                 # Test with multiple rows...
                 cursor.execute("INSERT INTO t2 (data) VALUES (%s), (%s), (%s) RETURNING id", ("test2", "test3", "test4"))
-                self.assert_(cursor.rowcount == 3)
+                self.assert_(cursor.rowcount == -1)
                 ids = tuple([x[0] for x in cursor])
                 self.assert_(len(ids) == 3)
             finally:
@@ -82,35 +82,6 @@ class Tests(unittest.TestCase):
             for t in (t1, t2, t3):
                 t.join()
 
-    def testRowCount(self):
-        with closing(db.cursor()) as cursor:
-            expected_count = 57
-            cursor.executemany(
-                    "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-                    ((i, i, None) for i in range(expected_count))
-            )
-
-            cursor.execute("SELECT * FROM t1")
-
-            # Check row_count without doing any reading first...
-            self.assertEquals(expected_count, cursor.rowcount)
-
-            # Check rowcount after reading some rows, make sure it still works...
-            for i in range(expected_count // 2):
-                cursor.fetchone()
-            self.assertEquals(expected_count, cursor.rowcount)
-
-        with closing(db.cursor()) as cursor:
-            # Restart the cursor, read a few rows, and then check rowcount again...
-            cursor = db.cursor()
-            cursor.execute("SELECT * FROM t1")
-            for i in range(expected_count // 3):
-                cursor.fetchone()
-            self.assertEquals(expected_count, cursor.rowcount)
-
-            # Should be -1 for a command with no results
-            cursor.execute("DROP TABLE t1")
-            self.assertEquals(-1, cursor.rowcount)
 
     def testRowCountUpdate(self):
         with closing(db.cursor()) as cursor:

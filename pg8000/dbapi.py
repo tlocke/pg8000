@@ -34,6 +34,7 @@ __author__ = "Mathieu Fenniak"
 from . import util, errors, interface, types
 from .errors import *
 import datetime
+import itertools
 import time
 import threading
 
@@ -229,15 +230,14 @@ class CursorWrapper(object):
     # @param size   The number of rows to fetch when called.  If not provided,
     #               the arraysize property value is used instead.
     def fetchmany(self, size=None):
-        if size == None:
+        if size is None:
             size = self.arraysize
-        rows = []
-        for i in range(size):
-            value = self.fetchone()
-            if value == None:
-                break
-            rows.append(value)
-        return rows
+        def iter():
+            for i, row in enumerate(self.cursor.iterate_tuple()):
+                yield row
+                if i >= size - 1:
+                    break
+        return list(iter())
 
     ##
     # Fetch all remaining rows of a query result, returning them as a sequence
@@ -246,7 +246,7 @@ class CursorWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     @require_open_cursor
     def fetchall(self):
-        return tuple(self.cursor.iterate_tuple())
+        return list(self.cursor.iterate_tuple())
 
     ##
     # Close the cursor.

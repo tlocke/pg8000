@@ -32,6 +32,7 @@ __author__ = "Mathieu Fenniak"
 
 import socket
 import threading
+import collections
 
 from . import protocol, errors
 
@@ -105,7 +106,7 @@ class PreparedStatement(object):
                             "pg8000_statement_%s" % self._statement_number)
         self._row_desc = None
         self._cached_rows = []
-        self._ongoing_row_count = 0
+        self._row_count = -1
         self._command_complete = True
         self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
         self._lock = threading.Lock()
@@ -130,10 +131,6 @@ class PreparedStatement(object):
     def execute(self, *args, **kwargs):
         self._lock.acquire()
         try:
-            if not self._command_complete:
-                # cleanup last execute
-                self._cached_rows = []
-                self._ongoing_row_count = 0
             if self._portal_name != None:
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
@@ -152,121 +149,61 @@ class PreparedStatement(object):
                 self._fill_cache()
             else:
                 self._command_complete = True
-                self._ongoing_row_count = -1
                 if cmd != None and cmd.rows != None:
-                    self._ongoing_row_count = cmd.rows
+                    self._row_count = cmd.rows
         finally:
             self._lock.release()
 
     def _fill_cache(self):
-        # note: not threadsafe by itself, is only
-        # called by execute() and _fetch() which both establish
-        # a lock.
-        if self._cached_rows:
+        if not self._row_desc:
+            raise errors.ProgrammingError("no result set")
+        elif self._cached_rows:
             raise errors.InternalError("attempt to fill cache that isn't empty")
+        elif self._command_complete:
+            return False
         end_of_data, rows = self.c.fetch_rows(self._portal_name,
                                             self.row_cache_size,
                                             self._row_desc)
-        self._cached_rows = rows
+        self._cached_rows = collections.deque(rows)
         if end_of_data:
             self._command_complete = True
+            return False
+        else:
+            return True
 
-    def _fetch(self):
-        if not self._row_desc:
-            raise errors.ProgrammingError("no result set")
-        self._lock.acquire()
-        try:
-            if not self._cached_rows:
-                if self._command_complete:
-                    return None
-                self._fill_cache()
-                if self._command_complete and not self._cached_rows:
-                    # fill cache tells us the command is complete, but
-                    # yet we have no rows after filling our cache.
-                    # This is a special case when a query returns no
-                    # rows.
-                    return None
-            row = self._cached_rows.pop(0)
-            self._ongoing_row_count += 1
-            return tuple(row)
-        finally:
-            self._lock.release()
-
-    ##
-    # Return a count of the number of rows relevant to the executed statement.
-    # For a SELECT, this is the number of rows returned.  For UPDATE or DELETE,
-    # this the number of rows affected.  For INSERT, the number of rows
-    # inserted.  This property may have a value of -1 to indicate that there
-    # was no row count.
-    # <p>
-    # During a result-set query (eg. SELECT, or INSERT ... RETURNING ...),
-    # accessing this property requires reading the entire result-set into
-    # memory, as reading the data to completion is the only way to determine
-    # the total number of rows.  Avoid using this property in with
-    # result-set queries, as it may cause unexpected memory usage.
-    # <p>
-    # Stability: Added in v1.03, stability guaranteed for v1.xx.
-    row_count = property(lambda self: self._get_row_count())
-    def _get_row_count(self):
-        self._lock.acquire()
-        try:
-            if not self._command_complete:
-                end_of_data, rows = self.c.fetch_rows(self._portal_name,
-                                                        0, self._row_desc)
-                self._cached_rows += rows
-                if end_of_data:
-                    self._command_complete = True
-                else:
-                    raise errors.InternalError("fetch_rows(0) did not hit end of data")
-            return self._ongoing_row_count + len(self._cached_rows)
-        finally:
-            self._lock.release()
-
-    ##
-    # Read a row from the database server, and return it in a dictionary
-    # indexed by column name/alias.  This method will raise an error if two
-    # columns have the same name.  Returns None after the last row.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def read_dict(self):
-        row = self._fetch()
-        if row == None:
-            return row
-        retval = {}
-        for i in range(len(self._row_desc.fields)):
-            col_name = self._row_desc.fields[i]['name']
-            if retval.has_key(col_name):
-                raise errors.InterfaceError("cannot return dict of row when two "
-                                    "columns have the same name (%r)" %
-                                    (col_name,))
-            retval[col_name] = row[i]
-        return retval
-
-    ##
-    # Read a row from the database server, and return it as a tuple of values.
-    # Returns None after the last row.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_tuple(self):
-        return self._fetch()
+        if not self._cached_rows:
+            self._lock.acquire()
+            try:
+                if not self._fill_cache():
+                    return None
+            finally:
+                self._lock.release()
+        row = self._cached_rows.popleft()
+        return tuple(row)
 
-    ##
-    # Return an iterator for the output of this statement.  The iterator will
-    # return a tuple for each row, in the same manner as {@link
-    # #PreparedStatement.read_tuple read_tuple}.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    @property
+    def row_count(self):
+        """Return a count of the number of rows relevant to the executed
+        statement.
+
+        For UPDATE or DELETE, this the number of rows affected.
+
+        For INSERT, the number of rows inserted.
+
+        For a SELECT, the value is -1; rows are read in as chunks,
+        so the count cannot be determined until all rows have been read.
+
+        """
+        return self._row_count
+
     def iterate_tuple(self):
-        return DataIterator(self, PreparedStatement.read_tuple)
-
-    ##
-    # Return an iterator for the output of this statement.  The iterator will
-    # return a dict for each row, in the same manner as {@link
-    # #PreparedStatement.read_dict read_dict}.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def iterate_dict(self):
-        return DataIterator(self, PreparedStatement.read_dict)
+        while True:
+            row = self.read_tuple()
+            if row is not None:
+                yield row
+            else:
+                break
 
 ##
 # The Cursor class allows multiple queries to be performed concurrently with a
