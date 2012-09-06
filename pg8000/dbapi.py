@@ -76,6 +76,7 @@ class CursorWrapper(object):
         self.arraysize = 1
         self._connection = connection
         self._override_rowcount = None
+        self._row_adapter = None
 
     ##
     # This read-only attribute returns a reference to the connection object on
@@ -98,10 +99,9 @@ class CursorWrapper(object):
     # the interface.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    rowcount = property(lambda self: self._getRowCount())
-
+    @property
     @require_open_cursor
-    def _getRowCount(self):
+    def rowcount(self):
         if self._override_rowcount != None:
             return self._override_rowcount
         return self.cursor.row_count
@@ -114,10 +114,9 @@ class CursorWrapper(object):
     # this interface implementation.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    description = property(lambda self: self._getDescription())
-
+    @property
     @require_open_cursor
-    def _getDescription(self):
+    def description(self):
         if self.cursor.row_description == None:
             return None
         columns = []
@@ -161,7 +160,6 @@ class CursorWrapper(object):
                 else:
                     query, param_fn = util.coerce_positional(operation, parameters)
 
-
             self._execute(query, param_fn(parameters))
             if self.cursor.row_count == -1 or self._override_rowcount == -1:
                 self._override_rowcount = -1
@@ -170,7 +168,7 @@ class CursorWrapper(object):
 
     def _execute(self, operation, args):
         try:
-            self.cursor.execute(operation, *args)
+            self.cursor.execute(operation, row_adapter=self._row_adapter, *args)
         except ConnectionClosedError:
             # can't rollback in this case
             raise
@@ -315,6 +313,13 @@ class ConnectionWrapper(object):
         self.notifies = []
         self.notifies_lock = threading.Lock()
         self.conn.NotificationReceived += self._notificationReceived
+        self._extensions = []
+
+    def enable_extension(self, ext):
+        ext.enable_extension(self)
+
+    def disable_extension(self, ext):
+        ext.disable_extension(self)
 
     @require_open_connection
     def begin(self):
@@ -335,7 +340,10 @@ class ConnectionWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     @require_open_connection
     def cursor(self):
-        return CursorWrapper(self.conn, self)
+        cursor = CursorWrapper(self.conn, self)
+        for ext in self._extensions:
+            ext.new_cursor(self, cursor)
+        return cursor
 
     ##
     # Commits the current database transaction.

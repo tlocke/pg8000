@@ -716,7 +716,6 @@ class ParameterDescription(ReceiveMessage):
         type_oids = struct.unpack("!" + "i" * count, data[2:])
         return ParameterDescription(type_oids)
 
-
 class RowDescription(ReceiveMessage):
     def __init__(self, fields):
         self.fields = fields
@@ -734,6 +733,7 @@ class RowDescription(ReceiveMessage):
                 field["type_size"], field["type_modifier"], \
                 field["format"] = struct.unpack("!ihihih", data[:18])
             data = data[18:]
+            print field
             fields.append(field)
         return RowDescription(fields)
 
@@ -1263,7 +1263,7 @@ class Connection(object):
         return reader
 
     @sync_on_error
-    def fetch_rows(self, portal, row_count, row_desc):
+    def fetch_rows(self, portal, row_count, row_desc, adapter=None):
         if self._state is not STATE_READY:
             self._invalid_state(STATE_READY)
 
@@ -1273,7 +1273,9 @@ class Connection(object):
         )
         rows = []
 
-        retval = self._fetch_row_reader(self, rows, row_desc, portal)
+        if adapter is None:
+            adapter = self._default_datarow_reader
+        retval = self._fetch_row_reader(self, rows, row_desc, portal, adapter)
 
         # retval = 2 when command complete, indicating that we've hit the
         # end of the available data for this command
@@ -1281,30 +1283,31 @@ class Connection(object):
 
     @util.class_memoized
     def _fetch_row_reader():
-        reader = MessageReader(args=('rows', 'row_desc', 'portal'))
-        reader.add_message(DataRow,
-                    lambda conn, msg, context:
-                        conn._fetch_datarow(msg, context.rows,
-                                            context.row_desc))
+        reader = MessageReader(args=('rows', 'row_desc', 'portal', 'adapter'))
+
+        def read_datarow(conn, msg, context):
+            context.adapter(conn, msg, context.rows, context.row_desc)
+            return CONTINUE_READ_LOOP
+        reader.add_message(DataRow, read_datarow)
         reader.add_message(PortalSuspended, SUCCESS_READ_LOOP)
         reader.add_message(CommandComplete,
                     lambda conn, msg, context:
                         conn._fetch_commandcomplete(msg, context.portal))
         return reader
 
-    def _fetch_datarow(self, msg, rows, row_desc):
+    @staticmethod
+    def _default_datarow_reader(conn, msg, rows, row_desc):
         rows.append(
             [
                 types.py_value(
                     msg.fields[i],
                     row_desc.fields[i],
-                    client_encoding=self._client_encoding,
-                    integer_datetimes=self._integer_datetimes,
+                    client_encoding=conn._client_encoding,
+                    integer_datetimes=conn._integer_datetimes,
                 )
                 for i in range(len(msg.fields))
             ]
         )
-        return CONTINUE_READ_LOOP
 
     def _fetch_commandcomplete(self, msg, portal):
         self._flush_messages(

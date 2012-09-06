@@ -90,7 +90,8 @@ class PreparedStatement(object):
     # parameter to be ignored.
     row_cache_size = 100
 
-    def __init__(self, connection, statement, *types, **kwargs):
+    def __init__(self, connection, statement, types=(),
+                            statement_name=None):
         global statement_number
         if connection == None or connection.c == None:
             raise errors.InterfaceError("connection not provided")
@@ -102,10 +103,11 @@ class PreparedStatement(object):
             statement_number_lock.release()
         self.c = connection.c
         self._portal_name = None
-        self._statement_name = kwargs.get("statement_name",
-                            "pg8000_statement_%s" % self._statement_number)
+        self._statement_name = statement_name or \
+                            "pg8000_statement_%s" % self._statement_number
+        self._row_adapter = None
         self._row_desc = None
-        self._cached_rows = []
+        self._cached_rows = None
         self._row_count = -1
         self._command_complete = True
         self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
@@ -118,8 +120,8 @@ class PreparedStatement(object):
             self.c.close_portal(self._portal_name)
             self._portal_name = None
 
-    row_description = property(lambda self: self._getRowDescription())
-    def _getRowDescription(self):
+    @property
+    def row_description(self):
         if self._row_desc == None:
             return None
         return self._row_desc.fields
@@ -135,6 +137,7 @@ class PreparedStatement(object):
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
             self._portal_name = "pg8000_portal_%s" % self._statement_number
+            self._row_adapter = kwargs.get('row_adapter')
             self._row_desc, cmd = self.c.bind(self._portal_name,
                                         self._statement_name, args,
                                         self._parse_row_desc,
@@ -146,6 +149,11 @@ class PreparedStatement(object):
                 # and Execute.  Since it is quite likely that data
                 # will be read from us right away anyways, this seems
                 # a safe move for now.
+                #
+                # Added by Mike - fetch_rows() can now also update the
+                # contents of self._row_desc as well, using row-based
+                # information to revise it, so it's doubly important that
+                # _fill_cache() is called here.
                 self._fill_cache()
             else:
                 self._command_complete = True
@@ -163,7 +171,8 @@ class PreparedStatement(object):
             return False
         end_of_data, rows = self.c.fetch_rows(self._portal_name,
                                             self.row_cache_size,
-                                            self._row_desc)
+                                            self._row_desc,
+                                            self._row_adapter)
         self._cached_rows = collections.deque(rows)
         if end_of_data:
             self._command_complete = True
@@ -230,8 +239,8 @@ class Cursor(object):
             return func(self, *args, **kwargs)
         return retval
 
-    row_description = property(lambda self: self._getRowDescription())
-    def _getRowDescription(self):
+    @property
+    def row_description(self):
         if self._stmt == None:
             return None
         return self._stmt.row_description
@@ -250,7 +259,8 @@ class Cursor(object):
         try:
             self._stmt = PreparedStatement(self.connection, query,
                             statement_name="",
-                            *[{"type": type(x), "value": x} for x in args])
+                            types=[{"type": type(x), "value": x} for x in args]
+                        )
             self._stmt.execute(*args, **kwargs)
         finally:
             self.connection._unnamed_prepared_statement_lock.release()
