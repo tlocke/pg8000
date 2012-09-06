@@ -733,7 +733,6 @@ class RowDescription(ReceiveMessage):
                 field["type_size"], field["type_modifier"], \
                 field["format"] = struct.unpack("!ihihih", data[:18])
             data = data[18:]
-            print field
             fields.append(field)
         return RowDescription(fields)
 

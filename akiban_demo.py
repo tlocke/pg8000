@@ -1,16 +1,16 @@
 from pg8000 import dbapi
 
-conn = dbapi.connect('', host='localhost', port=15432)
-
-#conn = dbapi.connect('scott', password='tiger', database='test', host='localhost', port=5432)
+conn = dbapi.connect('', host='localhost', port=15432, database='myschema')
 
 from pg8000.ext.akiban import extension, AKIBAN_NESTED_CURSOR
 
 conn.enable_extension(extension)
 cursor = conn.cursor()
 
-cursor.execute("""
-CREATE TABLE customers
+# akiban seems to choke if a trans is in progress, so added an
+# "execute_notrans()" method to cursor for now
+cursor.execute_notrans("""
+CREATE TABLE IF NOT EXISTS customers
   (
      customer_id   INT NOT NULL PRIMARY KEY,
      rand_id       INT,
@@ -20,8 +20,8 @@ CREATE TABLE customers
   )
 """)
 
-cursor.execute("""
-CREATE TABLE orders
+cursor.execute_notrans("""
+CREATE TABLE IF NOT EXISTS orders
   (
      order_id    INT NOT NULL PRIMARY KEY,
      customer_id INT NOT NULL,
@@ -31,8 +31,8 @@ CREATE TABLE orders
   )
 """)
 
-cursor.execute("""
-CREATE TABLE items
+cursor.execute_notrans("""
+CREATE TABLE IF NOT EXISTS items
   (
      item_id  INT NOT NULL PRIMARY KEY,
      order_id INT NOT NULL,
@@ -41,8 +41,6 @@ CREATE TABLE items
      GROUPING FOREIGN KEY(order_id) REFERENCES orders
   )
 """)
-
-
 
 cursor.executemany(
     "INSERT INTO customers VALUES (%s, floor(1 + rand() * 100), %s, %s, %s)",
@@ -116,7 +114,6 @@ cursor.executemany(
     ]
 )
 
-
 def printrows(cursor, indent=""):
     for row in cursor.fetchall():
         nested = []
@@ -130,19 +127,19 @@ def printrows(cursor, indent=""):
         for key, values, indent in nested:
             printrows(values, "%s    %s: " % (indent, key))
 
-cursor.execute("select 2 as Y, 1 as X, 3 as Z, (select 4 as NX1) as X1, (select 5 as NY1) AS Y1")
-
+cursor.execute("select 2 as Y, 1 as X, 3 as Z, (select 4 as NX1) as X1, "
+                "(select 5 as NY1) AS Y1")
 printrows(cursor)
 
 cursor.execute("""
     select customers.*,
-           (select orders.*
+           (select orders.*,
+                (select items.*
+                from items
+                where items.order_id = orders.order_id and
+                orders.customer_id = customers.customer_id) as items
             from orders
-            where orders.customer_id = customers.customer_id) as orders,
-           (select items.*
-            from items, orders
-            where items.order_id = orders.order_id and
-            orders.customer_id = customers.customer_id) as items
+            where orders.customer_id = customers.customer_id) as orders
     from customers
 """)
 

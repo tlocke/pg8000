@@ -141,6 +141,19 @@ class CursorWrapper(object):
             query, param_fn = util.coerce_positional(operation, args)
         self._execute(query, param_fn(args))
 
+    @require_open_cursor
+    def execute_notrans(self, operation, args=()):
+        if self._connection.in_transaction:
+            raise ProgrammingError("Connection is in a transaction; "
+                            "please commit() or rollback() first.")
+        self._override_rowcount = None
+        if hasattr(args, 'keys'):
+            query, param_fn = util.coerce_named(operation, args)
+        else:
+            query, param_fn = util.coerce_positional(operation, args)
+        self._execute(query, param_fn(args))
+
+
     ##
     # Prepare a database operation and then execute it against all parameter
     # sequences or mappings provided.
@@ -174,7 +187,8 @@ class CursorWrapper(object):
             raise
         except:
             # any error will rollback the transaction to-date
-            self._connection.rollback()
+            if self._connection.in_transaction:
+                self._connection.rollback()
             raise
 
     def copy_from(self, fileobj, table=None, sep='\t', null=None, query=None):

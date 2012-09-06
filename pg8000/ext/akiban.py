@@ -1,5 +1,4 @@
 from ..interface import PreparedStatement
-from .. import types
 import json
 import collections
 
@@ -40,9 +39,12 @@ def read_datarow(conn, msg, rows, row_desc):
         firstrec = document[0]
     row_desc.fields = _description_from_firstrec(firstrec)
 
+    _create_rowset(conn, document, rows, row_desc.fields)
+
+def _create_rowset(conn, document, rows, fields):
     for rec in document:
         row = []
-        for field in row_desc.fields:
+        for field in fields:
             value = rec[field['name']]
             if field['type_oid'] == AKIBAN_NESTED_CURSOR:
                 row.append(NestedCursor(conn, value, field['akiban.description']))
@@ -82,6 +84,8 @@ def _guess_type(value):
         return 1022
     elif isinstance(value, basestring):
         return 1043
+    elif value is None:
+        return 1043
     else:
         assert False, "Don't know what type to use for value: %r" % value
 
@@ -92,7 +96,8 @@ class NestedCursor(object):
 
     def __init__(self, conn, items, description):
         self._row_description = description
-        self._rows = collections.deque(items)
+        self._rows = collections.deque()
+        _create_rowset(conn, items, self._rows, description)
 
     @property
     def description(self):
