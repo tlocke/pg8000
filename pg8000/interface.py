@@ -26,13 +26,15 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+from __future__ import absolute_import
 
 __author__ = "Mathieu Fenniak"
 
 import socket
-import protocol
 import threading
-from errors import *
+import collections
+
+from . import protocol, errors
 
 class DataIterator(object):
     def __init__(self, obj, func):
@@ -88,10 +90,11 @@ class PreparedStatement(object):
     # parameter to be ignored.
     row_cache_size = 100
 
-    def __init__(self, connection, statement, *types, **kwargs):
+    def __init__(self, connection, statement, types=(),
+                            statement_name=None):
         global statement_number
         if connection == None or connection.c == None:
-            raise InterfaceError("connection not provided")
+            raise errors.InterfaceError("connection not provided")
         try:
             statement_number_lock.acquire()
             self._statement_number = statement_number
@@ -100,23 +103,25 @@ class PreparedStatement(object):
             statement_number_lock.release()
         self.c = connection.c
         self._portal_name = None
-        self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s" % self._statement_number)
+        self._statement_name = statement_name or \
+                            "pg8000_statement_%s" % self._statement_number
+        self._row_adapter = None
         self._row_desc = None
-        self._cached_rows = []
-        self._ongoing_row_count = 0
+        self._cached_rows = None
+        self._row_count = -1
         self._command_complete = True
         self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
-        self._lock = threading.RLock()
+        self._lock = threading.Lock()
 
     def close(self):
-        if self._statement_name != "": # don't close unnamed statement
+        if self._statement_name != "":  # don't close unnamed statement
             self.c.close_statement(self._statement_name)
         if self._portal_name != None:
             self.c.close_portal(self._portal_name)
             self._portal_name = None
 
-    row_description = property(lambda self: self._getRowDescription())
-    def _getRowDescription(self):
+    @property
+    def row_description(self):
         if self._row_desc == None:
             return None
         return self._row_desc.fields
@@ -128,134 +133,86 @@ class PreparedStatement(object):
     def execute(self, *args, **kwargs):
         self._lock.acquire()
         try:
-            if not self._command_complete:
-                # cleanup last execute
-                self._cached_rows = []
-                self._ongoing_row_count = 0
             if self._portal_name != None:
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
             self._portal_name = "pg8000_portal_%s" % self._statement_number
-            self._row_desc, cmd = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc, kwargs.get("stream"))
+            self._row_adapter = kwargs.get('row_adapter')
+            self._row_desc, cmd = self.c.bind(self._portal_name,
+                                        self._statement_name, args,
+                                        self._parse_row_desc,
+                                        kwargs.get("stream"))
             if self._row_desc:
-                # We execute our cursor right away to fill up our cache.  This
-                # prevents the cursor from being destroyed, apparently, by a rogue
-                # Sync between Bind and Execute.  Since it is quite likely that
-                # data will be read from us right away anyways, this seems a safe
-                # move for now.
+                # We execute our cursor right away to fill up our
+                # cache.  This prevents the cursor from being
+                # destroyed, apparently, by a rogue Sync between Bind
+                # and Execute.  Since it is quite likely that data
+                # will be read from us right away anyways, this seems
+                # a safe move for now.
+                #
+                # Added by Mike - fetch_rows() can now also update the
+                # contents of self._row_desc as well, using row-based
+                # information to revise it, so it's doubly important that
+                # _fill_cache() is called here.
                 self._fill_cache()
             else:
                 self._command_complete = True
-                self._ongoing_row_count = -1
                 if cmd != None and cmd.rows != None:
-                    self._ongoing_row_count = cmd.rows
+                    self._row_count = cmd.rows
         finally:
             self._lock.release()
 
     def _fill_cache(self):
-        self._lock.acquire()
-        try:
-            if self._cached_rows:
-                raise InternalError("attempt to fill cache that isn't empty")
-            end_of_data, rows = self.c.fetch_rows(self._portal_name, self.row_cache_size, self._row_desc)
-            self._cached_rows = rows
-            if end_of_data:
-                self._command_complete = True
-        finally:
-            self._lock.release()
-
-    def _fetch(self):
         if not self._row_desc:
-            raise ProgrammingError("no result set")
-        self._lock.acquire()
-        try:
-            if not self._cached_rows:
-                if self._command_complete:
-                    return None
-                self._fill_cache()
-                if self._command_complete and not self._cached_rows:
-                    # fill cache tells us the command is complete, but yet we have
-                    # no rows after filling our cache.  This is a special case when
-                    # a query returns no rows.
-                    return None
-            row = self._cached_rows.pop(0)
-            self._ongoing_row_count += 1
-            return tuple(row)
-        finally:
-            self._lock.release()
+            raise errors.ProgrammingError("no result set")
+        elif self._cached_rows:
+            raise errors.InternalError("attempt to fill cache that isn't empty")
+        elif self._command_complete:
+            return False
+        end_of_data, rows = self.c.fetch_rows(self._portal_name,
+                                            self.row_cache_size,
+                                            self._row_desc,
+                                            self._row_adapter)
+        self._cached_rows = collections.deque(rows)
+        if end_of_data:
+            self._command_complete = True
+            return False
+        else:
+            return True
 
-    ##
-    # Return a count of the number of rows relevant to the executed statement.
-    # For a SELECT, this is the number of rows returned.  For UPDATE or DELETE,
-    # this the number of rows affected.  For INSERT, the number of rows
-    # inserted.  This property may have a value of -1 to indicate that there
-    # was no row count.
-    # <p>
-    # During a result-set query (eg. SELECT, or INSERT ... RETURNING ...),
-    # accessing this property requires reading the entire result-set into
-    # memory, as reading the data to completion is the only way to determine
-    # the total number of rows.  Avoid using this property in with
-    # result-set queries, as it may cause unexpected memory usage.
-    # <p>
-    # Stability: Added in v1.03, stability guaranteed for v1.xx.
-    row_count = property(lambda self: self._get_row_count())
-    def _get_row_count(self):
-        self._lock.acquire()
-        try:
-            if not self._command_complete:
-                end_of_data, rows = self.c.fetch_rows(self._portal_name, 0, self._row_desc)
-                self._cached_rows += rows
-                if end_of_data:
-                    self._command_complete = True
-                else:
-                    raise InternalError("fetch_rows(0) did not hit end of data")
-            return self._ongoing_row_count + len(self._cached_rows)
-        finally:
-            self._lock.release()
-
-    ##
-    # Read a row from the database server, and return it in a dictionary
-    # indexed by column name/alias.  This method will raise an error if two
-    # columns have the same name.  Returns None after the last row.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def read_dict(self):
-        row = self._fetch()
-        if row == None:
-            return row
-        retval = {}
-        for i in range(len(self._row_desc.fields)):
-            col_name = self._row_desc.fields[i]['name']
-            if retval.has_key(col_name):
-                raise InterfaceError("cannot return dict of row when two columns have the same name (%r)" % (col_name,))
-            retval[col_name] = row[i]
-        return retval
-
-    ##
-    # Read a row from the database server, and return it as a tuple of values.
-    # Returns None after the last row.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_tuple(self):
-        return self._fetch()
+        if not self._cached_rows:
+            self._lock.acquire()
+            try:
+                if not self._fill_cache():
+                    return None
+            finally:
+                self._lock.release()
+        row = self._cached_rows.popleft()
+        return tuple(row)
 
-    ##
-    # Return an iterator for the output of this statement.  The iterator will
-    # return a tuple for each row, in the same manner as {@link
-    # #PreparedStatement.read_tuple read_tuple}.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
+    @property
+    def row_count(self):
+        """Return a count of the number of rows relevant to the executed
+        statement.
+
+        For UPDATE or DELETE, this the number of rows affected.
+
+        For INSERT, the number of rows inserted.
+
+        For a SELECT, the value is -1; rows are read in as chunks,
+        so the count cannot be determined until all rows have been read.
+
+        """
+        return self._row_count
+
     def iterate_tuple(self):
-        return DataIterator(self, PreparedStatement.read_tuple)
-
-    ##
-    # Return an iterator for the output of this statement.  The iterator will
-    # return a dict for each row, in the same manner as {@link
-    # #PreparedStatement.read_dict read_dict}.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def iterate_dict(self):
-        return DataIterator(self, PreparedStatement.read_dict)
+        while True:
+            row = self.read_tuple()
+            if row is not None:
+                yield row
+            else:
+                break
 
 ##
 # The Cursor class allows multiple queries to be performed concurrently with a
@@ -278,12 +235,12 @@ class Cursor(object):
     def require_stmt(func):
         def retval(self, *args, **kwargs):
             if self._stmt == None:
-                raise ProgrammingError("attempting to use unexecuted cursor")
+                raise errors.ProgrammingError("attempting to use unexecuted cursor")
             return func(self, *args, **kwargs)
         return retval
 
-    row_description = property(lambda self: self._getRowDescription())
-    def _getRowDescription(self):
+    @property
+    def row_description(self):
         if self._stmt == None:
             return None
         return self._stmt.row_description
@@ -297,10 +254,13 @@ class Cursor(object):
     # @param query      The SQL statement to execute.
     def execute(self, query, *args, **kwargs):
         if self.connection.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self.connection._unnamed_prepared_statement_lock.acquire()
         try:
-            self._stmt = PreparedStatement(self.connection, query, statement_name="", *[{"type": type(x), "value": x} for x in args])
+            self._stmt = PreparedStatement(self.connection, query,
+                            statement_name="",
+                            types=[{"type": type(x), "value": x} for x in args]
+                        )
             self._stmt.execute(*args, **kwargs)
         finally:
             self.connection._unnamed_prepared_statement_lock.release()
@@ -372,14 +332,15 @@ class Cursor(object):
         return self.connection.fileno()
 
     ##
-    # Poll the underlying socket for this cursor and sync if there is data waiting
-    # to be read. This has the effect of flushing asynchronous messages from the
-    # backend. Returns True if messages were read, False otherwise.
+    # Poll the underlying socket for this cursor and sync if there is
+    # data waiting to be read. This has the effect of flushing
+    # asynchronous messages from the backend. Returns True if messages
+    # were read, False otherwise.
     # <p>
     # Stability: Added in v1.07, stability guaranteed for v1.xx.
     def isready(self):
         return self.connection.isready()
-    
+
 
 ##
 # This class represents a connection to a PostgreSQL database.
@@ -425,15 +386,19 @@ class Cursor(object):
 # Defaults to 60 seconds.
 #
 # @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
-class Connection(Cursor):
-    def __init__(self, user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
+class Connection(object):
+    def __init__(self, user, host=None, unix_sock=None, port=5432,
+                    database=None, password=None,
+                    socket_timeout=60, ssl=False):
         self._row_desc = None
         try:
-            self.c = protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout, ssl=ssl)
+            self.c = protocol.Connection(unix_sock=unix_sock, host=host,
+                                            port=port,
+                                            socket_timeout=socket_timeout,
+                                            ssl=ssl)
             self.c.authenticate(user, password=password, database=database)
         except socket.error, e:
-            raise InterfaceError("communication error", e)
-        Cursor.__init__(self, self)
+            raise errors.InterfaceError("communication error", e)
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
         self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
@@ -481,7 +446,8 @@ class Connection(Cursor):
     # Stability: Added in v1.03, stability guaranteed for v1.xx.
     ParameterStatusReceived = property(
             lambda self: getattr(self.c, "ParameterStatusReceived"),
-            lambda self, value: setattr(self.c, "ParameterStatusReceived", value)
+            lambda self, value: setattr(self.c,
+                                "ParameterStatusReceived", value)
     )
 
     ##
@@ -490,7 +456,7 @@ class Connection(Cursor):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def begin(self):
         if self.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self._begin.execute()
         self.in_transaction = True
 
@@ -501,7 +467,7 @@ class Connection(Cursor):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def commit(self):
         if self.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self._commit.execute()
         self.in_transaction = False
 
@@ -511,7 +477,7 @@ class Connection(Cursor):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def rollback(self):
         if self.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self._rollback.execute()
         self.in_transaction = False
 
@@ -519,7 +485,7 @@ class Connection(Cursor):
     # Closes an open connection.
     def close(self):
         if self.is_closed:
-            raise ConnectionClosedError()
+            raise errors.ConnectionClosedError()
         self.c.close()
         self.c = None
 

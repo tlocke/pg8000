@@ -27,16 +27,16 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+from __future__ import absolute_import
+
 __author__ = "Mathieu Fenniak"
 
+from . import util, errors, interface, types
+from .errors import *
 import datetime
+import itertools
 import time
-import interface
-import types
 import threading
-from errors import *
-
-from warnings import warn
 
 ##
 # The DBAPI level supported.  Currently 2.0.  This property is part of the
@@ -57,184 +57,8 @@ threadsafety = 3
 # Unlike the DBAPI specification, this value is not constant.  It can be
 # changed to any standard paramstyle value (ie. qmark, numeric, named, format,
 # and pyformat).
-paramstyle = 'format' # paramstyle can be changed to any DB-API paramstyle
+paramstyle = 'pyformat'  # paramstyle can be changed to any DB-API paramstyle
 
-def convert_paramstyle(src_style, query, args):
-    # I don't see any way to avoid scanning the query string char by char,
-    # so we might as well take that careful approach and create a
-    # state-based scanner.  We'll use int variables for the state.
-    #  0 -- outside quoted string
-    #  1 -- inside single-quote string '...'
-    #  2 -- inside quoted identifier   "..."
-    #  3 -- inside escaped single-quote string, E'...'
-    state = 0
-    output_query = ""
-    output_args = []
-    if src_style == "numeric":
-        output_args = args
-    elif src_style in ("pyformat", "named"):
-        mapping_to_idx = {}
-    i = 0
-    while 1:
-        if i == len(query):
-            break
-        c = query[i]
-        # print "begin loop", repr(i), repr(c), repr(state)
-        if state == 0:
-            if c == "'":
-                i += 1
-                output_query += c
-                state = 1
-            elif c == '"':
-                i += 1
-                output_query += c
-                state = 2
-            elif c == 'E':
-                # check for escaped single-quote string
-                i += 1
-                if i < len(query) and i > 1 and query[i] == "'":
-                    i += 1
-                    output_query += "E'"
-                    state = 3
-                else:
-                    output_query += c
-            elif src_style == "qmark" and c == "?":
-                i += 1
-                param_idx = len(output_args)
-                if param_idx == len(args):
-                    raise QueryParameterIndexError("too many parameter fields, not enough parameters")
-                output_args.append(args[param_idx])
-                output_query += "$" + str(param_idx + 1)
-            elif src_style == "numeric" and c == ":":
-                i += 1
-                if i < len(query) and i > 1 and query[i].isdigit():
-                    output_query += "$" + query[i]
-                    i += 1
-                else:
-                    raise QueryParameterParseError("numeric parameter : does not have numeric arg")
-            elif src_style == "named" and c == ":":
-                name = ""
-                while 1:
-                    i += 1
-                    if i == len(query):
-                        break
-                    c = query[i]
-                    if c.isalnum() or c == '_':
-                        name += c
-                    else:
-                        break
-                if name == "":
-                    raise QueryParameterParseError("empty name of named parameter")
-                idx = mapping_to_idx.get(name)
-                if idx == None:
-                    idx = len(output_args)
-                    output_args.append(args[name])
-                    idx += 1
-                    mapping_to_idx[name] = idx
-                output_query += "$" + str(idx)
-            elif src_style == "format" and c == "%":
-                i += 1
-                if i < len(query) and i > 1:
-                    if query[i] == "s":
-                        param_idx = len(output_args)
-                        if param_idx == len(args):
-                            raise QueryParameterIndexError("too many parameter fields, not enough parameters")
-                        output_args.append(args[param_idx])
-                        output_query += "$" + str(param_idx + 1)
-                    elif query[i] == "%":
-                        output_query += "%"
-                    else:
-                        raise QueryParameterParseError("Only %s and %% are supported")
-                    i += 1
-                else:
-                    raise QueryParameterParseError("format parameter % does not have format code")
-            elif src_style == "pyformat" and c == "%":
-                i += 1
-                if i < len(query) and i > 1:
-                    if query[i] == "(":
-                        i += 1
-                        # begin mapping name
-                        end_idx = query.find(')', i)
-                        if end_idx == -1:
-                            raise QueryParameterParseError("began pyformat dict read, but couldn't find end of name")
-                        else:
-                            name = query[i:end_idx]
-                            i = end_idx + 1
-                            if i < len(query) and query[i] == "s":
-                                i += 1
-                                idx = mapping_to_idx.get(name)
-                                if idx == None:
-                                    idx = len(output_args)
-                                    output_args.append(args[name])
-                                    idx += 1
-                                    mapping_to_idx[name] = idx
-                                output_query += "$" + str(idx)
-                            else:
-                                raise QueryParameterParseError("format not specified or not supported (only %(...)s supported)")
-                    elif query[i] == "%":
-                        output_query += "%"
-                    elif query[i] == "s":
-                        # we have a %s in a pyformat query string.  Assume
-                        # support for format instead.
-                        i -= 1
-                        src_style = "format"
-                    else:
-                        raise QueryParameterParseError("Only %(name)s, %s and %% are supported")
-            else:
-                i += 1
-                output_query += c
-        elif state == 1:
-            output_query += c
-            i += 1
-            if c == "'":
-                # Could be a double ''
-                if i < len(query) and query[i] == "'":
-                    # is a double quote.
-                    output_query += query[i]
-                    i += 1
-                else:
-                    state = 0
-            elif src_style in ("pyformat","format") and c == "%":
-                # hm... we're only going to support an escaped percent sign
-                if i < len(query):
-                    if query[i] == "%":
-                        # good.  We already output the first percent sign.
-                        i += 1
-                    else:
-                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
-        elif state == 2:
-            output_query += c
-            i += 1
-            if c == '"':
-                state = 0
-            elif src_style in ("pyformat","format") and c == "%":
-                # hm... we're only going to support an escaped percent sign
-                if i < len(query):
-                    if query[i] == "%":
-                        # good.  We already output the first percent sign.
-                        i += 1
-                    else:
-                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
-        elif state == 3:
-            output_query += c
-            i += 1
-            if c == "\\":
-                # check for escaped single-quote
-                if i < len(query) and query[i] == "'":
-                    output_query += "'"
-                    i += 1
-            elif c == "'":
-                state = 0
-            elif src_style in ("pyformat","format") and c == "%":
-                # hm... we're only going to support an escaped percent sign
-                if i < len(query):
-                    if query[i] == "%":
-                        # good.  We already output the first percent sign.
-                        i += 1
-                    else:
-                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
-
-    return output_query, tuple(output_args)
 
 def require_open_cursor(fn):
     def _fn(self, *args, **kwargs):
@@ -244,13 +68,15 @@ def require_open_cursor(fn):
     return _fn
 
 ##
-# The class of object returned by the {@link #ConnectionWrapper.cursor cursor method}.
+# The class of object returned by the
+# {@link #ConnectionWrapper.cursor cursor method}.
 class CursorWrapper(object):
     def __init__(self, conn, connection):
         self.cursor = interface.Cursor(conn)
         self.arraysize = 1
         self._connection = connection
         self._override_rowcount = None
+        self._row_adapter = None
 
     ##
     # This read-only attribute returns a reference to the connection object on
@@ -261,7 +87,6 @@ class CursorWrapper(object):
     connection = property(lambda self: self._getConnection())
 
     def _getConnection(self):
-        warn("DB-API extension cursor.connection used", stacklevel=3)
         return self._connection
 
     ##
@@ -274,10 +99,9 @@ class CursorWrapper(object):
     # the interface.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    rowcount = property(lambda self: self._getRowCount())
-
+    @property
     @require_open_cursor
-    def _getRowCount(self):
+    def rowcount(self):
         if self._override_rowcount != None:
             return self._override_rowcount
         return self.cursor.row_count
@@ -290,15 +114,15 @@ class CursorWrapper(object):
     # this interface implementation.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    description = property(lambda self: self._getDescription())
-
+    @property
     @require_open_cursor
-    def _getDescription(self):
+    def description(self):
         if self.cursor.row_description == None:
             return None
         columns = []
         for col in self.cursor.row_description:
-            columns.append((col["name"], col["type_oid"], None, None, None, None, None))
+            columns.append((col["name"], col["type_oid"],
+                                None, None, None, None, None))
         return columns
 
     ##
@@ -311,18 +135,60 @@ class CursorWrapper(object):
         if not self._connection.in_transaction:
             self._connection.begin()
         self._override_rowcount = None
-        self._execute(operation, args)
+        if hasattr(args, 'keys'):
+            query, param_fn = util.coerce_named(operation, args)
+        else:
+            query, param_fn = util.coerce_positional(operation, args)
+        self._execute(query, param_fn(args))
 
-    def _execute(self, operation, args=()):
-        new_query, new_args = convert_paramstyle(paramstyle, operation, args)
+    @require_open_cursor
+    def execute_notrans(self, operation, args=()):
+        if self._connection.in_transaction:
+            raise ProgrammingError("Connection is in a transaction; "
+                            "please commit() or rollback() first.")
+        self._override_rowcount = None
+        if hasattr(args, 'keys'):
+            query, param_fn = util.coerce_named(operation, args)
+        else:
+            query, param_fn = util.coerce_positional(operation, args)
+        self._execute(query, param_fn(args))
+
+
+    ##
+    # Prepare a database operation and then execute it against all parameter
+    # sequences or mappings provided.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
+    @require_open_cursor
+    def executemany(self, operation, parameter_sets):
+        if not self._connection.in_transaction:
+            self._connection.begin()
+        self._override_rowcount = 0
+
+        query = None
+        for parameters in parameter_sets:
+            if not query:
+                if hasattr(parameters, 'keys'):
+                    query, param_fn = util.coerce_named(operation, parameters)
+                else:
+                    query, param_fn = util.coerce_positional(operation, parameters)
+
+            self._execute(query, param_fn(parameters))
+            if self.cursor.row_count == -1 or self._override_rowcount == -1:
+                self._override_rowcount = -1
+            else:
+                self._override_rowcount += self.cursor.row_count
+
+    def _execute(self, operation, args):
         try:
-            self.cursor.execute(new_query, *new_args)
+            self.cursor.execute(operation, row_adapter=self._row_adapter, *args)
         except ConnectionClosedError:
             # can't rollback in this case
             raise
         except:
             # any error will rollback the transaction to-date
-            self._connection.rollback()
+            if self._connection.in_transaction:
+                self._connection.rollback()
             raise
 
     def copy_from(self, fileobj, table=None, sep='\t', null=None, query=None):
@@ -342,7 +208,7 @@ class CursorWrapper(object):
             if null is not None:
                 query += " NULL '%s'" % (null,)
         self.copy_execute(fileobj, query)
-    
+
     @require_open_cursor
     def copy_execute(self, fileobj, query):
         try:
@@ -352,26 +218,11 @@ class CursorWrapper(object):
             raise
         except:
             # any error will rollback the transaction to-date
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
             self._connection.rollback()
             raise
 
-    ##
-    # Prepare a database operation and then execute it against all parameter
-    # sequences or mappings provided.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
-    @require_open_cursor
-    def executemany(self, operation, parameter_sets):
-        if not self._connection.in_transaction:
-            self._connection.begin()
-        self._override_rowcount = 0
-        for parameters in parameter_sets:
-            self._execute(operation, parameters)
-            if self.cursor.row_count == -1 or self._override_rowcount == -1:
-                self._override_rowcount = -1
-            else:
-                self._override_rowcount += self.cursor.row_count
 
     ##
     # Fetch the next row of a query result set, returning a single sequence, or
@@ -391,15 +242,14 @@ class CursorWrapper(object):
     # @param size   The number of rows to fetch when called.  If not provided,
     #               the arraysize property value is used instead.
     def fetchmany(self, size=None):
-        if size == None:
+        if size is None:
             size = self.arraysize
-        rows = []
-        for i in range(size):
-            value = self.fetchone()
-            if value == None:
-                break
-            rows.append(value)
-        return rows
+        def iter():
+            for i, row in enumerate(self.cursor.iterate_tuple()):
+                yield row
+                if i >= size - 1:
+                    break
+        return list(iter())
 
     ##
     # Fetch all remaining rows of a query result, returning them as a sequence
@@ -408,7 +258,7 @@ class CursorWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     @require_open_cursor
     def fetchall(self):
-        return tuple(self.cursor.iterate_tuple())
+        return list(self.cursor.iterate_tuple())
 
     ##
     # Close the cursor.
@@ -421,14 +271,12 @@ class CursorWrapper(object):
         self._override_rowcount = None
 
     def next(self):
-        warn("DB-API extension cursor.next() used", stacklevel=2)
         retval = self.fetchone()
         if retval == None:
             raise StopIteration()
         return retval
 
     def __iter__(self):
-        warn("DB-API extension cursor.__iter__() used", stacklevel=2)
         return self
 
     def setinputsizes(self, sizes):
@@ -440,7 +288,7 @@ class CursorWrapper(object):
     @require_open_cursor
     def fileno(self):
         return self.cursor.fileno()
-    
+
     @require_open_cursor
     def isready(self):
         return self.cursor.isready()
@@ -455,25 +303,23 @@ def require_open_connection(fn):
 ##
 # The class of object returned by the {@link #connect connect method}.
 class ConnectionWrapper(object):
-    # DBAPI Extension: supply exceptions as attributes on the connection
-    Warning = property(lambda self: self._getError(Warning))
-    Error = property(lambda self: self._getError(Error))
-    InterfaceError = property(lambda self: self._getError(InterfaceError))
-    DatabaseError = property(lambda self: self._getError(DatabaseError))
-    OperationalError = property(lambda self: self._getError(OperationalError))
-    IntegrityError = property(lambda self: self._getError(IntegrityError))
-    InternalError = property(lambda self: self._getError(InternalError))
-    ProgrammingError = property(lambda self: self._getError(ProgrammingError))
-    NotSupportedError = property(lambda self: self._getError(NotSupportedError))
 
-    def _getError(self, error):
-        warn("DB-API extension connection.%s used" % error.__name__, stacklevel=3)
-        return error
+    # DBAPI Extension: supply exceptions as
+    # attributes on the connection
+    Warning = errors.Warning
+    Error = errors.Error
+    InterfaceError = errors.InterfaceError
+    DatabaseError = errors.DatabaseError
+    OperationalError = errors.OperationalError
+    IntegrityError = errors.IntegrityError
+    InternalError = errors.InternalError
+    ProgrammingError = errors.ProgrammingError
+    NotSupportedError = errors.NotSupportedError
 
     @property
     def in_transaction(self):
         if self.conn:
-             return self.conn.in_transaction
+            return self.conn.in_transaction
         return False
 
     def __init__(self, **kwargs):
@@ -481,6 +327,13 @@ class ConnectionWrapper(object):
         self.notifies = []
         self.notifies_lock = threading.Lock()
         self.conn.NotificationReceived += self._notificationReceived
+        self._extensions = []
+
+    def enable_extension(self, ext):
+        ext.enable_extension(self)
+
+    def disable_extension(self, ext):
+        ext.disable_extension(self)
 
     @require_open_connection
     def begin(self):
@@ -501,7 +354,10 @@ class ConnectionWrapper(object):
     # Stability: Part of the DBAPI 2.0 specification.
     @require_open_connection
     def cursor(self):
-        return CursorWrapper(self.conn, self)
+        cursor = CursorWrapper(self.conn, self)
+        for ext in self._extensions:
+            ext.new_cursor(self, cursor)
+        return cursor
 
     ##
     # Commits the current database transaction.
@@ -583,7 +439,8 @@ class ConnectionWrapper(object):
 # @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
 #
 # @return An instance of {@link #ConnectionWrapper ConnectionWrapper}.
-def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
+def connect(user, host=None, unix_sock=None, port=5432, database=None,
+                    password=None, socket_timeout=60, ssl=False):
     return ConnectionWrapper(user=user, host=host,
             unix_sock=unix_sock, port=port, database=database,
             password=password, socket_timeout=socket_timeout, ssl=ssl)

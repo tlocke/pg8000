@@ -68,7 +68,7 @@ pg8000 Type Classes
     may occasionally be lengthened slightly by a leap second.
 
     .. method:: __init__(self, microseconds, days, months)
-    
+
         Initializes an Interval instance with the given values for
         microseconds, days, and months.
 

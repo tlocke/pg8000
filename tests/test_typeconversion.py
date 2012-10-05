@@ -175,7 +175,7 @@ class Tests(unittest.TestCase):
             )
             self.cursor.execute("SELECT f1, f2 FROM TestTz")
             retval = self.cursor.fetchall()
-    
+
             # when inserting a timestamp into a timestamptz field, postgresql
             # assumes that it is in local time.  So the value that comes out
             # will be the server's local time interpretation of v1.  We've set
@@ -183,7 +183,7 @@ class Tests(unittest.TestCase):
             f1 = retval[0][0]
             self.assert_(f1 == datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pytz.utc),
                     "retrieved value match failed")
-    
+
             # inserting the timestamptz into a timestamp field, pg8000
             # converts the value into UTC, and then the PG server converts
             # it into local time for insertion into the field.  When we query
@@ -373,7 +373,7 @@ class Tests(unittest.TestCase):
         column_name, column_typeoid = self.cursor.description[0][0:2]
         self.assert_(column_typeoid == 1016,
                 "type should be INT8[]")
-        
+
     def testIntArrayWithNullRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", ([1, None, 3],))
         retval = self.cursor.fetchall()

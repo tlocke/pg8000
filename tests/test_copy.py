@@ -45,7 +45,10 @@ class Tests(unittest.TestCase):
 
             cursor.execute("SELECT * FROM t1 ORDER BY f1")
             retval = cursor.fetchall()
-            self.assert_(retval == ((1, 1, u'1'), (2, 2, u'2'), (3, 3, u'3')))
+            self.assertEquals(
+                    retval,
+                    [(1, 1, u'1'), (2, 2, u'2'), (3, 3, u'3')]
+            )
 
     def testCopyFromWithQuery(self):
         with closing(db.cursor()) as cursor:
@@ -55,7 +58,10 @@ class Tests(unittest.TestCase):
 
             cursor.execute("SELECT * FROM t1 ORDER BY f1")
             retval = cursor.fetchall()
-            self.assert_(retval == ((1, 1, None),))
+            self.assertEquals(
+                    retval,
+                    [(1, 1, None)]
+            )
 
     def testCopyWithoutTableOrQuery(self):
         with closing(db.cursor()) as cursor:
