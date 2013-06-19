@@ -33,7 +33,6 @@ __author__ = "Mathieu Fenniak"
 import datetime
 import decimal
 import struct
-import math
 from .errors import (NotSupportedError, ArrayDataParseError, InternalError,
         ArrayContentEmptyError, ArrayContentNotHomogenousError,
         ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError)
@@ -310,43 +309,112 @@ def time_in(data, **kwargs):
 def time_out(v, **kwargs):
     return v.isoformat()
 
+
 def numeric_in(data, **kwargs):
     if data.find(".") == -1:
         return int(data)
     else:
         return decimal.Decimal(data)
 
+DECIMAL_TENTH = decimal.Decimal('0.1')
+
+
 def numeric_recv(data, **kwargs):
     num_digits, weight, sign, scale = struct.unpack("!hhhh", data[:8])
     data = data[8:]
     digits = struct.unpack("!" + ("h" * num_digits), data)
     weight = decimal.Decimal(weight)
-    retval = 0
+    scale = decimal.Decimal(scale)
+    retval = decimal.Decimal(0)
     for d in digits:
         d = decimal.Decimal(d)
         retval += d * (10000 ** weight)
         weight -= 1
     if sign:
         retval *= -1
-    return retval
+    return retval.quantize(decimal.DefaultContext.power(DECIMAL_TENTH, scale))
 
-def numeric_send(v, **kwargs):
+
+DEC_DIGITS = 4
+
+
+def numeric_send(d, **kwargs):
+    # This is a very straight port of src/backend/utils/adt/numeric.c set_var_from_str()
+    s = str(d)
+    pos = 0
     sign = 0
-    if v < 0:
-        sign = 16384
-        v *= -1
-    max_weight = decimal.Decimal(
-                    int(math.floor(math.log(v) / math.log(10000)))
-                )
-    weight = max_weight
-    digits = []
-    while v != 0:
-        digit = int(math.floor(v / (10000 ** weight)))
-        v = v - (digit * (10000 ** weight))
-        weight -= 1
-        digits.append(digit)
-    retval = struct.pack("!hhhh", len(digits), max_weight, sign, 0)
-    retval += struct.pack("!" + ("h" * len(digits)), *digits)
+    if s[0] == '-':
+        sign = 0x4000 # NEG
+        pos=1
+    elif s[0] == '+':
+        sign = 0 # POS
+        pos=1
+    have_dp = False
+    decdigits = [0, 0, 0, 0]
+    dweight = -1
+    dscale = 0
+    for char in s[pos:]:
+        if char.isdigit():
+            decdigits.append(int(char))
+            if not have_dp:
+                dweight += 1
+            else:
+                dscale += 1
+            pos+=1
+        elif char == '.':
+            have_dp = True
+            pos+=1
+        else:
+            break
+
+    if len(s) > pos:
+        char = s[pos]
+        if char == 'e' or char == 'E':
+            pos+=1
+            exponent = int(s[pos:])
+            dweight += exponent
+            dscale -= exponent
+            if dscale < 0: dscale = 0
+
+    if dweight >= 0:
+        weight = (dweight + 1 + DEC_DIGITS - 1) / DEC_DIGITS - 1
+    else:
+        weight = -((-dweight - 1) / DEC_DIGITS + 1)
+    offset = (weight + 1) * DEC_DIGITS - (dweight + 1)
+    ndigits = (len(decdigits)-DEC_DIGITS + offset + DEC_DIGITS - 1) / DEC_DIGITS
+
+    i = DEC_DIGITS - offset
+    decdigits.extend([0, 0, 0])
+    ndigits_ = ndigits
+    digits = ''
+    while ndigits_ > 0:
+        # ifdef DEC_DIGITS == 4
+        digits += struct.pack("!h", ((decdigits[i] * 10 + decdigits[i + 1]) * 10 + decdigits[i + 2]) * 10 + decdigits[i + 3])
+        ndigits_ -= 1
+        i += DEC_DIGITS
+
+    # strip_var()
+    for char in digits:
+        if ndigits == 0: break
+        if char == '0':
+            weight -= 1
+            ndigits -= 1
+        else:
+            break
+
+    for char in reversed(digits):
+        if ndigits == 0: break
+        if char == '0':
+            ndigits -= 1
+        else:
+            break
+
+    if ndigits == 0:
+        sign = 0x4000 # pos
+        weight = 0
+    # ----------
+
+    retval = struct.pack("!hhhh", ndigits, weight, sign, dscale) + digits
     return retval
 
 def numeric_out(v, **kwargs):
@@ -680,4 +748,3 @@ pg_types = {
     1700: {"bin_in": numeric_recv},
     2275: {"bin_in": varcharin},  # cstring
 }
-
