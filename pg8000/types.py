@@ -33,7 +33,6 @@ __author__ = "Mathieu Fenniak"
 import datetime
 import decimal
 import struct
-import math
 from .errors import (NotSupportedError, ArrayDataParseError, InternalError,
         ArrayContentEmptyError, ArrayContentNotHomogenousError,
         ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError)
@@ -310,27 +309,35 @@ def time_in(data, **kwargs):
 def time_out(v, **kwargs):
     return v.isoformat()
 
+
 def numeric_in(data, **kwargs):
     if data.find(".") == -1:
         return int(data)
     else:
         return decimal.Decimal(data)
 
+DECIMAL_TENTH = decimal.Decimal('0.1')
+
+
 def numeric_recv(data, **kwargs):
     num_digits, weight, sign, scale = struct.unpack("!hhhh", data[:8])
     data = data[8:]
     digits = struct.unpack("!" + ("h" * num_digits), data)
     weight = decimal.Decimal(weight)
-    retval = 0
+    scale = decimal.Decimal(scale)
+    retval = decimal.Decimal(0)
     for d in digits:
         d = decimal.Decimal(d)
         retval += d * (10000 ** weight)
         weight -= 1
     if sign:
         retval *= -1
-    return retval
+    return retval.quantize(decimal.DefaultContext.power(DECIMAL_TENTH, scale))
+
 
 DEC_DIGITS = 4
+
+
 def numeric_send(d, **kwargs):
     # This is a very straight port of src/backend/utils/adt/numeric.c set_var_from_str()
     s = str(d)
@@ -741,4 +748,3 @@ pg_types = {
     1700: {"bin_in": numeric_recv},
     2275: {"bin_in": varcharin},  # cstring
 }
-

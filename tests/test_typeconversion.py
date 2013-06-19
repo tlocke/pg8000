@@ -4,7 +4,6 @@ import datetime
 import decimal
 import struct
 from .connection_settings import db_connect
-from contextlib import closing
 
 db = dbapi.connect(**db_connect)
 
@@ -215,6 +214,10 @@ class Tests(unittest.TestCase):
         self.cursor.execute("SELECT 5000::numeric")
         retval = self.cursor.fetchall()
         self.assert_(retval[0][0] == decimal.Decimal("5000"),
+                "retrieved value match failed")
+        self.cursor.execute("SELECT 50.34::numeric")
+        retval = self.cursor.fetchall()
+        self.assert_(str(retval[0][0]) == "50.34",
                 "retrieved value match failed")
 
     def testInt2Out(self):
