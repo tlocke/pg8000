@@ -3,6 +3,8 @@ from __future__ import with_statement
 import unittest
 import pg8000
 import datetime
+import os
+import time
 from contextlib import closing, nested
 from .connection_settings import db_connect
 
@@ -13,6 +15,9 @@ db2 = dbapi.connect(**db_connect)
 # DBAPI compatible interface tests
 class Tests(unittest.TestCase):
     def setUp(self):
+        os.environ['TZ'] = "UTC"
+        time.tzset()
+
         with closing(db2.cursor()) as c:
             try:
                 c.execute("DROP TABLE t1")
@@ -110,13 +115,13 @@ class Tests(unittest.TestCase):
     def testTimeFromTicks(self):
         val = dbapi.TimeFromTicks(1173804319)
         self.assert_(
-            val == datetime.time(10, 45, 19),
+            val == datetime.time(16, 45, 19),
             "TimeFromTicks constructor value match failed")
 
     def testTimestampFromTicks(self):
         val = dbapi.TimestampFromTicks(1173804319)
         self.assert_(
-            val == datetime.datetime(2007, 3, 13, 10, 45, 19),
+            val == datetime.datetime(2007, 3, 13, 16, 45, 19),
             "TimestampFromTicks constructor value match failed")
 
     def testBinary(self):
