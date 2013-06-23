@@ -31,27 +31,32 @@ from __future__ import absolute_import
 __author__ = "Mathieu Fenniak"
 
 import datetime
-import decimal
-import struct
-from .errors import (NotSupportedError, ArrayDataParseError, InternalError,
-        ArrayContentEmptyError, ArrayContentNotHomogenousError,
-        ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError)
-
+from decimal import Decimal
+from struct import unpack, pack
+from .errors import NotSupportedError, ArrayDataParseError, InternalError, \
+    ArrayContentEmptyError, ArrayContentNotHomogenousError, \
+    ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError
 try:
     from pytz import utc
 except ImportError:
     ZERO = datetime.timedelta(0)
+
     class UTC(datetime.tzinfo):
+
         def utcoffset(self, dt):
             return ZERO
+
         def tzname(self, dt):
             return "UTC"
+
         def dst(self, dt):
             return ZERO
     utc = UTC()
 
+
 class Bytea(str):
     pass
+
 
 class Interval(object):
     def __init__(self, microseconds=0, days=0, months=0):
@@ -64,7 +69,7 @@ class Interval(object):
             raise TypeError("microseconds must be an int or long")
         elif not (min_int8 < value < max_int8):
             raise OverflowError(
-                    "microseconds must be representable as a 64-bit integer")
+                "microseconds must be representable as a 64-bit integer")
         else:
             self._microseconds = value
 
@@ -73,7 +78,7 @@ class Interval(object):
             raise TypeError("days must be an int or long")
         elif not (min_int4 < value < max_int4):
             raise OverflowError(
-                    "days must be representable as a 32-bit integer")
+                "days must be representable as a 32-bit integer")
         else:
             self._days = value
 
@@ -82,7 +87,7 @@ class Interval(object):
             raise TypeError("months must be an int or long")
         elif not (min_int4 < value < max_int4):
             raise OverflowError(
-                    "months must be representable as a 32-bit integer")
+                "months must be representable as a 32-bit integer")
         else:
             self._months = value
 
@@ -92,10 +97,10 @@ class Interval(object):
 
     def __repr__(self):
         return "<Interval %s months %s days %s microseconds>" % (
-                                    self.months, self.days, self.microseconds)
+            self.months, self.days, self.microseconds)
 
     def __cmp__(self, other):
-        if other == None:
+        if other is None:
             return -1
         c = cmp(self.months, other.months)
         if c != 0:
@@ -105,6 +110,7 @@ class Interval(object):
             return c
         return cmp(self.microseconds, other.microseconds)
 
+
 def pg_type_info(typ):
     value = None
     if isinstance(typ, dict):
@@ -112,16 +118,16 @@ def pg_type_info(typ):
         typ = typ["type"]
 
     data = py_types.get(typ)
-    if data == None:
+    if data is None:
         raise NotSupportedError("type %r not mapped to pg type" % typ)
 
     # permit the type data to be determined by the value, if provided
     inspect_func = data.get("inspect")
-    if value != None and inspect_func != None:
+    if value is not None and inspect_func is not None:
         data = inspect_func(value)
 
     type_oid = data.get("typeoid")
-    if type_oid == None:
+    if type_oid is None:
         raise InternalError("type %r has no type_oid" % typ)
     elif type_oid == -1:
         # special case: NULL values
@@ -137,15 +143,16 @@ def pg_type_info(typ):
 
     return type_oid, format
 
+
 def pg_value(value, fc, **kwargs):
     typ = type(value)
     data = py_types.get(typ)
-    if data == None:
+    if data is None:
         raise NotSupportedError("type %r not mapped to pg type" % typ)
 
     # permit the type conversion to be determined by the value, if provided
     inspect_func = data.get("inspect")
-    if value != None and inspect_func != None:
+    if value is not None and inspect_func is not None:
         data = inspect_func(value)
 
     # special case: NULL values
@@ -158,15 +165,16 @@ def pg_value(value, fc, **kwargs):
         func = data.get("bin_out")
     else:
         raise InternalError("unrecognized format code %r" % fc)
-    if func == None:
+    if func is None:
         raise NotSupportedError(
-                    "type %r, format code %r not supported" % (typ, fc))
+            "type %r, format code %r not supported" % (typ, fc))
     return func(value, **kwargs)
+
 
 def py_type_info(description):
     type_oid = description['type_oid']
     data = pg_types.get(type_oid)
-    if data == None:
+    if data is None:
         raise NotSupportedError("type oid %r not mapped to py type" % type_oid)
     # prefer bin, but go with whatever exists
     if data.get("bin_in"):
@@ -177,14 +185,15 @@ def py_type_info(description):
         raise InternalError("no conversion fuction for type oid %r" % type_oid)
     return format
 
+
 def py_value(v, description, **kwargs):
-    if v == None:
+    if v is None:
         # special case - NULL value
         return None
     type_oid = description['type_oid']
     format = description['format']
     data = pg_types.get(type_oid)
-    if data == None:
+    if data is None:
         raise NotSupportedError("type oid %r not supported" % type_oid)
     if format == 0:
         func = data.get("txt_in")
@@ -192,14 +201,16 @@ def py_value(v, description, **kwargs):
         func = data.get("bin_in")
     else:
         raise NotSupportedError("format code %r not supported" % format)
-    if func == None:
+    if func is None:
         raise NotSupportedError(
-                    "data response format %r, type %r not supported" %
-                    (format, type_oid))
+            "data response format %r, type %r not supported" %
+            (format, type_oid))
     return func(v, **kwargs)
+
 
 def boolrecv(data, **kwargs):
     return data == "\x01"
+
 
 def boolsend(v, **kwargs):
     if v:
@@ -207,9 +218,11 @@ def boolsend(v, **kwargs):
     else:
         return "\x00"
 
+
 min_int2, max_int2 = -2 ** 15, 2 ** 15
 min_int4, max_int4 = -2 ** 31, 2 ** 31
 min_int8, max_int8 = -2 ** 63, 2 ** 63
+
 
 def int_inspect(value):
     if min_int2 < value < max_int2:
@@ -221,52 +234,63 @@ def int_inspect(value):
     else:
         return {"typeoid": 1700, "bin_out": numeric_send}
 
+
 def int2recv(data, **kwargs):
-    return struct.unpack("!h", data)[0]
+    return unpack("!h", data)[0]
+
 
 def int2send(v, **kwargs):
-    return struct.pack("!h", v)
+    return pack("!h", v)
+
 
 def int4recv(data, **kwargs):
-    return struct.unpack("!i", data)[0]
+    return unpack("!i", data)[0]
+
 
 def int4send(v, **kwargs):
-    return struct.pack("!i", v)
+    return pack("!i", v)
+
 
 def int8recv(data, **kwargs):
-    return struct.unpack("!q", data)[0]
+    return unpack("!q", data)[0]
+
 
 def int8send(v, **kwargs):
-    return struct.pack("!q", v)
+    return pack("!q", v)
+
 
 def float4recv(data, **kwargs):
-    return struct.unpack("!f", data)[0]
+    return unpack("!f", data)[0]
+
 
 def float8recv(data, **kwargs):
-    return struct.unpack("!d", data)[0]
+    return unpack("!d", data)[0]
+
 
 def float8send(v, **kwargs):
-    return struct.pack("!d", v)
+    return pack("!d", v)
+
 
 def datetime_inspect(value):
-    if value.tzinfo != None:
+    if value.tzinfo is not None:
         # send as timestamptz if timezone is provided
         return {"typeoid": 1184, "bin_out": timestamptz_send}
     else:
         # otherwise send as timestamp
         return {"typeoid": 1114, "bin_out": timestamp_send}
 
+
 def timestamp_recv(data, integer_datetimes, **kwargs):
     if integer_datetimes:
         # data is 64-bit integer representing milliseconds since 2000-01-01
-        val = struct.unpack("!q", data)[0]
+        val = unpack("!q", data)[0]
         return datetime.datetime(2000, 1, 1) + \
-                    datetime.timedelta(microseconds=val)
+            datetime.timedelta(microseconds=val)
     else:
         # data is double-precision float representing seconds since 2000-01-01
-        val = struct.unpack("!d", data)[0]
-        return datetime.datetime(2000, 1, 1) + \
-                    datetime.timedelta(seconds=val)
+        val = unpack("!d", data)[0]
+        return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds=val)
+
 
 # return a timezone-aware datetime instance if we're reading from a
 # "timestamp with timezone" type.  The timezone returned will always be UTC,
@@ -274,21 +298,24 @@ def timestamp_recv(data, integer_datetimes, **kwargs):
 def timestamptz_recv(data, **kwargs):
     return timestamp_recv(data, **kwargs).replace(tzinfo=utc)
 
+
 def timestamp_send(v, integer_datetimes, **kwargs):
     delta = v - datetime.datetime(2000, 1, 1)
     val = delta.microseconds + (delta.seconds * 1000000) + \
-                                    (delta.days * 86400000000)
+        (delta.days * 86400000000)
     if integer_datetimes:
         # data is 64-bit integer representing milliseconds since 2000-01-01
-        return struct.pack("!q", val)
+        return pack("!q", val)
     else:
         # data is double-precision float representing seconds since 2000-01-01
-        return struct.pack("!d", val / 1000.0 / 1000.0)
+        return pack("!d", val / 1000.0 / 1000.0)
+
 
 def timestamptz_send(v, **kwargs):
     # timestamps should be sent as UTC.  If they have zone info,
     # convert them.
     return timestamp_send(v.astimezone(utc).replace(tzinfo=None), **kwargs)
+
 
 def date_in(data, **kwargs):
     year = int(data[0:4])
@@ -296,15 +323,18 @@ def date_in(data, **kwargs):
     day = int(data[8:10])
     return datetime.date(year, month, day)
 
+
 def date_out(v, **kwargs):
     return v.isoformat()
+
 
 def time_in(data, **kwargs):
     hour = int(data[0:2])
     minute = int(data[3:5])
-    sec = decimal.Decimal(data[6:])
-    return datetime.time(hour, minute, int(sec),
-                            int((sec - int(sec)) * 1000000))
+    sec = Decimal(data[6:])
+    return datetime.time(
+        hour, minute, int(sec), int((sec - int(sec)) * 1000000))
+
 
 def time_out(v, **kwargs):
     return v.isoformat()
@@ -314,41 +344,34 @@ def numeric_in(data, **kwargs):
     if data.find(".") == -1:
         return int(data)
     else:
-        return decimal.Decimal(data)
-
-DECIMAL_TENTH = decimal.Decimal('0.1')
+        return Decimal(data)
 
 
 def numeric_recv(data, **kwargs):
-    num_digits, weight, sign, scale = struct.unpack("!hhhh", data[:8])
-    data = data[8:]
-    digits = struct.unpack("!" + ("h" * num_digits), data)
-    weight = decimal.Decimal(weight)
-    scale = decimal.Decimal(scale)
-    retval = decimal.Decimal(0)
-    for d in digits:
-        d = decimal.Decimal(d)
-        retval += d * (10000 ** weight)
-        weight -= 1
-    if sign:
-        retval *= -1
-    return retval.quantize(decimal.DefaultContext.power(DECIMAL_TENTH, scale))
-
+    num_digits, weight, sign, scale = unpack("!hhhh", data[:8])
+    pos_weight = max(0, weight) + 1
+    digits = ['0000'] * abs(min(weight, 0)) + \
+        [str(d).zfill(4) for d in unpack("!" + ("h" * num_digits), data[8:])] \
+        + ['0000'] * (pos_weight - num_digits)
+    return Decimal(
+        ''.join(['-' if sign else '', ''.join(digits[:pos_weight]), '.',
+        ''.join(digits[pos_weight:])[:scale]]))
 
 DEC_DIGITS = 4
 
 
 def numeric_send(d, **kwargs):
-    # This is a very straight port of src/backend/utils/adt/numeric.c set_var_from_str()
+    # This is a very straight port of src/backend/utils/adt/numeric.c
+    # set_var_from_str()
     s = str(d)
     pos = 0
     sign = 0
     if s[0] == '-':
-        sign = 0x4000 # NEG
-        pos=1
+        sign = 0x4000  # NEG
+        pos = 1
     elif s[0] == '+':
-        sign = 0 # POS
-        pos=1
+        sign = 0  # POS
+        pos = 1
     have_dp = False
     decdigits = [0, 0, 0, 0]
     dweight = -1
@@ -360,28 +383,30 @@ def numeric_send(d, **kwargs):
                 dweight += 1
             else:
                 dscale += 1
-            pos+=1
+            pos += 1
         elif char == '.':
             have_dp = True
-            pos+=1
+            pos += 1
         else:
             break
 
     if len(s) > pos:
         char = s[pos]
         if char == 'e' or char == 'E':
-            pos+=1
+            pos += 1
             exponent = int(s[pos:])
             dweight += exponent
             dscale -= exponent
-            if dscale < 0: dscale = 0
+            if dscale < 0:
+                dscale = 0
 
     if dweight >= 0:
         weight = (dweight + 1 + DEC_DIGITS - 1) / DEC_DIGITS - 1
     else:
         weight = -((-dweight - 1) / DEC_DIGITS + 1)
     offset = (weight + 1) * DEC_DIGITS - (dweight + 1)
-    ndigits = (len(decdigits)-DEC_DIGITS + offset + DEC_DIGITS - 1) / DEC_DIGITS
+    ndigits = (len(decdigits) - DEC_DIGITS + offset + DEC_DIGITS - 1) / \
+        DEC_DIGITS
 
     i = DEC_DIGITS - offset
     decdigits.extend([0, 0, 0])
@@ -389,13 +414,16 @@ def numeric_send(d, **kwargs):
     digits = ''
     while ndigits_ > 0:
         # ifdef DEC_DIGITS == 4
-        digits += struct.pack("!h", ((decdigits[i] * 10 + decdigits[i + 1]) * 10 + decdigits[i + 2]) * 10 + decdigits[i + 3])
+        digits += pack(
+            "!h", ((decdigits[i] * 10 + decdigits[i + 1]) * 10 +
+            decdigits[i + 2]) * 10 + decdigits[i + 3])
         ndigits_ -= 1
         i += DEC_DIGITS
 
     # strip_var()
     for char in digits:
-        if ndigits == 0: break
+        if ndigits == 0:
+            break
         if char == '0':
             weight -= 1
             ndigits -= 1
@@ -403,19 +431,21 @@ def numeric_send(d, **kwargs):
             break
 
     for char in reversed(digits):
-        if ndigits == 0: break
+        if ndigits == 0:
+            break
         if char == '0':
             ndigits -= 1
         else:
             break
 
     if ndigits == 0:
-        sign = 0x4000 # pos
+        sign = 0x4000  # pos
         weight = 0
     # ----------
 
-    retval = struct.pack("!hhhh", ndigits, weight, sign, dscale) + digits
+    retval = pack("!hhhh", ndigits, weight, sign, dscale) + digits
     return retval
+
 
 def numeric_out(v, **kwargs):
     return str(v)
@@ -475,11 +505,14 @@ pg_to_py_encodings = {
     "unicode": "utf8"
 }
 
+
 def encoding_convert(encoding):
     return pg_to_py_encodings.get(encoding.lower(), encoding)
 
+
 def varcharin(data, client_encoding, **kwargs):
     return unicode(data, encoding_convert(client_encoding))
+
 
 def textout(v, client_encoding, **kwargs):
     if isinstance(v, unicode):
@@ -487,30 +520,36 @@ def textout(v, client_encoding, **kwargs):
     else:
         return v
 
+
 def byteasend(v, **kwargs):
     return str(v)
+
 
 def bytearecv(data, **kwargs):
     return Bytea(data)
 
+
 # interval support does not provide a Python-usable interval object yet
 def interval_recv(data, integer_datetimes, **kwargs):
     if integer_datetimes:
-        microseconds, days, months = struct.unpack("!qii", data)
+        microseconds, days, months = unpack("!qii", data)
     else:
-        seconds, days, months = struct.unpack("!dii", data)
+        seconds, days, months = unpack("!dii", data)
         microseconds = int(seconds * 1000 * 1000)
     return Interval(microseconds, days, months)
 
+
 def interval_send(data, integer_datetimes, **kwargs):
     if integer_datetimes:
-        return struct.pack("!qii", data.microseconds, data.days, data.months)
+        return pack("!qii", data.microseconds, data.days, data.months)
     else:
-        return struct.pack("!dii", data.microseconds / 1000.0 / 1000.0,
-                                        data.days, data.months)
+        return pack(
+            "!dii", data.microseconds / 1000.0 / 1000.0,
+            data.days, data.months)
+
 
 def array_recv(data, **kwargs):
-    dim, hasnull, typeoid = struct.unpack("!iii", data[:12])
+    dim, hasnull, typeoid = unpack("!iii", data[:12])
     data = data[12:]
 
     # get type conversion method for typeoid
@@ -520,7 +559,7 @@ def array_recv(data, **kwargs):
     dim_lengths = []
     element_count = 1
     for idim in range(dim):
-        dim_len, dim_lbound = struct.unpack("!ii", data[:8])
+        dim_len, dim_lbound = unpack("!ii", data[:8])
         data = data[8:]
         dim_lengths.append(dim_len)
         element_count *= dim_len
@@ -528,7 +567,7 @@ def array_recv(data, **kwargs):
     # Read all array values
     array_values = []
     for i in range(element_count):
-        element_len, = struct.unpack("!i", data[:4])
+        element_len, = unpack("!i", data[:4])
         data = data[4:]
         if element_len == -1:
             array_values.append(None)
@@ -550,11 +589,12 @@ def array_recv(data, **kwargs):
 
     return array_values
 
+
 def array_inspect(value):
     # Check if array has any values.  If not, we can't determine the proper
     # array typeoid.
     first_element = array_find_first_element(value)
-    if first_element == None:
+    if first_element is None:
         raise ArrayContentEmptyError("array has no values")
 
     # supported array output
@@ -564,7 +604,7 @@ def array_inspect(value):
         special_int_support = True
         int2_ok, int4_ok, int8_ok = True, True, True
         for v in array_flatten(value):
-            if v == None:
+            if v is None:
                 continue
             if min_int2 < v < max_int2:
                 continue
@@ -583,21 +623,21 @@ def array_inspect(value):
             array_typeoid = 1016  # INT8[]
         else:
             raise ArrayContentNotSupportedError(
-                        "numeric not supported as array contents")
+                "numeric not supported as array contents")
     else:
         special_int_support = False
         array_typeoid = py_array_types.get(typ)
-        if array_typeoid == None:
+        if array_typeoid is None:
             raise ArrayContentNotSupportedError(
-                            "type %r not supported as array contents" % typ)
+                "type %r not supported as array contents" % typ)
 
     # check for homogenous array
     for v in array_flatten(value):
-        if v != None and not (isinstance(v, typ) or
-                        (typ == long and isinstance(v, int)) or
-                        (typ == int and isinstance(v, long))):
+        if v is not None and not (
+                isinstance(v, typ) or (typ == long and isinstance(v, int)) or
+                (typ == int and isinstance(v, long))):
             raise ArrayContentNotHomogenousError(
-                        "not all array elements are of type %r" % typ)
+                "not all array elements are of type %r" % typ)
 
     # check that all array dimensions are consistent
     array_check_dimensions(value)
@@ -617,11 +657,13 @@ def array_inspect(value):
         "bin_out": array_send(type_data["typeoid"], type_data["bin_out"])
     }
 
+
 def array_find_first_element(arr):
     for v in array_flatten(arr):
-        if v != None:
+        if v is not None:
             return v
     return None
+
 
 def array_flatten(arr):
     for v in arr:
@@ -630,6 +672,7 @@ def array_flatten(arr):
                 yield v2
         else:
             yield v
+
 
 def array_check_dimensions(arr):
     v0 = arr[0]
@@ -640,7 +683,7 @@ def array_check_dimensions(arr):
             inner_lengths = array_check_dimensions(v)
             if len(v) != req_len or inner_lengths != req_inner_lengths:
                 raise ArrayDimensionsNotConsistentError(
-                                "array dimensions not consistent")
+                    "array dimensions not consistent")
         retval = [req_len]
         retval.extend(req_inner_lengths)
         return retval
@@ -649,14 +692,16 @@ def array_check_dimensions(arr):
         for v in arr:
             if isinstance(v, list):
                 raise ArrayDimensionsNotConsistentError(
-                                "array dimensions not consistent")
+                    "array dimensions not consistent")
         return []
+
 
 def array_has_null(arr):
     for v in array_flatten(arr):
-        if v == None:
+        if v is None:
             return True
     return False
+
 
 def array_dim_lengths(arr):
     v0 = arr[0]
@@ -667,6 +712,7 @@ def array_dim_lengths(arr):
         return [len(arr)]
     return retval
 
+
 class array_send(object):
     def __init__(self, typeoid, bin_out_func):
         self.typeoid = typeoid
@@ -675,15 +721,15 @@ class array_send(object):
     def __call__(self, arr, **kwargs):
         has_null = array_has_null(arr)
         dim_lengths = array_dim_lengths(arr)
-        data = struct.pack("!iii", len(dim_lengths), has_null, self.typeoid)
+        data = pack("!iii", len(dim_lengths), has_null, self.typeoid)
         for i in dim_lengths:
-            data += struct.pack("!ii", i, 1)
+            data += pack("!ii", i, 1)
         for v in array_flatten(arr):
-            if v == None:
-                data += struct.pack("!i", -1)
+            if v is None:
+                data += pack("!i", -1)
             else:
                 inner_data = self.bin_out_func(v, **kwargs)
-                data += struct.pack("!i", len(inner_data))
+                data += pack("!i", len(inner_data))
                 data += inner_data
         return data
 
@@ -694,10 +740,11 @@ py_types = {
     str: {"typeoid": 25, "bin_out": textout},
     unicode: {"typeoid": 25, "bin_out": textout},
     float: {"typeoid": 701, "bin_out": float8send},
-    decimal.Decimal: {"typeoid": 1700, "bin_out": numeric_send},
+    Decimal: {"typeoid": 1700, "bin_out": numeric_send},
     Bytea: {"typeoid": 17, "bin_out": byteasend},
-    datetime.datetime: {"typeoid": 1114, "bin_out":
-                            timestamp_send, "inspect": datetime_inspect},
+    datetime.datetime: {
+        "typeoid": 1114, "bin_out": timestamp_send,
+        "inspect": datetime_inspect},
     datetime.date: {"typeoid": 1082, "txt_out": date_out},
     datetime.time: {"typeoid": 1083, "txt_out": time_out},
     Interval: {"typeoid": 1186, "bin_out": interval_send},
@@ -711,7 +758,7 @@ py_array_types = {
     bool: 1000,
     str: 1009,      # TEXT[]
     unicode: 1009,  # TEXT[]
-    decimal.Decimal: 1231,  # NUMERIC[]
+    Decimal: 1231,  # NUMERIC[]
 }
 
 pg_types = {
