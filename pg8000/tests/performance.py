@@ -12,10 +12,12 @@ tests = (
         ("N'Static text string'", 'txt'),
         ("id / 100::float4", 'float4'),
         ("id / 100::float8", 'float8'),
+        ("id / 100::numeric", 'numeric'),
 )
 
 for txt, name in tests:
-    query = "SELECT %s AS %s_column FROM (SELECT generate_series(1, 10000) AS id) AS tbl" % (txt, name)
+    query = "SELECT %s AS %s_column FROM (SELECT generate_series(1, 10000) " \
+        "AS id) AS tbl" % (txt, name)
     cursor = db.cursor()
     print("Beginning %s test..." % name)
     for i in range(1, 5):

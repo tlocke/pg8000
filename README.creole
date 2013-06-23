@@ -1,0 +1,27 @@
+=PG8000
+
+PG8000 is a pure-Python PostgreSQL driver. The user docs are at 
+[[http://pybrary.net/pg8000/|http://pybrary.net/pg8000/]].
+
+==Regression Tests
+
+To run the regression tests, install [[https://github.com/nose-devs/nose|nose]]:
+
+{{{
+pip install nose
+}}}
+
+and run from the {{{pg8000}}} directory:
+
+{{{
+nosetests
+}}}
+
+==Performance Tests
+
+To run the performance tests from the {{{pg8000}}} directory:
+
+{{{
+python -m pg8000.tests.performance
+}}}
+
