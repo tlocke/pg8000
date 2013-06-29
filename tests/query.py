@@ -21,7 +21,7 @@ class Tests(unittest.TestCase):
                 # the only acceptable error is:
                 self.assert_(e.args[1] == b'42P01', # table does not exist
                         "incorrect error for drop table")
-            cursor.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
+            cursor.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 bigint not null, f3 varchar(50) null)")
 
     def testDatabaseError(self):
         with closing(db.cursor()) as cursor:

@@ -17,6 +17,7 @@ __author__ = 'Stuart Bishop <zen@shangri-la.dropbear.id.au>'
 
 import unittest
 import time
+import warnings
 
 # $Log: dbapi20.py,v $
 # Revision 1.10  2003/10/09 03:14:14  zenzen
@@ -205,17 +206,19 @@ class DatabaseAPI20Test(unittest.TestCase):
         # I figure this optional extension will be implemented by any
         # driver author who is using this test suite, so it is enabled
         # by default.
-        con = self._connect()
-        drv = self.driver
-        self.failUnless(con.Warning is drv.Warning)
-        self.failUnless(con.Error is drv.Error)
-        self.failUnless(con.InterfaceError is drv.InterfaceError)
-        self.failUnless(con.DatabaseError is drv.DatabaseError)
-        self.failUnless(con.OperationalError is drv.OperationalError)
-        self.failUnless(con.IntegrityError is drv.IntegrityError)
-        self.failUnless(con.InternalError is drv.InternalError)
-        self.failUnless(con.ProgrammingError is drv.ProgrammingError)
-        self.failUnless(con.NotSupportedError is drv.NotSupportedError)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            con = self._connect()
+            drv = self.driver
+            self.failUnless(con.Warning is drv.Warning)
+            self.failUnless(con.Error is drv.Error)
+            self.failUnless(con.InterfaceError is drv.InterfaceError)
+            self.failUnless(con.DatabaseError is drv.DatabaseError)
+            self.failUnless(con.OperationalError is drv.OperationalError)
+            self.failUnless(con.IntegrityError is drv.IntegrityError)
+            self.failUnless(con.InternalError is drv.InternalError)
+            self.failUnless(con.ProgrammingError is drv.ProgrammingError)
+            self.failUnless(con.NotSupportedError is drv.NotSupportedError)
 
 
     def test_commit(self):

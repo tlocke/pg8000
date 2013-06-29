@@ -2,6 +2,7 @@ import unittest
 from pg8000 import DBAPI, DatabaseError
 from contextlib import closing
 from .connection_settings import db_connect
+import warnings
 
 db = DBAPI.connect(**db_connect)
 
@@ -47,10 +48,12 @@ class Tests(unittest.TestCase):
                         "incorrect error for drop table")
 
     def testClosedConnection(self):
-        my_db = DBAPI.connect(**db_connect)
-        cursor = my_db.cursor()
-        my_db.close()
-        self.assertRaises(db.InterfaceError, cursor.execute, "VALUES ('hw1'::text)")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            my_db = DBAPI.connect(**db_connect)
+            cursor = my_db.cursor()
+            my_db.close()
+            self.assertRaises(db.InterfaceError, cursor.execute, "VALUES ('hw1'::text)")
 
 if __name__ == "__main__":
     unittest.main()

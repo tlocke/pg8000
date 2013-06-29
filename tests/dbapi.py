@@ -1,41 +1,59 @@
 import unittest
+import os
+import time
 import pg8000
 import datetime
-from contextlib import closing, nested
+from contextlib import closing
 from .connection_settings import db_connect
 
 dbapi = pg8000.DBAPI
 db2 = dbapi.connect(**db_connect)
 
+
 # DBAPI compatible interface tests
 class Tests(unittest.TestCase):
     def setUp(self):
+        os.environ['TZ'] = "UTC"
+        time.tzset()
         with closing(db2.cursor()) as c:
             try:
                 c.execute("DROP TABLE t1")
             except pg8000.DatabaseError as e:
                 # the only acceptable error is:
-                self.assert_(e.args[1] == b'42P01', # table does not exist
-                        "incorrect error for drop table")
-            c.execute("CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 int not null, f3 varchar(50) null)")
-            c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
-            c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
-            c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
-            c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
-            c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
+                self.assert_(
+                    e.args[1] == b'42P01',  # table does not exist
+                    "incorrect error for drop table")
+            c.execute(
+                "CREATE TEMPORARY TABLE t1 "
+                "(f1 int primary key, f2 int not null, f3 varchar(50) null)")
+            c.execute(
+                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+                (1, 1, None))
+            c.execute(
+                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+                (2, 10, None))
+            c.execute(
+                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+                (3, 100, None))
+            c.execute(
+                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+                (4, 1000, None))
+            c.execute(
+                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+                (5, 10000, None))
 
     def testParallelQueries(self):
-        with nested(closing(db2.cursor()), closing(db2.cursor())) as (c1, c2):
+        with closing(db2.cursor()) as c1, closing(db2.cursor()) as c2:
             c1.execute("SELECT f1, f2, f3 FROM t1")
             while 1:
                 row = c1.fetchone()
-                if row == None:
+                if row is None:
                     break
                 f1, f2, f3 = row
                 c2.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (f1,))
                 while 1:
                     row = c2.fetchone()
-                    if row == None:
+                    if row is None:
                         break
                     f1, f2, f3 = row
 
@@ -47,7 +65,7 @@ class Tests(unittest.TestCase):
                 c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > ?", (3,))
                 while 1:
                     row = c1.fetchone()
-                    if row == None:
+                    if row is None:
                         break
                     f1, f2, f3 = row
         finally:
@@ -61,7 +79,7 @@ class Tests(unittest.TestCase):
                 c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :1", (3,))
                 while 1:
                     row = c1.fetchone()
-                    if row == None:
+                    if row is None:
                         break
                     f1, f2, f3 = row
         finally:
@@ -72,10 +90,11 @@ class Tests(unittest.TestCase):
         try:
             dbapi.paramstyle = "named"
             with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
+                c1.execute(
+                    "SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
                 while 1:
                     row = c1.fetchone()
-                    if row == None:
+                    if row is None:
                         break
                     f1, f2, f3 = row
         finally:
@@ -89,21 +108,22 @@ class Tests(unittest.TestCase):
                 c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (3,))
                 while 1:
                     row = c1.fetchone()
-                    if row == None:
+                    if row is None:
                         break
                     f1, f2, f3 = row
         finally:
             dbapi.paramstyle = orig_paramstyle
-    
+
     def testPyformat(self):
         orig_paramstyle = dbapi.paramstyle
         try:
             dbapi.paramstyle = "pyformat"
             with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
+                c1.execute(
+                    "SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
                 while 1:
                     row = c1.fetchone()
-                    if row == None:
+                    if row is None:
                         break
                     f1, f2, f3 = row
         finally:
@@ -114,45 +134,38 @@ class Tests(unittest.TestCase):
             c1.arraysize = 3
             c1.execute("SELECT * FROM t1")
             retval = c1.fetchmany()
-            self.assert_(len(retval) == c1.arraysize,
-                    "fetchmany returned wrong number of rows")
+            self.assertEquals(len(retval), c1.arraysize)
 
     def testDate(self):
         val = dbapi.Date(2001, 2, 3)
-        self.assert_(val == datetime.date(2001, 2, 3),
-                "Date constructor value match failed")
+        self.assertEquals(val, datetime.date(2001, 2, 3))
 
     def testTime(self):
         val = dbapi.Time(4, 5, 6)
-        self.assert_(val == datetime.time(4, 5, 6),
-                "Time constructor value match failed")
+        self.assertEquals(val, datetime.time(4, 5, 6))
 
     def testTimestamp(self):
         val = dbapi.Timestamp(2001, 2, 3, 4, 5, 6)
-        self.assert_(val == datetime.datetime(2001, 2, 3, 4, 5, 6),
-                "Timestamp constructor value match failed")
+        self.assertEquals(val, datetime.datetime(2001, 2, 3, 4, 5, 6))
 
     def testDateFromTicks(self):
         val = dbapi.DateFromTicks(1173804319)
-        self.assert_(val == datetime.date(2007, 3, 13),
-                "DateFromTicks constructor value match failed")
+        self.assertEqual(val, datetime.date(2007, 3, 13))
 
     def testTimeFromTicks(self):
         val = dbapi.TimeFromTicks(1173804319)
-        self.assert_(val == datetime.time(10, 45, 19),
-                "TimeFromTicks constructor value match failed")
+        self.assertEquals(val, datetime.time(16, 45, 19))
 
     def testTimestampFromTicks(self):
         val = dbapi.TimestampFromTicks(1173804319)
-        self.assert_(val == datetime.datetime(2007, 3, 13, 10, 45, 19),
-                "TimestampFromTicks constructor value match failed")
+        self.assertEquals(val, datetime.datetime(2007, 3, 13, 16, 45, 19))
 
     def testBinary(self):
         v = dbapi.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
-        self.assert_(v == b"\x00\x01\x02\x03\x02\x01\x00",
-                "Binary value match failed")
-        self.assert_(isinstance(v, pg8000.Bytea),
-                "Binary type match failed")
+        self.assert_(
+            v == b"\x00\x01\x02\x03\x02\x01\x00", "Binary value match failed")
+        self.assert_(
+            isinstance(v, pg8000.Bytea), "Binary type match failed")
 
     def testRowCount(self):
         with closing(db2.cursor()) as c1:
@@ -190,4 +203,3 @@ class Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
