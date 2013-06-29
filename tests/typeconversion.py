@@ -214,11 +214,11 @@ class Tests(unittest.TestCase):
                 "retrieved value match failed")
 
     def testNumericOut(self):
-        self.cursor.execute("SELECT 5000::numeric")
-        retval = self.cursor.fetchall()
-        self.assert_(retval[0][0] == decimal.Decimal("5000"),
-                "retrieved value match failed")
-
+        for num in ('5000', '50.34'):
+            self.cursor.execute("SELECT " + num + "::numeric")
+            retval = self.cursor.fetchall()
+            self.assertEquals(str(retval[0][0]), num)
+        
     def testInt2Out(self):
         self.cursor.execute("SELECT 5000::smallint")
         retval = self.cursor.fetchall()
