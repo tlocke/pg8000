@@ -32,7 +32,9 @@ __author__ = "Mathieu Fenniak"
 import socket
 from . import protocol
 import threading
-from .errors import *
+from .errors import ConnectionClosedError, InterfaceError, ProgrammingError, \
+    InternalError
+
 
 class DataIterator(object):
     def __init__(self, obj, func):
@@ -44,12 +46,13 @@ class DataIterator(object):
 
     def __next__(self):
         retval = self.func(self.obj)
-        if retval == None:
+        if retval is None:
             raise StopIteration()
         return retval
 
 statement_number_lock = threading.Lock()
 statement_number = 0
+
 
 ##
 # This class represents a prepared statement.  A prepared statement is
@@ -90,31 +93,34 @@ class PreparedStatement(object):
 
     def __init__(self, connection, statement, *types, **kwargs):
         global statement_number
-        if connection == None or connection.c == None:
+        if connection is None or connection.c is None:
             raise InterfaceError("connection not provided")
         with statement_number_lock:
             self._statement_number = statement_number
             statement_number += 1
         self.c = connection.c
         self._portal_name = None
-        self._statement_name = kwargs.get("statement_name", "pg8000_statement_%s" % self._statement_number)
+        self._statement_name = kwargs.get(
+            "statement_name", "pg8000_statement_%s" % self._statement_number)
         self._row_desc = None
         self._cached_rows = []
         self._ongoing_row_count = 0
         self._command_complete = True
-        self._parse_row_desc = self.c.parse(self._statement_name, statement, types)
+        self._parse_row_desc = self.c.parse(
+            self._statement_name, statement, types)
         self._lock = threading.RLock()
 
     def close(self):
-        if self._statement_name != "": # don't close unnamed statement
+        if self._statement_name != "":  # don't close unnamed statement
             self.c.close_statement(self._statement_name)
-        if self._portal_name != None:
+        if self._portal_name is not None:
             self.c.close_portal(self._portal_name)
             self._portal_name = None
 
     row_description = property(lambda self: self._getRowDescription())
+
     def _getRowDescription(self):
-        if self._row_desc == None:
+        if self._row_desc is None:
             return None
         return self._row_desc.fields
 
@@ -129,22 +135,24 @@ class PreparedStatement(object):
                 # cleanup last execute
                 self._cached_rows = []
                 self._ongoing_row_count = 0
-            if self._portal_name != None:
+            if self._portal_name is not None:
                 self.c.close_portal(self._portal_name)
             self._command_complete = False
             self._portal_name = "pg8000_portal_%s" % self._statement_number
-            self._row_desc, cmd = self.c.bind(self._portal_name, self._statement_name, args, self._parse_row_desc, kwargs.get("stream"))
+            self._row_desc, cmd = self.c.bind(
+                self._portal_name, self._statement_name, args,
+                self._parse_row_desc, kwargs.get("stream"))
             if self._row_desc:
-                # We execute our cursor right away to fill up our cache.  This
-                # prevents the cursor from being destroyed, apparently, by a rogue
-                # Sync between Bind and Execute.  Since it is quite likely that
-                # data will be read from us right away anyways, this seems a safe
-                # move for now.
+                # We execute our cursor right away to fill up our cache. This
+                # prevents the cursor from being destroyed, apparently, by a
+                # rogue Sync between Bind and Execute.  Since it is quite
+                # likely that data will be read from us right away anyways,
+                # this seems a safe move for now.
                 self._fill_cache()
             else:
                 self._command_complete = True
                 self._ongoing_row_count = -1
-                if cmd != None and cmd.rows != None:
+                if cmd is not None and cmd.rows is not None:
                     self._ongoing_row_count = cmd.rows
         finally:
             self._lock.release()
@@ -154,7 +162,8 @@ class PreparedStatement(object):
         try:
             if self._cached_rows:
                 raise InternalError("attempt to fill cache that isn't empty")
-            end_of_data, rows = self.c.fetch_rows(self._portal_name, self.row_cache_size, self._row_desc)
+            end_of_data, rows = self.c.fetch_rows(
+                self._portal_name, self.row_cache_size, self._row_desc)
             self._cached_rows = rows
             if end_of_data:
                 self._command_complete = True
@@ -171,9 +180,9 @@ class PreparedStatement(object):
                     return None
                 self._fill_cache()
                 if self._command_complete and not self._cached_rows:
-                    # fill cache tells us the command is complete, but yet we have
-                    # no rows after filling our cache.  This is a special case when
-                    # a query returns no rows.
+                    # fill cache tells us the command is complete, but yet we
+                    # have no rows after filling our cache.  This is a special
+                    # case when a query returns no rows.
                     return None
             row = self._cached_rows.pop(0)
             self._ongoing_row_count += 1
@@ -196,16 +205,19 @@ class PreparedStatement(object):
     # <p>
     # Stability: Added in v1.03, stability guaranteed for v1.xx.
     row_count = property(lambda self: self._get_row_count())
+
     def _get_row_count(self):
         self._lock.acquire()
         try:
             if not self._command_complete:
-                end_of_data, rows = self.c.fetch_rows(self._portal_name, 0, self._row_desc)
+                end_of_data, rows = self.c.fetch_rows(
+                    self._portal_name, 0, self._row_desc)
                 self._cached_rows += rows
                 if end_of_data:
                     self._command_complete = True
                 else:
-                    raise InternalError("fetch_rows(0) did not hit end of data")
+                    raise InternalError(
+                        "fetch_rows(0) did not hit end of data")
             return self._ongoing_row_count + len(self._cached_rows)
         finally:
             self._lock.release()
@@ -218,13 +230,15 @@ class PreparedStatement(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_dict(self):
         row = self._fetch()
-        if row == None:
+        if row is None:
             return row
         retval = {}
         for i in range(len(self._row_desc.fields)):
             col_name = self._row_desc.fields[i]['name']
             if col_name in retval:
-                raise InterfaceError("cannot return dict of row when two columns have the same name (%r)" % (col_name,))
+                raise InterfaceError(
+                    "cannot return dict of row when two columns have the same "
+                    "name (%r)" % (col_name,))
             retval[col_name] = row[i]
         return retval
 
@@ -254,6 +268,7 @@ class PreparedStatement(object):
     def iterate_dict(self):
         return DataIterator(self, PreparedStatement.read_dict)
 
+
 ##
 # The Cursor class allows multiple queries to be performed concurrently with a
 # single PostgreSQL connection.  The Cursor object is implemented internally by
@@ -274,14 +289,15 @@ class Cursor(object):
 
     def require_stmt(func):
         def retval(self, *args, **kwargs):
-            if self._stmt == None:
+            if self._stmt is None:
                 raise ProgrammingError("attempting to use unexecuted cursor")
             return func(self, *args, **kwargs)
         return retval
 
     row_description = property(lambda self: self._getRowDescription())
+
     def _getRowDescription(self):
-        if self._stmt == None:
+        if self._stmt is None:
             return None
         return self._stmt.row_description
 
@@ -297,7 +313,9 @@ class Cursor(object):
             raise ConnectionClosedError()
         self.connection._unnamed_prepared_statement_lock.acquire()
         try:
-            self._stmt = PreparedStatement(self.connection, query, statement_name="", *[{"type": type(x), "value": x} for x in args])
+            self._stmt = PreparedStatement(
+                self.connection, query, statement_name="",
+                *[{"type": type(x), "value": x} for x in args])
             self._stmt.execute(*args, **kwargs)
         finally:
             self.connection._unnamed_prepared_statement_lock.release()
@@ -356,10 +374,9 @@ class Cursor(object):
         return self._stmt.iterate_dict()
 
     def close(self):
-        if self._stmt != None:
+        if self._stmt is not None:
             self._stmt.close()
             self._stmt = None
-
 
     ##
     # Return the fileno of the underlying socket for this cursor's connection.
@@ -369,14 +386,14 @@ class Cursor(object):
         return self.connection.fileno()
 
     ##
-    # Poll the underlying socket for this cursor and sync if there is data waiting
-    # to be read. This has the effect of flushing asynchronous messages from the
-    # backend. Returns True if messages were read, False otherwise.
+    # Poll the underlying socket for this cursor and sync if there is data
+    # waiting to be read. This has the effect of flushing asynchronous messages
+    # from the backend. Returns True if messages were read, False otherwise.
     # <p>
     # Stability: Added in v1.07, stability guaranteed for v1.xx.
     def isready(self):
         return self.connection.isready()
-    
+
 
 ##
 # This class represents a connection to a PostgreSQL database.
@@ -423,10 +440,14 @@ class Cursor(object):
 #
 # @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
 class Connection(Cursor):
-    def __init__(self, user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
+    def __init__(
+            self, user, host=None, unix_sock=None, port=5432, database=None,
+            password=None, socket_timeout=60, ssl=False):
         self._row_desc = None
         try:
-            self.c = protocol.Connection(unix_sock=unix_sock, host=host, port=port, socket_timeout=socket_timeout, ssl=ssl)
+            self.c = protocol.Connection(
+                unix_sock=unix_sock, host=host, port=port,
+                socket_timeout=socket_timeout, ssl=ssl)
             self.c.authenticate(user, password=password, database=database)
         except socket.error as e:
             raise InterfaceError("communication error", e)
@@ -448,8 +469,8 @@ class Connection(Cursor):
     # <p>
     # Stability: Added in v1.03, stability guaranteed for v1.xx.
     NotificationReceived = property(
-            lambda self: getattr(self.c, "NotificationReceived"),
-            lambda self, value: setattr(self.c, "NotificationReceived", value)
+        lambda self: getattr(self.c, "NotificationReceived"),
+        lambda self, value: setattr(self.c, "NotificationReceived", value)
     )
 
     ##
@@ -463,8 +484,8 @@ class Connection(Cursor):
     # <p>
     # Stability: Added in v1.03, stability guaranteed for v1.xx.
     NoticeReceived = property(
-            lambda self: getattr(self.c, "NoticeReceived"),
-            lambda self, value: setattr(self.c, "NoticeReceived", value)
+        lambda self: getattr(self.c, "NoticeReceived"),
+        lambda self, value: setattr(self.c, "NoticeReceived", value)
     )
 
     ##
@@ -477,8 +498,8 @@ class Connection(Cursor):
     # <p>
     # Stability: Added in v1.03, stability guaranteed for v1.xx.
     ParameterStatusReceived = property(
-            lambda self: getattr(self.c, "ParameterStatusReceived"),
-            lambda self, value: setattr(self.c, "ParameterStatusReceived", value)
+        lambda self: getattr(self.c, "ParameterStatusReceived"),
+        lambda self, value: setattr(self.c, "ParameterStatusReceived", value)
     )
 
     ##
@@ -490,7 +511,6 @@ class Connection(Cursor):
             raise ConnectionClosedError()
         self._begin.execute()
         self.in_transaction = True
-
 
     ##
     # Commits the running transaction.
@@ -520,7 +540,7 @@ class Connection(Cursor):
         self.c.close()
         self.c = None
 
-    is_closed = property(lambda self: self.c == None)
+    is_closed = property(lambda self: self.c is None)
 
     ##
     # Return the fileno of the underlying socket for this connection.
@@ -538,4 +558,3 @@ class Connection(Cursor):
     # Stability: Added in v1.07, stability guaranteed for v1.xx.
     def isready(self):
         return self.c.isready()
-

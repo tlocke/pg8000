@@ -32,6 +32,7 @@ __author__ = "Mathieu Fenniak"
 from . import dbapi as DBAPI
 pg8000_dbapi = DBAPI
 
-from .interface import *
+from .errors import Warning, DatabaseError
 from .types import Bytea
 
+__all__ = [Warning, Bytea]

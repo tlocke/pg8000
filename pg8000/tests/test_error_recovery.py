@@ -1,8 +1,9 @@
 import unittest
-from pg8000 import DBAPI, DatabaseError
+from pg8000 import DBAPI
 from contextlib import closing
 from .connection_settings import db_connect
 import warnings
+from ..errors import DatabaseError
 
 db = DBAPI.connect(**db_connect)
 

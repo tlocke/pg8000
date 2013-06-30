@@ -36,10 +36,11 @@ import threading
 import struct
 import hashlib
 from io import BytesIO
-
-from .errors import *
+from .errors import CopyQueryWithoutStreamError, InterfaceError, \
+    InternalError, ProgrammingError, NotSupportedError
 from .util import MulticastDelegate
 from . import types
+
 
 ##
 # An SSLRequest message.  To initiate an SSL-encrypted connection, an
@@ -126,9 +127,10 @@ class Parse(object):
         val.extend(struct.pack("!h", len(self.type_oids)))
         for oid in self.type_oids:
             # Parse message doesn't seem to handle the -1 type_oid for NULL
-            # values that other messages handle.  So we'll provide type_oid 705,
-            # the PG "unknown" type.
-            if oid == -1: oid = 705
+            # values that other messages handle.  So we'll provide type_oid
+            # 705, the PG "unknown" type.
+            if oid == -1:
+                oid = 705
             val.extend(struct.pack("!i", oid))
         val[0:0] = struct.pack("!i", len(val) + 4)
         val[0:0] = b"P"
@@ -163,8 +165,10 @@ class Bind(object):
             else:
                 fc = self.in_fc[i]
             value = types.pg_value(params[i], fc, **kwargs)
-            if value != None and not isinstance(value, bytes):
-                raise InternalError("converting value %r to pgsql value returned non-bytes" % params[i])
+            if value is not None and not isinstance(value, bytes):
+                raise InternalError(
+                    "converting value %r to pgsql value returned non-bytes" %
+                    params[i])
             self.params.append(value)
         self.out_fc = out_fc
 
@@ -196,7 +200,7 @@ class Bind(object):
             retval.write(struct.pack("!h", fc))
         retval.write(struct.pack("!h", len(self.params)))
         for param in self.params:
-            if param == None:
+            if param is None:
                 # special case, NULL value
                 retval.write(struct.pack("!i", -1))
             else:
@@ -321,6 +325,7 @@ class Flush(object):
     def __repr__(self):
         return "<Flush>"
 
+
 ##
 # Causes the backend to close the current transaction (if not in a BEGIN/COMMIT
 # block), and issue ReadyForQuery.
@@ -372,8 +377,8 @@ class Execute(object):
     # Byte1('E') - Identifies the message as an execute message.
     # Int32 -   Message length, including self.
     # String -  The name of the portal to execute.
-    # Int32 -   Maximum number of rows to return, if portal contains a query that
-    #           returns rows.  0 = no limit.
+    # Int32 -   Maximum number of rows to return, if portal contains a query
+    # that returns rows.  0 = no limit.
     def serialize(self):
         val = bytearray()
         val.extend(self.portal.encode("ascii"))
@@ -396,6 +401,7 @@ class Terminate(object):
     # Int32(4) - Message length, including self.
     def serialize(self):
         return b'X\x00\x00\x00\x04'
+
 
 ##
 # Base class of all Authentication[*] messages.
@@ -423,14 +429,17 @@ class AuthenticationRequest(object):
     def createFromData(data):
         ident = struct.unpack("!i", data[:4])[0]
         klass = authentication_codes.get(ident, None)
-        if klass != None:
+        if klass is not None:
             return klass(data[4:])
         else:
-            raise NotSupportedError("authentication method %r not supported" % (ident,))
+            raise NotSupportedError(
+                "authentication method %r not supported" % (ident,))
     createFromData = staticmethod(createFromData)
 
     def ok(self, conn, user, **kwargs):
-        raise InternalError("ok method should be overridden on AuthenticationRequest instance")
+        raise InternalError(
+            "ok method should be overridden on AuthenticationRequest instance")
+
 
 ##
 # A message representing that the backend accepting the provided username
@@ -454,14 +463,23 @@ class AuthenticationMD5Password(AuthenticationRequest):
         self.salt = b"".join(struct.unpack("4c", data))
 
     def ok(self, conn, user, password=None, **kwargs):
-        if password == None:
-            raise InterfaceError("server requesting MD5 password authentication, but no password was provided")
-        pwd = b"md5" + hashlib.md5(hashlib.md5(password.encode("ascii") + user.encode("ascii")).hexdigest().encode("ascii") + self.salt).hexdigest().encode("ascii")
+        if password is None:
+            raise InterfaceError(
+                "server requesting MD5 password authentication, but no "
+                "password was provided")
+        pwd = b"md5" + hashlib.md5(
+            hashlib.md5(
+                password.encode("ascii") +
+                user.encode("ascii")).hexdigest().encode("ascii") +
+            self.salt).hexdigest().encode("ascii")
         conn._send(PasswordMessage(pwd))
         conn._flush()
 
         reader = MessageReader(conn)
-        reader.add_message(AuthenticationRequest, lambda msg, reader: reader.return_value(msg.ok(conn, user)), reader)
+        reader.add_message(
+            AuthenticationRequest,
+            lambda msg, reader: reader.return_value(msg.ok(conn, user)),
+            reader)
         reader.add_message(ErrorResponse, self._ok_error)
         return reader.handle_messages()
 
@@ -493,7 +511,7 @@ class ParameterStatus(object):
     # String - Runtime parameter value.
     def createFromData(data):
         key = data[:data.find(b"\x00")]
-        value = data[data.find(b"\x00")+1:-1]
+        value = data[data.find(b"\x00") + 1:-1]
         return ParameterStatus(key, value)
     createFromData = staticmethod(createFromData)
 
@@ -593,8 +611,9 @@ class ReadyForQuery(object):
     status = property(lambda self: self._status)
 
     def __repr__(self):
-        return "<ReadyForQuery %s>" % \
-                {b"I": "Idle", b"T": "Idle in Transaction", b"E": "Idle in Failed Transaction"}[self.status]
+        return "<ReadyForQuery %s>" % {
+            b"I": "Idle", b"T": "Idle in Transaction",
+            b"E": "Idle in Failed Transaction"}[self.status]
 
     # Byte1('Z') - Identifier.
     # Int32(5) - Message length, including self.
@@ -650,12 +669,14 @@ class NoticeResponse(object):
             setattr(self, arg, value)
 
     def __repr__(self):
-        return "<NoticeResponse %s %s %r>" % (self.severity, self.code, self.msg)
+        return "<NoticeResponse %s %s %r>" % (
+            self.severity, self.code, self.msg)
 
     def dataIntoDict(data):
         retval = {}
         for s in data.split(b"\x00"):
-            if not s: continue
+            if not s:
+                continue
             key, value = s[0:1], s[1:]
             key = NoticeResponse.responseKeys.get(key, key)
             retval[key] = value
@@ -685,7 +706,8 @@ class ErrorResponse(object):
             setattr(self, arg, value)
 
     def __repr__(self):
-        return "<ErrorResponse %s %s %r>" % (self.severity, self.code, self.msg)
+        return "<ErrorResponse %s %s %r>" % (
+            self.severity, self.code, self.msg)
 
     def createException(self):
         return ProgrammingError(self.severity, self.code, self.msg)
@@ -696,7 +718,8 @@ class ErrorResponse(object):
 
 
 ##
-# A message sent if this connection receives a NOTIFY that it was LISTENing for.
+# A message sent if this connection receives a NOTIFY that it was LISTENing
+# for.
 # <p>
 # Stability: Added in pg8000 v1.03.  When limited to accessing properties from
 # a notification event dispatch, stability is guaranteed for v1.xx.
@@ -726,14 +749,15 @@ class NotificationResponse(object):
     additional_info = property(lambda self: self._additional_info)
 
     def __repr__(self):
-        return "<NotificationResponse %s %s %r>" % (self.backend_pid, self.condition, self.additional_info)
+        return "<NotificationResponse %s %s %r>" % (
+            self.backend_pid, self.condition, self.additional_info)
 
     def createFromData(data):
         backend_pid = struct.unpack("!i", data[:4])[0]
         data = data[4:]
         null = data.find(b"\x00")
         condition = data[:null].decode("ascii")
-        data = data[null+1:]
+        data = data[null + 1:]
         null = data.find(b"\x00")
         additional_info = data[:null]
         return NotificationResponse(backend_pid, condition, additional_info)
@@ -743,9 +767,10 @@ class NotificationResponse(object):
 class ParameterDescription(object):
     def __init__(self, type_oids):
         self.type_oids = type_oids
+
     def createFromData(data):
         count = struct.unpack("!h", data[:2])[0]
-        type_oids = struct.unpack("!" + "i"*count, data[2:])
+        type_oids = struct.unpack("!" + "i" * count, data[2:])
         return ParameterDescription(type_oids)
     createFromData = staticmethod(createFromData)
 
@@ -761,12 +786,15 @@ class RowDescription(object):
         for i in range(count):
             null = data.find(b"\x00")
             field = {"name": data[:null]}
-            data = data[null+1:]
-            field["table_oid"], field["column_attrnum"], field["type_oid"], field["type_size"], field["type_modifier"], field["format"] = struct.unpack("!ihihih", data[:18])
+            data = data[null + 1:]
+            field["table_oid"], field["column_attrnum"], field["type_oid"], \
+                field["type_size"], field["type_modifier"], field["format"] = \
+                struct.unpack("!ihihih", data[:18])
             data = data[18:]
             fields.append(field)
         return RowDescription(fields)
     createFromData = staticmethod(createFromData)
+
 
 class CommandComplete(object):
     def __init__(self, command, rows=None, oid=None):
@@ -778,7 +806,8 @@ class CommandComplete(object):
         values = data[:-1].split(b" ")
         args = {}
         args['command'] = values[0]
-        if args['command'] in (b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY"):
+        if args['command'] in (
+                b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY"):
             args['rows'] = int(values[-1])
             if args['command'] == "INSERT":
                 args['oid'] = int(values[1])
@@ -816,7 +845,7 @@ class CopyData(object):
     def createFromData(data):
         return CopyData(data)
     createFromData = staticmethod(createFromData)
-    
+
     def serialize(self):
         return b'd' + struct.pack('!i', len(self.data) + 4) + self.data
 
@@ -829,9 +858,10 @@ class CopyDone(object):
         return CopyDone()
 
     createFromData = staticmethod(createFromData)
-    
+
     def serialize(self):
         return b'c\x00\x00\x00\x04'
+
 
 class CopyOutResponse(object):
     # Byte1('H')
@@ -843,7 +873,7 @@ class CopyOutResponse(object):
     def __init__(self, is_binary, column_formats):
         self.is_binary = is_binary
         self.column_formats = column_formats
-    
+
     def createFromData(data):
         is_binary, num_cols = struct.unpack('!bh', data[:3])
         column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
@@ -855,11 +885,11 @@ class CopyOutResponse(object):
 class CopyInResponse(object):
     # Byte1('G')
     # Otherwise the same as CopyOutResponse
-    
+
     def __init__(self, is_binary, column_formats):
         self.is_binary = is_binary
         self.column_formats = column_formats
-    
+
     def createFromData(data):
         is_binary, num_cols = struct.unpack('!bh', data[:3])
         column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
@@ -889,7 +919,7 @@ class MessageReader(object):
 
     def return_value(self, value):
         self._retval = value
-    
+
     def handle_messages(self):
         exc = None
         while 1:
@@ -902,13 +932,13 @@ class MessageReader(object):
                     if retval:
                         # The handler returned a true value, meaning that the
                         # message loop should be aborted.
-                        if exc != None:
+                        if exc is not None:
                             raise exc
                         return retval
                     elif hasattr(self, "_retval"):
                         # The handler told us to return -- used for non-true
                         # return values
-                        if exc != None:
+                        if exc is not None:
                             raise exc
                         return self._retval
             if msg_handled:
@@ -926,6 +956,7 @@ class MessageReader(object):
             elif not self.ignore_unhandled_messages:
                 raise InternalError("Unexpected response msg %r" % (msg))
 
+
 def sync_on_error(fn):
     def _fn(self, *args, **kwargs):
         with self._sock_lock:
@@ -938,8 +969,11 @@ def sync_on_error(fn):
                     raise
     return _fn
 
+
 class Connection(object):
-    def __init__(self, unix_sock=None, host=None, port=5432, socket_timeout=60, ssl=False):
+    def __init__(
+            self, unix_sock=None, host=None, port=5432, socket_timeout=60,
+            ssl=False):
         self._client_encoding = "ascii"
         self._integer_datetimes = False
         self._sock_buf = ""
@@ -947,17 +981,19 @@ class Connection(object):
         self._send_sock_buf = []
         self._block_size = 8192
         self._sock_lock = threading.Lock()
-        if unix_sock == None and host != None:
+        if unix_sock is None and host is not None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        elif unix_sock != None:
+        elif unix_sock is not None:
             if not hasattr(socket, "AF_UNIX"):
-                raise InterfaceError("attempt to connect to unix socket on unsupported platform")
+                raise InterfaceError(
+                    "attempt to connect to unix socket on unsupported "
+                    "platform")
             self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         else:
             raise ProgrammingError("one of host or unix_sock must be provided")
-        if unix_sock == None and host != None:
+        if unix_sock is None and host is not None:
             self._sock.connect((host, port))
-        elif unix_sock != None:
+        elif unix_sock is not None:
             self._sock.connect(unix_sock)
         if ssl:
             self._sock_lock.acquire()
@@ -987,7 +1023,8 @@ class Connection(object):
 
     def verifyState(self, state):
         if self._state != state:
-            raise InternalError("connection state must be %s, is %s" % (state, self._state))
+            raise InternalError(
+                "connection state must be %s, is %s" % (state, self._state))
 
     def _send(self, msg):
         assert self._sock_lock.locked()
@@ -1021,18 +1058,22 @@ class Connection(object):
     def authenticate(self, user, **kwargs):
         self.verifyState("noauth")
         with self._sock_lock:
-            self._send(StartupMessage(user, database=kwargs.get("database",None)))
+            self._send(
+                StartupMessage(user, database=kwargs.get("database", None)))
             self._flush()
 
             reader = MessageReader(self)
-            reader.add_message(AuthenticationRequest, self._authentication_request(user, **kwargs))
+            reader.add_message(
+                AuthenticationRequest,
+                self._authentication_request(user, **kwargs))
             reader.handle_messages()
 
     def _authentication_request(self, user, **kwargs):
         def _func(msg):
             assert self._sock_lock.locked()
             if not msg.ok(self, user, **kwargs):
-                raise InterfaceError("authentication method %s failed" % msg.__class__.__name__)
+                raise InterfaceError(
+                    "authentication method %s failed" % msg.__class__.__name__)
             self._state = "auth"
             reader = MessageReader(self)
             reader.add_message(ReadyForQuery, self._ready_for_query)
@@ -1053,8 +1094,10 @@ class Connection(object):
         self.verifyState("ready")
 
         type_info = [types.pg_type_info(x) for x in param_types]
-        param_types, param_fc = [x[0] for x in type_info], [x[1] for x in type_info] # zip(*type_info) -- fails on empty arr
-        self._send(Parse(statement, qs.encode(self._client_encoding), param_types))
+        param_types, param_fc = [x[0] for x in type_info], \
+            [x[1] for x in type_info]  # zip(*type_info) -- fails on empty arr
+        self._send(
+            Parse(statement, qs.encode(self._client_encoding), param_types))
         self._send(DescribePreparedStatement(statement))
         self._send(Flush())
         self._flush()
@@ -1082,14 +1125,18 @@ class Connection(object):
         self.verifyState("ready")
 
         row_desc, param_fc = parse_data
-        if row_desc == None:
+        if row_desc is None:
             # no data coming out
             output_fc = ()
         else:
             # We've got row_desc that allows us to identify what we're going to
             # get back from this statement.
             output_fc = [types.py_type_info(f) for f in row_desc.fields]
-        self._send(Bind(portal, statement, param_fc, params, output_fc, client_encoding = self._client_encoding, integer_datetimes = self._integer_datetimes))
+        self._send(
+            Bind(
+                portal, statement, param_fc, params, output_fc,
+                client_encoding=self._client_encoding,
+                integer_datetimes=self._integer_datetimes))
         # We need to describe the portal after bind, since the return
         # format codes will be different (hopefully, always what we
         # requested).
@@ -1107,7 +1154,8 @@ class Connection(object):
         # result, we won't be fetching rows, so we'll never execute the
         # portal we just created... unless we execute it right away, which
         # we'll do.
-        reader.add_message(NoData, self._bind_nodata, portal, reader, copy_stream)
+        reader.add_message(
+            NoData, self._bind_nodata, portal, reader, copy_stream)
 
         # Return the new row desc, since it will have the format types we
         # asked the server for
@@ -1116,7 +1164,7 @@ class Connection(object):
         return reader.handle_messages()
 
     def _copy_in_response(self, copyin, fileobj, old_reader):
-        if fileobj == None:
+        if fileobj is None:
             raise CopyQueryWithoutStreamError()
         while True:
             data = fileobj.read(self._block_size)
@@ -1129,7 +1177,7 @@ class Connection(object):
         self._flush()
 
     def _copy_out_response(self, copyout, fileobj, old_reader):
-        if fileobj == None:
+        if fileobj is None:
             raise CopyQueryWithoutStreamError()
         reader = MessageReader(self)
         reader.add_message(CopyData, self._copy_data, fileobj)
@@ -1147,9 +1195,13 @@ class Connection(object):
 
         output = {}
         reader = MessageReader(self)
-        reader.add_message(CopyOutResponse, self._copy_out_response, copy_stream, reader)
-        reader.add_message(CopyInResponse, self._copy_in_response, copy_stream, reader)
-        reader.add_message(CommandComplete, lambda msg, out: out.setdefault('msg', msg) and False, output)
+        reader.add_message(
+            CopyOutResponse, self._copy_out_response, copy_stream, reader)
+        reader.add_message(
+            CopyInResponse, self._copy_in_response, copy_stream, reader)
+        reader.add_message(
+            CommandComplete,
+            lambda msg, out: out.setdefault('msg', msg) and False, output)
         reader.add_message(ReadyForQuery, lambda msg: True)
         reader.delay_raising_exception = True
         reader.handle_messages()
@@ -1168,7 +1220,8 @@ class Connection(object):
         reader = MessageReader(self)
         reader.add_message(DataRow, self._fetch_datarow, rows, row_desc)
         reader.add_message(PortalSuspended, lambda msg: True)
-        reader.add_message(CommandComplete, self._fetch_commandcomplete, portal)
+        reader.add_message(
+            CommandComplete, self._fetch_commandcomplete, portal)
         retval = reader.handle_messages()
 
         # retval = 2 when command complete, indicating that we've hit the
@@ -1270,14 +1323,14 @@ class Connection(object):
     def fileno(self):
         # This should be safe to do without a lock
         return self._sock.fileno()
-    
+
     def isready(self):
         self._sock_lock.acquire()
         try:
             rlst, _wlst, _xlst = select.select([self], [], [], 0)
             if not rlst:
                 return False
-                
+
             self._sync()
             return True
         finally:
@@ -1304,6 +1357,4 @@ message_types = {
     b"d"[0]: CopyData,
     b"G"[0]: CopyInResponse,
     b"H"[0]: CopyOutResponse,
-    }
-
-
+}

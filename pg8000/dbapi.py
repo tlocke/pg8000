@@ -33,9 +33,11 @@ import datetime
 import time
 from . import interface
 from . import types
-from .errors import *
 import threading
-
+from .errors import NotSupportedError, ProgrammingError, InternalError, \
+    IntegrityError, OperationalError, DatabaseError, InterfaceError, Error, \
+    ConnectionClosedError, CopyQueryOrTableRequiredError, CursorClosedError, \
+    QueryParameterParseError, QueryParameterIndexError, Warning
 from warnings import warn
 
 ##
@@ -57,7 +59,8 @@ threadsafety = 3
 # Unlike the DBAPI specification, this value is not constant.  It can be
 # changed to any standard paramstyle value (ie. qmark, numeric, named, format,
 # and pyformat).
-paramstyle = 'format' # paramstyle can be changed to any DB-API paramstyle
+paramstyle = 'format'  # paramstyle can be changed to any DB-API paramstyle
+
 
 def convert_paramstyle(src_style, query, args):
     # I don't see any way to avoid scanning the query string char by char,
@@ -102,7 +105,8 @@ def convert_paramstyle(src_style, query, args):
                 i += 1
                 param_idx = len(output_args)
                 if param_idx == len(args):
-                    raise QueryParameterIndexError("too many parameter fields, not enough parameters")
+                    raise QueryParameterIndexError(
+                        "too many parameter fields, not enough parameters")
                 output_args.append(args[param_idx])
                 output_query += "$" + str(param_idx + 1)
             elif src_style == "numeric" and c == ":":
@@ -111,7 +115,8 @@ def convert_paramstyle(src_style, query, args):
                     output_query += "$" + query[i]
                     i += 1
                 else:
-                    raise QueryParameterParseError("numeric parameter : does not have numeric arg")
+                    raise QueryParameterParseError(
+                        "numeric parameter : does not have numeric arg")
             elif src_style == "named" and c == ":":
                 name = ""
                 while 1:
@@ -124,9 +129,10 @@ def convert_paramstyle(src_style, query, args):
                     else:
                         break
                 if name == "":
-                    raise QueryParameterParseError("empty name of named parameter")
+                    raise QueryParameterParseError(
+                        "empty name of named parameter")
                 idx = mapping_to_idx.get(name)
-                if idx == None:
+                if idx is None:
                     idx = len(output_args)
                     output_args.append(args[name])
                     idx += 1
@@ -138,16 +144,20 @@ def convert_paramstyle(src_style, query, args):
                     if query[i] == "s":
                         param_idx = len(output_args)
                         if param_idx == len(args):
-                            raise QueryParameterIndexError("too many parameter fields, not enough parameters")
+                            raise QueryParameterIndexError(
+                                "too many parameter fields, not enough "
+                                "parameters")
                         output_args.append(args[param_idx])
                         output_query += "$" + str(param_idx + 1)
                     elif query[i] == "%":
                         output_query += "%"
                     else:
-                        raise QueryParameterParseError("Only %s and %% are supported")
+                        raise QueryParameterParseError(
+                            "Only %s and %% are supported")
                     i += 1
                 else:
-                    raise QueryParameterParseError("format parameter % does not have format code")
+                    raise QueryParameterParseError(
+                        "format parameter % does not have format code")
             elif src_style == "pyformat" and c == "%":
                 i += 1
                 if i < len(query) and i > 1:
@@ -156,21 +166,25 @@ def convert_paramstyle(src_style, query, args):
                         # begin mapping name
                         end_idx = query.find(')', i)
                         if end_idx == -1:
-                            raise QueryParameterParseError("began pyformat dict read, but couldn't find end of name")
+                            raise QueryParameterParseError(
+                                "began pyformat dict read, but couldn't find "
+                                "end of name")
                         else:
                             name = query[i:end_idx]
                             i = end_idx + 1
                             if i < len(query) and query[i] == "s":
                                 i += 1
                                 idx = mapping_to_idx.get(name)
-                                if idx == None:
+                                if idx is None:
                                     idx = len(output_args)
                                     output_args.append(args[name])
                                     idx += 1
                                     mapping_to_idx[name] = idx
                                 output_query += "$" + str(idx)
                             else:
-                                raise QueryParameterParseError("format not specified or not supported (only %(...)s supported)")
+                                raise QueryParameterParseError(
+                                    "format not specified or not supported "
+                                    "(only %(...)s supported)")
                     elif query[i] == "%":
                         output_query += "%"
                     elif query[i] == "s":
@@ -179,7 +193,8 @@ def convert_paramstyle(src_style, query, args):
                         i -= 1
                         src_style = "format"
                     else:
-                        raise QueryParameterParseError("Only %(name)s, %s and %% are supported")
+                        raise QueryParameterParseError(
+                            "Only %(name)s, %s and %% are supported")
             else:
                 i += 1
                 output_query += c
@@ -194,27 +209,31 @@ def convert_paramstyle(src_style, query, args):
                     i += 1
                 else:
                     state = 0
-            elif src_style in ("pyformat","format") and c == "%":
+            elif src_style in ("pyformat", "format") and c == "%":
                 # hm... we're only going to support an escaped percent sign
                 if i < len(query):
                     if query[i] == "%":
                         # good.  We already output the first percent sign.
                         i += 1
                     else:
-                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
+                        raise QueryParameterParseError(
+                            "'%" + query[i] +
+                            "' not supported in quoted string")
         elif state == 2:
             output_query += c
             i += 1
             if c == '"':
                 state = 0
-            elif src_style in ("pyformat","format") and c == "%":
+            elif src_style in ("pyformat", "format") and c == "%":
                 # hm... we're only going to support an escaped percent sign
                 if i < len(query):
                     if query[i] == "%":
                         # good.  We already output the first percent sign.
                         i += 1
                     else:
-                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
+                        raise QueryParameterParseError(
+                            "'%" + query[i] +
+                            "' not supported in quoted string")
         elif state == 3:
             output_query += c
             i += 1
@@ -225,26 +244,31 @@ def convert_paramstyle(src_style, query, args):
                     i += 1
             elif c == "'":
                 state = 0
-            elif src_style in ("pyformat","format") and c == "%":
+            elif src_style in ("pyformat", "format") and c == "%":
                 # hm... we're only going to support an escaped percent sign
                 if i < len(query):
                     if query[i] == "%":
                         # good.  We already output the first percent sign.
                         i += 1
                     else:
-                        raise QueryParameterParseError("'%" + query[i] + "' not supported in quoted string")
+                        raise QueryParameterParseError(
+                            "'%" + query[i] +
+                            "' not supported in quoted string")
 
     return output_query, tuple(output_args)
 
+
 def require_open_cursor(fn):
     def _fn(self, *args, **kwargs):
-        if self.cursor == None:
+        if self.cursor is None:
             raise CursorClosedError()
         return fn(self, *args, **kwargs)
     return _fn
 
+
 ##
-# The class of object returned by the {@link #ConnectionWrapper.cursor cursor method}.
+# The class of object returned by the {@link #ConnectionWrapper.cursor cursor
+# method}.
 class CursorWrapper(object):
     def __init__(self, conn, connection):
         self.cursor = interface.Cursor(conn)
@@ -278,7 +302,7 @@ class CursorWrapper(object):
 
     @require_open_cursor
     def _getRowCount(self):
-        if self._override_rowcount != None:
+        if self._override_rowcount is not None:
             return self._override_rowcount
         return self.cursor.row_count
 
@@ -294,11 +318,12 @@ class CursorWrapper(object):
 
     @require_open_cursor
     def _getDescription(self):
-        if self.cursor.row_description == None:
+        if self.cursor.row_description is None:
             return None
         columns = []
         for col in self.cursor.row_description:
-            columns.append((col["name"], col["type_oid"], None, None, None, None, None))
+            columns.append(
+                (col["name"], col["type_oid"], None, None, None, None, None))
         return columns
 
     ##
@@ -326,8 +351,8 @@ class CursorWrapper(object):
             raise
 
     def copy_from(self, fileobj, table=None, sep='\t', null=None, query=None):
-        if query == None:
-            if table == None:
+        if query is None:
+            if table is None:
                 raise CopyQueryOrTableRequiredError()
             query = "COPY %s FROM stdout DELIMITER '%s'" % (table, sep)
             if null is not None:
@@ -335,14 +360,14 @@ class CursorWrapper(object):
         self.copy_execute(fileobj, query)
 
     def copy_to(self, fileobj, table=None, sep='\t', null=None, query=None):
-        if query == None:
-            if table == None:
+        if query is None:
+            if table is None:
                 raise CopyQueryOrTableRequiredError()
             query = "COPY %s TO stdout DELIMITER '%s'" % (table, sep)
             if null is not None:
                 query += " NULL '%s'" % (null,)
         self.copy_execute(fileobj, query)
-    
+
     @require_open_cursor
     def copy_execute(self, fileobj, query):
         try:
@@ -352,7 +377,8 @@ class CursorWrapper(object):
             raise
         except:
             # any error will rollback the transaction to-date
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
             self._connection.rollback()
             raise
 
@@ -391,12 +417,12 @@ class CursorWrapper(object):
     # @param size   The number of rows to fetch when called.  If not provided,
     #               the arraysize property value is used instead.
     def fetchmany(self, size=None):
-        if size == None:
+        if size is None:
             size = self.arraysize
         rows = []
         for i in range(size):
             value = self.fetchone()
-            if value == None:
+            if value is None:
                 break
             rows.append(value)
         return rows
@@ -423,7 +449,7 @@ class CursorWrapper(object):
     def __next__(self):
         warn("DB-API extension cursor.next() used", stacklevel=2)
         retval = self.fetchone()
-        if retval == None:
+        if retval is None:
             raise StopIteration()
         return retval
 
@@ -440,17 +466,19 @@ class CursorWrapper(object):
     @require_open_cursor
     def fileno(self):
         return self.cursor.fileno()
-    
+
     @require_open_cursor
     def isready(self):
         return self.cursor.isready()
 
+
 def require_open_connection(fn):
     def _fn(self, *args, **kwargs):
-        if self.conn == None:
+        if self.conn is None:
             raise ConnectionClosedError()
         return fn(self, *args, **kwargs)
     return _fn
+
 
 ##
 # The class of object returned by the {@link #connect connect method}.
@@ -464,16 +492,19 @@ class ConnectionWrapper(object):
     IntegrityError = property(lambda self: self._getError(IntegrityError))
     InternalError = property(lambda self: self._getError(InternalError))
     ProgrammingError = property(lambda self: self._getError(ProgrammingError))
-    NotSupportedError = property(lambda self: self._getError(NotSupportedError))
+    NotSupportedError = property(
+        lambda self: self._getError(NotSupportedError))
 
     def _getError(self, error):
-        warn("DB-API extension connection.%s used" % error.__name__, stacklevel=3)
+        warn(
+            "DB-API extension connection.%s used" %
+            error.__name__, stacklevel=3)
         return error
 
     @property
     def in_transaction(self):
         if self.conn:
-             return self.conn.in_transaction
+            return self.conn.in_transaction
         return False
 
     def __init__(self, **kwargs):
@@ -575,28 +606,38 @@ class ConnectionWrapper(object):
 # @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
 #
 # @return An instance of {@link #ConnectionWrapper ConnectionWrapper}.
-def connect(user, host=None, unix_sock=None, port=5432, database=None, password=None, socket_timeout=60, ssl=False):
-    return ConnectionWrapper(user=user, host=host,
-            unix_sock=unix_sock, port=port, database=database,
-            password=password, socket_timeout=socket_timeout, ssl=ssl)
+def connect(
+        user, host=None, unix_sock=None, port=5432, database=None,
+        password=None, socket_timeout=60, ssl=False):
+    return ConnectionWrapper(
+        user=user, host=host, unix_sock=unix_sock, port=port,
+        database=database, password=password, socket_timeout=socket_timeout,
+        ssl=ssl)
+
 
 def Date(year, month, day):
     return datetime.date(year, month, day)
 
+
 def Time(hour, minute, second):
     return datetime.time(hour, minute, second)
+
 
 def Timestamp(year, month, day, hour, minute, second):
     return datetime.datetime(year, month, day, hour, minute, second)
 
+
 def DateFromTicks(ticks):
     return Date(*time.localtime(ticks)[:3])
+
 
 def TimeFromTicks(ticks):
     return Time(*time.localtime(ticks)[3:6])
 
+
 def TimestampFromTicks(ticks):
     return Timestamp(*time.localtime(ticks)[:6])
+
 
 ##
 # Construct an object holding binary data.
@@ -620,5 +661,3 @@ DATETIME = 1114
 
 # oid type_oid
 ROWID = 26
-
-
