@@ -43,11 +43,14 @@ import collections
 
 from . import types, errors, util
 
+
 class SendMessage(object):
     pass
 
+
 class ReceiveMessage(object):
     pass
+
 
 ##
 # An SSLRequest message.  To initiate an SSL-encrypted connection, an
@@ -119,7 +122,7 @@ class Parse(SendMessage):
         val = val + struct.pack("!h", len(self.type_oids))
         for oid in self.type_oids:
             # Parse message doesn't seem to handle the -1 type_oid for NULL
-            # values that other messages handle.  So we'll provide type_oid 705,
+            # values that other messages handle. So we'll provide type_oid 705,
             # the PG "unknown" type.
             if oid == -1:
                 oid = 705
@@ -130,7 +133,6 @@ class Parse(SendMessage):
 
     def __repr__(self):
         return "<Parse ps=%r qs=%r>" % (self.ps, self.qs)
-
 
 
 ##
@@ -163,10 +165,7 @@ class Bind(SendMessage):
 
         self.params = [
             types.pg_value(
-                    param,
-                    self.in_fc[i] if fc is None else fc,
-                    **kwargs
-            )
+                param, self.in_fc[i] if fc is None else fc, **kwargs)
             for i, param in enumerate(params)
         ]
         self.out_fc = out_fc
@@ -321,6 +320,7 @@ class Flush(SendMessage):
         return "<Flush>"
 _FLUSH = Flush().serialize()
 
+
 ##
 # Causes the backend to close the current transaction (if not in a BEGIN/COMMIT
 # block), and issue ReadyForQuery.
@@ -335,6 +335,7 @@ class Sync(SendMessage):
     def __repr__(self):
         return "<Sync>"
 _SYNC = Sync().serialize()
+
 
 ##
 # Transmits a password.
@@ -370,8 +371,8 @@ class Execute(SendMessage):
     # Byte1('E') - Identifies the message as an execute message.
     # Int32 -   Message length, including self.
     # String -  The name of the portal to execute.
-    # Int32 -   Maximum number of rows to return, if portal contains a query that
-    #           returns rows.  0 = no limit.
+    # Int32 -   Maximum number of rows to return, if portal contains a query
+    #           that returns rows.  0 = no limit.
     def serialize(self):
         val = self.portal + "\x00" + struct.pack("!i", self.row_count)
         val = struct.pack("!i", len(val) + 4) + val
@@ -388,6 +389,7 @@ class Terminate(SendMessage):
     # Int32(4) - Message length, including self.
     def serialize(self):
         return 'X\x00\x00\x00\x04'
+
 
 ##
 # Base class of all Authentication[*] messages.
@@ -424,8 +426,8 @@ class AuthenticationRequest(SendMessage):
 
     def ok(self, conn, user, **kwargs):
         raise errors.InternalError(
-                    "ok method should be overridden on "
-                    "AuthenticationRequest instance")
+            "ok method should be overridden on AuthenticationRequest instance")
+
 
 ##
 # A message representing that the backend accepting the provided username
@@ -555,9 +557,9 @@ class ReadyForQuery(ReceiveMessage):
         self.status = status
 
     def __repr__(self):
-        return "<ReadyForQuery %s>" % \
-                {"I": "Idle", "T": "Idle in Transaction",
-                        "E": "Idle in Failed Transaction"}[self.status]
+        return "<ReadyForQuery %s>" % {
+            "I": "Idle", "T": "Idle in Transaction",
+            "E": "Idle in Failed Transaction"}[self.status]
 
     # Byte1('Z') - Identifier.
     # Int32(5) - Message length, including self.
@@ -614,7 +616,7 @@ class NoticeResponse(ReceiveMessage):
 
     def __repr__(self):
         return "<NoticeResponse %s %s %r>" % (
-                                self.severity, self.code, self.msg)
+            self.severity, self.code, self.msg)
 
     @staticmethod
     def dataIntoDict(data):
@@ -650,7 +652,8 @@ class ErrorResponse(ReceiveMessage):
             setattr(self, arg, value)
 
     def __repr__(self):
-        return "<ErrorResponse %s %s %r>" % (self.severity, self.code, self.msg)
+        return "<ErrorResponse %s %s %r>" % (
+            self.severity, self.code, self.msg)
 
     def createException(self):
         return errors.ProgrammingError(self.severity, self.code, self.msg)
@@ -661,7 +664,8 @@ class ErrorResponse(ReceiveMessage):
 
 
 ##
-# A message sent if this connection receives a NOTIFY that it was LISTENing for.
+# A message sent if this connection receives a NOTIFY that it was LISTENing
+# for.
 # <p>
 # Stability: Added in pg8000 v1.03.  When limited to accessing properties from
 # a notification event dispatch, stability is guaranteed for v1.xx.
@@ -691,8 +695,8 @@ class NotificationResponse(ReceiveMessage):
     additional_info = None
 
     def __repr__(self):
-        return "<NotificationResponse %s %s %r>" % (self.backend_pid,
-                        self.condition, self.additional_info)
+        return "<NotificationResponse %s %s %r>" % (
+            self.backend_pid, self.condition, self.additional_info)
 
     @staticmethod
     def create_from_data(data):
@@ -716,6 +720,7 @@ class ParameterDescription(ReceiveMessage):
         type_oids = struct.unpack("!" + "i" * count, data[2:])
         return ParameterDescription(type_oids)
 
+
 class RowDescription(ReceiveMessage):
     def __init__(self, fields):
         self.fields = fields
@@ -736,6 +741,7 @@ class RowDescription(ReceiveMessage):
             fields.append(field)
         return RowDescription(fields)
 
+
 class CommandComplete(ReceiveMessage):
     def __init__(self, command, rows=None, oid=None):
         self.command = command
@@ -747,8 +753,8 @@ class CommandComplete(ReceiveMessage):
         values = data[:-1].split(" ")
         args = {}
         args['command'] = values[0]
-        if args['command'] in ("INSERT", "DELETE", "UPDATE", "MOVE",
-                                    "FETCH", "COPY"):
+        if args['command'] in (
+                "INSERT", "DELETE", "UPDATE", "MOVE", "FETCH", "COPY"):
             args['rows'] = int(values[-1])
             if args['command'] == "INSERT":
                 args['oid'] = int(values[1])
@@ -789,6 +795,7 @@ class CopyData(ReceiveMessage):
     def serialize(self):
         return 'd' + struct.pack('!i', len(self.data) + 4) + self.data
 
+
 class CopyDone(SendMessage, ReceiveMessage):
     # Byte1('c') - Identifier.
     # Int32(4) - Message length, including self.
@@ -802,6 +809,7 @@ class CopyDone(SendMessage, ReceiveMessage):
 
 _COPY_DONE = CopyDone()
 _COPY_DONE_SERIALIZED = _COPY_DONE.serialize()
+
 
 class CopyOutResponse(ReceiveMessage):
     # Byte1('H')
@@ -819,6 +827,7 @@ class CopyOutResponse(ReceiveMessage):
         is_binary, num_cols = struct.unpack('!bh', data[:3])
         column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
         return CopyOutResponse(is_binary, column_formats)
+
 
 class CopyInResponse(ReceiveMessage):
     # Byte1('G')
@@ -842,6 +851,7 @@ STATE_READY = util.symbol('state_ready')
 STATE_CLOSED = util.symbol('state_closed')
 STATE_NOAUTH = util.symbol('state_noauth')
 STATE_AUTH = util.symbol('state_auth')
+
 
 class MessageReader(object):
     def __init__(self, args):
@@ -899,7 +909,7 @@ class MessageReader(object):
                         raise exc
                 elif not self.ignore_unhandled_messages:
                     raise errors.InternalError(
-                            "Unexpected response msg %r" % (msg))
+                        "Unexpected response msg %r" % (msg))
             else:
                 if handler is SUCCESS_READ_LOOP:
                     if exc:
@@ -918,6 +928,7 @@ class MessageReader(object):
                 else:
                     return retval
 
+
 ##
 # A message representing the backend requesting an MD5 hashed password
 # response.  The response will be sent as md5(md5(pwd + login) + salt).
@@ -933,10 +944,10 @@ class AuthenticationMD5Password(AuthenticationRequest):
     def ok(self, conn, user, password=None, **kwargs):
         if not password:
             raise errors.InterfaceError(
-                        "server requesting MD5 password authentication, "
-                        "but no password was provided")
-        pwd = "md5" + hashlib.md5(hashlib.md5(password + user).hexdigest() +
-                                        self.salt).hexdigest()
+                "server requesting MD5 password authentication, "
+                "but no password was provided")
+        pwd = "md5" + hashlib.md5(
+            hashlib.md5(password + user).hexdigest() + self.salt).hexdigest()
         conn._send(PasswordMessage(pwd))
         conn._flush()
 
@@ -945,10 +956,12 @@ class AuthenticationMD5Password(AuthenticationRequest):
     @util.class_memoized
     def _authentication_reader():
         reader = MessageReader(args=('pw', 'user',))
-        reader.add_message(AuthenticationRequest,
-                        lambda conn, msg, context: msg.ok(conn, context.user))
-        reader.add_message(ErrorResponse,
-                    lambda conn, msg, context: context.pw._ok_error(msg))
+        reader.add_message(
+            AuthenticationRequest,
+            lambda conn, msg, context: msg.ok(conn, context.user))
+        reader.add_message(
+            ErrorResponse,
+            lambda conn, msg, context: context.pw._ok_error(msg))
         return reader
 
     def _ok_error(self, msg):
@@ -962,6 +975,7 @@ authentication_codes = {
     5: AuthenticationMD5Password,
 }
 
+
 def sync_on_error(fn):
     def _fn(self, *args, **kwargs):
         try:
@@ -974,9 +988,11 @@ def sync_on_error(fn):
             self._sock_lock.release()
     return _fn
 
+
 class Connection(object):
-    def __init__(self, unix_sock=None, host=None, port=5432,
-                    socket_timeout=60, ssl=False):
+    def __init__(
+            self, unix_sock=None, host=None, port=5432, socket_timeout=60,
+            ssl=False):
         self._client_encoding = "ascii"
         self._integer_datetimes = False
         self._server_version = None
@@ -987,12 +1003,12 @@ class Connection(object):
         elif unix_sock is not None:
             if not hasattr(socket, "AF_UNIX"):
                 raise errors.InterfaceError(
-                        "attempt to connect to unix socket on "
-                        "unsupported platform")
+                    "attempt to connect to unix socket on "
+                    "unsupported platform")
             self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         else:
             raise errors.ProgrammingError(
-                        "one of host or unix_sock must be provided")
+                "one of host or unix_sock must be provided")
         if unix_sock is None and host is not None:
             self._sock.connect((host, port))
         elif unix_sock is not None:
@@ -1006,8 +1022,8 @@ class Connection(object):
                     self._sock = sslmodule.wrap_socket(self._sock)
                 elif sslmodule is None:
                     raise errors.InterfaceError(
-                                "SSL required but ssl module not available in "
-                                "this python installation")
+                        "SSL required but ssl module not available in "
+                        "this python installation")
                 else:
                     raise errors.InterfaceError("server refuses SSL")
             finally:
@@ -1025,8 +1041,8 @@ class Connection(object):
         self.ParameterStatusReceived += self._onParameterStatusReceived
 
     def _invalid_state(self, state):
-        raise errors.InternalError("connection state must be %s, is %s" %
-                                        (state, self._state))
+        raise errors.InternalError(
+            "connection state must be %s, is %s" % (state, self._state))
 
     def _flush_messages(self, *msg):
         self._sock.sendall("".join(msg))
@@ -1060,10 +1076,9 @@ class Connection(object):
         self._sock_lock.acquire()
         try:
             self._flush_messages(
-                        StartupMessage(user,
-                            database=kwargs.get("database", None)).
-                            serialize()
-                    )
+                StartupMessage(
+                    user, database=kwargs.get("database", None)).
+                serialize())
 
             self._authenticate_reader(self, user, kwargs)
         finally:
@@ -1072,9 +1087,10 @@ class Connection(object):
     @util.class_memoized
     def _authenticate_reader():
         reader = MessageReader(args=('user', 'kwargs'))
+
         def auth_request(connection, msg, context):
             return connection._authentication_request(
-                            msg, context.user, **context.kwargs)
+                msg, context.user, **context.kwargs)
         reader.add_message(AuthenticationRequest, auth_request)
         return reader
 
@@ -1082,8 +1098,7 @@ class Connection(object):
         #assert self._sock_lock.locked()
         if not msg.ok(self, user, **kwargs):
             raise errors.InterfaceError(
-                    "authentication method %s failed" %
-                    msg.__class__.__name__)
+                "authentication method %s failed" % msg.__class__.__name__)
         self._state = STATE_AUTH
         self._auth_request_reader(self)
         return SUCCESS_READ_LOOP
@@ -1091,11 +1106,13 @@ class Connection(object):
     @util.class_memoized
     def _auth_request_reader():
         reader = MessageReader(args=())
-        reader.add_message(ReadyForQuery,
-                    lambda conn, msg, context: conn._ready_for_query(msg))
-        reader.add_message(BackendKeyData,
-                    lambda conn, msg, context:
-                                    conn._receive_backend_key_data(msg))
+        reader.add_message(
+            ReadyForQuery,
+            lambda conn, msg, context: conn._ready_for_query(msg))
+        reader.add_message(
+            BackendKeyData,
+            lambda conn, msg, context:
+            conn._receive_backend_key_data(msg))
         return reader
 
     def _ready_for_query(self, msg):
@@ -1115,11 +1132,11 @@ class Connection(object):
         param_types, param_fc = [x[0] for x in type_info], \
                                 [x[1] for x in type_info]
         self._flush_messages(
-                Parse(statement, qs.encode(self._client_encoding),
-                                            param_types).serialize(),
-                DescribePreparedStatement(statement).serialize(),
-                _FLUSH
-        )
+            Parse(
+                statement, qs.encode(self._client_encoding),
+                param_types).serialize(),
+            DescribePreparedStatement(statement).serialize(),
+            _FLUSH)
 
         return self._parse_reader(self, param_fc)
 
@@ -1135,13 +1152,12 @@ class Connection(object):
 
         # We're not waiting for a row description.  Return something
         # destinctive to let bind know that there is no output.
-        reader.add_message(NoData,
-                        lambda conn, msg, context: (None, context.param_fc))
+        reader.add_message(
+            NoData, lambda conn, msg, context: (None, context.param_fc))
 
         # Common row description response
-        reader.add_message(RowDescription,
-                        lambda conn, msg, context: (msg, context.param_fc))
-
+        reader.add_message(
+            RowDescription, lambda conn, msg, context: (msg, context.param_fc))
         return reader
 
     @sync_on_error
@@ -1158,16 +1174,16 @@ class Connection(object):
             # get back from this statement.
             output_fc = [types.py_type_info(f) for f in row_desc.fields]
         self._flush_messages(
-                Bind(portal, statement, param_fc, params,
-                        output_fc, client_encoding=self._client_encoding,
-                        integer_datetimes=self._integer_datetimes).serialize(),
+            Bind(
+                portal, statement, param_fc, params, output_fc,
+                client_encoding=self._client_encoding,
+                integer_datetimes=self._integer_datetimes).serialize(),
 
-                # We need to describe the portal after bind, since the return
-                # format codes will be different (hopefully, always what we
-                # requested).
-                DescribePortal(portal).serialize(),
-                _FLUSH
-        )
+            # We need to describe the portal after bind, since the return
+            # format codes will be different (hopefully, always what we
+            # requested).
+            DescribePortal(portal).serialize(),
+            _FLUSH)
 
         # Read responses from server...
         return self._bind_reader(self, portal, copy_stream)
@@ -1183,16 +1199,14 @@ class Connection(object):
         # result, we won't be fetching rows, so we'll never execute the
         # portal we just created... unless we execute it right away, which
         # we'll do.
-        reader.add_message(NoData,
-                lambda conn, msg, context: conn._bind_nodata(
-                                            msg, context.portal,
-                                            context.copy_stream))
+        reader.add_message(
+            NoData, lambda conn, msg, context: conn._bind_nodata(
+                msg, context.portal, context.copy_stream))
 
         # Return the new row desc, since it will have the format types we
         # asked the server for
-        reader.add_message(RowDescription,
-                            lambda conn, msg, context: (msg, None))
-
+        reader.add_message(
+            RowDescription, lambda conn, msg, context: (msg, None))
         return reader
 
     def _copy_in_response(self, copyin, fileobj):
@@ -1220,9 +1234,9 @@ class Connection(object):
     @util.class_memoized
     def _copy_out_response_reader():
         reader = MessageReader(args=('fileobj',))
-        reader.add_message(CopyData,
-                            lambda conn, msg, context:
-                                    conn._copy_data(msg, context.fileobj))
+        reader.add_message(
+            CopyData, lambda conn, msg, context:
+            conn._copy_data(msg, context.fileobj))
         reader.add_message(CopyDone, SUCCESS_READ_LOOP)
         return reader
 
@@ -1249,10 +1263,13 @@ class Connection(object):
     @util.class_memoized
     def _bind_nodata_response_reader():
         reader = MessageReader(args=('copy_stream', 'output'))
-        reader.add_message(CopyOutResponse, lambda conn, msg, context:
-                            conn._copy_out_response(msg, context.copy_stream))
-        reader.add_message(CopyInResponse, lambda conn, msg, context:
-                            conn._copy_in_response(msg, context.copy_stream))
+        reader.add_message(
+            CopyOutResponse, lambda conn, msg, context:
+            conn._copy_out_response(msg, context.copy_stream))
+        reader.add_message(
+            CopyInResponse, lambda conn, msg, context:
+            conn._copy_in_response(msg, context.copy_stream))
+
         def cmd_complete(conn, msg, context):
             context.output.setdefault('msg', msg)
             return CONTINUE_READ_LOOP
@@ -1289,9 +1306,9 @@ class Connection(object):
             return CONTINUE_READ_LOOP
         reader.add_message(DataRow, read_datarow)
         reader.add_message(PortalSuspended, SUCCESS_READ_LOOP)
-        reader.add_message(CommandComplete,
-                    lambda conn, msg, context:
-                        conn._fetch_commandcomplete(msg, context.portal))
+        reader.add_message(
+            CommandComplete, lambda conn, msg, context:
+            conn._fetch_commandcomplete(msg, context.portal))
         return reader
 
     @staticmethod
@@ -1321,10 +1338,9 @@ class Connection(object):
     @util.class_memoized
     def _fetch_commandcomplete_reader():
         reader = MessageReader(args=())
-        reader.add_message(ReadyForQuery,
-                    lambda conn, msg, context:
-                        conn._fetch_commandcomplete_rfq(msg)
-                    )
+        reader.add_message(
+            ReadyForQuery,
+            lambda conn, msg, context: conn._fetch_commandcomplete_rfq(msg))
         reader.add_message(CloseComplete, CONTINUE_READ_LOOP)
         return reader
 
@@ -1434,7 +1450,7 @@ class Connection(object):
             self._invalid_state(STATE_READY)
         if not self._server_version:
             raise errors.InterfaceError(
-                        "Server did not provide server_version parameter.")
+                "Server did not provide server_version parameter.")
         return self._server_version
 
 
@@ -1459,6 +1475,4 @@ message_types = {
     "d": CopyData,
     "G": CopyInResponse,
     "H": CopyOutResponse,
-    }
-
-
+}

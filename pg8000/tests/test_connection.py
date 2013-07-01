@@ -5,11 +5,13 @@ from pg8000 import dbapi
 from contextlib import closing
 from .connection_settings import db_connect
 
+
 # Tests related to connecting to a database.
 class Tests(unittest.TestCase):
     def testSocketMissing(self):
-        self.assertRaises(dbapi.InterfaceError, dbapi.connect,
-                unix_sock="/file-does-not-exist", user="doesn't-matter")
+        self.assertRaises(
+            dbapi.InterfaceError, dbapi.connect,
+            unix_sock="/file-does-not-exist", user="doesn't-matter")
 
     def testDatabaseMissing(self):
         data = db_connect.copy()
@@ -39,4 +41,3 @@ class Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

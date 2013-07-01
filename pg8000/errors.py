@@ -29,43 +29,56 @@
 
 __author__ = "Mathieu Fenniak"
 
+
 class Warning(StandardError):
     pass
+
 
 class Error(StandardError):
     pass
 
+
 class InterfaceError(Error):
     pass
+
 
 class ConnectionClosedError(InterfaceError):
     def __init__(self):
         InterfaceError.__init__(self, "connection is closed")
 
+
 class CursorClosedError(InterfaceError):
     def __init__(self):
         InterfaceError.__init__(self, "cursor is closed")
 
+
 class DatabaseError(Error):
     pass
+
 
 class DataError(DatabaseError):
     pass
 
+
 class OperationalError(DatabaseError):
     pass
+
 
 class IntegrityError(DatabaseError):
     pass
 
+
 class InternalError(DatabaseError):
     pass
+
 
 class ProgrammingError(DatabaseError):
     pass
 
+
 class NotSupportedError(DatabaseError):
     pass
+
 
 ##
 # An exception that is thrown when an internal error occurs trying to
@@ -73,10 +86,12 @@ class NotSupportedError(DatabaseError):
 class ArrayDataParseError(InternalError):
     pass
 
+
 ##
 # Thrown when attempting to transmit an array of unsupported data types.
 class ArrayContentNotSupportedError(NotSupportedError):
     pass
+
 
 ##
 # Thrown when attempting to send an array that doesn't contain all the same
@@ -84,32 +99,37 @@ class ArrayContentNotSupportedError(NotSupportedError):
 class ArrayContentNotHomogenousError(ProgrammingError):
     pass
 
+
 ##
 # Attempted to pass an empty array in, but it's not possible to determine the
 # data type for an empty array.
 class ArrayContentEmptyError(ProgrammingError):
     pass
 
+
 ##
 # Attempted to use a multidimensional array with inconsistent array sizes.
 class ArrayDimensionsNotConsistentError(ProgrammingError):
     pass
+
 
 # A cursor's copy_to or copy_from argument was not provided a table or query
 # to operate on.
 class CopyQueryOrTableRequiredError(ProgrammingError):
     pass
 
+
 # Raised if a COPY query is executed without using copy_to or copy_from
 # functions to provide a data stream.
 class CopyQueryWithoutStreamError(ProgrammingError):
     pass
 
+
 # When query parameters don't match up with query args.
 class QueryParameterIndexError(ProgrammingError):
     pass
 
+
 # Some sort of parse error occured during query parameterization.
 class QueryParameterParseError(ProgrammingError):
     pass
-

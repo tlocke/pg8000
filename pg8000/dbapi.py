@@ -32,11 +32,17 @@ from __future__ import absolute_import
 __author__ = "Mathieu Fenniak"
 
 from . import util, errors, interface, types
-from .errors import *
+from .errors import ConnectionClosedError, ProgrammingError, \
+    CursorClosedError, CopyQueryOrTableRequiredError, DatabaseError, Error, \
+    Warning, InterfaceError, OperationalError, IntegrityError, InternalError, \
+    NotSupportedError
 import datetime
-import itertools
 import time
 import threading
+
+__all__ = [
+    DatabaseError, Error, Warning, InterfaceError, OperationalError,
+    IntegrityError, InternalError, NotSupportedError]
 
 ##
 # The DBAPI level supported.  Currently 2.0.  This property is part of the
@@ -62,10 +68,11 @@ paramstyle = 'pyformat'  # paramstyle can be changed to any DB-API paramstyle
 
 def require_open_cursor(fn):
     def _fn(self, *args, **kwargs):
-        if self.cursor == None:
+        if self.cursor is None:
             raise CursorClosedError()
         return fn(self, *args, **kwargs)
     return _fn
+
 
 ##
 # The class of object returned by the
@@ -102,7 +109,7 @@ class CursorWrapper(object):
     @property
     @require_open_cursor
     def rowcount(self):
-        if self._override_rowcount != None:
+        if self._override_rowcount is not None:
             return self._override_rowcount
         return self.cursor.row_count
 
@@ -117,12 +124,12 @@ class CursorWrapper(object):
     @property
     @require_open_cursor
     def description(self):
-        if self.cursor.row_description == None:
+        if self.cursor.row_description is None:
             return None
         columns = []
         for col in self.cursor.row_description:
-            columns.append((col["name"], col["type_oid"],
-                                None, None, None, None, None))
+            columns.append(
+                (col["name"], col["type_oid"], None, None, None, None, None))
         return columns
 
     ##
@@ -144,15 +151,15 @@ class CursorWrapper(object):
     @require_open_cursor
     def execute_notrans(self, operation, args=()):
         if self._connection.in_transaction:
-            raise ProgrammingError("Connection is in a transaction; "
-                            "please commit() or rollback() first.")
+            raise ProgrammingError(
+                "Connection is in a transaction; "
+                "please commit() or rollback() first.")
         self._override_rowcount = None
         if hasattr(args, 'keys'):
             query, param_fn = util.coerce_named(operation, args)
         else:
             query, param_fn = util.coerce_positional(operation, args)
         self._execute(query, param_fn(args))
-
 
     ##
     # Prepare a database operation and then execute it against all parameter
@@ -171,7 +178,8 @@ class CursorWrapper(object):
                 if hasattr(parameters, 'keys'):
                     query, param_fn = util.coerce_named(operation, parameters)
                 else:
-                    query, param_fn = util.coerce_positional(operation, parameters)
+                    query, param_fn = util.coerce_positional(
+                        operation, parameters)
 
             self._execute(query, param_fn(parameters))
             if self.cursor.row_count == -1 or self._override_rowcount == -1:
@@ -181,7 +189,8 @@ class CursorWrapper(object):
 
     def _execute(self, operation, args):
         try:
-            self.cursor.execute(operation, row_adapter=self._row_adapter, *args)
+            self.cursor.execute(
+                operation, row_adapter=self._row_adapter, *args)
         except ConnectionClosedError:
             # can't rollback in this case
             raise
@@ -192,8 +201,8 @@ class CursorWrapper(object):
             raise
 
     def copy_from(self, fileobj, table=None, sep='\t', null=None, query=None):
-        if query == None:
-            if table == None:
+        if query is None:
+            if table is None:
                 raise CopyQueryOrTableRequiredError()
             query = "COPY %s FROM stdout DELIMITER '%s'" % (table, sep)
             if null is not None:
@@ -201,8 +210,8 @@ class CursorWrapper(object):
         self.copy_execute(fileobj, query)
 
     def copy_to(self, fileobj, table=None, sep='\t', null=None, query=None):
-        if query == None:
-            if table == None:
+        if query is None:
+            if table is None:
                 raise CopyQueryOrTableRequiredError()
             query = "COPY %s TO stdout DELIMITER '%s'" % (table, sep)
             if null is not None:
@@ -222,7 +231,6 @@ class CursorWrapper(object):
             traceback.print_exc()
             self._connection.rollback()
             raise
-
 
     ##
     # Fetch the next row of a query result set, returning a single sequence, or
@@ -244,6 +252,7 @@ class CursorWrapper(object):
     def fetchmany(self, size=None):
         if size is None:
             size = self.arraysize
+
         def iter():
             for i, row in enumerate(self.cursor.iterate_tuple()):
                 yield row
@@ -272,7 +281,7 @@ class CursorWrapper(object):
 
     def next(self):
         retval = self.fetchone()
-        if retval == None:
+        if retval is None:
             raise StopIteration()
         return retval
 
@@ -293,12 +302,14 @@ class CursorWrapper(object):
     def isready(self):
         return self.cursor.isready()
 
+
 def require_open_connection(fn):
     def _fn(self, *args, **kwargs):
-        if self.conn == None:
+        if self.conn is None:
             raise ConnectionClosedError()
         return fn(self, *args, **kwargs)
     return _fn
+
 
 ##
 # The class of object returned by the {@link #connect connect method}.
@@ -402,6 +413,7 @@ class ConnectionWrapper(object):
     def server_version(self):
         return self.conn.server_version()
 
+
 ##
 # Creates a DBAPI 2.0 compatible interface to a PostgreSQL database.
 # <p>
@@ -439,29 +451,38 @@ class ConnectionWrapper(object):
 # @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
 #
 # @return An instance of {@link #ConnectionWrapper ConnectionWrapper}.
-def connect(user, host=None, unix_sock=None, port=5432, database=None,
-                    password=None, socket_timeout=60, ssl=False):
-    return ConnectionWrapper(user=user, host=host,
-            unix_sock=unix_sock, port=port, database=database,
-            password=password, socket_timeout=socket_timeout, ssl=ssl)
+def connect(
+        user, host=None, unix_sock=None, port=5432, database=None,
+        password=None, socket_timeout=60, ssl=False):
+    return ConnectionWrapper(
+        user=user, host=host, unix_sock=unix_sock, port=port,
+        database=database, password=password, socket_timeout=socket_timeout,
+        ssl=ssl)
+
 
 def Date(year, month, day):
     return datetime.date(year, month, day)
 
+
 def Time(hour, minute, second):
     return datetime.time(hour, minute, second)
+
 
 def Timestamp(year, month, day, hour, minute, second):
     return datetime.datetime(year, month, day, hour, minute, second)
 
+
 def DateFromTicks(ticks):
     return Date(*time.localtime(ticks)[:3])
+
 
 def TimeFromTicks(ticks):
     return Time(*time.localtime(ticks)[3:6])
 
+
 def TimestampFromTicks(ticks):
     return Timestamp(*time.localtime(ticks)[:6])
+
 
 ##
 # Construct an object holding binary data.
@@ -485,5 +506,3 @@ DATETIME = 1114
 
 # oid type_oid
 ROWID = 26
-
-
