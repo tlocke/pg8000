@@ -35,6 +35,8 @@ from struct import pack, unpack
 from .errors import NotSupportedError, ArrayDataParseError, InternalError, \
     ArrayContentEmptyError, ArrayContentNotHomogenousError, \
     ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError
+from itertools import islice
+import sys
 
 try:
     from pytz import utc
@@ -541,44 +543,33 @@ def interval_send(data, integer_datetimes, **kwargs):
 
 
 def array_recv(data, **kwargs):
-    dim, hasnull, typeoid = unpack("!iii", data[:12])
-    data = data[12:]
+    data = iter(data)
+
+    def take(n):
+        return bytes(islice(data, n))
+
+    dim, hasnull, typeoid = unpack("!iii", take(12))
 
     # get type conversion method for typeoid
     conversion = pg_types[typeoid]["bin_in"]
 
     # Read dimension info
-    dim_lengths = []
-    element_count = 1
-    for idim in range(dim):
-        dim_len, dim_lbound = unpack("!ii", data[:8])
-        data = data[8:]
-        dim_lengths.append(dim_len)
-        element_count *= dim_len
+    dim_lengths = [unpack("!ii", take(8))[0] for i in range(dim)]
 
     # Read all array values
     array_values = []
-    for i in range(element_count):
-        element_len, = unpack("!i", data[:4])
-        data = data[4:]
+    for dta in zip(*[data] * 4):
+        element_len, = unpack("!i", bytes(dta))
         if element_len == -1:
             array_values.append(None)
         else:
-            array_values.append(conversion(data[:element_len], **kwargs))
-            data = data[element_len:]
-    if data != b"":
-        raise ArrayDataParseError("unexpected data left over after array read")
+            array_values.append(conversion(take(element_len), **kwargs))
 
     # at this point, {{1,2,3},{4,5,6}}::int[][] looks like [1,2,3,4,5,6].
     # go through the dimensions and fix up the array contents to match
     # expected dimensions
-    for dim_length in reversed(dim_lengths[1:]):
-        val = []
-        while array_values:
-            val.append(array_values[:dim_length])
-            array_values = array_values[dim_length:]
-        array_values = val
-
+    for length in reversed(dim_lengths[1:]):
+        array_values = list(map(list, zip(*[iter(array_values)] * length)))
     return array_values
 
 

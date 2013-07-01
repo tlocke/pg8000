@@ -19,7 +19,8 @@ tests = (
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     for txt, name in tests:
-        query = "SELECT %s AS %s_column FROM (SELECT generate_series(1, 10000) AS id) AS tbl" % (txt, name)
+        query = "SELECT %s AS %s_column FROM " \
+            "(SELECT generate_series(1, 10000) AS id) AS tbl" % (txt, name)
         cursor = db.cursor()
         print("Beginning %s test..." % name)
         for i in range(1, 5):
