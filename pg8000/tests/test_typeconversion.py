@@ -4,6 +4,7 @@ import datetime
 import decimal
 import struct
 from .connection_settings import db_connect
+import pytz
 
 db = dbapi.connect(**db_connect)
 
@@ -157,56 +158,48 @@ class Tests(unittest.TestCase):
             datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, types.utc),
             "retrieved value match failed")
 
-    # Disabled until a Python 3 pytz is available.
-    #def testTimestampTzRoundtrip(self):
-    #    import pytz
-    #    mst = pytz.timezone("America/Edmonton")
-    #    v1 = mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
-    #    self.cursor.execute("SELECT %s as f1", (v1,))
-    #    retval = self.cursor.fetchall()
-    #    v2 = retval[0][0]
-    #    self.assert_(v2.tzinfo != None, "expected tzinfo on v2")
-    #    self.assert_(v1 == v2, "expected v1 == v2")
+    def testTimestampTzRoundtrip(self):
+        mst = pytz.timezone("America/Edmonton")
+        v1 = mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
+        self.cursor.execute("SELECT %s as f1", (v1,))
+        retval = self.cursor.fetchall()
+        v2 = retval[0][0]
+        self.assertNotEqual(v2.tzinfo, None)
+        self.assertEqual(v1, v2)
 
-    # Disabled until a Python 3 pytz is available.
-    #def testTimestampMismatch(self):
-    #    import pytz
-    #    mst = pytz.timezone("America/Edmonton")
-    #    self.cursor.execute("SET SESSION TIME ZONE 'America/Edmonton'")
-    #    try:
-    #        self.cursor.execute(
-    #         "CREATE TEMPORARY TABLE TestTz (f1 timestamp with time zone,
-    #         f2 timestamp without time zone)")
-    #        self.cursor.execute(
-    #        "INSERT INTO TestTz (f1, f2) VALUES (%s, %s)", (
-    #                # insert timestamp into timestamptz field (v1)
-    #                datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
-    #                # insert timestamptz into timestamp field (v2)
-    #                mst.localize(
-    #                   datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
-    #            )
-    #        )
-    #        self.cursor.execute("SELECT f1, f2 FROM TestTz")
-    #        retval = self.cursor.fetchall()
-    #
-    #        # when inserting a timestamp into a timestamptz field, postgresql
-    #        # assumes that it is in local time.  So the value that comes out
-    #        # will be the server's local time interpretation of v1.  We've set
-    #        # the server's TZ to MST, the time should be...
-    #        f1 = retval[0][0]
-    #        self.assert_(f1 ==
-    #            datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pytz.utc),
-    #            "retrieved value match failed")
-    #
-    #        # inserting the timestamptz into a timestamp field, pg8000
-    #        # converts the value into UTC, and then the PG server converts
-    #        # it into local time for insertion into the field.  When we query
-    #        # for it, we get the same time back, like the tz was dropped.
-    #        f2 = retval[0][1]
-    #        self.assert_(f2 == datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
-    #                "retrieved value match failed")
-    #    finally:
-    #        self.cursor.execute("SET SESSION TIME ZONE DEFAULT")
+    def testTimestampMismatch(self):
+        mst = pytz.timezone("America/Edmonton")
+        self.cursor.execute("SET SESSION TIME ZONE 'America/Edmonton'")
+        try:
+            self.cursor.execute(
+                "CREATE TEMPORARY TABLE TestTz (f1 timestamp with time zone, "
+                "f2 timestamp without time zone)")
+            self.cursor.execute(
+                "INSERT INTO TestTz (f1, f2) VALUES (%s, %s)", (
+                # insert timestamp into timestamptz field (v1)
+                datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
+                # insert timestamptz into timestamp field (v2)
+                mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))))
+            self.cursor.execute("SELECT f1, f2 FROM TestTz")
+            retval = self.cursor.fetchall()
+
+            # when inserting a timestamp into a timestamptz field, postgresql
+            # assumes that it is in local time.  So the value that comes out
+            # will be the server's local time interpretation of v1.  We've set
+            # the server's TZ to MST, the time should be...
+            f1 = retval[0][0]
+            self.assertEqual(
+                f1, datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pytz.utc))
+
+            # inserting the timestamptz into a timestamp field, pg8000
+            # converts the value into UTC, and then the PG server converts
+            # it into local time for insertion into the field.  When we query
+            # for it, we get the same time back, like the tz was dropped.
+            f2 = retval[0][1]
+            self.assertEqual(
+                f2, datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
+        finally:
+            self.cursor.execute("SET SESSION TIME ZONE DEFAULT")
 
     def testNameOut(self):
         # select a field that is of "name" type:
@@ -229,7 +222,7 @@ class Tests(unittest.TestCase):
         for num in ('5000', '50.34'):
             self.cursor.execute("SELECT " + num + "::numeric")
             retval = self.cursor.fetchall()
-            self.assertEquals(str(retval[0][0]), num)
+            self.assertEqual(str(retval[0][0]), num)
 
     def testInt2Out(self):
         self.cursor.execute("SELECT 5000::smallint")
