@@ -1131,7 +1131,12 @@ class Connection(object):
         else:
             # We've got row_desc that allows us to identify what we're going to
             # get back from this statement.
-            output_fc = [types.py_type_info(f) for f in row_desc.fields]
+            try:
+                output_fc = tuple(
+                    types.pg_types[f['type_oid']][0] for f in row_desc.fields)
+            except KeyError as e:
+                raise NotSupportedError(
+                    "type oid %r not mapped to py type" % str(e))
         self._send(
             Bind(
                 portal, statement, param_fc, params, output_fc,

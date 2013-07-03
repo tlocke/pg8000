@@ -32,11 +32,10 @@ __author__ = "Mathieu Fenniak"
 import datetime
 from decimal import Decimal
 from struct import pack, unpack
-from .errors import NotSupportedError, ArrayDataParseError, InternalError, \
+from .errors import NotSupportedError, InternalError, \
     ArrayContentEmptyError, ArrayContentNotHomogenousError, \
     ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError
 from itertools import islice
-import sys
 
 try:
     from pytz import utc
@@ -67,8 +66,8 @@ class Interval(object):
         self.months = months
 
     def _setMicroseconds(self, value):
-        if not isinstance(value, int) and not isinstance(value, long):
-            raise TypeError("microseconds must be an int or long")
+        if not isinstance(value, int):
+            raise TypeError("microseconds must be an int")
         elif not (min_int8 < value < max_int8):
             raise OverflowError(
                 "microseconds must be representable as a 64-bit integer")
@@ -76,8 +75,8 @@ class Interval(object):
             self._microseconds = value
 
     def _setDays(self, value):
-        if not isinstance(value, int) and not isinstance(value, long):
-            raise TypeError("days must be an int or long")
+        if not isinstance(value, int):
+            raise TypeError("days must be an int")
         elif not (min_int4 < value < max_int4):
             raise OverflowError(
                 "days must be representable as a 32-bit integer")
@@ -85,8 +84,8 @@ class Interval(object):
             self._days = value
 
     def _setMonths(self, value):
-        if not isinstance(value, int) and not isinstance(value, long):
-            raise TypeError("months must be an int or long")
+        if not isinstance(value, int):
+            raise TypeError("months must be an int")
         elif not (min_int4 < value < max_int4):
             raise OverflowError(
                 "months must be representable as a 32-bit integer")
@@ -170,40 +169,19 @@ def pg_value(value, fc, **kwargs):
     return func(value, **kwargs)
 
 
-def py_type_info(description):
-    type_oid = description['type_oid']
-    data = pg_types.get(type_oid)
-    if data is None:
-        raise NotSupportedError("type oid %r not mapped to py type" % type_oid)
-    # prefer bin, but go with whatever exists
-    if data.get("bin_in"):
-        format = 1
-    elif data.get("txt_in"):
-        format = 0
-    else:
-        raise InternalError("no conversion fuction for type oid %r" % type_oid)
-    return format
-
-
 def py_value(v, description, **kwargs):
     if v is None:
         # special case - NULL value
         return None
-    type_oid = description['type_oid']
-    format = description['format']
-    data = pg_types.get(type_oid)
-    if data is None:
-        raise NotSupportedError("type oid %r not supported" % type_oid)
-    if format == 0:
-        func = data.get("txt_in")
-    elif format == 1:
-        func = data.get("bin_in")
-    else:
-        raise NotSupportedError("format code %r not supported" % format)
-    if func is None:
-        raise NotSupportedError(
-            "data response format %r, type %r not supported" % (
-            format, type_oid))
+
+    try:
+        fc, func = pg_types[description['type_oid']]
+    except KeyError as e:
+        raise NotSupportedError("type oid %r not supported" % str(e))
+
+    fmt = description['format']
+    if fc != fmt:
+        raise NotSupportedError("format code %r not supported" % fmt)
     return func(v, **kwargs)
 
 
@@ -551,7 +529,7 @@ def array_recv(data, **kwargs):
     dim, hasnull, typeoid = unpack("!iii", take(12))
 
     # get type conversion method for typeoid
-    conversion = pg_types[typeoid]["bin_in"]
+    conversion = pg_types[typeoid][1]
 
     # Read dimension info
     dim_lengths = [unpack("!ii", take(8))[0] for i in range(dim)]
@@ -739,37 +717,40 @@ py_array_types = {
     Decimal: 1231,  # NUMERIC[]
 }
 
+FC_TEXT = 0
+FC_BINARY = 1
+
 pg_types = {
-    16: {"bin_in": boolrecv},
-    17: {"bin_in": bytearecv},
-    19: {"bin_in": varcharin},  # name type
-    20: {"bin_in": int8recv},
-    21: {"bin_in": int2recv},
-    23: {"bin_in": int4recv},
-    25: {"bin_in": varcharin},  # TEXT type
-    26: {"txt_in": numeric_in},  # oid type
-    700: {"bin_in": float4recv},
-    701: {"bin_in": float8recv},
-    829: {"txt_in": varcharin},  # MACADDR type
-    1000: {"bin_in": array_recv},  # BOOL[]
-    1003: {"bin_in": array_recv},  # NAME[]
-    1005: {"bin_in": array_recv},  # INT2[]
-    1007: {"bin_in": array_recv},  # INT4[]
-    1009: {"bin_in": array_recv},  # TEXT[]
-    1014: {"bin_in": array_recv},  # CHAR[]
-    1015: {"bin_in": array_recv},  # VARCHAR[]
-    1016: {"bin_in": array_recv},  # INT8[]
-    1021: {"bin_in": array_recv},  # FLOAT4[]
-    1022: {"bin_in": array_recv},  # FLOAT8[]
-    1042: {"bin_in": varcharin},  # CHAR type
-    1043: {"bin_in": varcharin},  # VARCHAR type
-    1082: {"txt_in": date_in},
-    1083: {"txt_in": time_in},
-    1114: {"bin_in": timestamp_recv},
-    1184: {"bin_in": timestamptz_recv},  # timestamp w/ tz
-    1186: {"bin_in": interval_recv},
-    1231: {"bin_in": array_recv},  # NUMERIC[]
-    1263: {"bin_in": array_recv},  # cstring[]
-    1700: {"bin_in": numeric_recv},
-    2275: {"bin_in": varcharin},  # cstring
+    16: (FC_BINARY, boolrecv),
+    17: (FC_BINARY, bytearecv),
+    19: (FC_BINARY, varcharin),  # name type
+    20: (FC_BINARY, int8recv),
+    21: (FC_BINARY, int2recv),
+    23: (FC_BINARY, int4recv),
+    25: (FC_BINARY, varcharin),  # TEXT type
+    26: (FC_TEXT, numeric_in),  # oid type
+    700: (FC_BINARY, float4recv),
+    701: (FC_BINARY, float8recv),
+    829: (FC_TEXT, varcharin),  # MACADDR type
+    1000: (FC_BINARY, array_recv),  # BOOL[]
+    1003: (FC_BINARY, array_recv),  # NAME[]
+    1005: (FC_BINARY, array_recv),  # INT2[]
+    1007: (FC_BINARY, array_recv),  # INT4[]
+    1009: (FC_BINARY, array_recv),  # TEXT[]
+    1014: (FC_BINARY, array_recv),  # CHAR[]
+    1015: (FC_BINARY, array_recv),  # VARCHAR[]
+    1016: (FC_BINARY, array_recv),  # INT8[]
+    1021: (FC_BINARY, array_recv),  # FLOAT4[]
+    1022: (FC_BINARY, array_recv),  # FLOAT8[]
+    1042: (FC_BINARY, varcharin),  # CHAR type
+    1043: (FC_BINARY, varcharin),  # VARCHAR type
+    1082: (FC_TEXT, date_in),
+    1083: (FC_TEXT, time_in),
+    1114: (FC_BINARY, timestamp_recv),
+    1184: (FC_BINARY, timestamptz_recv),  # timestamp w/ tz
+    1186: (FC_BINARY, interval_recv),
+    1231: (FC_BINARY, array_recv),  # NUMERIC[]
+    1263: (FC_BINARY, array_recv),  # cstring[]
+    1700: (FC_BINARY, numeric_recv),
+    2275: (FC_BINARY, varcharin),  # cstring
 }

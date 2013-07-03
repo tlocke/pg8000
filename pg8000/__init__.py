@@ -35,4 +35,4 @@ pg8000_dbapi = DBAPI
 from .errors import Warning, DatabaseError
 from .types import Bytea
 
-__all__ = [Warning, Bytea]
+__all__ = [Warning, Bytea, DatabaseError]
