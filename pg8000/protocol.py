@@ -40,6 +40,7 @@ from .errors import CopyQueryWithoutStreamError, InterfaceError, \
     InternalError, ProgrammingError, NotSupportedError
 from .util import MulticastDelegate
 from . import types
+from pg8000 import i_pack, i_unpack, h_pack, h_unpack, ii_pack, ihihih_unpack
 
 
 ##
@@ -56,7 +57,7 @@ class SSLRequest(object):
     # Int32(8) - Message length, including self.<br>
     # Int32(80877103) - The SSL request code.<br>
     def serialize(self):
-        return struct.pack("!ii", 8, 80877103)
+        return ii_pack(8, 80877103)
 
 
 ##
@@ -77,7 +78,7 @@ class StartupMessage(object):
     def serialize(self):
         protocol = 196608
         val = bytearray()
-        val.extend(struct.pack("!i", protocol))
+        val.extend(i_pack(protocol))
         val.extend(b"user\x00")
         val.extend(self.user.encode("ascii"))
         val.append(0)
@@ -86,7 +87,7 @@ class StartupMessage(object):
             val.extend(self.database.encode("ascii"))
             val.append(0)
         val.append(0)
-        val = struct.pack("!i", len(val) + 4) + val
+        val = i_pack(len(val) + 4) + val
         return val
 
 
@@ -124,15 +125,15 @@ class Parse(object):
         val.append(0)
         val.extend(self.qs)
         val.append(0)
-        val.extend(struct.pack("!h", len(self.type_oids)))
+        val.extend(h_pack(len(self.type_oids)))
         for oid in self.type_oids:
             # Parse message doesn't seem to handle the -1 type_oid for NULL
             # values that other messages handle.  So we'll provide type_oid
             # 705, the PG "unknown" type.
             if oid == -1:
                 oid = 705
-            val.extend(struct.pack("!i", oid))
-        val[0:0] = struct.pack("!i", len(val) + 4)
+            val.extend(i_pack(oid))
+        val[0:0] = i_pack(len(val) + 4)
         val[0:0] = b"P"
         return val
 
@@ -195,22 +196,22 @@ class Bind(object):
         retval = BytesIO()
         retval.write(self.portal.encode("ascii") + b"\x00")
         retval.write(self.ps.encode("ascii") + b"\x00")
-        retval.write(struct.pack("!h", len(self.in_fc)))
+        retval.write(h_pack(len(self.in_fc)))
         for fc in self.in_fc:
-            retval.write(struct.pack("!h", fc))
-        retval.write(struct.pack("!h", len(self.params)))
+            retval.write(h_pack(fc))
+        retval.write(h_pack(len(self.params)))
         for param in self.params:
             if param is None:
                 # special case, NULL value
-                retval.write(struct.pack("!i", -1))
+                retval.write(i_pack(-1))
             else:
-                retval.write(struct.pack("!i", len(param)))
+                retval.write(i_pack(len(param)))
                 retval.write(param)
-        retval.write(struct.pack("!h", len(self.out_fc)))
+        retval.write(h_pack(len(self.out_fc)))
         for fc in self.out_fc:
-            retval.write(struct.pack("!h", fc))
+            retval.write(h_pack(fc))
         val = retval.getvalue()
-        val = struct.pack("!i", len(val) + 4) + val
+        val = i_pack(len(val) + 4) + val
         val = b"B" + val
         return val
 
@@ -235,7 +236,7 @@ class Close(object):
     # String - The name of the item to close.
     def serialize(self):
         val = self.typ + self.name.encode("ascii") + b"\x00"
-        val = struct.pack("!i", len(val) + 4) + val
+        val = i_pack(len(val) + 4) + val
         val = b"C" + val
         return val
 
@@ -282,7 +283,7 @@ class Describe(object):
         val.extend(self.typ)
         val.extend(self.name.encode("ascii"))
         val.append(0)
-        val[0:0] = struct.pack("!i", len(val) + 4)
+        val[0:0] = i_pack(len(val) + 4)
         val[0:0] = b"D"
         return val
 
@@ -356,7 +357,7 @@ class PasswordMessage(object):
         val = bytearray()
         val.extend(self.pwd)
         val.append(0)
-        val[0:0] = struct.pack("!i", len(val) + 4)
+        val[0:0] = i_pack(len(val) + 4)
         val[0:0] = b"p"
         return val
 
@@ -383,8 +384,8 @@ class Execute(object):
         val = bytearray()
         val.extend(self.portal.encode("ascii"))
         val.append(0)
-        val.extend(struct.pack("!i", self.row_count))
-        val[0:0] = struct.pack("!i", len(val) + 4)
+        val.extend(i_pack(self.row_count))
+        val[0:0] = i_pack(len(val) + 4)
         val[0:0] = b"E"
         return val
 
@@ -427,7 +428,7 @@ class AuthenticationRequest(object):
     # Some authentication messages have additional data following the
     # authentication code.  That data is documented in the appropriate class.
     def createFromData(data):
-        ident = struct.unpack("!i", data[:4])[0]
+        ident = i_unpack(data[:4])[0]
         klass = authentication_codes.get(ident, None)
         if klass is not None:
             return klass(data[4:])
@@ -753,7 +754,7 @@ class NotificationResponse(object):
             self.backend_pid, self.condition, self.additional_info)
 
     def createFromData(data):
-        backend_pid = struct.unpack("!i", data[:4])[0]
+        backend_pid = i_unpack(data[:4])[0]
         data = data[4:]
         null = data.find(b"\x00")
         condition = data[:null].decode("ascii")
@@ -769,7 +770,7 @@ class ParameterDescription(object):
         self.type_oids = type_oids
 
     def createFromData(data):
-        count = struct.unpack("!h", data[:2])[0]
+        count = h_unpack(data[:2])[0]
         type_oids = struct.unpack("!" + "i" * count, data[2:])
         return ParameterDescription(type_oids)
     createFromData = staticmethod(createFromData)
@@ -780,7 +781,7 @@ class RowDescription(object):
         self.fields = fields
 
     def createFromData(data):
-        count = struct.unpack("!h", data[:2])[0]
+        count = h_unpack(data[:2])[0]
         data = data[2:]
         fields = []
         for i in range(count):
@@ -789,7 +790,7 @@ class RowDescription(object):
             data = data[null + 1:]
             field["table_oid"], field["column_attrnum"], field["type_oid"], \
                 field["type_size"], field["type_modifier"], field["format"] = \
-                struct.unpack("!ihihih", data[:18])
+                ihihih_unpack(data[:18])
             data = data[18:]
             fields.append(field)
         return RowDescription(fields)
@@ -822,11 +823,11 @@ class DataRow(object):
         self.fields = fields
 
     def createFromData(data):
-        count = struct.unpack("!h", data[:2])[0]
+        count = h_unpack(data[:2])[0]
         data = data[2:]
         fields = []
         for i in range(count):
-            val_len = struct.unpack("!i", data[:4])[0]
+            val_len = i_unpack(data[:4])[0]
             data = data[4:]
             if val_len == -1:
                 fields.append(None)
@@ -1048,7 +1049,7 @@ class Connection(object):
         assert self._sock_lock.locked()
         bytes = self._read_bytes(5)
         message_code = bytes[0]
-        data_len = struct.unpack("!i", bytes[1:])[0] - 4
+        data_len = i_unpack(bytes[1:])[0] - 4
         bytes = self._read_bytes(data_len)
         assert len(bytes) == data_len
         msg = message_types[message_code].createFromData(bytes)
@@ -1235,16 +1236,11 @@ class Connection(object):
 
     def _fetch_datarow(self, msg, rows, row_desc):
         rows.append(
-            [
-                types.py_value(
-                    msg.fields[i],
-                    row_desc.fields[i],
-                    client_encoding=self._client_encoding,
-                    integer_datetimes=self._integer_datetimes,
-                )
-                for i in range(len(msg.fields))
-            ]
-        )
+            [types.py_value(
+                msg.fields[i], row_desc.fields[i],
+                client_encoding=self._client_encoding,
+                integer_datetimes=self._integer_datetimes,)
+                for i in range(len(msg.fields))])
 
     def _fetch_commandcomplete(self, msg, portal):
         self._send(ClosePortal(portal))

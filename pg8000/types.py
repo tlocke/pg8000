@@ -31,11 +31,14 @@ __author__ = "Mathieu Fenniak"
 
 import datetime
 from decimal import Decimal
-from struct import pack, unpack
+from struct import unpack, Struct
 from .errors import NotSupportedError, InternalError, \
     ArrayContentEmptyError, ArrayContentNotHomogenousError, \
     ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError
 from itertools import islice
+from pg8000 import h_pack, h_unpack, i_pack, i_unpack, q_pack, q_unpack, \
+    f_unpack, d_pack, d_unpack, hhhh_pack, hhhh_unpack, qii_pack, qii_unpack, \
+    dii_pack, dii_unpack, ii_pack, ii_unpack, iii_pack, iii_unpack
 
 try:
     from pytz import utc
@@ -53,6 +56,10 @@ except ImportError:
         def dst(self, dt):
             return ZERO
     utc = UTC()
+
+bool_struct = Struct("?")
+bool_unpack = bool_struct.unpack
+bool_pack = bool_struct.pack
 
 
 class Bytea(bytes):
@@ -186,11 +193,11 @@ def py_value(v, description, **kwargs):
 
 
 def boolrecv(data, **kwargs):
-    return unpack("?", data)[0]
+    return bool_unpack(data)[0]
 
 
 def boolsend(v, **kwargs):
-    return pack("?", v)
+    return bool_pack(v)
 
 min_int2, max_int2 = -2 ** 15, 2 ** 15
 min_int4, max_int4 = -2 ** 31, 2 ** 31
@@ -209,39 +216,39 @@ def int_inspect(value):
 
 
 def int2recv(data, **kwargs):
-    return unpack("!h", data)[0]
+    return h_unpack(data)[0]
 
 
 def int2send(v, **kwargs):
-    return pack("!h", v)
+    return h_pack(v)
 
 
 def int4recv(data, **kwargs):
-    return unpack("!i", data)[0]
+    return i_unpack(data)[0]
 
 
 def int4send(v, **kwargs):
-    return pack("!i", v)
+    return i_pack(v)
 
 
 def int8recv(data, **kwargs):
-    return unpack("!q", data)[0]
+    return q_unpack(data)[0]
 
 
 def int8send(v, **kwargs):
-    return pack("!q", v)
+    return q_pack(v)
 
 
 def float4recv(data, **kwargs):
-    return unpack("!f", data)[0]
+    return f_unpack(data)[0]
 
 
 def float8recv(data, **kwargs):
-    return unpack("!d", data)[0]
+    return d_unpack(data)[0]
 
 
 def float8send(v, **kwargs):
-    return pack("!d", v)
+    return d_pack(v)
 
 
 def datetime_inspect(value):
@@ -256,12 +263,12 @@ def datetime_inspect(value):
 def timestamp_recv(data, integer_datetimes, **kwargs):
     if integer_datetimes:
         # data is 64-bit integer representing milliseconds since 2000-01-01
-        val = unpack("!q", data)[0]
+        val = q_unpack(data)[0]
         return datetime.datetime(2000, 1, 1) + \
             datetime.timedelta(microseconds=val)
     else:
         # data is double-precision float representing seconds since 2000-01-01
-        val = unpack("!d", data)[0]
+        val = d_unpack(data)[0]
         return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds=val)
 
 
@@ -278,10 +285,10 @@ def timestamp_send(v, integer_datetimes, **kwargs):
         delta.days * 86400000000
     if integer_datetimes:
         # data is 64-bit integer representing milliseconds since 2000-01-01
-        return pack("!q", val)
+        return q_pack(val)
     else:
         # data is double-precision float representing seconds since 2000-01-01
-        return pack("!d", val / 1000.0 / 1000.0)
+        return d_pack(val / 1000.0 / 1000.0)
 
 
 def timestamptz_send(v, **kwargs):
@@ -321,7 +328,7 @@ def numeric_in(data, **kwargs):
 
 
 def numeric_recv(data, **kwargs):
-    num_digits, weight, sign, scale = unpack("!hhhh", data[:8])
+    num_digits, weight, sign, scale = hhhh_unpack(data[:8])
     pos_weight = max(0, weight) + 1
     digits = ['0000'] * abs(min(weight, 0)) + \
         [str(d).zfill(4) for d in unpack("!" + ("h" * num_digits), data[8:])] \
@@ -387,9 +394,9 @@ def numeric_send(d, **kwargs):
     digits = b''
     while ndigits_ > 0:
         # ifdef DEC_DIGITS == 4
-        digits += pack(
-            "!h", ((decdigits[i] * 10 + decdigits[i + 1]) * 10 +
-            decdigits[i + 2]) * 10 + decdigits[i + 3])
+        digits += h_pack(
+            ((decdigits[i] * 10 + decdigits[i + 1]) * 10 + decdigits[i + 2])
+            * 10 + decdigits[i + 3])
         ndigits_ -= 1
         i += DEC_DIGITS
 
@@ -416,7 +423,7 @@ def numeric_send(d, **kwargs):
         weight = 0
     # ----------
 
-    retval = pack("!hhhh", ndigits, weight, sign, dscale) + digits
+    retval = hhhh_pack(ndigits, weight, sign, dscale) + digits
     return retval
 
 
@@ -504,20 +511,19 @@ def bytearecv(data, **kwargs):
 
 def interval_recv(data, integer_datetimes, **kwargs):
     if integer_datetimes:
-        microseconds, days, months = unpack("!qii", data)
+        microseconds, days, months = qii_unpack(data)
     else:
-        seconds, days, months = unpack("!dii", data)
+        seconds, days, months = dii_unpack(data)
         microseconds = int(seconds * 1000 * 1000)
     return Interval(microseconds, days, months)
 
 
 def interval_send(data, integer_datetimes, **kwargs):
     if integer_datetimes:
-        return pack("!qii", data.microseconds, data.days, data.months)
+        return qii_pack(data.microseconds, data.days, data.months)
     else:
-        return pack(
-            "!dii", data.microseconds / 1000.0 / 1000.0, data.days,
-            data.months)
+        return dii_pack(
+            data.microseconds / 1000.0 / 1000.0, data.days, data.months)
 
 
 def array_recv(data, **kwargs):
@@ -526,18 +532,18 @@ def array_recv(data, **kwargs):
     def take(n):
         return bytes(islice(data, n))
 
-    dim, hasnull, typeoid = unpack("!iii", take(12))
+    dim, hasnull, typeoid = iii_unpack(take(12))
 
     # get type conversion method for typeoid
     conversion = pg_types[typeoid][1]
 
     # Read dimension info
-    dim_lengths = [unpack("!ii", take(8))[0] for i in range(dim)]
+    dim_lengths = [ii_unpack(take(8))[0] for i in range(dim)]
 
     # Read all array values
     array_values = []
     for dta in zip(*[data] * 4):
-        element_len, = unpack("!i", bytes(dta))
+        element_len, = i_unpack(bytes(dta))
         if element_len == -1:
             array_values.append(None)
         else:
@@ -679,15 +685,15 @@ class array_send(object):
     def __call__(self, arr, **kwargs):
         has_null = array_has_null(arr)
         dim_lengths = array_dim_lengths(arr)
-        data = pack("!iii", len(dim_lengths), has_null, self.typeoid)
+        data = iii_pack(len(dim_lengths), has_null, self.typeoid)
         for i in dim_lengths:
-            data += pack("!ii", i, 1)
+            data += ii_pack(i, 1)
         for v in array_flatten(arr):
             if v is None:
-                data += pack("!i", -1)
+                data += i_pack(-1)
             else:
                 inner_data = self.bin_out_func(v, **kwargs)
-                data += pack("!i", len(inner_data))
+                data += i_pack(len(inner_data))
                 data += inner_data
         return data
 
