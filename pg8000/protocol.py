@@ -999,8 +999,7 @@ class Connection(object):
         elif unix_sock is not None:
             self._sock.connect(unix_sock)
         if ssl:
-            self._sock_lock.acquire()
-            try:
+            with self._sock_lock:
                 self._send(SSLRequest())
                 self._flush()
                 resp = self._sock.recv(1)
@@ -1008,8 +1007,6 @@ class Connection(object):
                     self._sock = sslmodule.wrap_socket(self._sock)
                 else:
                     raise InterfaceError("server refuses SSL")
-            finally:
-                self._sock_lock.release()
         else:
             # settimeout causes ssl failure, on windows.  Python bug 1462352.
             self._sock.settimeout(socket_timeout)
@@ -1307,16 +1304,13 @@ class Connection(object):
         return self._sock.fileno()
 
     def isready(self):
-        self._sock_lock.acquire()
-        try:
+        with self._sock_lock:
             rlst, _wlst, _xlst = select.select([self], [], [], 0)
             if not rlst:
                 return False
 
             self._sync()
             return True
-        finally:
-            self._sock_lock.release()
 
 message_types = {
     b"N": NoticeResponse,
