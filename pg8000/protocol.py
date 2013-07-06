@@ -41,7 +41,7 @@ from .errors import CopyQueryWithoutStreamError, InterfaceError, \
 from .util import MulticastDelegate
 from . import types
 from pg8000 import i_pack, i_unpack, h_pack, h_unpack, ii_pack, \
-    ihihih_unpack, ci_unpack
+    ihihih_unpack, ci_unpack, bh_unpack
 
 
 ##
@@ -849,7 +849,7 @@ class CopyData(object):
     createFromData = staticmethod(createFromData)
 
     def serialize(self):
-        return b'd' + struct.pack('!i', len(self.data) + 4) + self.data
+        return b'd' + i_pack(len(self.data) + 4) + self.data
 
 
 class CopyDone(object):
@@ -877,7 +877,7 @@ class CopyOutResponse(object):
         self.column_formats = column_formats
 
     def createFromData(data):
-        is_binary, num_cols = struct.unpack('!bh', data[:3])
+        is_binary, num_cols = bh_unpack(data[:3])
         column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
         return CopyOutResponse(is_binary, column_formats)
 
@@ -893,7 +893,7 @@ class CopyInResponse(object):
         self.column_formats = column_formats
 
     def createFromData(data):
-        is_binary, num_cols = struct.unpack('!bh', data[:3])
+        is_binary, num_cols = bh_unpack(data[:3])
         column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
         return CopyInResponse(is_binary, column_formats)
 
@@ -983,10 +983,6 @@ class Connection(object):
             ssl=False):
         self._client_encoding = "ascii"
         self._integer_datetimes = False
-        self._sock_buf = ""
-        self._sock_buf_pos = 0
-        self._send_sock_buf = []
-        self._block_size = 8192
         self._sock_lock = threading.Lock()
         if unix_sock is None and host is not None:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1035,16 +1031,11 @@ class Connection(object):
 
     def _send(self, msg):
         assert self._sock_lock.locked()
-        data = msg.serialize()
-        if not isinstance(data, bytes) and not isinstance(data, bytearray):
-            raise TypeError("bytes data expected, got %s instead" % data)
-        #print("_send(%r, %s)" % (msg, repr(data)))
-        self._sock.write(data)
+        self._sock.write(msg.serialize())
 
     def _flush(self):
         assert self._sock_lock.locked()
         self._sock.flush()
-
 
     def authenticate(self, user, **kwargs):
         self.verifyState("noauth")
@@ -1163,7 +1154,7 @@ class Connection(object):
         if fileobj is None:
             raise CopyQueryWithoutStreamError()
         while True:
-            data = fileobj.read(self._block_size)
+            data = fileobj.read(8192)
             if not data:
                 break
             self._send(CopyData(data))
