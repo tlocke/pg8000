@@ -31,7 +31,7 @@ __author__ = "Mathieu Fenniak"
 
 import datetime
 from decimal import Decimal
-from struct import unpack, Struct
+from struct import unpack_from, Struct
 from .errors import NotSupportedError, InternalError, \
     ArrayContentEmptyError, ArrayContentNotHomogenousError, \
     ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError
@@ -298,10 +298,7 @@ def timestamptz_send(v, **kwargs):
 
 
 def date_in(data, **kwargs):
-    year = int(data[0:4])
-    month = int(data[5:7])
-    day = int(data[8:10])
-    return datetime.date(year, month, day)
+    return datetime.date(int(data[0:4]), int(data[5:7]), int(data[8:10]))
 
 
 def date_out(v, **kwargs):
@@ -328,10 +325,11 @@ def numeric_in(data, **kwargs):
 
 
 def numeric_recv(data, **kwargs):
-    num_digits, weight, sign, scale = hhhh_unpack(data[:8])
+    num_digits, weight, sign, scale = hhhh_unpack(data)
     pos_weight = max(0, weight) + 1
     digits = ['0000'] * abs(min(weight, 0)) + \
-        [str(d).zfill(4) for d in unpack("!" + ("h" * num_digits), data[8:])] \
+        [str(d).zfill(4) for d in unpack_from(
+        "!" + "h" * num_digits, data, 8)] \
         + ['0000'] * (pos_weight - num_digits)
     return Decimal(
         ''.join(['-' if sign else '', ''.join(digits[:pos_weight]), '.',
@@ -527,34 +525,37 @@ def interval_send(data, integer_datetimes, **kwargs):
 
 
 def array_recv(data, **kwargs):
-    data = iter(data)
+    idx = 0
 
-    def take(n):
-        return bytes(islice(data, n))
-
-    dim, hasnull, typeoid = iii_unpack(take(12))
+    dim, hasnull, typeoid = iii_unpack(data)
+    idx += 12
 
     # get type conversion method for typeoid
     conversion = pg_types[typeoid][1]
 
     # Read dimension info
-    dim_lengths = [ii_unpack(take(8))[0] for i in range(dim)]
+    dim_lengths = []
+    for i in range(dim):
+        dim_lengths.append(ii_unpack(data, idx)[0])
+        idx += 8
 
     # Read all array values
-    array_values = []
-    for dta in zip(*[data] * 4):
-        element_len, = i_unpack(bytes(dta))
+    values = []
+    while idx < len(data):
+        element_len, = i_unpack(data, idx)
+        idx += 4
         if element_len == -1:
-            array_values.append(None)
+            values.append(None)
         else:
-            array_values.append(conversion(take(element_len), **kwargs))
+            values.append(conversion(data[idx:idx + element_len], **kwargs))
+            idx += element_len
 
     # at this point, {{1,2,3},{4,5,6}}::int[][] looks like [1,2,3,4,5,6].
     # go through the dimensions and fix up the array contents to match
     # expected dimensions
     for length in reversed(dim_lengths[1:]):
-        array_values = list(map(list, zip(*[iter(array_values)] * length)))
-    return array_values
+        values = list(map(list, zip(*[iter(values)] * length)))
+    return values
 
 
 def array_inspect(value):

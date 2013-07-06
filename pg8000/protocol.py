@@ -32,15 +32,15 @@ __author__ = "Mathieu Fenniak"
 import socket
 import ssl as sslmodule
 import threading
-import struct
+from struct import unpack_from
 import hashlib
 from io import BytesIO
-from .errors import CopyQueryWithoutStreamError, InterfaceError, \
+from pg8000.errors import CopyQueryWithoutStreamError, InterfaceError, \
     InternalError, ProgrammingError, NotSupportedError
-from .util import MulticastDelegate
-from . import types
-from pg8000 import i_pack, i_unpack, h_pack, h_unpack, ii_pack, \
-    ihihih_unpack, ci_unpack, bh_unpack
+from pg8000.util import MulticastDelegate
+from pg8000 import types
+from pg8000 import i_pack, i_unpack, h_pack, h_unpack, ii_pack, ii_unpack, \
+    ihihih_unpack, ci_unpack, bh_unpack, cccc_unpack
 
 
 ##
@@ -429,13 +429,11 @@ class AuthenticationRequest(object):
     # authentication code.  That data is documented in the appropriate class.
     @staticmethod
     def createFromData(data):
-        ident = i_unpack(data[:4])[0]
-        klass = authentication_codes.get(ident, None)
-        if klass is not None:
-            return klass(data[4:])
-        else:
+        try:
+            return authentication_codes[i_unpack(data)[0]](data[4:])
+        except KeyError as e:
             raise NotSupportedError(
-                "authentication method %r not supported" % (ident,))
+                "authentication method {0} not supported".format(e))
 
     def ok(self, conn, user, **kwargs):
         raise InternalError(
@@ -461,7 +459,7 @@ class AuthenticationMD5Password(AuthenticationRequest):
     # Additional message data:
     #  Byte4 - Hash salt.
     def __init__(self, data):
-        self.salt = b"".join(struct.unpack("4c", data))
+        self.salt = b"".join(cccc_unpack(data))
 
     def ok(self, conn, user, password=None, **kwargs):
         if password is None:
@@ -512,9 +510,8 @@ class ParameterStatus(object):
     # String - Runtime parameter value.
     @classmethod
     def createFromData(cls, data):
-        key = data[:data.find(b"\x00")]
-        value = data[data.find(b"\x00") + 1:-1]
-        return cls(key, value)
+        pos = data.find(b"\x00") 
+        return cls(data[:pos], data[pos + 1:-1])
 
 
 ##
@@ -534,7 +531,7 @@ class BackendKeyData(object):
     # Int32 - Secret key.
     @classmethod
     def createFromData(cls, data):
-        process_id, secret_key = struct.unpack("!2i", data)
+        process_id, secret_key = ii_unpack(data)
         return cls(process_id, secret_key)
 
 
@@ -755,13 +752,13 @@ class NotificationResponse(object):
 
     @classmethod
     def createFromData(cls, data):
-        backend_pid = i_unpack(data[:4])[0]
-        data = data[4:]
-        null = data.find(b"\x00")
-        condition = data[:null].decode("ascii")
-        data = data[null + 1:]
-        null = data.find(b"\x00")
-        additional_info = data[:null]
+        backend_pid = i_unpack(data)[0]
+        idx = 4
+        null = data.find(b"\x00", idx) - idx
+        condition = data[idx:idx + null].decode("ascii")
+        idx += null + 1
+        null = data.find(b"\x00", idx) - idx
+        additional_info = data[idx:idx + null]
         return cls(backend_pid, condition, additional_info)
 
 
@@ -771,8 +768,8 @@ class ParameterDescription(object):
 
     @classmethod
     def createFromData(cls, data):
-        count = h_unpack(data[:2])[0]
-        type_oids = struct.unpack("!" + "i" * count, data[2:])
+        count = h_unpack(data)[0]
+        type_oids = unpack_from("!" + "i" * count, data, 2)
         return cls(type_oids)
 
 
@@ -782,17 +779,17 @@ class RowDescription(object):
 
     @classmethod
     def createFromData(cls, data):
-        count = h_unpack(data[:2])[0]
-        data = data[2:]
+        count = h_unpack(data)[0]
+        idx = 2
         fields = []
         for i in range(count):
-            null = data.find(b"\x00")
-            field = {"name": data[:null]}
-            data = data[null + 1:]
+            null = data.find(b"\x00", idx) - idx
+            field = {"name": data[idx:idx + null]}
+            idx += null + 1
             field["table_oid"], field["column_attrnum"], field["type_oid"], \
                 field["type_size"], field["type_modifier"], field["format"] = \
-                ihihih_unpack(data[:18])
-            data = data[18:]
+                ihihih_unpack(data, idx)
+            idx += 18
             fields.append(field)
         return cls(fields)
 
@@ -805,7 +802,8 @@ class CommandComplete(object):
 
     @classmethod
     def createFromData(cls, data):
-        values = data[:-1].split(b" ")
+        data = data[:-1]
+        values = data.split(b" ")
         args = {}
         args['command'] = values[0]
         if args['command'] in (
@@ -814,7 +812,7 @@ class CommandComplete(object):
             if args['command'] == "INSERT":
                 args['oid'] = int(values[1])
         else:
-            args['command'] = data[:-1]
+            args['command'] = data
         return cls(**args)
 
 
@@ -824,17 +822,17 @@ class DataRow(object):
 
     @classmethod
     def createFromData(cls, data):
-        count = h_unpack(data[:2])[0]
-        data = data[2:]
+        count = h_unpack(data)[0]
+        data_idx = 2
         fields = []
         for i in range(count):
-            val_len = i_unpack(data[:4])[0]
-            data = data[4:]
+            val_len = i_unpack(data, data_idx)[0]
+            data_idx += 4
             if val_len == -1:
                 fields.append(None)
             else:
-                fields.append(data[:val_len])
-                data = data[val_len:]
+                fields.append(data[data_idx:data_idx + val_len])
+                data_idx += val_len
         return cls(fields)
 
 
@@ -876,8 +874,8 @@ class CopyOutResponse(object):
 
     @classmethod
     def createFromData(cls, data):
-        is_binary, num_cols = bh_unpack(data[:3])
-        column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
+        is_binary, num_cols = bh_unpack(data)
+        column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
         return cls(is_binary, column_formats)
 
 
@@ -891,8 +889,8 @@ class CopyInResponse(object):
 
     @classmethod
     def createFromData(cls, data):
-        is_binary, num_cols = bh_unpack(data[:3])
-        column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
+        is_binary, num_cols = bh_unpack(data)
+        column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
         return cls(is_binary, column_formats)
 
 
@@ -917,7 +915,7 @@ class MessageReader(object):
 
     def return_value(self, value):
         self._retval = value
-
+    
     def handle_messages(self):
         exc = None
         read_bytes = self._conn._sock.read
