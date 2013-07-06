@@ -31,7 +31,6 @@ __author__ = "Mathieu Fenniak"
 
 import socket
 import ssl as sslmodule
-import select
 import threading
 import struct
 import hashlib
@@ -1299,18 +1298,6 @@ class Connection(object):
     def handleNotificationResponse(self, msg):
         self.NotificationReceived(msg)
 
-    def fileno(self):
-        # This should be safe to do without a lock
-        return self._sock.fileno()
-
-    def isready(self):
-        with self._sock_lock:
-            rlst, _wlst, _xlst = select.select([self], [], [], 0)
-            if not rlst:
-                return False
-
-            self._sync()
-            return True
 
 message_types = {
     b"N": NoticeResponse,

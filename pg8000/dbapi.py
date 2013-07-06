@@ -463,14 +463,6 @@ class CursorWrapper(object):
     def setoutputsize(self, size, column=None):
         pass
 
-    @require_open_cursor
-    def fileno(self):
-        return self.cursor.fileno()
-
-    @require_open_cursor
-    def isready(self):
-        return self.cursor.isready()
-
 
 def require_open_connection(fn):
     def _fn(self, *args, **kwargs):
