@@ -40,7 +40,8 @@ from .errors import CopyQueryWithoutStreamError, InterfaceError, \
     InternalError, ProgrammingError, NotSupportedError
 from .util import MulticastDelegate
 from . import types
-from pg8000 import i_pack, i_unpack, h_pack, h_unpack, ii_pack, ihihih_unpack
+from pg8000 import i_pack, i_unpack, h_pack, h_unpack, ii_pack, \
+    ihihih_unpack, ci_unpack
 
 
 ##
@@ -923,10 +924,15 @@ class MessageReader(object):
 
     def handle_messages(self):
         exc = None
-        while 1:
-            msg = self._conn._read_message()
+        read_bytes = self._conn._sock.read
+        while True:
+            assert self._conn._sock_lock.locked()
+            message_code, data_len = ci_unpack(read_bytes(5))
+            msg = message_types[
+                message_code].createFromData(read_bytes(data_len - 4))
+
             msg_handled = False
-            for (msg_class, handler, args, kwargs) in self._msgs:
+            for msg_class, handler, args, kwargs in self._msgs:
                 if isinstance(msg, msg_class):
                     msg_handled = True
                     retval = handler(msg, *args, **kwargs)
@@ -1039,22 +1045,6 @@ class Connection(object):
         assert self._sock_lock.locked()
         self._sock.flush()
 
-    def _read_bytes(self, byte_count):
-        retval = self._sock.read(byte_count)
-        # should read in one op since it is a buffered reader
-        assert len(retval) == byte_count
-        return retval
-
-    def _read_message(self):
-        assert self._sock_lock.locked()
-        bytes = self._read_bytes(5)
-        message_code = bytes[0]
-        data_len = i_unpack(bytes[1:])[0] - 4
-        bytes = self._read_bytes(data_len)
-        assert len(bytes) == data_len
-        msg = message_types[message_code].createFromData(bytes)
-        #print("_read_message() -> %r" % msg)
-        return msg
 
     def authenticate(self, user, **kwargs):
         self.verifyState("noauth")
@@ -1338,24 +1328,24 @@ class Connection(object):
             self._sock_lock.release()
 
 message_types = {
-    b"N"[0]: NoticeResponse,
-    b"R"[0]: AuthenticationRequest,
-    b"S"[0]: ParameterStatus,
-    b"K"[0]: BackendKeyData,
-    b"Z"[0]: ReadyForQuery,
-    b"T"[0]: RowDescription,
-    b"E"[0]: ErrorResponse,
-    b"D"[0]: DataRow,
-    b"C"[0]: CommandComplete,
-    b"1"[0]: ParseComplete,
-    b"2"[0]: BindComplete,
-    b"3"[0]: CloseComplete,
-    b"s"[0]: PortalSuspended,
-    b"n"[0]: NoData,
-    b"t"[0]: ParameterDescription,
-    b"A"[0]: NotificationResponse,
-    b"c"[0]: CopyDone,
-    b"d"[0]: CopyData,
-    b"G"[0]: CopyInResponse,
-    b"H"[0]: CopyOutResponse,
+    b"N": NoticeResponse,
+    b"R": AuthenticationRequest,
+    b"S": ParameterStatus,
+    b"K": BackendKeyData,
+    b"Z": ReadyForQuery,
+    b"T": RowDescription,
+    b"E": ErrorResponse,
+    b"D": DataRow,
+    b"C": CommandComplete,
+    b"1": ParseComplete,
+    b"2": BindComplete,
+    b"3": CloseComplete,
+    b"s": PortalSuspended,
+    b"n": NoData,
+    b"t": ParameterDescription,
+    b"A": NotificationResponse,
+    b"c": CopyDone,
+    b"d": CopyData,
+    b"G": CopyInResponse,
+    b"H": CopyOutResponse,
 }
