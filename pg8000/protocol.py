@@ -427,6 +427,7 @@ class AuthenticationRequest(object):
     #               9 = SSPI (not supported by pg8000)
     # Some authentication messages have additional data following the
     # authentication code.  That data is documented in the appropriate class.
+    @staticmethod
     def createFromData(data):
         ident = i_unpack(data[:4])[0]
         klass = authentication_codes.get(ident, None)
@@ -435,7 +436,6 @@ class AuthenticationRequest(object):
         else:
             raise NotSupportedError(
                 "authentication method %r not supported" % (ident,))
-    createFromData = staticmethod(createFromData)
 
     def ok(self, conn, user, **kwargs):
         raise InternalError(
@@ -510,11 +510,11 @@ class ParameterStatus(object):
     # Int32 - Message length, including self.
     # String - Runtime parameter name.
     # String - Runtime parameter value.
-    def createFromData(data):
+    @classmethod
+    def createFromData(cls, data):
         key = data[:data.find(b"\x00")]
         value = data[data.find(b"\x00") + 1:-1]
-        return ParameterStatus(key, value)
-    createFromData = staticmethod(createFromData)
+        return cls(key, value)
 
 
 ##
@@ -532,10 +532,10 @@ class BackendKeyData(object):
     # Int32(12) - Message length, including self.
     # Int32 - Process ID.
     # Int32 - Secret key.
-    def createFromData(data):
+    @classmethod
+    def createFromData(cls, data):
         process_id, secret_key = struct.unpack("!2i", data)
-        return BackendKeyData(process_id, secret_key)
-    createFromData = staticmethod(createFromData)
+        return cls(process_id, secret_key)
 
 
 ##
@@ -545,9 +545,9 @@ class BackendKeyData(object):
 class NoData(object):
     # Byte1('n') - Identifier.
     # Int32(4) - Message length, including self.
-    def createFromData(data):
-        return NoData()
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls()
 
 
 ##
@@ -557,9 +557,9 @@ class NoData(object):
 class ParseComplete(object):
     # Byte1('1') - Identifier.
     # Int32(4) - Message length, including self.
-    def createFromData(data):
-        return ParseComplete()
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls()
 
 
 ##
@@ -569,9 +569,9 @@ class ParseComplete(object):
 class BindComplete(object):
     # Byte1('2') - Identifier.
     # Int32(4) - Message length, including self.
-    def createFromData(data):
-        return BindComplete()
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls()
 
 
 ##
@@ -581,9 +581,9 @@ class BindComplete(object):
 class CloseComplete(object):
     # Byte1('3') - Identifier.
     # Int32(4) - Message length, including self.
-    def createFromData(data):
-        return CloseComplete()
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls()
 
 
 ##
@@ -594,9 +594,9 @@ class CloseComplete(object):
 class PortalSuspended(object):
     # Byte1('s') - Identifier.
     # Int32(4) - Message length, including self.
-    def createFromData(data):
-        return PortalSuspended()
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls()
 
 
 ##
@@ -619,9 +619,9 @@ class ReadyForQuery(object):
     # Byte1('Z') - Identifier.
     # Int32(5) - Message length, including self.
     # Byte1 -   Status indicator.
-    def createFromData(data):
-        return ReadyForQuery(data)
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls(data)
 
 
 ##
@@ -673,6 +673,7 @@ class NoticeResponse(object):
         return "<NoticeResponse %s %s %r>" % (
             self.severity, self.code, self.msg)
 
+    @staticmethod
     def dataIntoDict(data):
         retval = {}
         for s in data.split(b"\x00"):
@@ -682,16 +683,15 @@ class NoticeResponse(object):
             key = NoticeResponse.responseKeys.get(key, key)
             retval[key] = value
         return retval
-    dataIntoDict = staticmethod(dataIntoDict)
 
     # Byte1('N') - Identifier
     # Int32 - Message length
     # Any number of these, followed by a zero byte:
     #   Byte1 - code identifying the field type (see responseKeys)
     #   String - field value
-    def createFromData(data):
-        return NoticeResponse(**NoticeResponse.dataIntoDict(data))
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls(**NoticeResponse.dataIntoDict(data))
 
 
 ##
@@ -713,9 +713,9 @@ class ErrorResponse(object):
     def createException(self):
         return ProgrammingError(self.severity, self.code, self.msg)
 
-    def createFromData(data):
-        return ErrorResponse(**NoticeResponse.dataIntoDict(data))
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls(**NoticeResponse.dataIntoDict(data))
 
 
 ##
@@ -753,7 +753,8 @@ class NotificationResponse(object):
         return "<NotificationResponse %s %s %r>" % (
             self.backend_pid, self.condition, self.additional_info)
 
-    def createFromData(data):
+    @classmethod
+    def createFromData(cls, data):
         backend_pid = i_unpack(data[:4])[0]
         data = data[4:]
         null = data.find(b"\x00")
@@ -761,26 +762,26 @@ class NotificationResponse(object):
         data = data[null + 1:]
         null = data.find(b"\x00")
         additional_info = data[:null]
-        return NotificationResponse(backend_pid, condition, additional_info)
-    createFromData = staticmethod(createFromData)
+        return cls(backend_pid, condition, additional_info)
 
 
 class ParameterDescription(object):
     def __init__(self, type_oids):
         self.type_oids = type_oids
 
-    def createFromData(data):
+    @classmethod
+    def createFromData(cls, data):
         count = h_unpack(data[:2])[0]
         type_oids = struct.unpack("!" + "i" * count, data[2:])
-        return ParameterDescription(type_oids)
-    createFromData = staticmethod(createFromData)
+        return cls(type_oids)
 
 
 class RowDescription(object):
     def __init__(self, fields):
         self.fields = fields
 
-    def createFromData(data):
+    @classmethod
+    def createFromData(cls, data):
         count = h_unpack(data[:2])[0]
         data = data[2:]
         fields = []
@@ -793,8 +794,7 @@ class RowDescription(object):
                 ihihih_unpack(data[:18])
             data = data[18:]
             fields.append(field)
-        return RowDescription(fields)
-    createFromData = staticmethod(createFromData)
+        return cls(fields)
 
 
 class CommandComplete(object):
@@ -803,7 +803,8 @@ class CommandComplete(object):
         self.rows = rows
         self.oid = oid
 
-    def createFromData(data):
+    @classmethod
+    def createFromData(cls, data):
         values = data[:-1].split(b" ")
         args = {}
         args['command'] = values[0]
@@ -814,15 +815,15 @@ class CommandComplete(object):
                 args['oid'] = int(values[1])
         else:
             args['command'] = data[:-1]
-        return CommandComplete(**args)
-    createFromData = staticmethod(createFromData)
+        return cls(**args)
 
 
 class DataRow(object):
     def __init__(self, fields):
         self.fields = fields
 
-    def createFromData(data):
+    @classmethod
+    def createFromData(cls, data):
         count = h_unpack(data[:2])[0]
         data = data[2:]
         fields = []
@@ -834,8 +835,7 @@ class DataRow(object):
             else:
                 fields.append(data[:val_len])
                 data = data[val_len:]
-        return DataRow(fields)
-    createFromData = staticmethod(createFromData)
+        return cls(fields)
 
 
 class CopyData(object):
@@ -843,9 +843,9 @@ class CopyData(object):
     def __init__(self, data):
         self.data = data
 
-    def createFromData(data):
-        return CopyData(data)
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls(data)
 
     def serialize(self):
         return b'd' + i_pack(len(self.data) + 4) + self.data
@@ -855,10 +855,9 @@ class CopyDone(object):
     # Byte1('c') - Identifier.
     # Int32(4) - Message length, including self.
 
-    def createFromData(data):
-        return CopyDone()
-
-    createFromData = staticmethod(createFromData)
+    @classmethod
+    def createFromData(cls, data):
+        return cls()
 
     def serialize(self):
         return b'c\x00\x00\x00\x04'
@@ -875,12 +874,11 @@ class CopyOutResponse(object):
         self.is_binary = is_binary
         self.column_formats = column_formats
 
-    def createFromData(data):
+    @classmethod
+    def createFromData(cls, data):
         is_binary, num_cols = bh_unpack(data[:3])
         column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
-        return CopyOutResponse(is_binary, column_formats)
-
-    createFromData = staticmethod(createFromData)
+        return cls(is_binary, column_formats)
 
 
 class CopyInResponse(object):
@@ -891,12 +889,11 @@ class CopyInResponse(object):
         self.is_binary = is_binary
         self.column_formats = column_formats
 
-    def createFromData(data):
+    @classmethod
+    def createFromData(cls, data):
         is_binary, num_cols = bh_unpack(data[:3])
         column_formats = struct.unpack('!' + ('h' * num_cols), data[3:])
-        return CopyInResponse(is_binary, column_formats)
-
-    createFromData = staticmethod(createFromData)
+        return cls(is_binary, column_formats)
 
 
 class MessageReader(object):
