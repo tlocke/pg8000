@@ -32,9 +32,8 @@ __author__ = "Mathieu Fenniak"
 import socket
 import ssl as sslmodule
 import threading
-from struct import unpack_from
+from struct import unpack_from, pack
 import hashlib
-from io import BytesIO
 from pg8000.errors import CopyQueryWithoutStreamError, InterfaceError, \
     InternalError, ProgrammingError, NotSupportedError
 from pg8000.util import MulticastDelegate
@@ -77,9 +76,7 @@ class StartupMessage(object):
     #   String - Parameter value
     def serialize(self):
         protocol = 196608
-        val = bytearray()
-        val.extend(i_pack(protocol))
-        val.extend(b"user\x00")
+        val = bytearray(i_pack(protocol) + b"user\x00")
         val.extend(self.user.encode("ascii"))
         val.append(0)
         if self.database:
@@ -120,8 +117,7 @@ class Parse(object):
     # For each parameter:
     #   Int32 - The OID of the parameter data type.
     def serialize(self):
-        val = bytearray()
-        val.extend(self.ps.encode("ascii"))
+        val = bytearray(self.ps, "ascii")
         val.append(0)
         val.extend(self.qs)
         val.append(0)
@@ -133,8 +129,7 @@ class Parse(object):
             if oid == -1:
                 oid = 705
             val.extend(i_pack(oid))
-        val[0:0] = i_pack(len(val) + 4)
-        val[0:0] = b"P"
+        val[:0] = b"P" + i_pack(len(val) + 4)
         return val
 
 
@@ -193,27 +188,22 @@ class Bind(object):
     # For each result-column format code:
     #   Int16 - The format code.
     def serialize(self):
-        retval = BytesIO()
-        retval.write(self.portal.encode("ascii") + b"\x00")
-        retval.write(self.ps.encode("ascii") + b"\x00")
-        retval.write(h_pack(len(self.in_fc)))
-        for fc in self.in_fc:
-            retval.write(h_pack(fc))
-        retval.write(h_pack(len(self.params)))
+        retval = bytearray(self.portal.encode("ascii") + b"\x00")
+        retval.extend(self.ps.encode("ascii") + b"\x00")
+        retval.extend(h_pack(len(self.in_fc)))
+        retval.extend(pack("!" + "h" * len(self.in_fc), *self.in_fc))
+        retval.extend(h_pack(len(self.params)))
         for param in self.params:
             if param is None:
                 # special case, NULL value
-                retval.write(i_pack(-1))
+                retval.extend(i_pack(-1))
             else:
-                retval.write(i_pack(len(param)))
-                retval.write(param)
-        retval.write(h_pack(len(self.out_fc)))
-        for fc in self.out_fc:
-            retval.write(h_pack(fc))
-        val = retval.getvalue()
-        val = i_pack(len(val) + 4) + val
-        val = b"B" + val
-        return val
+                retval.extend(i_pack(len(param)))
+                retval.extend(param)
+        retval.extend(h_pack(len(self.out_fc)))
+        retval.extend(pack("!" + "h" * len(self.out_fc), *self.out_fc))
+        retval[:0] = b"B" + i_pack(len(retval) + 4)
+        return retval
 
 
 ##
@@ -235,9 +225,8 @@ class Close(object):
     # Byte1 - 'S' for prepared statement, 'P' for portal.
     # String - The name of the item to close.
     def serialize(self):
-        val = self.typ + self.name.encode("ascii") + b"\x00"
-        val = i_pack(len(val) + 4) + val
-        val = b"C" + val
+        val = bytearray(self.typ + self.name.encode("ascii") + b"\x00")
+        val[:0] = b"C" + i_pack(len(val) + 4)
         return val
 
 
@@ -279,12 +268,9 @@ class Describe(object):
     # Byte1 - 'S' for prepared statement, 'P' for portal.
     # String - The name of the item to close.
     def serialize(self):
-        val = bytearray()
-        val.extend(self.typ)
-        val.extend(self.name.encode("ascii"))
+        val = bytearray(self.typ + self.name.encode("ascii"))
         val.append(0)
-        val[0:0] = i_pack(len(val) + 4)
-        val[0:0] = b"D"
+        val[:0] = b"D" + i_pack(len(val) + 4)
         return val
 
 
@@ -354,11 +340,9 @@ class PasswordMessage(object):
     # Int32 - Message length including self.
     # String - The password.  Password may be encrypted.
     def serialize(self):
-        val = bytearray()
-        val.extend(self.pwd)
+        val = bytearray(self.pwd)
         val.append(0)
-        val[0:0] = i_pack(len(val) + 4)
-        val[0:0] = b"p"
+        val[0:0] = b"p" + i_pack(len(val) + 4)
         return val
 
 
@@ -381,12 +365,10 @@ class Execute(object):
     # Int32 -   Maximum number of rows to return, if portal contains a query
     # that returns rows.  0 = no limit.
     def serialize(self):
-        val = bytearray()
-        val.extend(self.portal.encode("ascii"))
+        val = bytearray(self.portal, "ascii")
         val.append(0)
         val.extend(i_pack(self.row_count))
-        val[0:0] = i_pack(len(val) + 4)
-        val[0:0] = b"E"
+        val[:0] = b"E" + i_pack(len(val) + 4)
         return val
 
 
@@ -510,7 +492,7 @@ class ParameterStatus(object):
     # String - Runtime parameter value.
     @classmethod
     def createFromData(cls, data):
-        pos = data.find(b"\x00") 
+        pos = data.find(b"\x00")
         return cls(data[:pos], data[pos + 1:-1])
 
 
@@ -915,7 +897,7 @@ class MessageReader(object):
 
     def return_value(self, value):
         self._retval = value
-    
+
     def handle_messages(self):
         exc = None
         read_bytes = self._conn._sock.read

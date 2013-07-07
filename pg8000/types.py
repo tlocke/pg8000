@@ -32,10 +32,9 @@ __author__ = "Mathieu Fenniak"
 import datetime
 from decimal import Decimal
 from struct import unpack_from, Struct
-from .errors import NotSupportedError, InternalError, \
+from pg8000.errors import NotSupportedError, InternalError, \
     ArrayContentEmptyError, ArrayContentNotHomogenousError, \
     ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError
-from itertools import islice
 from pg8000 import h_pack, h_unpack, i_pack, i_unpack, q_pack, q_unpack, \
     f_unpack, d_pack, d_unpack, hhhh_pack, hhhh_unpack, qii_pack, qii_unpack, \
     dii_pack, dii_unpack, ii_pack, ii_unpack, iii_pack, iii_unpack
@@ -329,7 +328,7 @@ def numeric_recv(data, **kwargs):
     pos_weight = max(0, weight) + 1
     digits = ['0000'] * abs(min(weight, 0)) + \
         [str(d).zfill(4) for d in unpack_from(
-        "!" + "h" * num_digits, data, 8)] \
+            "!" + "h" * num_digits, data, 8)] \
         + ['0000'] * (pos_weight - num_digits)
     return Decimal(
         ''.join(['-' if sign else '', ''.join(digits[:pos_weight]), '.',

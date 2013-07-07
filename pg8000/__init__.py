@@ -45,4 +45,3 @@ from pg8000.errors import Warning, DatabaseError
 from pg8000.types import Bytea
 
 __all__ = [Warning, Bytea, DatabaseError]
-
