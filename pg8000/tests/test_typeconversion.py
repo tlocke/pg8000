@@ -59,6 +59,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(
             errors.ProgrammingError, self.cursor.execute,
             "SELECT %s as f1", (None,))
+        db.rollback()
 
     def testDecimalRoundtrip(self):
         values = "1.1", "-1.1", "10000", "20000", "-1000000000.123456789"
@@ -302,9 +303,8 @@ class Tests(unittest.TestCase):
         for method_out, value in methods:
             self.cursor.execute("SELECT %s(%%s) as f1" % method_out, (value,))
             retval = self.cursor.fetchall()
-            self.assert_(
-                retval[0][0] == getattr(types, method_out)
-                (value, integer_datetimes=db.conn.c._integer_datetimes))
+            self.assertEqual(
+                retval[0][0], db.make_params((value,))[0][2](value))
 
     def testInt4ArrayOut(self):
         self.cursor.execute(
@@ -459,55 +459,51 @@ class Tests(unittest.TestCase):
 
         self.cursor.execute("SELECT %s as f1", (["Hello!", "World!", None],))
         retval = self.cursor.fetchall()
-        self.assert_(
-            retval[0][0] == ["Hello!", "World!", None],
-            "retrieved value match failed")
+        self.assertEqual(retval[0][0], ["Hello!", "World!", None])
 
     def testArrayHasValue(self):
         self.assertRaises(
             errors.ArrayContentEmptyError,
-            types.array_inspect, [[None], [None], [None]])
+            db.array_inspect, [[None], [None], [None]])
+        db.rollback()
 
     def testArrayContentNotSupported(self):
         class Kajigger(object):
             pass
         self.assertRaises(
             errors.ArrayContentNotSupportedError,
-            types.array_inspect, [[Kajigger()], [None], [None]])
+            db.array_inspect, [[Kajigger()], [None], [None]])
+        db.rollback()
 
     def testArrayDimensions(self):
-        self.assertRaises(
-            errors.ArrayDimensionsNotConsistentError,
-            types.array_inspect, [1, [2]])
-        self.assertRaises(
-            errors.ArrayDimensionsNotConsistentError,
-            types.array_inspect, [[1], [2], [3, 4]])
-        self.assertRaises(
-            errors.ArrayDimensionsNotConsistentError,
-            types.array_inspect, [[[1]], [[2]], [[3, 4]]])
-        self.assertRaises(
-            errors.ArrayDimensionsNotConsistentError,
-            types.array_inspect, [[[[1]]], [[[2]]], [[[3, 4]]]])
-        self.assertRaises(
-            errors.ArrayDimensionsNotConsistentError,
-            types.array_inspect, [[1, 2, 3], [4, [5], 6]])
+        for arr in (
+                [1, [2]], [[1], [2], [3, 4]],
+                [[[1]], [[2]], [[3, 4]]],
+                [[[1]], [[2]], [[3, 4]]],
+                [[[[1]]], [[[2]]], [[[3, 4]]]],
+                [[1, 2, 3], [4, [5], 6]]):
+
+            arr_send = db.array_inspect(arr)[2]
+            self.assertRaises(
+                errors.ArrayDimensionsNotConsistentError, arr_send, arr)
+            db.rollback()
 
     def testArrayHomogenous(self):
+        arr = [[[1]], [[2]], [[3.1]]]
+        arr_send = db.array_inspect(arr)[2]
         self.assertRaises(
-            errors.ArrayContentNotHomogenousError,
-            types.array_inspect, [[[1]], [[2]], [[3.1]]])
+            errors.ArrayContentNotHomogenousError, arr_send, arr)
+        db.rollback()
 
     def testArrayInspect(self):
-        types.array_inspect([1, 2, 3])
-        types.array_inspect([[1], [2], [3]])
-        types.array_inspect([[[1]], [[2]], [[3]]])
+        db.array_inspect([1, 2, 3])
+        db.array_inspect([[1], [2], [3]])
+        db.array_inspect([[[1]], [[2]], [[3]]])
 
     def testMacaddr(self):
         self.cursor.execute("SELECT macaddr '08002b:010203'")
         retval = self.cursor.fetchall()
-        self.assert_(
-            retval[0][0] == "08:00:2b:01:02:03",
-            "retrieved value match failed")
+        self.assertEqual(retval[0][0], "08:00:2b:01:02:03")
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,46 @@
 =PG8000
 
-PG8000 is a pure-Python PostgreSQL driver. The user docs are at 
-[[http://pybrary.net/pg8000/|http://pybrary.net/pg8000/]].
+PG8000 is a pure-[[http://www.python.org/|Python]]
+[[http://www.postgresql.org/|PostgreSQL]] driver that complies with
+[[http://www.python.org/dev/peps/pep-0249/|DB-API 2.0]]. The driver
+communicates with the database using the
+[[http://www.postgresql.org/docs/9.1/static/protocol.html|PostgreSQL Backend / Frontend Protocol]].
 
-==Regression Tests
+==Quick Start
+
+{{{
+>>> import pg8000
+>>> conn = pg8000.DBAPI.connect(user='postgres', password='password')
+}}}
+
+The {{{connect}}} function takes the following parameters:
+
+|=parameter    |=default |
+|user          |         |
+|host          |localhost|
+|unix_sock     |         |
+|port          |5432     |
+|database      |         |
+|password      |         |
+|socket_timeout|60       |
+|ssl           |False    |
+
+{{{
+>>> pg8000.DBAPI.paramstyle = 'named'
+>>> cur = conn.cursor()
+>>> cur.execute("create table example (id int, name varchar)")
+>>> cur.execute("insert into example values (1, 'hello')")
+>>> conn.commit()
+>>> cur.execute("select * from example where id = :id", {'id': 1})
+>>> for row in cur:
+...     print(row)
+... 
+(1, 'hello')
+>>> cur.close()
+>>> conn.close()
+}}}
+
+=Regression Tests
 
 To run the regression tests, install [[https://github.com/nose-devs/nose|nose]]:
 

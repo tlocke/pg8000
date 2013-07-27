@@ -29,8 +29,8 @@
 
 __author__ = "Mathieu Fenniak"
 
-# Programmatically create the struct objects
-exec("from struct import Struct, pack, unpack")
+
+exec("from struct import Struct")
 for fmt in (
         "i", "h", "hhhh", "q", "d", "f", "iii", "ii", "qii", "dii", "ihihih",
         "ci", "bh", "cccc"):

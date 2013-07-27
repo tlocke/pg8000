@@ -23,6 +23,7 @@ class Tests(unittest.TestCase):
                 self.assert_(
                     e.args[1] == b'42P01',  # table does not exist
                     "incorrect error for drop table")
+                db2.rollback()
             c.execute(
                 "CREATE TEMPORARY TABLE t1 "
                 "(f1 int primary key, f2 int not null, f3 varchar(50) null)")
@@ -41,6 +42,7 @@ class Tests(unittest.TestCase):
             c.execute(
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                 (5, 10000, None))
+            db2.commit()
 
     def testParallelQueries(self):
         with closing(db2.cursor()) as c1, closing(db2.cursor()) as c2:
@@ -56,6 +58,7 @@ class Tests(unittest.TestCase):
                     if row is None:
                         break
                     f1, f2, f3 = row
+        db2.rollback()
 
     def testQmark(self):
         orig_paramstyle = dbapi.paramstyle
@@ -68,6 +71,7 @@ class Tests(unittest.TestCase):
                     if row is None:
                         break
                     f1, f2, f3 = row
+            db2.rollback()
         finally:
             dbapi.paramstyle = orig_paramstyle
 
@@ -82,6 +86,7 @@ class Tests(unittest.TestCase):
                     if row is None:
                         break
                     f1, f2, f3 = row
+            db2.rollback()
         finally:
             dbapi.paramstyle = orig_paramstyle
 
@@ -97,6 +102,7 @@ class Tests(unittest.TestCase):
                     if row is None:
                         break
                     f1, f2, f3 = row
+            db2.rollback()
         finally:
             dbapi.paramstyle = orig_paramstyle
 
@@ -111,6 +117,7 @@ class Tests(unittest.TestCase):
                     if row is None:
                         break
                     f1, f2, f3 = row
+            db2.commit()
         finally:
             dbapi.paramstyle = orig_paramstyle
 
@@ -126,6 +133,7 @@ class Tests(unittest.TestCase):
                     if row is None:
                         break
                     f1, f2, f3 = row
+            db2.commit()
         finally:
             dbapi.paramstyle = orig_paramstyle
 
@@ -135,6 +143,7 @@ class Tests(unittest.TestCase):
             c1.execute("SELECT * FROM t1")
             retval = c1.fetchmany()
             self.assertEquals(len(retval), c1.arraysize)
+        db2.commit()
 
     def testDate(self):
         val = dbapi.Date(2001, 2, 3)
@@ -162,10 +171,8 @@ class Tests(unittest.TestCase):
 
     def testBinary(self):
         v = dbapi.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
-        self.assert_(
-            v == b"\x00\x01\x02\x03\x02\x01\x00", "Binary value match failed")
-        self.assert_(
-            isinstance(v, pg8000.Bytea), "Binary type match failed")
+        self.assertEqual(v, b"\x00\x01\x02\x03\x02\x01\x00")
+        self.assertIsInstance(v, dbapi.BINARY)
 
     def testRowCount(self):
         with closing(db2.cursor()) as c1:
@@ -177,6 +184,7 @@ class Tests(unittest.TestCase):
 
             c1.execute("DELETE FROM t1")
             self.assertEquals(5, c1.rowcount)
+        db2.commit()
 
     def testFetchMany(self):
         with closing(db2.cursor()) as cursor:
@@ -186,6 +194,7 @@ class Tests(unittest.TestCase):
             self.assertEquals(2, len(cursor.fetchmany()))
             self.assertEquals(1, len(cursor.fetchmany()))
             self.assertEquals(0, len(cursor.fetchmany()))
+        db2.commit()
 
     def testIterator(self):
         from warnings import filterwarnings
@@ -199,7 +208,7 @@ class Tests(unittest.TestCase):
                 next_f1 = row[0]
                 assert next_f1 > f1
                 f1 = next_f1
-
+        db2.commit()
 
 if __name__ == "__main__":
     unittest.main()
