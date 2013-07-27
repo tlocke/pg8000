@@ -210,5 +210,12 @@ class Tests(unittest.TestCase):
                 f1 = next_f1
         db2.commit()
 
+    # Vacuum can't be run inside a transaction, so we need to turn
+    # autocommit on.
+    def testVacuum(self):
+        db2.autocommit = True
+        with closing(db2.cursor()) as cursor:
+            cursor.execute("vacuum")
+
 if __name__ == "__main__":
     unittest.main()

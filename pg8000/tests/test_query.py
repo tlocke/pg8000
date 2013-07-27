@@ -15,6 +15,7 @@ filterwarnings("ignore", "DB-API extension cursor.__iter__()")
 # pg8000 custom interface.
 class Tests(unittest.TestCase):
     def setUp(self):
+        db.paramstyle = 'format'
         with closing(db.cursor()) as cursor:
             try:
                 cursor.execute("DROP TABLE t1")

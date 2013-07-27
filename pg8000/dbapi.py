@@ -739,6 +739,7 @@ class Connection(object):
         self._sock_lock = threading.Lock()
         self.user = user
         self.password = password
+        self.autocommit = False
         try:
             if unix_sock is None and host is not None:
                 self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1082,7 +1083,7 @@ class Connection(object):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def begin(self):
-        if not self._conn.in_transaction:
+        if not self._conn.in_transaction and not self.autocommit:
             self._conn._begin.execute()
             self._conn.in_transaction = True
 
