@@ -26,6 +26,7 @@ class Tests(unittest.TestCase):
                 self.assert_(
                     e.args[1] == '42P01',  # table does not exist
                     "incorrect error for drop table")
+                db2.rollback()
             c.execute(
                 "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
                 "f2 int not null, f3 varchar(50) null)")
@@ -44,6 +45,7 @@ class Tests(unittest.TestCase):
             c.execute(
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                 (5, 10000, None))
+            db2.commit()
 
     def testParallelQueries(self):
         with nested(closing(db2.cursor()), closing(db2.cursor())) as (c1, c2):
@@ -209,10 +211,12 @@ class Tests(unittest.TestCase):
                 [
                     {"param1": "hi", "param2": "there"},
                     {"q": "hi", "p": "there"}
-                ]
+                ])
 
-
-            )
+    # Vacuum can't be run inside a transaction, so use execute_notrans.
+    def testVacuum(self):
+        with closing(db2.cursor()) as cursor:
+            cursor.execute_notrans("vacuum")
 
 if __name__ == "__main__":
     unittest.main()
