@@ -4,6 +4,7 @@ from contextlib import closing
 from .connection_settings import db_connect
 import warnings
 from ..errors import DatabaseError
+import datetime
 
 db = DBAPI.connect(**db_connect)
 
@@ -13,28 +14,28 @@ class TestException(Exception):
 
 
 class Tests(unittest.TestCase):
-    def raiseException(self, *args, **kwargs):
+    def raiseException(self, value):
         raise TestException("oh noes!")
 
     def testPyValueFail(self):
         # Ensure that if types.py_value throws an exception, the original
         # exception is raised (TestException), and the connection is
         # still usable after the error.
-        from pg8000 import types
-        original_py_value = types.py_value
-        types.py_value = self.raiseException
+        orig = db.py_types[datetime.time]
+        db.py_types[datetime.time] = (orig[0], orig[1], self.raiseException)
+
         with closing(db.cursor()) as c:
             try:
                 try:
-                    c.execute("VALUES ('hw1'::text), ('hw2'::text)")
+                    c.execute("SELECT %s as f1", (datetime.time(10, 30),))
                     c.fetchall()
                     # shouldn't get here, exception should be thrown
                     self.fail()
                 except TestException:
                     # should be TestException type, this is OK!
-                    pass
+                    db.rollback()
             finally:
-                types.py_value = original_py_value
+                db.py_types[datetime.time] = orig
 
             # ensure that the connection is still usable for a new query
             c.execute("VALUES ('hw3'::text)")
@@ -50,6 +51,7 @@ class Tests(unittest.TestCase):
                 self.assert_(
                     e.args[1] == b'42P01',  # table does not exist
                     "incorrect error for drop table")
+                db.rollback()
 
     def testClosedConnection(self):
         with warnings.catch_warnings():

@@ -19,6 +19,7 @@ class Tests(unittest.TestCase):
                 self.assert_(
                     e.args[1] == b'42P01',  # table does not exist
                     "incorrect error for drop table")
+                db.rollback()
             cursor.execute(
                 "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
                 "f2 int not null, f3 varchar(50) null)")
@@ -36,6 +37,7 @@ class Tests(unittest.TestCase):
             cursor.copy_to(stream, "t1")
             self.assert_(stream.getvalue() == b"1\t1\t1\n2\t2\t2\n3\t3\t3\n")
             self.assert_(cursor.rowcount == 3)
+            db.commit()
 
     def testCopyToWithQuery(self):
         with closing(db.cursor()) as cursor:
@@ -43,8 +45,9 @@ class Tests(unittest.TestCase):
             cursor.copy_to(
                 stream, query="COPY (SELECT 1 as One, 2 as Two) TO STDOUT "
                 "WITH DELIMITER 'X' CSV HEADER QUOTE AS 'Y' FORCE QUOTE Two")
-            self.assert_(stream.getvalue() == b'oneXtwo\n1XY2Y\n')
-            self.assert_(cursor.rowcount == 1)
+            self.assertEqual(stream.getvalue(), b'oneXtwo\n1XY2Y\n')
+            self.assertEqual(cursor.rowcount, 1)
+            db.rollback()
 
     def testCopyFromWithTable(self):
         with closing(db.cursor()) as cursor:
@@ -55,6 +58,7 @@ class Tests(unittest.TestCase):
             cursor.execute("SELECT * FROM t1 ORDER BY f1")
             retval = cursor.fetchall()
             self.assert_(retval == ((1, 1, '1'), (2, 2, '2'), (3, 3, '3')))
+            db.rollback()
 
     def testCopyFromWithQuery(self):
         with closing(db.cursor()) as cursor:
@@ -67,6 +71,7 @@ class Tests(unittest.TestCase):
             cursor.execute("SELECT * FROM t1 ORDER BY f1")
             retval = cursor.fetchall()
             self.assert_(retval == ((1, 1, None),))
+            db.commit()
 
     def testCopyWithoutTableOrQuery(self):
         with closing(db.cursor()) as cursor:
@@ -75,6 +80,7 @@ class Tests(unittest.TestCase):
                 dbapi.CopyQueryOrTableRequiredError, cursor.copy_from, stream)
             self.assertRaises(
                 dbapi.CopyQueryOrTableRequiredError, cursor.copy_to, stream)
+            db.rollback()
 
 
 if __name__ == "__main__":
