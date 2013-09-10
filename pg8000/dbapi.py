@@ -61,6 +61,7 @@ from pg8000.six.moves import map
 from pg8000.six import (
     b, Iterator, PY2, binary_type, integer_types, next, PRE_26)
 from sys import exc_info
+import uuid
 
 
 if PRE_26:
@@ -824,7 +825,8 @@ class Connection(object):
             float: (701, FC_BINARY, d_pack),
             Decimal: (1700, FC_BINARY, numeric_send),
             pg8000.pg8000_types.Bytea: (17, FC_BINARY, byteasend),
-            type(None): (-1, FC_BINARY, lambda value: i_pack(-1))}
+            type(None): (-1, FC_BINARY, lambda value: i_pack(-1)),
+            uuid.UUID: (2950, FC_BINARY, lambda v: v.bytes)}
 
         def textout(v):
             return v.encode(self._client_encoding)
@@ -968,6 +970,9 @@ class Connection(object):
                 int(data[offset:offset + 4]), int(data[offset + 5:offset + 7]),
                 int(data[offset + 8:offset + 10]))
 
+        def uuid_recv(data, offset, length):
+            return uuid.UUID(bytes=data[offset:offset+length])
+
         self.pg_types = defaultdict(lambda: (FC_BINARY, varcharin), {
             #16: (FC_BINARY, lambda d, o, l: d[o] == b("\x01")),  # boolean
             16: (FC_BINARY, bool_recv),  # boolean
@@ -1002,6 +1007,7 @@ class Connection(object):
             1263: (FC_BINARY, array_recv),  # cstring[]
             1700: (FC_BINARY, numeric_recv),
             2275: (FC_BINARY, varcharin),  # cstring
+            2950: (FC_BINARY, uuid_recv),  # uuid
         })
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,

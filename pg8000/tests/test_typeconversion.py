@@ -5,6 +5,7 @@ import decimal
 import struct
 from .connection_settings import db_connect
 from pg8000.six import b, IS_JYTHON
+import uuid
 
 db = dbapi.connect(**db_connect)
 
@@ -165,6 +166,12 @@ class Tests(unittest.TestCase):
     def testXmlRoundtrip(self):
         v = '<genome>gatccgagtac</genome>'
         self.cursor.execute("select xmlparse(content %s) as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
+
+    def testUuidRoundtrip(self):
+        v = uuid.UUID('911460f2-1f43-fea2-3e2c-e01fd5b5069d')
+        self.cursor.execute("select %s as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 

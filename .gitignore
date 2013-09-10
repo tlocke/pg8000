@@ -1,7 +1,9 @@
 *.pyc
 *.swp
 *.orig
+*.class
 build
 tmp
 dist
 .tox
+MANIFEST
