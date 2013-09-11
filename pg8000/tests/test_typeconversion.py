@@ -81,10 +81,13 @@ class Tests(unittest.TestCase):
             bin_new == bin_orig, "retrieved value match failed")
 
     def testStrRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", ("hello world",))
+        v = "hello world"
+        self.cursor.execute(
+            "create temporary table test_str (f character varying(255))")
+        self.cursor.execute("INSERT INTO test_str VALUES (%s)", (v,))
+        self.cursor.execute("SELECT * from test_str")
         retval = self.cursor.fetchall()
-        self.assert_(
-            retval[0][0] == "hello world", "retrieved value match failed")
+        self.assertEqual(retval[0][0], v)
 
     def testUnicodeRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", ("hello \u0173 world",))

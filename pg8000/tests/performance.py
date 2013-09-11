@@ -2,8 +2,8 @@ from pg8000 import DBAPI
 from .connection_settings import db_connect
 import time
 import warnings
+from contextlib import closing
 
-db = DBAPI.connect(**db_connect)
 
 tests = (
         ("(id / 100)::int2", 'int2'),
@@ -16,7 +16,7 @@ tests = (
         ("id / 100::numeric", 'numeric'),
 )
 
-with warnings.catch_warnings():
+with warnings.catch_warnings(), closing(DBAPI.connect(**db_connect)) as db:
     warnings.simplefilter("ignore")
     for txt, name in tests:
         query = "SELECT %s AS %s_column FROM " \

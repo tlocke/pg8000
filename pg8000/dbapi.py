@@ -37,11 +37,10 @@ from pg8000.types import (
 from pg8000.errors import (
     NotSupportedError, ProgrammingError, InternalError, IntegrityError,
     OperationalError, DatabaseError, InterfaceError, Error,
-    ConnectionClosedError, CopyQueryOrTableRequiredError, CursorClosedError,
-    QueryParameterParseError, QueryParameterIndexError,
-    ArrayContentNotHomogenousError, ArrayContentEmptyError,
-    ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError,
-    Warning, CopyQueryWithoutStreamError)
+    CopyQueryOrTableRequiredError, CursorClosedError, QueryParameterParseError,
+    QueryParameterIndexError, ArrayContentNotHomogenousError,
+    ArrayContentEmptyError, ArrayDimensionsNotConsistentError,
+    ArrayContentNotSupportedError, Warning, CopyQueryWithoutStreamError)
 from warnings import warn
 import socket
 import ssl as sslmodule
@@ -483,8 +482,6 @@ class Cursor(object):
     def _execute(self, operation, args, stream=None):
         new_query, new_args = convert_paramstyle(
             paramstyle, operation, args)
-        if self._conn._state == 'closed':
-            raise ConnectionClosedError()
 
         with self._conn._unnamed_prepared_statement_lock:
             self._stmt = PreparedStatement(
@@ -542,7 +539,6 @@ class Cursor(object):
             return self._stmt.read_tuple()
         except AttributeError:
             raise ProgrammingError("attempting to use unexecuted cursor")
-
 
     ##
     # Fetch the next set of rows of a query result, returning a sequence of
@@ -604,13 +600,6 @@ class Cursor(object):
         pass
 
 
-def require_open_connection(fn):
-    def _fn(self, *args, **kwargs):
-        if self._state == 'closed':
-            raise ConnectionClosedError()
-        return fn(self, *args, **kwargs)
-    return _fn
-
 # Message codes
 NOTICE_RESPONSE = b"N"
 AUTHENTICATION_REQUEST = b"R"
@@ -656,6 +645,11 @@ RESPONSE_WHERE = b"W"
 RESPONSE_FILE = b"F"
 RESPONSE_LINE = b"L"
 RESPONSE_ROUTINE = b"R"
+
+READY_STATUS = {
+    b"I": "Idle",
+    b"T": "Idle in Transaction",
+    b"E": "Idle in Failed Transaction"}
 
 
 # Byte1('N') - Identifier
@@ -740,6 +734,7 @@ class Connection(object):
         self.user = user
         self.password = password
         self.autocommit = False
+        self.binding = False
         try:
             if unix_sock is None and host is not None:
                 self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -771,24 +766,24 @@ class Connection(object):
             # settimeout causes ssl failure, on windows.  Python bug 1462352.
             self._sock.settimeout(socket_timeout)
 
-            self._sock_in = self._sock.makefile(mode="rb")
-            self._read_bytes = self._sock_in.read
-            self._sock = self._sock.makefile(mode="wb")
+            #self._sock_in = self._sock.makefile(mode="rb")
+            #self._read_bytes = self._sock_in.read
+            self._sock = self._sock.makefile(mode="rwb")
         except socket.error as e:
             raise InterfaceError("communication error", e)
         self._flush = self._sock.flush
         self._write = self._sock.write
-        self._state = "noauth"
         self._backend_key_data = None
 
         ##
-        # An event handler that is fired when the database server issues a notice.
-        # The value of this property is a util.MulticastDelegate.  A callback can
-        # be added by using connection.NotificationReceived += SomeMethod.  The
-        # method will be called with a single argument, an object that has
+        # An event handler that is fired when the database server issues a
+        # notice.
+        # The value of this property is a util.MulticastDelegate. A callback
+        # can be added by using connection.NotificationReceived += SomeMethod.
+        # The method will be called with a single argument, an object that has
         # properties: severity, code, msg, and possibly others (detail, hint,
-        # position, where, file, line, and routine).  Callbacks can be removed with
-        # the -= operator.
+        # position, where, file, line, and routine). Callbacks can be removed
+        # with the -= operator.
         # <p>
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
         self.NoticeReceived = pg8000.util.MulticastDelegate()
@@ -797,21 +792,21 @@ class Connection(object):
         # An event handler that is fired when a runtime configuration option is
         # changed on the server.  The value of this property is a
         # util.MulticastDelegate.  A callback can be added by using
-        # connection.NotificationReceived += SomeMethod.  Callbacks can be removed
-        # with the -= operator.  The method will be called with a single argument,
-        # an object that has properties "key" and "value".
+        # connection.NotificationReceived += SomeMethod. Callbacks can be
+        # removed with the -= operator.  The method will be called with a
+        # single argument, an object that has properties "key" and "value".
         # <p>
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
         self.ParameterStatusReceived = pg8000.util.MulticastDelegate()
 
         ##
-        # An event handler that is fired when NOTIFY occurs for a notification that
-        # has been LISTEN'd for.  The value of this property is a
+        # An event handler that is fired when NOTIFY occurs for a notification
+        # that has been LISTEN'd for.  The value of this property is a
         # util.MulticastDelegate.  A callback can be added by using
-        # connection.NotificationReceived += SomeMethod.  The method will be called
-        # with a single argument, an object that has properties: backend_pid,
-        # condition, and additional_info.  Callbacks can be removed with the -=
-        # operator.
+        # connection.NotificationReceived += SomeMethod. The method will be
+        # called with a single argument, an object that has properties:
+        # backend_pid, condition, and additional_info. Callbacks can be
+        # removed with the -= operator.
         # <p>
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
         self.NotificationReceived = pg8000.util.MulticastDelegate()
@@ -892,9 +887,6 @@ class Connection(object):
             COPY_IN_RESPONSE: self.handle_COPY_IN_RESPONSE,
             COPY_OUT_RESPONSE: self.handle_COPY_OUT_RESPONSE}
 
-        self.verifyState("noauth")
-        self.awaiting = set()
-        self.awaiting.add("auth")
         # Int32 - Message length, including self.
         # Int32(196608) - Protocol version number.  Version 3.0.
         # Any number of key/value pairs, terminated by a zero byte:
@@ -902,12 +894,9 @@ class Connection(object):
         #   String - Parameter value
         protocol = 196608
         val = bytearray(i_pack(protocol) + b"user\x00")
-        val.extend(self.user.encode("ascii"))
-        val.append(0)
+        val.extend(user.encode("ascii") + b"\x00")
         if database is not None:
-            val.extend(b"database\x00")
-            val.extend(database.encode("ascii"))
-            val.append(0)
+            val.extend(b"database\x00" + database.encode("ascii") + b"\x00")
         val.append(0)
         val = i_pack(len(val) + 4) + val
         self._write(val)
@@ -925,10 +914,11 @@ class Connection(object):
         self.notifies_lock = threading.Lock()
 
     def handle_ERROR_RESPONSE(self, data, ps):
-        for req in (EXECUTE, DESCRIBE, CLOSE, PARSE, BIND):
-            if req in self.awaiting:
-                self.unawait(req)
         msg_dict = data_into_dict(data)
+        if self.binding:
+            self.binding = False
+            self._send_message(SYNC)
+            self._flush()
         if msg_dict[RESPONSE_CODE] == "28000":
             raise InterfaceError("md5 password authentication failed")
         else:
@@ -937,23 +927,18 @@ class Connection(object):
                 msg_dict[RESPONSE_MSG])
 
     def handle_CLOSE_COMPLETE(self, data, ps):
-        self.unawait(CLOSE)
+        pass
 
     def handle_PARSE_COMPLETE(self, data, ps):
         # Byte1('1') - Identifier.
         # Int32(4) - Message length, including self.
-        if ps is None or not PARSE in self.awaiting:
-            raise unexpected_response(PARSE_COMPLETE)
-        self.unawait(PARSE)
+        pass
 
     def handle_BIND_COMPLETE(self, data, ps):
-        if not BIND in self.awaiting:
-            raise unexpected_response(BIND_COMPLETE)
-        self.unawait(BIND)
+        self.binding = False
 
     def handle_PORTAL_SUSPENDED(self, data, ps):
         ps.portal_suspended = True
-        self.unawait(EXECUTE)
 
     def handle_PARAMETER_DESCRIPTION(self, data, ps):
         # Well, we don't really care -- we're going to send whatever we
@@ -1002,9 +987,6 @@ class Connection(object):
         self._send_message(SYNC)
         self._flush()
 
-
-
-
     def handle_NOTIFICATION_RESPONSE(self, data, ps):
         self.NotificationReceived(data)
         ##
@@ -1031,7 +1013,6 @@ class Connection(object):
     # connection.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    @require_open_connection
     def cursor(self):
         return Cursor(self)
 
@@ -1039,7 +1020,6 @@ class Connection(object):
     # Commits the current database transaction.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    @require_open_connection
     def commit(self):
         # There's a threading bug here.  If a query is sent after the
         # commit, but before the begin, it will be executed immediately
@@ -1056,10 +1036,8 @@ class Connection(object):
     # Rolls back the current database transaction.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    @require_open_connection
     def rollback(self):
         # see bug description in commit.
-
         self._rollback.execute()
         self.in_transaction = False
 
@@ -1068,15 +1046,13 @@ class Connection(object):
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
     def close(self):
-        if self._state == "closed":
-            raise ConnectionClosedError()
         with self._sock_lock:
             # Byte1('X') - Identifies the message as a terminate message.
             # Int32(4) - Message length, including self.
             self._send_message(TERMINATE)
             self._flush()
             self._sock.close()
-            self._state = "closed"
+            self._sock = None
 
     ##
     # Begins a new transaction.
@@ -1086,12 +1062,6 @@ class Connection(object):
         if not self._conn.in_transaction and not self.autocommit:
             self._conn._begin.execute()
             self._conn.in_transaction = True
-
-    def verifyState(self, state):
-        if self._state != state:
-            raise InterfaceError(
-                "connection state must be {0}, is {1}".format(
-                    state, self._state))
 
     def handle_AUTHENTICATION_REQUEST(self, data, ps):
         assert self._sock_lock.locked()
@@ -1145,16 +1115,9 @@ class Connection(object):
             raise InternalError(
                 "Authentication method {0} not recognized".format(auth_code))
 
-        self._state = "auth"
-
     def handle_READY_FOR_QUERY(self, data, ps):
         # Byte1 -   Status indicator.
-        self._state = "ready"
-        if 'auth' in self.awaiting:
-            self.awaiting.remove('auth')
-        self._ready_status = {
-            b"I": "Idle", b"T": "Idle in Transaction",
-            b"E": "Idle in Failed Transaction"}[data]
+        self._ready_status = READY_STATUS[data]
 
     def handle_BACKEND_KEY_DATA(self, data, ps):
         self._backend_key_data = data
@@ -1198,23 +1161,16 @@ class Connection(object):
             ps.statement_row_desc = row_desc
         else:
             ps.portal_row_desc = row_desc
-        self.unawait(DESCRIBE)
-
-    def unawait(self, code):
-        try:
-            self.awaiting.remove(code)
-        except KeyError:
-            raise InternalError(
-                "We were never waiting on {0} in the first place.".format(
-                    code))
+            # We execute our cursor right away to fill up our cache. This
+            # prevents the cursor from being destroyed, apparently, by a
+            # rogue Sync between Bind and Execute.  Since it is quite
+            # likely that data will be read from us right away anyways,
+            # this seems a safe move for now.
+            self.send_EXECUTE(ps, PreparedStatement.row_cache_size)
 
     def parse(self, ps, statement):
         with self._sock_lock:
-            self.verifyState("ready")
-            self.parsing = True
-
             statement_name = ps.statement_name.encode('ascii')
-
             # Byte1('P') - Identifies the message as a Parse command.
             # Int32 -   Message length, including self.
             # String -  Prepared statement name. An empty string selects the
@@ -1235,7 +1191,7 @@ class Connection(object):
                 if oid == -1:
                     oid = 705
                 val.extend(i_pack(oid))
-            self._send_await(PARSE, val)
+            self._send_message(PARSE, val)
 
             # Byte1('D') - Identifies the message as a describe command.
             # Int32 - Message length, including self.
@@ -1243,21 +1199,15 @@ class Connection(object):
             # String - The name of the item to describe.
             val = bytearray(b"S" + statement_name)
             val.append(0)
-            self._send_await(DESCRIBE, val)
+            self._send_message(DESCRIBE, val)
             self._send_message(SYNC)
             self._send_message(FLUSH)
             self._flush()
             self.handle_messages(ps)
 
-    def _send_await(self, code, data):
-        if code in self.awaiting:
-            raise InternalError("Already waiting for a response to this code.")
-        self.awaiting.add(code)
-        self._send_message(code, data)
-
     def bind(self, ps, values):
         with self._sock_lock:
-            self.verifyState("ready")
+            self.binding = True
             if ps.statement_row_desc is None:
                 # no data going out
                 output_fc = ()
@@ -1314,7 +1264,7 @@ class Connection(object):
                 retval.extend(val)
             retval.extend(h_pack(len(output_fc)))
             retval.extend(pack("!" + "h" * len(output_fc), *output_fc))
-            self._send_await(BIND, retval)
+            self._send_message(BIND, retval)
 
             # We need to describe the portal after bind, since the return
             # format codes will be different (hopefully, always what we
@@ -1326,18 +1276,23 @@ class Connection(object):
             # String - The name of the item.
             val = bytearray(b'P' + portal_name_bin)
             val.append(0)
-            self._send_await(DESCRIBE, val)
+            self._send_message(DESCRIBE, val)
             assert self._sock_lock.locked()
             self._send_message(FLUSH)
             self._flush()
-
             self.handle_messages(ps)
 
     def _send_message(self, code, data=None):
         if data is None:
             data = bytearray()
         data[:0] = code + i_pack(len(data) + 4)
-        self._write(data)
+        try:
+            self._write(data)
+        except ValueError as e:
+            if str(e) == "write to closed file":
+                raise pg8000.errors.InterfaceError("Connection is closed.")
+            else:
+                raise e
 
     # Byte1('E') - Identifies the message as an execute message.
     # Int32 -   Message length, including self.
@@ -1350,7 +1305,10 @@ class Connection(object):
         val = bytearray(ps.portal_name, "ascii")
         val.append(0)
         val.extend(i_pack(row_count))
-        self._send_await(EXECUTE, val)
+        self._send_message(EXECUTE, val)
+        self._send_message(SYNC)
+        self._send_message(FLUSH)
+        self._flush()
 
     def handle_NO_DATA(self, msg, ps):
         assert self._sock_lock.locked()
@@ -1363,9 +1321,6 @@ class Connection(object):
             # Bind message returned NoData, causing us to execute the command.
             ps.portal_row_desc = []
             self.send_EXECUTE(ps, 0)
-            self._send_message(SYNC)
-            self._flush()
-        self.unawait(DESCRIBE)
 
     def handle_COMMAND_COMPLETE(self, data, ps):
         ps.cmd = {}
@@ -1384,19 +1339,6 @@ class Connection(object):
                 ps.cmd['oid': int(values[1])]
         else:
             ps.cmd['command'] = data
-        self.unawait(EXECUTE)
-
-    def fetch_rows(self, ps):
-        with self._sock_lock:
-            self.verifyState("ready")
-            if ps._cached_rows:
-                raise InternalError("attempt to fill cache that isn't empty")
-            self.send_EXECUTE(ps, PreparedStatement.row_cache_size)
-            self._send_message(SYNC)
-            self._send_message(FLUSH)
-            self._flush()
-
-            self.handle_messages(ps)
 
     def handle_DATA_ROW(self, data, ps):
         count = h_unpack(data)[0]
@@ -1429,21 +1371,30 @@ class Connection(object):
 
     def handle_messages(self, prepared_statement=None):
         assert self._sock_lock.locked()
-        while len(self.awaiting) > 0:
-            message_code, data_len = ci_unpack(self._read_bytes(5))
+        message_code = None
+        error = None
+        while message_code != READY_FOR_QUERY:
+            message_code, data_len = ci_unpack(self._sock.read(5))
             try:
                 self.message_types[message_code](
-                    self._read_bytes(data_len - 4), prepared_statement)
+                    self._sock.read(data_len - 4), prepared_statement)
             except KeyError:
                 raise InternalError(
                     "Unrecognised message code {0}".format(message_code))
+            except pg8000.errors.Error as e:
+                if prepared_statement is None:
+                    raise e
+                else:
+                    error = e
+        if error is not None:
+            raise error
 
     # Byte1('C') - Identifies the message as a close command.
     # Int32 - Message length, including self.
     # Byte1 - 'S' for prepared statement, 'P' for portal.
     # String - The name of the item to close.
     def _send_CLOSE(self, typ, ps):
-        self._send_await(
+        self._send_message(
             CLOSE, bytearray(
                 typ + ps.statement_name.encode("ascii") + b"\x00"))
 
@@ -1451,10 +1402,6 @@ class Connection(object):
         return self._send_CLOSE(b"P", ps)
 
     def close_statement(self, ps):
-        if self._state == "closed":
-            return
-        self.verifyState("ready")
-
         with self._sock_lock:
             self._send_CLOSE(b"S", ps)
             self._send_message(SYNC)
@@ -1463,9 +1410,6 @@ class Connection(object):
             self.handle_messages(ps)
 
     def close_portal(self, ps):
-        if self._state == "closed":
-            return
-        self.verifyState("ready")
         with self._sock_lock:
             self._send_CLOSE_portal(ps)
             self._send_message(SYNC)
@@ -1672,16 +1616,8 @@ def int4recv(data, client_encoding, integer_datetimes):
     return i_unpack(data)[0]
 
 
-def int4send(v):
-    return i_pack(v)
-
-
 def int8recv(data, client_encoding, integer_datetimes):
     return q_unpack(data)[0]
-
-
-def int8send(v):
-    return q_pack(v)
 
 
 def float4recv(data, client_encoding, integer_datetimes):
@@ -1690,10 +1626,6 @@ def float4recv(data, client_encoding, integer_datetimes):
 
 def float8recv(data, client_encoding, integer_datetimes):
     return d_unpack(data)[0]
-
-
-def float8send(v):
-    return d_pack(v)
 
 
 def timestamp_recv(data, client_encoding, integer_datetimes):
@@ -1748,7 +1680,7 @@ def numeric_recv(data, client_encoding, integer_datetimes):
 DEC_DIGITS = 4
 
 
-def numeric_send(d, **kwargs):
+def numeric_send(d):
     # This is a very straight port of src/backend/utils/adt/numeric.c
     # set_var_from_str()
     s = str(d)
@@ -2081,8 +2013,6 @@ class PreparedStatement(object):
         self.row_count = -1
 
         global statement_number
-        if connection is None:
-            raise InterfaceError("connection not provided")
         with statement_number_lock:
             self._statement_number = statement_number
             statement_number += 1
@@ -2126,8 +2056,6 @@ class PreparedStatement(object):
             self._cached_rows = []
             self.row_count = -1
             self.portal_suspended = False
-            if self.portal_name is not None:
-                self.c.close_portal(self)
             with portal_number_lock:
                 global portal_number
                 self.portal_name = "pg8000_portal_{0}".format(portal_number)
@@ -2136,13 +2064,8 @@ class PreparedStatement(object):
             self.stream = kwargs.get("stream")
             self.portal_row_desc = None
             self.c.bind(self, values)
-            if self.portal_row_desc:
-                # We execute our cursor right away to fill up our cache. This
-                # prevents the cursor from being destroyed, apparently, by a
-                # rogue Sync between Bind and Execute.  Since it is quite
-                # likely that data will be read from us right away anyways,
-                # this seems a safe move for now.
-                self.c.fetch_rows(self)
+            if len(self.portal_row_desc) == 0:
+                self.c.close_portal(self)
 
     ##
     # Read a row from the database server, and return it as a tuple of values.
@@ -2150,16 +2073,17 @@ class PreparedStatement(object):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def read_tuple(self):
-        if len(self.portal_row_desc) == 0:
-            raise ProgrammingError("no result set")
         with self._lock:
             if len(self._cached_rows) == 0:
                 if self.portal_suspended:
-                    try:
-                        self.c.fetch_rows(self)
-                    except AttributeError:
-                        raise CursorClosedError()
+                    with self.c._sock_lock:
+                        self.c.send_EXECUTE(
+                            self, PreparedStatement.row_cache_size)
+                        self.c.handle_messages(self)
                 if len(self._cached_rows) == 0:
+                    if len(self.portal_row_desc) == 0:
+                        raise ProgrammingError("no result set")
+                    self.c.close_portal(self)
                     return None
             return self._cached_rows.pop(0)
 

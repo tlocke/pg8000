@@ -29,6 +29,8 @@
 
 __author__ = "Mathieu Fenniak"
 
+import datetime
+
 try:
     from pytz import utc
 except ImportError:
