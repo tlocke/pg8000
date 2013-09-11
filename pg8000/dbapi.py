@@ -55,8 +55,9 @@ from pg8000 import i_unpack, ii_unpack, iii_unpack, hhhh_pack, h_pack, \
     hhhh_unpack, d_unpack, q_unpack, d_pack, f_unpack, q_pack, i_pack, \
     h_unpack, dii_unpack, qii_unpack, ci_unpack, bh_unpack, \
     ihihih_unpack, cccc_unpack, ii_pack, iii_pack, dii_pack, qii_pack
-from collections import deque
+from collections import deque, defaultdict
 from itertools import count
+from operator import itemgetter
 
 ##
 # The DBAPI level supported.  Currently 2.0.  This property is part of the
@@ -761,8 +762,8 @@ class Connection(object):
         # changed on the server.  The value of this property is a
         # util.MulticastDelegate.  A callback can be added by using
         # connection.NotificationReceived += SomeMethod. Callbacks can be
-        # removed with the -= operator.  The method will be called with a
-        # single argument, an object that has properties "key" and "value".
+        # removed with the -= operator. The method will be called with a single
+        # argument, an object that has properties "key" and "value".
         # <p>
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
         self.ParameterStatusReceived = pg8000.util.MulticastDelegate()
@@ -789,7 +790,7 @@ class Connection(object):
 
         def textout(v):
             return v.encode(self._client_encoding)
-        self.py_types[str] = (25, FC_BINARY, textout)
+        self.py_types[str] = (705, FC_BINARY, textout)
 
         def time_out(v):
             return v.isoformat().encode(self._client_encoding)
@@ -912,7 +913,7 @@ class Connection(object):
                 int(data[offset:offset + 4]), int(data[offset + 5:offset + 7]),
                 int(data[offset + 8:offset + 10]))
 
-        self.pg_types = {
+        self.pg_types = defaultdict(lambda: (FC_BINARY, varcharin), {
             16: (FC_BINARY, lambda d, o, l: bool_unpack(d, o)[0]),  # boolean
             17: (FC_BINARY, lambda d, o, l: Bytea(d[o:o + l])),  # bytea
             19: (FC_BINARY, varcharin),  # name type
@@ -945,7 +946,7 @@ class Connection(object):
             1263: (FC_BINARY, array_recv),  # cstring[]
             1700: (FC_BINARY, numeric_recv),
             2275: (FC_BINARY, varcharin),  # cstring
-        }
+        })
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,
             AUTHENTICATION_REQUEST: self.handle_AUTHENTICATION_REQUEST,
@@ -1230,12 +1231,13 @@ class Connection(object):
         idx = 2
         row_desc = []
         for i in range(count):
-            null = data.find(b"\x00", idx) - idx
-            field = {"name": data[idx:idx + null]}
-            idx += null + 1
-            field["table_oid"], field["column_attrnum"], field["type_oid"], \
-                field["type_size"], field["type_modifier"], field["format"] = \
-                ihihih_unpack(data, idx)
+            field = {'name': data[idx:data.find(b"\x00", idx)]}
+            idx += len(field['name']) + 1
+            field.update(
+                dict(zip((
+                    "table_oid", "column_attrnum", "type_oid",
+                    "type_size", "type_modifier", "format"),
+                    ihihih_unpack(data, idx))))
             idx += 18
             row_desc.append(field)
             try:
@@ -1253,7 +1255,7 @@ class Connection(object):
                 if d['format'] != d['pg8000_fc']:
                     raise NotSupportedError(
                         "format code {0} not supported for type {1}".format(
-                        d['format'], d['type_oid']))
+                            d['format'], d['type_oid']))
 
             # We execute our cursor right away to fill up our cache. This
             # prevents the cursor from being destroyed, apparently, by a
@@ -1308,13 +1310,9 @@ class Connection(object):
             else:
                 # We've got row_desc that allows us to identify what we're
                 # going to get back from this statement.
-                try:
-                    output_fc = tuple(
-                        self.pg_types[f['type_oid']][0] for f in
-                        ps.statement_row_desc)
-                except KeyError as e:
-                    raise NotSupportedError(
-                        "type oid %r not mapped to py type" % str(e))
+                output_fc = tuple(
+                    self.pg_types[f['type_oid']][0] for f in
+                    ps.statement_row_desc)
 
             statement_name_bin = ps.statement_name.encode('ascii')
             portal_name_bin = ps.portal_name.encode('ascii')
@@ -1337,22 +1335,14 @@ class Connection(object):
             #   Int16 - The format code.
             retval = bytearray(portal_name_bin + b"\x00")
             retval.extend(statement_name_bin + b"\x00")
-            retval.extend(h_pack(len(ps.param_fcs)))
-            retval.extend(pack("!" + "h" * len(ps.param_fcs), *ps.param_fcs))
             retval.extend(h_pack(len(ps.params)))
-            for i, param in enumerate(ps.params):
-                if len(ps.param_fcs) == 0:
-                    param_fc = 0
-                elif len(ps.param_fcs) == 1:
-                    param_fc = ps.param_fcs[0]
-                else:
-                    param_fc = ps.param_fcs[i]
-                oid, fc, send_func = param
-                if param_fc != fc:
-                    raise NotSupportedError(
-                        "type {0}, format code {1} not supported".format(oid,
-                        param_fc))
-                val = send_func(values[i])
+            retval.extend(
+                pack(
+                    "!" + "h" * len(ps.params),
+                    *tuple(map(itemgetter(1), ps.params))))
+            retval.extend(h_pack(len(ps.params)))
+            for value, (oid, fc, send_func) in zip(values, ps.params):
+                val = send_func(value)
                 if oid != -1:
                     retval.extend(i_pack(len(val)))
                 retval.extend(val)
@@ -1545,6 +1535,9 @@ class Connection(object):
             else:
                 raise ArrayContentNotSupportedError(
                     "numeric not supported as array contents")
+        elif typ is str:
+            oid, fc, send_func = (25, FC_BINARY, self.py_types[str][2])
+            array_typeoid = pg_array_types[oid]
         else:
             try:
                 oid, fc, send_func = self.make_params((first_element,))[0]
@@ -1674,8 +1667,10 @@ def numeric_recv(data, offset, recv):
             "!" + "h" * num_digits, data, offset + 8)] \
         + ['0000'] * (pos_weight - num_digits)
     return Decimal(
-        ''.join(['-' if sign else '', ''.join(digits[:pos_weight]), '.',
-        ''.join(digits[pos_weight:])[:scale]]))
+        ''.join(
+            ['-' if sign else '', ''.join(
+                digits[:pos_weight]), '.',
+                ''.join(digits[pos_weight:])[:scale]]))
 
 DEC_DIGITS = 4
 
@@ -1964,9 +1959,7 @@ class PreparedStatement(object):
     def get_row_description(self):
         if self.portal_row_desc is not None:
             return self.portal_row_desc
-        if self.statement_row_desc is not None:
-            return self.statment_row_desc
-        return None
+        return self.statment_row_desc
 
     ##
     # Run the SQL prepared statement with the given parameters.

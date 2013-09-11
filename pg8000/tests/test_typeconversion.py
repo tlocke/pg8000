@@ -15,6 +15,7 @@ class Tests(unittest.TestCase):
         self.cursor = db.cursor()
 
     def tearDown(self):
+
         self.cursor.close()
         self.cursor = None
 
@@ -89,11 +90,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], v)
 
     def testUnicodeRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", ("hello \u0173 world",))
+        self.cursor.execute(
+            "SELECT cast(%s as varchar) as f1", ("hello \u0173 world",))
         retval = self.cursor.fetchall()
-        self.assert_(
-            retval[0][0] == "hello \u0173 world",
-            "retrieved value match failed")
+        self.assertEqual(retval[0][0], "hello \u0173 world")
 
     def testLongRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", (50000000000000,))
@@ -141,13 +141,32 @@ class Tests(unittest.TestCase):
         v = datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)
         self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
-        self.assert_(retval[0][0] == v, "retrieved value match failed")
+        self.assertEqual(retval[0][0], v)
 
     def testIntervalRoundtrip(self):
         v = types.Interval(microseconds=123456789, days=2, months=24)
         self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
-        self.assert_(retval[0][0] == v, "retrieved value match failed")
+        self.assertEqual(retval[0][0], v)
+
+    def testEnumRoundtrip(self):
+        try:
+            self.cursor.execute(
+                "create type lepton as enum ('electron', 'muon', 'tau')")
+        except errors.ProgrammingError:
+            db.rollback()
+
+        v = 'muon'
+        self.cursor.execute("SELECT cast(%s as lepton) as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
+        self.cursor.execute(
+            "CREATE TEMPORARY TABLE testenum "
+            "(f1 lepton)")
+        self.cursor.execute("INSERT INTO testenum VALUES (%s)", ('electron',))
+        self.cursor.execute("drop table testenum")
+        self.cursor.execute("drop type lepton")
+        db.commit()
 
     def testTimestampTzOut(self):
         self.cursor.execute(
@@ -179,10 +198,11 @@ class Tests(unittest.TestCase):
                 "f2 timestamp without time zone)")
             self.cursor.execute(
                 "INSERT INTO TestTz (f1, f2) VALUES (%s, %s)", (
-                # insert timestamp into timestamptz field (v1)
-                datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
-                # insert timestamptz into timestamp field (v2)
-                mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))))
+                    # insert timestamp into timestamptz field (v1)
+                    datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
+                    # insert timestamptz into timestamp field (v2)
+                    mst.localize(datetime.datetime(
+                        2001, 2, 3, 4, 5, 6, 170000))))
             self.cursor.execute("SELECT f1, f2 FROM TestTz")
             retval = self.cursor.fetchall()
 

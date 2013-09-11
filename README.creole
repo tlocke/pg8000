@@ -9,8 +9,10 @@ communicates with the database using the
 ==Usage
 
 {{{
+
 >>> import pg8000
 >>> conn = pg8000.DBAPI.connect(user='postgres', password='password')
+
 }}}
 
 The {{{connect}}} function takes the following parameters:
@@ -26,29 +28,31 @@ The {{{connect}}} function takes the following parameters:
 |ssl           |False    |
 
 {{{
->>> pg8000.DBAPI.paramstyle = 'named'
+
+>>> pg8000.DBAPI.paramstyle = 'numeric'
 >>> cur = conn.cursor()
->>> cur.execute("create table example (id int, name varchar)")
+>>> cur.execute("create temporary table example (id int, name varchar)")
 >>> cur.execute("insert into example values (1, 'hello')")
 >>> conn.commit()
->>> cur.execute("select * from example where id = :id", {'id': 1})
+>>> cur.execute("select * from example where id = :1", (1,))
 >>> for row in cur:
 ...     print(row)
-... 
-(1, 'hello')
+[1, 'hello']
 >>> cur.close()
->>> conn.close()
+>>> conn.commit()
+
 }}}
 
-Following the DB-API specification, autocommit is off by default. It can be turned on by using the {{{autocommit}}} property of the connection.
+Following the DB-API specification, autocommit is off by default. It can be
+turned on by using the {{{autocommit}}} property of the connection.
 
 {{{
->>> import pg8000
->>> conn = pg8000.DBAPI.connect(user='postgres', password='password')
+
 >>> conn.autocommit = True
 >>> cur = conn.cursor()
->>> cur.execute("create database test")
->>> conn.close()
+>>> cur.execute("vacuum")
+>>> conn.autocommit = False
+
 }}}
 
 =Regression Tests

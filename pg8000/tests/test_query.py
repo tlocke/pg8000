@@ -161,7 +161,7 @@ class Tests(unittest.TestCase):
             cursor.execute(
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                 (5, 10000, None))
-            cursor.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", "Hello!")
+            cursor.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", ("Hello!",))
             self.assertEqual(cursor.rowcount, 2)
         db.commit()
 
