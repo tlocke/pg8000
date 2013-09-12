@@ -33,7 +33,8 @@ import datetime
 from datetime import timedelta
 import time
 from pg8000.types import (
-    Interval, min_int2, max_int2, min_int4, max_int4, min_int8, max_int8)
+    Interval, min_int2, max_int2, min_int4, max_int4, min_int8, max_int8,
+    Bytea)
 from pg8000.errors import (
     NotSupportedError, ProgrammingError, InternalError, IntegrityError,
     OperationalError, DatabaseError, InterfaceError, Error,
@@ -54,6 +55,7 @@ from pg8000 import i_unpack, ii_unpack, iii_unpack, hhhh_pack, h_pack, \
     hhhh_unpack, d_unpack, q_unpack, d_pack, f_unpack, q_pack, i_pack, \
     h_unpack, dii_unpack, qii_unpack, ci_unpack, bh_unpack, \
     ihihih_unpack, cccc_unpack, ii_pack, iii_pack, dii_pack, qii_pack
+from collections import deque
 
 ##
 # The DBAPI level supported.  Currently 2.0.  This property is part of the
@@ -865,6 +867,119 @@ class Connection(object):
             return self.timestamp_send(v.astimezone(utc).replace(tzinfo=None))
         self.timestamptz_send = timestamptz_send
 
+        def array_recv(data, idx, length):
+            final_idx = idx + length
+            dim, hasnull, typeoid = iii_unpack(data, idx)
+            idx += 12
+
+            # get type conversion method for typeoid
+            conversion = self.pg_types[typeoid][1]
+
+            # Read dimension info
+            dim_lengths = []
+            for i in range(dim):
+                dim_lengths.append(ii_unpack(data, idx)[0])
+                idx += 8
+
+            # Read all array values
+            values = []
+            while idx < final_idx:
+                element_len, = i_unpack(data, idx)
+                idx += 4
+                if element_len == -1:
+                    values.append(None)
+                else:
+                    values.append(conversion(data, idx, element_len))
+                    idx += element_len
+
+            # at this point, {{1,2,3},{4,5,6}}::int[][] looks like
+            # [1,2,3,4,5,6]. go through the dimensions and fix up the array
+            # contents to match expected dimensions
+            for length in reversed(dim_lengths[1:]):
+                values = list(map(list, zip(*[iter(values)] * length)))
+            return values
+
+        def varcharin(data, offset, length):
+            return str(data[offset: offset + length], self._client_encoding)
+
+        def time_in(data, offset, length):
+            hour = int(data[offset:offset + 2])
+            minute = int(data[offset + 3:offset + 5])
+            sec = Decimal(data[offset + 6:offset + length].decode("ascii"))
+            return datetime.time(
+                hour, minute, int(sec), int((sec - int(sec)) * 1000000))
+
+        def timestamp_recv(data, offset, length):
+            if self._integer_datetimes:
+                # data is 64-bit integer representing milliseconds since
+                # 2000-01-01
+                val = q_unpack(data, offset)[0]
+                return datetime.datetime(2000, 1, 1) + timedelta(
+                    microseconds=val)
+            else:
+                # data is double-precision float representing seconds since
+                # 2000-01-01
+                val = d_unpack(data, offset)[0]
+                return datetime(2000, 1, 1) + timedelta(seconds=val)
+
+        # return a timezone-aware datetime instance if we're reading from a
+        # "timestamp with timezone" type.  The timezone returned will always be
+        # UTC, but providing that additional information can permit conversion
+        # to local.
+        def timestamptz_recv(data, offset, length):
+            return timestamp_recv(data, offset, length).replace(tzinfo=utc)
+
+        def interval_recv(data, offset, length):
+            if self._integer_datetimes:
+                microseconds, days, months = qii_unpack(data, offset)
+            else:
+                seconds, days, months = dii_unpack(data, offset)
+                microseconds = int(seconds * 1000 * 1000)
+            return Interval(microseconds, days, months)
+
+        def oid_in(data, offset, length):
+            oid = data[offset: offset + length]
+            return Decimal(oid) if b'.' in oid else int(oid)
+
+        def date_in(data, offset, length):
+            return datetime.date(
+                int(data[offset:offset + 4]), int(data[offset + 5:offset + 7]),
+                int(data[offset + 8:offset + 10]))
+
+        self.pg_types = {
+            16: (FC_BINARY, lambda d, o, l: bool_unpack(d, o)[0]),  # boolean
+            17: (FC_BINARY, lambda d, o, l: Bytea(d[o:o + l])),  # bytea
+            19: (FC_BINARY, varcharin),  # name type
+            20: (FC_BINARY, lambda d, o, l: q_unpack(d, o)[0]),  # int8
+            21: (FC_BINARY, lambda d, o, l: h_unpack(d, o)[0]),  # int2
+            23: (FC_BINARY, lambda d, o, l: i_unpack(d, o)[0]),  # int4
+            25: (FC_BINARY, varcharin),  # TEXT type
+            26: (FC_TEXT, oid_in),  # oid
+            700: (FC_BINARY, lambda d, o, l: f_unpack(d, o)[0]),  # float4
+            701: (FC_BINARY, lambda d, o, l: d_unpack(d, o)[0]),  # float8
+            829: (FC_TEXT, varcharin),  # MACADDR type
+            1000: (FC_BINARY, array_recv),  # BOOL[]
+            1003: (FC_BINARY, array_recv),  # NAME[]
+            1005: (FC_BINARY, array_recv),  # INT2[]
+            1007: (FC_BINARY, array_recv),  # INT4[]
+            1009: (FC_BINARY, array_recv),  # TEXT[]
+            1014: (FC_BINARY, array_recv),  # CHAR[]
+            1015: (FC_BINARY, array_recv),  # VARCHAR[]
+            1016: (FC_BINARY, array_recv),  # INT8[]
+            1021: (FC_BINARY, array_recv),  # FLOAT4[]
+            1022: (FC_BINARY, array_recv),  # FLOAT8[]
+            1042: (FC_BINARY, varcharin),  # CHAR type
+            1043: (FC_BINARY, varcharin),  # VARCHAR type
+            1082: (FC_TEXT, date_in),  # date
+            1083: (FC_TEXT, time_in),
+            1114: (FC_BINARY, timestamp_recv),
+            1184: (FC_BINARY, timestamptz_recv),  # timestamp w/ tz
+            1186: (FC_BINARY, interval_recv),
+            1231: (FC_BINARY, array_recv),  # NUMERIC[]
+            1263: (FC_BINARY, array_recv),  # cstring[]
+            1700: (FC_BINARY, numeric_recv),
+            2275: (FC_BINARY, varcharin),  # cstring
+        }
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,
             AUTHENTICATION_REQUEST: self.handle_AUTHENTICATION_REQUEST,
@@ -1157,10 +1272,23 @@ class Connection(object):
                 ihihih_unpack(data, idx)
             idx += 18
             row_desc.append(field)
+            try:
+                field['pg8000_fc'], field['func'] = self.pg_types[
+                    field['type_oid']]
+            except KeyError as e:
+                raise NotSupportedError(
+                    "type oid {0} not supported".format(str(e)))
+
         if ps.statement_row_desc is None:
             ps.statement_row_desc = row_desc
         else:
             ps.portal_row_desc = row_desc
+            for d in row_desc:
+                if d['format'] != d['pg8000_fc']:
+                    raise NotSupportedError(
+                        "format code {0} not supported for type {1}".format(
+                        d['format'], d['type_oid']))
+
             # We execute our cursor right away to fill up our cache. This
             # prevents the cursor from being destroyed, apparently, by a
             # rogue Sync between Bind and Execute.  Since it is quite
@@ -1216,7 +1344,7 @@ class Connection(object):
                 # going to get back from this statement.
                 try:
                     output_fc = tuple(
-                        pg_types[f['type_oid']][0] for f in
+                        self.pg_types[f['type_oid']][0] for f in
                         ps.statement_row_desc)
                 except KeyError as e:
                     raise NotSupportedError(
@@ -1341,32 +1469,16 @@ class Connection(object):
             ps.cmd['command'] = data
 
     def handle_DATA_ROW(self, data, ps):
-        count = h_unpack(data)[0]
         data_idx = 2
         row = []
-        for i in range(count):
-            val_len = i_unpack(data, data_idx)[0]
+        for desc in ps.portal_row_desc:
+            vlen = i_unpack(data, data_idx)[0]
             data_idx += 4
-            if val_len == -1:
+            if vlen == -1:
                 row.append(None)
             else:
-                description = ps.portal_row_desc[i]
-                try:
-                    fc, func = pg_types[description['type_oid']]
-                except KeyError as e:
-                    raise NotSupportedError(
-                        "type oid {0} not supported".format(str(e)))
-
-                fmt = description['format']
-                if fc != fmt:
-                    raise NotSupportedError(
-                        "format code {0} not supported for type {1}".format(
-                        fmt, description['type_oid']))
-                row.append(
-                    func(
-                        data[data_idx:data_idx + val_len],
-                        self._client_encoding, self._integer_datetimes))
-                data_idx += val_len
+                row.append(desc['func'](data, data_idx, vlen))
+                data_idx += vlen
         ps._cached_rows.append(row)
 
     def handle_messages(self, prepared_statement=None):
@@ -1575,103 +1687,25 @@ pg_array_types = {
 }
 
 
-def varcharin(data, client_encoding, integer_datetimes):
-    return str(data, client_encoding)
-
-
 def byteasend(v):
     return v
 
 
-def bytearecv(data, client_encoding, integer_datetimes):
-    return pg8000.types.Bytea(data)
-
-
-def interval_recv(data, client_encoding, integer_datetimes):
-    if integer_datetimes:
-        microseconds, days, months = qii_unpack(data)
-    else:
-        seconds, days, months = dii_unpack(data)
-        microseconds = int(seconds * 1000 * 1000)
-    return Interval(microseconds, days, months)
-
 bool_struct = Struct("?")
-bool_unpack = bool_struct.unpack
+bool_unpack = bool_struct.unpack_from
 bool_pack = bool_struct.pack
-
-
-def boolrecv(data, client_encoding, integer_datetimes):
-    return bool_unpack(data)[0]
-
-
-def int2recv(data, client_encoding, integer_datetimes):
-    return h_unpack(data)[0]
 
 
 def int2send(v):
     return h_pack(v)
 
 
-def int4recv(data, client_encoding, integer_datetimes):
-    return i_unpack(data)[0]
-
-
-def int8recv(data, client_encoding, integer_datetimes):
-    return q_unpack(data)[0]
-
-
-def float4recv(data, client_encoding, integer_datetimes):
-    return f_unpack(data)[0]
-
-
-def float8recv(data, client_encoding, integer_datetimes):
-    return d_unpack(data)[0]
-
-
-def timestamp_recv(data, client_encoding, integer_datetimes):
-    if integer_datetimes:
-        # data is 64-bit integer representing milliseconds since 2000-01-01
-        val = q_unpack(data)[0]
-        return datetime.datetime(2000, 1, 1) + timedelta(microseconds=val)
-    else:
-        # data is double-precision float representing seconds since 2000-01-01
-        val = d_unpack(data)[0]
-        return datetime(2000, 1, 1) + timedelta(seconds=val)
-
-
-# return a timezone-aware datetime instance if we're reading from a
-# "timestamp with timezone" type.  The timezone returned will always be UTC,
-# but providing that additional information can permit conversion to local.
-def timestamptz_recv(data, client_encoding, integer_datetimes):
-    return timestamp_recv(
-        data, client_encoding, integer_datetimes).replace(tzinfo=utc)
-
-
-def date_in(data, client_encoding, integer_datetimes):
-    return datetime.date(int(data[0:4]), int(data[5:7]), int(data[8:10]))
-
-
-def time_in(data, client_encoding, integer_datetimes):
-    hour = int(data[0:2])
-    minute = int(data[3:5])
-    sec = Decimal(data[6:].decode("ascii"))
-    return datetime.time(
-        hour, minute, int(sec), int((sec - int(sec)) * 1000000))
-
-
-def numeric_in(data, client_encoding, integer_datetimes):
-    if data.find(b".") == -1:
-        return int(data)
-    else:
-        return Decimal(data)
-
-
-def numeric_recv(data, client_encoding, integer_datetimes):
-    num_digits, weight, sign, scale = hhhh_unpack(data)
+def numeric_recv(data, offset, recv):
+    num_digits, weight, sign, scale = hhhh_unpack(data, offset)
     pos_weight = max(0, weight) + 1
     digits = ['0000'] * abs(min(weight, 0)) + \
         [str(d).zfill(4) for d in unpack_from(
-            "!" + "h" * num_digits, data, 8)] \
+            "!" + "h" * num_digits, data, offset + 8)] \
         + ['0000'] * (pos_weight - num_digits)
     return Decimal(
         ''.join(['-' if sign else '', ''.join(digits[:pos_weight]), '.',
@@ -1767,10 +1801,6 @@ def numeric_send(d):
     return retval
 
 
-def numeric_out(v, **kwargs):
-    return str(v).encode("ascii")
-
-
 # PostgreSQL encodings:
 #   http://www.postgresql.org/docs/8.3/interactive/multibyte.html
 # Python encodings:
@@ -1826,43 +1856,6 @@ pg_to_py_encodings = {
 }
 
 
-def array_recv(data, client_encoding, integer_datetimes):
-    idx = 0
-
-    dim, hasnull, typeoid = iii_unpack(data)
-    idx += 12
-
-    # get type conversion method for typeoid
-    conversion = pg_types[typeoid][1]
-
-    # Read dimension info
-    dim_lengths = []
-    for i in range(dim):
-        dim_lengths.append(ii_unpack(data, idx)[0])
-        idx += 8
-
-    # Read all array values
-    values = []
-    while idx < len(data):
-        element_len, = i_unpack(data, idx)
-        idx += 4
-        if element_len == -1:
-            values.append(None)
-        else:
-            values.append(
-                conversion(
-                    data[idx:idx + element_len], client_encoding,
-                    integer_datetimes))
-            idx += element_len
-
-    # at this point, {{1,2,3},{4,5,6}}::int[][] looks like [1,2,3,4,5,6].
-    # go through the dimensions and fix up the array contents to match
-    # expected dimensions
-    for length in reversed(dim_lengths[1:]):
-        values = list(map(list, zip(*[iter(values)] * length)))
-    return values
-
-
 def array_find_first_element(arr):
     for v in array_flatten(arr):
         if v is not None:
@@ -1916,41 +1909,6 @@ def array_dim_lengths(arr):
     else:
         return [len(arr)]
     return retval
-
-pg_types = {
-    16: (FC_BINARY, boolrecv),
-    17: (FC_BINARY, bytearecv),
-    19: (FC_BINARY, varcharin),  # name type
-    20: (FC_BINARY, int8recv),
-    21: (FC_BINARY, int2recv),
-    23: (FC_BINARY, int4recv),
-    25: (FC_BINARY, varcharin),  # TEXT type
-    26: (FC_TEXT, numeric_in),  # oid type
-    700: (FC_BINARY, float4recv),
-    701: (FC_BINARY, float8recv),
-    829: (FC_TEXT, varcharin),  # MACADDR type
-    1000: (FC_BINARY, array_recv),  # BOOL[]
-    1003: (FC_BINARY, array_recv),  # NAME[]
-    1005: (FC_BINARY, array_recv),  # INT2[]
-    1007: (FC_BINARY, array_recv),  # INT4[]
-    1009: (FC_BINARY, array_recv),  # TEXT[]
-    1014: (FC_BINARY, array_recv),  # CHAR[]
-    1015: (FC_BINARY, array_recv),  # VARCHAR[]
-    1016: (FC_BINARY, array_recv),  # INT8[]
-    1021: (FC_BINARY, array_recv),  # FLOAT4[]
-    1022: (FC_BINARY, array_recv),  # FLOAT8[]
-    1042: (FC_BINARY, varcharin),  # CHAR type
-    1043: (FC_BINARY, varcharin),  # VARCHAR type
-    1082: (FC_TEXT, date_in),
-    1083: (FC_TEXT, time_in),
-    1114: (FC_BINARY, timestamp_recv),
-    1184: (FC_BINARY, timestamptz_recv),  # timestamp w/ tz
-    1186: (FC_BINARY, interval_recv),
-    1231: (FC_BINARY, array_recv),  # NUMERIC[]
-    1263: (FC_BINARY, array_recv),  # cstring[]
-    1700: (FC_BINARY, numeric_recv),
-    2275: (FC_BINARY, varcharin),  # cstring
-}
 
 
 class DataIterator(object):
@@ -2024,7 +1982,7 @@ class PreparedStatement(object):
         else:
             self.statement_name = statement_name
         self.stream = stream
-        self._cached_rows = []
+        self._cached_rows = deque()
         self.params = self.c.make_params(values)
         self.param_fcs = tuple(x[1] for x in self.params)
         self.statement_row_desc = None
@@ -2053,7 +2011,7 @@ class PreparedStatement(object):
     def execute(self, *values, **kwargs):
         with self._lock:
             # cleanup last execute
-            self._cached_rows = []
+            self._cached_rows.clear()
             self.row_count = -1
             self.portal_suspended = False
             with portal_number_lock:
@@ -2085,7 +2043,7 @@ class PreparedStatement(object):
                         raise ProgrammingError("no result set")
                     self.c.close_portal(self)
                     return None
-            return self._cached_rows.pop(0)
+            return self._cached_rows.popleft()
 
     ##
     # Read a row from the database server, and return it in a dictionary

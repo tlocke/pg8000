@@ -345,12 +345,11 @@ class Tests(unittest.TestCase):
             "'{{{TRUE,FALSE},{FALSE,TRUE}},{{NULL,TRUE},{FALSE,FALSE}}}'"
             "::BOOL[][][] AS f3")
         f1, f2, f3 = self.cursor.fetchone()
-        self.assert_(f1 == [True, False, False, True])
-        self.assert_(f2 == [[True, False, True], [False, True, False]])
-        self.assert_(
-            f3 == [
-                [[True, False], [False, True]], [[None, True],
-                [False, False]]])
+        self.assertEqual(f1, [True, False, False, True])
+        self.assertEqual(f2, [[True, False, True], [False, True, False]])
+        self.assertEqual(
+            f3,
+            [[[True, False], [False, True]], [[None, True], [False, False]]])
 
     def testFloat4ArrayOut(self):
         self.cursor.execute(
