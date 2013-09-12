@@ -57,7 +57,7 @@ class Tests(unittest.TestCase):
 
             cursor.execute("SELECT * FROM t1 ORDER BY f1")
             retval = cursor.fetchall()
-            self.assert_(retval == ((1, 1, '1'), (2, 2, '2'), (3, 3, '3')))
+            self.assertEqual(retval, ([1, 1, '1'], [2, 2, '2'], [3, 3, '3']))
             db.rollback()
 
     def testCopyFromWithQuery(self):
@@ -66,11 +66,11 @@ class Tests(unittest.TestCase):
             cursor.copy_from(
                 stream, query="COPY t1 (f1, f2) FROM STDIN WITH DELIMITER "
                 "'X' CSV HEADER QUOTE AS 'Y' FORCE NOT NULL f1")
-            self.assert_(cursor.rowcount == 1)
+            self.assertEqual(cursor.rowcount, 1)
 
             cursor.execute("SELECT * FROM t1 ORDER BY f1")
             retval = cursor.fetchall()
-            self.assert_(retval == ((1, 1, None),))
+            self.assertEqual(retval, ([1, 1, None],))
             db.commit()
 
     def testCopyWithoutTableOrQuery(self):

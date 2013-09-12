@@ -50,8 +50,7 @@ class Tests(unittest.TestCase):
             (None, None, None,))
         self.cursor.execute("SELECT * FROM TestNullWrite")
         retval = self.cursor.fetchone()
-        self.assert_(
-            retval == (None, None, None), "retrieved value match failed")
+        self.assertEqual(retval, [None, None, None])
 
     def testNullSelectFailure(self):
         # See comment in TestNullRoundtrip.  This test is here to ensure that

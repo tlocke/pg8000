@@ -1367,7 +1367,7 @@ class Connection(object):
                         data[data_idx:data_idx + val_len],
                         self._client_encoding, self._integer_datetimes))
                 data_idx += val_len
-        ps._cached_rows.append(tuple(row))
+        ps._cached_rows.append(row)
 
     def handle_messages(self, prepared_statement=None):
         assert self._sock_lock.locked()
