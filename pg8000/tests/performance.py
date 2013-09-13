@@ -3,7 +3,7 @@ from .connection_settings import db_connect
 import time
 import warnings
 from contextlib import closing
-import decimal
+from decimal import Decimal
 
 
 tests = (
@@ -19,6 +19,7 @@ tests = (
 
 with warnings.catch_warnings(), closing(DBAPI.connect(**db_connect)) as db:
     warnings.simplefilter("ignore")
+
     for txt, name in tests:
         query = """SELECT {0} AS column1, {0} AS column2, {0} AS column3,
             {0} AS column4, {0} AS column5, {0} AS column6, {0} AS column7
@@ -33,11 +34,13 @@ with warnings.catch_warnings(), closing(DBAPI.connect(**db_connect)) as db:
             end_time = time.time()
             print("Attempt %s - %s seconds." % (i, end_time - begin_time))
     db.commit()
+
+    cursor = db.cursor()
     cursor.execute(
         "CREATE TEMPORARY TABLE t1 (f1 serial primary key, "
         "f2 bigint not null, f3 varchar(50) null, f4 bool)")
     db.commit()
-    params = [(decimal.Decimal('7.4009'), 'season of mists...', True) for i in range(1000)]
+    params = [(Decimal('7.4009'), 'season of mists...', True)] * 1000
     print("Beginning executemany test...")
     for i in range(1, 5):
         begin_time = time.time()
@@ -46,6 +49,3 @@ with warnings.catch_warnings(), closing(DBAPI.connect(**db_connect)) as db:
         db.commit()
         end_time = time.time()
         print("Attempt {0} took {1} seconds.".format(i, end_time - begin_time))
-
-
-

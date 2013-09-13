@@ -329,7 +329,7 @@ def convert_paramstyle(src_style, query, args):
                             "'%" + query[i] +
                             "' not supported in quoted string")
 
-    return output_query, tuple(output_args)
+    return output_query, output_args
 
 
 def require_open_cursor(fn):
@@ -478,10 +478,6 @@ class Cursor(object):
     def execute(self, operation, args=(), stream=None):
         self._row_count = -1
         self._conn.begin()
-        self._execute(operation, args, stream=stream)
-        self._row_count = self._stmt.row_count
-
-    def _execute(self, operation, args, stream=None):
         new_query, new_args = convert_paramstyle(
             paramstyle, operation, args)
 
@@ -490,6 +486,34 @@ class Cursor(object):
                 self._conn, new_query, statement_name="", *new_args,
                 stream=stream)
             self._stmt.execute(*new_args, stream=stream)
+        self._row_count = self._stmt.row_count
+
+    ##
+    # Prepare a database operation and then execute it against all parameter
+    # sequences or mappings provided.
+    # <p>
+    # Stability: Part of the DBAPI 2.0 specification.
+    @require_open_cursor
+    def executemany(self, operation, parameter_sets):
+        self._row_count = -1
+        self._conn.begin()
+        with self._conn._unnamed_prepared_statement_lock:
+            new_query, new_args = convert_paramstyle(
+                paramstyle, operation, parameter_sets[0])
+            self._stmt = PreparedStatement(
+                self._conn, new_query, statement_name="", *new_args,
+                stream=None)
+            for parameters in parameter_sets:
+                new_query, new_args = convert_paramstyle(
+                    paramstyle, operation, parameters)
+
+                self._stmt.execute(*new_args, stream=None)
+                if self.row_count == -1:
+                    self._row_count = -1
+                elif self._row_count == -1:
+                    self._row_count = self.row_count
+                else:
+                    self._row_count += self.row_count
 
     def copy_from(self, fileobj, table=None, sep='\t', null=None, query=None):
         if query is None:
@@ -512,24 +536,6 @@ class Cursor(object):
     @require_open_cursor
     def copy_execute(self, fileobj, query):
         self.execute(query, stream=fileobj)
-
-    ##
-    # Prepare a database operation and then execute it against all parameter
-    # sequences or mappings provided.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
-    @require_open_cursor
-    def executemany(self, operation, parameter_sets):
-        self._row_count = -1
-        self._conn.begin()
-        for parameters in parameter_sets:
-            self._execute(operation, parameters)
-            if self.row_count == -1:
-                self._row_count = -1
-            elif self._row_count == -1:
-                self._row_count = self.row_count
-            else:
-                self._row_count += self.row_count
 
     ##
     # Fetch the next row of a query result set, returning a single sequence, or
@@ -2008,7 +2014,7 @@ class PreparedStatement(object):
     # Run the SQL prepared statement with the given parameters.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def execute(self, *values, **kwargs):
+    def execute(self, *values, stream=None):
         with self._lock:
             # cleanup last execute
             self._cached_rows.clear()
@@ -2019,7 +2025,7 @@ class PreparedStatement(object):
                 self.portal_name = "pg8000_portal_{0}".format(portal_number)
                 portal_number += 1
             self.cmd = None
-            self.stream = kwargs.get("stream")
+            self.stream = stream
             self.portal_row_desc = None
             self.c.bind(self, values)
             if len(self.portal_row_desc) == 0:

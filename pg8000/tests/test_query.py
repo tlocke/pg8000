@@ -114,7 +114,7 @@ class Tests(unittest.TestCase):
             expected_count = 57
             cursor.executemany(
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-                ((i, i, None) for i in range(expected_count)))
+                tuple((i, i, None) for i in range(expected_count)))
             db.commit()
 
             cursor.execute("SELECT * FROM t1")
