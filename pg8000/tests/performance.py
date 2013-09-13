@@ -3,6 +3,7 @@ from .connection_settings import db_connect
 import time
 import warnings
 from contextlib import closing
+import decimal
 
 
 tests = (
@@ -31,14 +32,20 @@ with warnings.catch_warnings(), closing(DBAPI.connect(**db_connect)) as db:
                 pass
             end_time = time.time()
             print("Attempt %s - %s seconds." % (i, end_time - begin_time))
+    db.commit()
+    cursor.execute(
+        "CREATE TEMPORARY TABLE t1 (f1 serial primary key, "
+        "f2 bigint not null, f3 varchar(50) null, f4 bool)")
+    db.commit()
+    params = [(decimal.Decimal('7.4009'), 'season of mists...', True) for i in range(1000)]
+    print("Beginning executemany test...")
+    for i in range(1, 5):
+        begin_time = time.time()
+        cursor.executemany(
+            "insert into t1 (f2, f3, f4) values (%s, %s, %s)", params)
+        db.commit()
+        end_time = time.time()
+        print("Attempt {0} took {1} seconds.".format(i, end_time - begin_time))
 
 
 
-# bytea
-# numeric
-# float4
-# float8
-# date
-# time
-# timestamp
-# interval
