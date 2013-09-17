@@ -292,12 +292,12 @@ def convert_paramstyle(style, query):
 
         prev_c = c
 
-    def make_args(args):
-        if args is None:
-            return ()
-        if style in ('numeric', 'qmark', 'format'):
-            return args
-        return tuple(args[p] for p in placeholders)
+    if style in ('numeric', 'qmark', 'format'):
+        def make_args(args):
+            return () if args is None else args
+    else:
+        def make_args(args):
+            return tuple(args[p] for p in placeholders)
 
     return ''.join(output_query), make_args
 
