@@ -37,6 +37,8 @@ from itertools import izip, islice
 from .errors import NotSupportedError, InternalError, ArrayContentEmptyError, \
     ArrayContentNotHomogenousError, ArrayContentNotSupportedError, \
     ArrayDimensionsNotConsistentError
+from collections import defaultdict
+
 try:
     from pytz import utc
 except ImportError:
@@ -174,9 +176,12 @@ def pg_value(value, fc, **kwargs):
 
 def py_type_info(description):
     type_oid = description['type_oid']
-    data = pg_types.get(type_oid)
-    if data is None:
+
+    try:
+        data = pg_types[type_oid]
+    except KeyError:
         raise NotSupportedError("type oid %r not mapped to py type" % type_oid)
+
     # prefer bin, but go with whatever exists
     if data.get("bin_in"):
         format = 1
@@ -355,8 +360,10 @@ def numeric_recv(data, **kwargs):
         [str(d).zfill(4) for d in unpack("!" + ("h" * num_digits), data[8:])] \
         + ['0000'] * (pos_weight - num_digits)
     return Decimal(
-        ''.join(['-' if sign else '', ''.join(digits[:pos_weight]), '.',
-        ''.join(digits[pos_weight:])[:scale]]))
+        ''.join(
+            [
+                '-' if sign else '', ''.join(digits[:pos_weight]), '.',
+                ''.join(digits[pos_weight:])[:scale]]))
 
 DEC_DIGITS = 4
 
@@ -416,8 +423,9 @@ def numeric_send(d, **kwargs):
     while ndigits_ > 0:
         # ifdef DEC_DIGITS == 4
         digits += pack(
-            "!h", ((decdigits[i] * 10 + decdigits[i + 1]) * 10 +
-            decdigits[i + 2]) * 10 + decdigits[i + 3])
+            "!h", (
+                (decdigits[i] * 10 + decdigits[i + 1]) * 10 +
+                decdigits[i + 2]) * 10 + decdigits[i + 3])
         ndigits_ -= 1
         i += DEC_DIGITS
 
@@ -591,7 +599,6 @@ def array_inspect(value):
     typ = type(first_element)
     if issubclass(typ, int) or issubclass(typ, long):
         # special int array support -- send as smallest possible array type
-        special_int_support = True
         int2_ok, int4_ok, int8_ok = True, True, True
         for v in array_flatten(value):
             if v is None:
@@ -607,19 +614,26 @@ def array_inspect(value):
             int8_ok = False
         if int2_ok:
             array_typeoid = 1005  # INT2[]
+            type_data = {"typeoid": 21, "bin_out": int2send}
         elif int4_ok:
             array_typeoid = 1007  # INT4[]
+            type_data = {"typeoid": 23, "bin_out": int4send}
         elif int8_ok:
             array_typeoid = 1016  # INT8[]
+            type_data = {"typeoid": 20, "bin_out": int8send}
         else:
             raise ArrayContentNotSupportedError(
                 "numeric not supported as array contents")
+    elif typ is str:
+        type_data = {"typeoid": 25, "bin_out": textout}
+        array_typeoid = 1009  # character varying
     else:
-        special_int_support = False
-        array_typeoid = py_array_types.get(typ)
-        if array_typeoid is None:
+        try:
+            array_typeoid = py_array_types[typ]
+        except KeyError:
             raise ArrayContentNotSupportedError(
                 "type %r not supported as array contents" % typ)
+        type_data = py_types[typ]
 
     # check for homogenous array
     for v in array_flatten(value):
@@ -632,20 +646,9 @@ def array_inspect(value):
     # check that all array dimensions are consistent
     array_check_dimensions(value)
 
-    type_data = py_types[typ]
-    if special_int_support:
-        if array_typeoid == 1005:
-            type_data = {"typeoid": 21, "bin_out": int2send}
-        elif array_typeoid == 1007:
-            type_data = {"typeoid": 23, "bin_out": int4send}
-        elif array_typeoid == 1016:
-            type_data = {"typeoid": 20, "bin_out": int8send}
-    else:
-        type_data = py_types[typ]
     return {
         "typeoid": array_typeoid,
-        "bin_out": array_send(type_data["typeoid"], type_data["bin_out"])
-    }
+        "bin_out": array_send(type_data["typeoid"], type_data["bin_out"])}
 
 
 def array_find_first_element(arr):
@@ -727,7 +730,7 @@ py_types = {
     bool: {"typeoid": 16, "bin_out": boolsend},
     int: {"inspect": int_inspect},
     long: {"inspect": int_inspect},
-    str: {"typeoid": 25, "bin_out": textout},
+    str: {"typeoid": 705, "bin_out": textout},
     unicode: {"typeoid": 25, "bin_out": textout},
     float: {"typeoid": 701, "bin_out": float8send},
     Decimal: {"typeoid": 1700, "bin_out": numeric_send},
@@ -751,7 +754,7 @@ py_array_types = {
     Decimal: 1231,  # NUMERIC[]
 }
 
-pg_types = {
+pg_types = defaultdict(lambda: {"bin_in": varcharin}, {
     16: {"bin_in": boolrecv},
     17: {"bin_in": bytearecv},
     19: {"bin_in": varcharin},  # name type
@@ -784,4 +787,4 @@ pg_types = {
     1263: {"bin_in": array_recv},  # cstring[]
     1700: {"bin_in": numeric_recv},
     2275: {"bin_in": varcharin},  # cstring
-}
+})

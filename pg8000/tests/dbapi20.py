@@ -247,7 +247,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             self.executeDDL1(cur1)
             cur1.execute(
                 "insert into %sbooze values ('Victoria Bitter')" % (
-                self.table_prefix))
+                    self.table_prefix))
             cur2.execute("select name from %sbooze" % self.table_prefix)
             booze = cur2.fetchall()
             self.assertEqual(len(booze), 1)
@@ -300,7 +300,7 @@ class DatabaseAPI20Test(unittest.TestCase):
                 'statements')
             cur.execute(
                 "insert into %sbooze values ('Victoria Bitter')" % (
-                self.table_prefix))
+                    self.table_prefix))
             self.failUnless(
                 cur.rowcount in (-1, 1),
                 'cursor.rowcount should == number or rows inserted, or '
@@ -367,7 +367,7 @@ class DatabaseAPI20Test(unittest.TestCase):
         self.executeDDL1(cur)
         cur.execute(
             "insert into %sbooze values ('Victoria Bitter')" % (
-            self.table_prefix))
+                self.table_prefix))
         self.failUnless(cur.rowcount in (-1, 1))
 
         if self.driver.paramstyle == 'qmark':
@@ -478,7 +478,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             # executing a query that cannnot return rows
             cur.execute(
                 "insert into %sbooze values ('Victoria Bitter')" % (
-                self.table_prefix))
+                    self.table_prefix))
             self.assertRaises(self.driver.Error, cur.fetchone)
 
             cur.execute('select name from %sbooze' % self.table_prefix)

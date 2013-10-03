@@ -78,13 +78,17 @@ class Tests(unittest.TestCase):
         self.assert_(bin_new == bin_orig, "retrieved value match failed")
 
     def testStrRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", ("hello world",))
+        self.cursor.execute(
+            "SELECT cast(%s as character varying) as f1",
+            ("hello world",))
         retval = self.cursor.fetchall()
         self.assert_(
             retval[0][0] == "hello world", "retrieved value match failed")
 
     def testUnicodeRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", ("hello \u0173 world",))
+        self.cursor.execute(
+            "SELECT cast(%s as character varying) as f1",
+            ("hello \u0173 world",))
         retval = self.cursor.fetchall()
         self.assert_(
             retval[0][0] == "hello \u0173 world",
@@ -175,10 +179,12 @@ class Tests(unittest.TestCase):
                 "f2 timestamp without time zone)")
             self.cursor.execute(
                 "INSERT INTO TestTz (f1, f2) VALUES (%s, %s)", (
-                # insert timestamp into timestamptz field (v1)
-                datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
-                # insert timestamptz into timestamp field (v2)
-                mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))))
+                    # insert timestamp into timestamptz field (v1)
+                    datetime.datetime(
+                        2001, 2, 3, 4, 5, 6, 170000),
+                    # insert timestamptz into timestamp field (v2)
+                    mst.localize(
+                        datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))))
             self.cursor.execute("SELECT f1, f2 FROM TestTz")
             retval = self.cursor.fetchall()
 
@@ -351,10 +357,12 @@ class Tests(unittest.TestCase):
         f1, f2, f3 = self.cursor.fetchone()
         self.assert_(f1 == [True, False, False, True])
         self.assert_(f2 == [[True, False, True], [False, True, False]])
-        self.assert_(
-            f3 == [
-                [[True, False], [False, True]], [[None, True],
-                [False, False]]])
+        self.assertEqual(
+            f3, [
+                [
+                    [True, False], [False, True]],
+                [
+                    [None, True], [False, False]]])
 
     def testFloat4ArrayOut(self):
         self.cursor.execute(
@@ -517,6 +525,24 @@ class Tests(unittest.TestCase):
         self.assert_(
             retval[0][0] == "08:00:2b:01:02:03",
             "retrieved value match failed")
+
+    def testEnumRoundtrip(self):
+        try:
+            self.cursor.execute(
+                "create type lepton as enum ('electron', 'muon', 'tau')")
+        except errors.ProgrammingError:
+            db.rollback()
+
+        v = 'muon'
+        self.cursor.execute("SELECT cast(%s as lepton) as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
+        self.cursor.execute("CREATE TEMPORARY TABLE testenum (f1 lepton)")
+        self.cursor.execute("INSERT INTO testenum VALUES (%s)", ('electron',))
+        self.cursor.execute("drop table testenum")
+        self.cursor.execute("drop type lepton")
+        db.commit()
+
 
 if __name__ == "__main__":
     unittest.main()

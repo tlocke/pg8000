@@ -11,6 +11,7 @@ json_decoder = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)
 # this is totally made up for now.
 AKIBAN_NESTED_CURSOR = 5001
 
+
 def read_datarow(conn, msg, rows, row_desc):
     """Read rows into a row buffer given a
     :class:`.DataRow` and :class:`.RowDescription` object.
@@ -41,16 +42,19 @@ def read_datarow(conn, msg, rows, row_desc):
 
     _create_rowset(conn, document, rows, row_desc.fields)
 
+
 def _create_rowset(conn, document, rows, fields):
     for rec in document:
         row = []
         for field in fields:
             value = rec[field['name']]
             if field['type_oid'] == AKIBAN_NESTED_CURSOR:
-                row.append(NestedCursor(conn, value, field['akiban.description']))
+                row.append(
+                    NestedCursor(conn, value, field['akiban.description']))
             else:
                 row.append(value)
         rows.append(row)
+
 
 def _description_from_firstrec(firstrec):
     """generate an approximated description given the first record in a
@@ -71,9 +75,10 @@ def _description_from_firstrec(firstrec):
         rec['type_oid'] = oid = _guess_type(value)
         if oid == AKIBAN_NESTED_CURSOR:
             rec['akiban.description'] = _description_from_firstrec(value[0]) \
-                                            if value else ()
+                if value else ()
         ret.append(rec)
     return ret
+
 
 def _guess_type(value):
     if isinstance(value, list):
@@ -89,6 +94,7 @@ def _guess_type(value):
     else:
         assert False, "Don't know what type to use for value: %r" % value
 
+
 class NestedCursor(object):
     # pg8000 doesn't seem to have this easily settable
     # at the DBAPI level
@@ -102,10 +108,10 @@ class NestedCursor(object):
     @property
     def description(self):
         return [
-            (col["name"], col["type_oid"],
-            None, None, None, None, None)
-            for col in self._row_description
-        ]
+            (
+                col["name"], col["type_oid"],
+                None, None, None, None, None)
+            for col in self._row_description]
 
     def fetchone(self):
         if self._rows:
@@ -121,6 +127,7 @@ class NestedCursor(object):
     def fetchmany(self, size=None):
         if size is None:
             size = self.arraysize
+
         def iter():
             for i, row in enumerate(self.cursor.iterate_tuple()):
                 yield row
@@ -139,8 +146,8 @@ class Extension(object):
 
     def disable_extension(self, connection):
         connection._extensions.remove(self)
-        disable_json = PreparedStatement(connection.conn,
-                                        "set OutputFormat='sql'")
+        disable_json = PreparedStatement(
+            connection.conn, "set OutputFormat='sql'")
         disable_json.execute()
 
     def new_cursor(self, connection, cursor):
