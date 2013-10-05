@@ -168,6 +168,12 @@ class Tests(unittest.TestCase):
         self.cursor.execute("drop type lepton")
         db.commit()
 
+    def testXmlRoundtrip(self):
+        v = '<genome>gatccgagtac</genome>'
+        self.cursor.execute("select xmlparse(content %s) as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
+
     def testTimestampTzOut(self):
         self.cursor.execute(
             "SELECT '2001-02-03 04:05:06.17 America/Edmonton'"
