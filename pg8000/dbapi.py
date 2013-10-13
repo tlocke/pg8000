@@ -986,7 +986,6 @@ class Connection(object):
         with self._sock_lock:
             self.handle_messages(None)
 
-        Cursor.__init__(self, self)
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
         self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
@@ -1141,9 +1140,9 @@ class Connection(object):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def begin(self):
-        if not self._conn.in_transaction and not self.autocommit:
-            self._conn._begin.execute()
-            self._conn.in_transaction = True
+        if not self.in_transaction and not self.autocommit:
+            self._begin.execute()
+            self.in_transaction = True
 
     def handle_AUTHENTICATION_REQUEST(self, data, ps):
         assert self._sock_lock.locked()
