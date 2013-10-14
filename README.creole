@@ -63,7 +63,13 @@ To run the regression tests, install [[https://github.com/nose-devs/nose|nose]]:
 pip install nose
 }}}
 
-and run from the {{{pg8000}}} directory:
+add a line to pg_hba.conf requiring md5 for the database pg8000_md5, eg.
+
+{{{
+host    pg8000_md5      all             127.0.0.1/32            md5
+}}}
+
+and run {{{nosetests}}} from the {{{pg8000}}} directory:
 
 {{{
 nosetests

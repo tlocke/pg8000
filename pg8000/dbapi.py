@@ -47,7 +47,7 @@ import socket
 import ssl as sslmodule
 import threading
 from struct import unpack_from, pack, Struct
-import hashlib
+from hashlib import md5
 from decimal import Decimal
 import pg8000
 import pg8000.util
@@ -1171,13 +1171,13 @@ class Connection(object):
 
             # Additional message data:
             #  Byte4 - Hash salt.
-            salt = b"".join(cccc_unpack(data))
+            salt = b"".join(cccc_unpack(data, 4))
             if self.password is None:
                 raise InterfaceError(
                     "server requesting MD5 password authentication, but no "
                     "password was provided")
-            pwd = b"md5" + hashlib.md5(
-                hashlib.md5(
+            pwd = b"md5" + md5(
+                md5(
                     self.password.encode("ascii") +
                     self.user.encode("ascii")).hexdigest().encode("ascii") +
                 salt).hexdigest().encode("ascii")

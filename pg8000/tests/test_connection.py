@@ -19,9 +19,8 @@ class Tests(unittest.TestCase):
         self.assertRaises(dbapi.ProgrammingError, dbapi.connect, **data)
 
     def testNotify(self):
-        try:
-            db = dbapi.connect(**db_connect)
-            self.assert_(db.notifies == [])
+        with closing(dbapi.connect(**db_connect)) as db:
+            self.assertEquals(db.notifies, [])
 
             with closing(db.cursor()) as cursor:
                 cursor.execute("LISTEN test")
@@ -29,12 +28,19 @@ class Tests(unittest.TestCase):
                 db.commit()
 
                 cursor.execute("VALUES (1, 2), (3, 4), (5, 6)")
-                self.assert_(len(db.notifies) == 1)
-                self.assert_(db.notifies[0][1] == "test")
+                self.assertEquals(len(db.notifies), 1)
+                self.assertEquals(db.notifies[0][1], "test")
 
-        finally:
-            db.close()
+    # This requires a line in pg_hba.conf that requires md5 for the database
+    # pg8000_md5
 
+    def testMd5(self):
+        data = db_connect.copy()
+        data["database"] = "pg8000_md5"
+
+        # Should only raise an exception saying db doesn't exist
+        self.assertRaisesRegex(
+            dbapi.ProgrammingError, '3D000', dbapi.connect, **data)
 
 if __name__ == "__main__":
     unittest.main()
