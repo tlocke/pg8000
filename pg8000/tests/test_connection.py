@@ -39,5 +39,16 @@ class Tests(unittest.TestCase):
         with closing(dbapi.connect(**db_connect)) as db:
             self.assertRegexpMatches(db.server_version, r'\d{1,2}\.\d(\.\d)?')
 
+    # This requires a line in pg_hba.conf that requires md5 for the database
+    # pg8000_md5
+
+    def testMd5(self):
+        data = db_connect.copy()
+        data["database"] = "pg8000_md5"
+
+        # Should only raise an exception saying db doesn't exist
+        self.assertRaisesRegexp(
+            dbapi.ProgrammingError, '3D000', dbapi.connect, **data)
+
 if __name__ == "__main__":
     unittest.main()

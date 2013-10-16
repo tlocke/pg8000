@@ -948,8 +948,9 @@ class AuthenticationMD5Password(AuthenticationRequest):
                 "but no password was provided")
         pwd = "md5" + hashlib.md5(
             hashlib.md5(password + user).hexdigest() + self.salt).hexdigest()
-        conn._send(PasswordMessage(pwd))
-        conn._flush()
+        conn._flush_messages(
+            PasswordMessage(
+                pwd).serialize())
 
         return self._authentication_reader(conn, self, user)
 
