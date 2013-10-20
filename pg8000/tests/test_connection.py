@@ -42,5 +42,11 @@ class Tests(unittest.TestCase):
         self.assertRaisesRegex(
             dbapi.ProgrammingError, '3D000', dbapi.connect, **data)
 
+    def testSsl(self):
+        data = db_connect.copy()
+        data["ssl"] = True
+        with closing(dbapi.connect(**data)):
+            pass
+
 if __name__ == "__main__":
     unittest.main()

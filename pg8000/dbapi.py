@@ -720,17 +720,17 @@ class Connection(object):
                 self._sock.connect((host, port))
             elif unix_sock is not None:
                 self._sock.connect(unix_sock)
+
             if ssl:
                 with self._sock_lock:
                     # Int32(8) - Message length, including self.
                     # Int32(80877103) - The SSL request code.
-                    self._write(ii_pack(8, 80877103))
-                    self._flush()
+                    self._sock.sendall(ii_pack(8, 80877103))
                     resp = self._sock.recv(1)
-                    if resp == 'S':
+                    if resp == b'S':
                         self._sock = sslmodule.wrap_socket(self._sock)
                     else:
-                        raise InterfaceError("server refuses SSL")
+                        raise InterfaceError("Server refuses SSL")
 
             # settimeout causes ssl failure, on windows.  Python bug 1462352.
             self._sock.settimeout(socket_timeout)
