@@ -1,5 +1,5 @@
 import unittest
-from pg8000.types import Interval
+from pg8000.pg8000_types import Interval
 
 
 # Type conversion tests
@@ -12,9 +12,9 @@ class Tests(unittest.TestCase):
 
     def testIntervalConstructor(self):
         i = Interval(days=1)
-        self.assert_(i.months == 0)
-        self.assert_(i.days == 1)
-        self.assert_(i.microseconds == 0)
+        self.assertEqual(i.months, 0)
+        self.assertEqual(i.days, 1)
+        self.assertEqual(i.microseconds, 0)
 
     def intervalRangeTest(self, parameter, in_range, out_of_range):
         for v in out_of_range:

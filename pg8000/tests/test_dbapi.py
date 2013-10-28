@@ -3,8 +3,9 @@ import os
 import time
 import pg8000
 import datetime
-from contextlib import closing
 from .connection_settings import db_connect
+from sys import exc_info
+from pg8000.six import b, IS_JYTHON
 
 dbapi = pg8000.DBAPI
 db2 = dbapi.connect(**db_connect)
@@ -13,16 +14,20 @@ db2 = dbapi.connect(**db_connect)
 # DBAPI compatible interface tests
 class Tests(unittest.TestCase):
     def setUp(self):
-        os.environ['TZ'] = "UTC"
-        time.tzset()
-        with closing(db2.cursor()) as c:
+        # Jython 2.5.3 doesn't have a time.tzset() so skip
+        if not IS_JYTHON:
+            os.environ['TZ'] = "UTC"
+            time.tzset()
+
+        try:
+            c = db2.cursor()
             try:
+                c = db2.cursor()
                 c.execute("DROP TABLE t1")
-            except pg8000.DatabaseError as e:
+            except pg8000.DatabaseError:
+                e = exc_info()[1]
                 # the only acceptable error is:
-                self.assert_(
-                    e.args[1] == b'42P01',  # table does not exist
-                    "incorrect error for drop table")
+                self.assertEqual(e.args[1], b('42P01'))  # table does not exist
                 db2.rollback()
             c.execute(
                 "CREATE TEMPORARY TABLE t1 "
@@ -43,9 +48,14 @@ class Tests(unittest.TestCase):
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                 (5, 10000, None))
             db2.commit()
+        finally:
+            c.close()
 
     def testParallelQueries(self):
-        with closing(db2.cursor()) as c1, closing(db2.cursor()) as c2:
+        try:
+            c1 = db2.cursor()
+            c2 = db2.cursor()
+
             c1.execute("SELECT f1, f2, f3 FROM t1")
             while 1:
                 row = c1.fetchone()
@@ -58,91 +68,103 @@ class Tests(unittest.TestCase):
                     if row is None:
                         break
                     f1, f2, f3 = row
+        finally:
+            c1.close()
+            c2.close()
+
         db2.rollback()
 
     def testQmark(self):
         orig_paramstyle = dbapi.paramstyle
         try:
             dbapi.paramstyle = "qmark"
-            with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > ?", (3,))
-                while 1:
-                    row = c1.fetchone()
-                    if row is None:
-                        break
-                    f1, f2, f3 = row
+            c1 = db2.cursor()
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > ?", (3,))
+            while 1:
+                row = c1.fetchone()
+                if row is None:
+                    break
+                f1, f2, f3 = row
             db2.rollback()
         finally:
             dbapi.paramstyle = orig_paramstyle
+            c1.close()
 
     def testNumeric(self):
         orig_paramstyle = dbapi.paramstyle
         try:
             dbapi.paramstyle = "numeric"
-            with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :1", (3,))
-                while 1:
-                    row = c1.fetchone()
-                    if row is None:
-                        break
-                    f1, f2, f3 = row
+            c1 = db2.cursor()
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :1", (3,))
+            while 1:
+                row = c1.fetchone()
+                if row is None:
+                    break
+                f1, f2, f3 = row
             db2.rollback()
         finally:
             dbapi.paramstyle = orig_paramstyle
+            c1.close()
 
     def testNamed(self):
         orig_paramstyle = dbapi.paramstyle
         try:
             dbapi.paramstyle = "named"
-            with closing(db2.cursor()) as c1:
-                c1.execute(
-                    "SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
-                while 1:
-                    row = c1.fetchone()
-                    if row is None:
-                        break
-                    f1, f2, f3 = row
+            c1 = db2.cursor()
+            c1.execute(
+                "SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
+            while 1:
+                row = c1.fetchone()
+                if row is None:
+                    break
+                f1, f2, f3 = row
             db2.rollback()
         finally:
             dbapi.paramstyle = orig_paramstyle
+            c1.close()
 
     def testFormat(self):
         orig_paramstyle = dbapi.paramstyle
         try:
             dbapi.paramstyle = "format"
-            with closing(db2.cursor()) as c1:
-                c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (3,))
-                while 1:
-                    row = c1.fetchone()
-                    if row is None:
-                        break
-                    f1, f2, f3 = row
+            c1 = db2.cursor()
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (3,))
+            while 1:
+                row = c1.fetchone()
+                if row is None:
+                    break
+                f1, f2, f3 = row
             db2.commit()
         finally:
             dbapi.paramstyle = orig_paramstyle
+            c1.close()
 
     def testPyformat(self):
         orig_paramstyle = dbapi.paramstyle
         try:
             dbapi.paramstyle = "pyformat"
-            with closing(db2.cursor()) as c1:
-                c1.execute(
-                    "SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
-                while 1:
-                    row = c1.fetchone()
-                    if row is None:
-                        break
-                    f1, f2, f3 = row
+            c1 = db2.cursor()
+            c1.execute(
+                "SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
+            while 1:
+                row = c1.fetchone()
+                if row is None:
+                    break
+                f1, f2, f3 = row
             db2.commit()
         finally:
             dbapi.paramstyle = orig_paramstyle
+            c1.close()
 
     def testArraysize(self):
-        with closing(db2.cursor()) as c1:
+        try:
+            c1 = db2.cursor()
             c1.arraysize = 3
             c1.execute("SELECT * FROM t1")
             retval = c1.fetchmany()
             self.assertEquals(len(retval), c1.arraysize)
+        finally:
+            c1.close()
         db2.commit()
 
     def testDate(self):
@@ -158,24 +180,34 @@ class Tests(unittest.TestCase):
         self.assertEquals(val, datetime.datetime(2001, 2, 3, 4, 5, 6))
 
     def testDateFromTicks(self):
+        if IS_JYTHON:
+            return
+
         val = dbapi.DateFromTicks(1173804319)
         self.assertEqual(val, datetime.date(2007, 3, 13))
 
     def testTimeFromTicks(self):
+        if IS_JYTHON:
+            return
+
         val = dbapi.TimeFromTicks(1173804319)
         self.assertEquals(val, datetime.time(16, 45, 19))
 
     def testTimestampFromTicks(self):
+        if IS_JYTHON:
+            return
+
         val = dbapi.TimestampFromTicks(1173804319)
         self.assertEquals(val, datetime.datetime(2007, 3, 13, 16, 45, 19))
 
     def testBinary(self):
-        v = dbapi.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
-        self.assertEqual(v, b"\x00\x01\x02\x03\x02\x01\x00")
-        self.assertIsInstance(v, dbapi.BINARY)
+        v = dbapi.Binary(b("\x00\x01\x02\x03\x02\x01\x00"))
+        self.assertEqual(v, b("\x00\x01\x02\x03\x02\x01\x00"))
+        self.assertTrue(isinstance(v, dbapi.BINARY))
 
     def testRowCount(self):
-        with closing(db2.cursor()) as c1:
+        try:
+            c1 = db2.cursor()
             c1.execute("SELECT * FROM t1")
             self.assertEquals(5, c1.rowcount)
 
@@ -184,16 +216,21 @@ class Tests(unittest.TestCase):
 
             c1.execute("DELETE FROM t1")
             self.assertEquals(5, c1.rowcount)
+        finally:
+            c1.close()
         db2.commit()
 
     def testFetchMany(self):
-        with closing(db2.cursor()) as cursor:
+        try:
+            cursor = db2.cursor()
             cursor.arraysize = 2
             cursor.execute("SELECT * FROM t1")
             self.assertEquals(2, len(cursor.fetchmany()))
             self.assertEquals(2, len(cursor.fetchmany()))
             self.assertEquals(1, len(cursor.fetchmany()))
             self.assertEquals(0, len(cursor.fetchmany()))
+        finally:
+            cursor.close()
         db2.commit()
 
     def testIterator(self):
@@ -201,21 +238,28 @@ class Tests(unittest.TestCase):
         filterwarnings("ignore", "DB-API extension cursor.next()")
         filterwarnings("ignore", "DB-API extension cursor.__iter__()")
 
-        with closing(db2.cursor()) as cursor:
+        try:
+            cursor = db2.cursor()
             cursor.execute("SELECT * FROM t1 ORDER BY f1")
             f1 = 0
             for row in cursor:
                 next_f1 = row[0]
                 assert next_f1 > f1
                 f1 = next_f1
+        except:
+            cursor.close()
+
         db2.commit()
 
     # Vacuum can't be run inside a transaction, so we need to turn
     # autocommit on.
     def testVacuum(self):
         db2.autocommit = True
-        with closing(db2.cursor()) as cursor:
+        try:
+            cursor = db2.cursor()
             cursor.execute("vacuum")
+        finally:
+            cursor.close()
 
 if __name__ == "__main__":
     unittest.main()

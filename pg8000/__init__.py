@@ -34,14 +34,14 @@ exec("from struct import Struct")
 for fmt in (
         "i", "h", "hhhh", "q", "d", "f", "iii", "ii", "qii", "dii", "ihihih",
         "ci", "bh", "cccc"):
-    exec("{0}_struct = Struct('!{0}')".format(fmt))
-    exec("{0}_unpack = {0}_struct.unpack_from".format(fmt))
-    exec("{0}_pack = {0}_struct.pack".format(fmt))
+    exec(fmt + "_struct = Struct('!" + fmt + "')")
+    exec(fmt + "_unpack = " + fmt + "_struct.unpack_from")
+    exec(fmt + "_pack = " + fmt + "_struct.pack")
 
 from pg8000 import dbapi as DBAPI
 pg8000_dbapi = DBAPI
 
 from pg8000.errors import Warning, DatabaseError
-from pg8000.types import Bytea
+from pg8000.pg8000_types import Bytea
 
 __all__ = [Warning, Bytea, DatabaseError]

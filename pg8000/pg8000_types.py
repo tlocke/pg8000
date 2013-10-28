@@ -30,6 +30,7 @@
 __author__ = "Mathieu Fenniak"
 
 import datetime
+from pg8000.six import binary_type, integer_types
 
 try:
     from pytz import utc
@@ -53,7 +54,7 @@ min_int4, max_int4 = -2 ** 31, 2 ** 31
 min_int8, max_int8 = -2 ** 63, 2 ** 63
 
 
-class Bytea(bytes):
+class Bytea(binary_type):
         pass
 
 
@@ -64,8 +65,8 @@ class Interval(object):
         self.months = months
 
     def _setMicroseconds(self, value):
-        if not isinstance(value, int):
-            raise TypeError("microseconds must be an int")
+        if not isinstance(value, integer_types):
+            raise TypeError("microseconds must be an integer type")
         elif not (min_int8 < value < max_int8):
             raise OverflowError(
                 "microseconds must be representable as a 64-bit integer")
@@ -73,8 +74,8 @@ class Interval(object):
             self._microseconds = value
 
     def _setDays(self, value):
-        if not isinstance(value, int):
-            raise TypeError("days must be an int")
+        if not isinstance(value, integer_types):
+            raise TypeError("days must be an integer type")
         elif not (min_int4 < value < max_int4):
             raise OverflowError(
                 "days must be representable as a 32-bit integer")
@@ -82,8 +83,8 @@ class Interval(object):
             self._days = value
 
     def _setMonths(self, value):
-        if not isinstance(value, int):
-            raise TypeError("months must be an int")
+        if not isinstance(value, integer_types):
+            raise TypeError("months must be an integer type")
         elif not (min_int4 < value < max_int4):
             raise OverflowError(
                 "months must be representable as a 32-bit integer")
