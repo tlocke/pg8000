@@ -5,7 +5,6 @@ from .connection_settings import db_connect
 from pg8000.six import u, b
 from sys import exc_info
 
-db = dbapi.connect(**db_connect)
 
 from warnings import filterwarnings
 
@@ -14,40 +13,44 @@ from warnings import filterwarnings
 # pg8000 custom interface.
 class Tests(unittest.TestCase):
     def setUp(self):
+        self.db = dbapi.connect(**db_connect)
         filterwarnings("ignore", "DB-API extension cursor.next()")
         filterwarnings("ignore", "DB-API extension cursor.__iter__()")
-        db.paramstyle = 'format'
+        self.db.paramstyle = 'format'
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             try:
                 cursor.execute("DROP TABLE t1")
             except dbapi.DatabaseError:
                 e = exc_info()[1]
                 # the only acceptable error is:
                 self.assertEqual(e.args[1], b('42P01'))  # table does not exist
-                db.rollback()
+                self.db.rollback()
             cursor.execute(
                 "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
                 "f2 bigint not null, f3 varchar(50) null)")
         finally:
             cursor.close()
 
-        db.commit()
+        self.db.commit()
+
+    def tearDown(self):
+        self.db.close()
 
     def testDatabaseError(self):
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             self.assertRaises(
                 dbapi.ProgrammingError, cursor.execute,
                 "INSERT INTO t99 VALUES (1, 2, 3)")
         finally:
             cursor.close()
 
-        db.rollback()
+        self.db.rollback()
 
     def testParallelQueries(self):
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             cursor.execute(
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                 (1, 1, None))
@@ -64,8 +67,8 @@ class Tests(unittest.TestCase):
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                 (5, 10000, None))
             try:
-                c1 = db.cursor()
-                c2 = db.cursor()
+                c1 = self.db.cursor()
+                c2 = self.db.cursor()
                 c1.execute("SELECT f1, f2, f3 FROM t1")
                 for row in c1:
                     f1, f2, f3 = row
@@ -78,11 +81,11 @@ class Tests(unittest.TestCase):
                 c2.close()
         finally:
             cursor.close()
-        db.rollback()
+        self.db.rollback()
 
     def testInsertReturning(self):
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             cursor.execute("CREATE TABLE t2 (id serial, data text)")
 
             # Test INSERT ... RETURNING with one row...
@@ -103,11 +106,11 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(ids), 3)
         finally:
             cursor.close()
-            db.rollback()
+            self.db.rollback()
 
     def testMultithreadedCursor(self):
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             # Note: Multithreading with a cursor is not highly recommended due
             # to low performance.
 
@@ -127,16 +130,16 @@ class Tests(unittest.TestCase):
             t3.join()
         finally:
             cursor.close()
-            db.rollback()
+            self.db.rollback()
 
     def testRowCount(self):
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             expected_count = 57
             cursor.executemany(
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                 tuple((i, i, None) for i in range(expected_count)))
-            db.commit()
+            self.db.commit()
 
             cursor.execute("SELECT * FROM t1")
 
@@ -150,29 +153,29 @@ class Tests(unittest.TestCase):
             self.assertEqual(expected_count, cursor.rowcount)
         finally:
             cursor.close()
-            db.commit()
+            self.db.commit()
 
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             # Restart the cursor, read a few rows, and then check rowcount
             # again...
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             cursor.execute("SELECT * FROM t1")
             for i in range(expected_count // 3):
                 cursor.fetchone()
             self.assertEqual(expected_count, cursor.rowcount)
-            db.rollback()
+            self.db.rollback()
 
             # Should be -1 for a command with no results
             cursor.execute("DROP TABLE t1")
             self.assertEqual(-1, cursor.rowcount)
         finally:
             cursor.close()
-            db.commit()
+            self.db.commit()
 
     def testRowCountUpdate(self):
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             cursor.execute(
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                 (1, 1, None))
@@ -192,21 +195,21 @@ class Tests(unittest.TestCase):
             self.assertEqual(cursor.rowcount, 2)
         finally:
             cursor.close()
-            db.commit()
+            self.db.commit()
 
     def testIntOid(self):
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             # https://bugs.launchpad.net/pg8000/+bug/230796
             cursor.execute(
                 "SELECT typname FROM pg_type WHERE oid = %s", (100,))
         finally:
             cursor.close()
-            db.rollback()
+            self.db.rollback()
 
     def testUnicodeQuery(self):
         try:
-            cursor = db.cursor()
+            cursor = self.db.cursor()
             cursor.execute(
                 u(
                     "CREATE TEMPORARY TABLE \u043c\u0435\u0441\u0442\u043e "
@@ -214,7 +217,7 @@ class Tests(unittest.TestCase):
                     "\u0430\u0434\u0440\u0435\u0441 VARCHAR(250))"))
         finally:
             cursor.close()
-            db.commit()
+            self.db.commit()
 
 
 if __name__ == "__main__":

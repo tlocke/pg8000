@@ -1,6 +1,6 @@
-=PG8000
+=pg8000
 
-PG8000 is a pure-[[http://www.python.org/|Python]]
+pg8000 is a pure-[[http://www.python.org/|Python]]
 [[http://www.postgresql.org/|PostgreSQL]] driver that complies with
 [[http://www.python.org/dev/peps/pep-0249/|DB-API 2.0]]. The driver
 communicates with the database using the

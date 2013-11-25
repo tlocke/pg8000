@@ -214,6 +214,7 @@ class DatabaseAPI20Test(unittest.TestCase):
         self.assertEqual(con.ProgrammingError is drv.ProgrammingError, True)
         self.assertEqual(con.NotSupportedError is drv.NotSupportedError, True)
         warnings.resetwarnings()
+        con.close()
 
     def test_commit(self):
         con = self._connect()
@@ -232,6 +233,7 @@ class DatabaseAPI20Test(unittest.TestCase):
                 con.rollback()
             except self.driver.NotSupportedError:
                 pass
+        con.close()
 
     def test_cursor(self):
         con = self._connect()

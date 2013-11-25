@@ -7,7 +7,6 @@ from .connection_settings import db_connect
 from pg8000.six import b, IS_JYTHON
 import uuid
 
-db = dbapi.connect(**db_connect)
 
 if not IS_JYTHON:
     import pytz
@@ -16,12 +15,13 @@ if not IS_JYTHON:
 # Type conversion tests
 class Tests(unittest.TestCase):
     def setUp(self):
-        self.cursor = db.cursor()
+        self.db = dbapi.connect(**db_connect)
+        self.cursor = self.db.cursor()
 
     def tearDown(self):
-
         self.cursor.close()
         self.cursor = None
+        self.db.close()
 
     def testTimeRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", (datetime.time(4, 5, 6),))
@@ -59,7 +59,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(
             errors.ProgrammingError, self.cursor.execute,
             "SELECT %s as f1", (None,))
-        db.rollback()
+        self.db.rollback()
 
     def testDecimalRoundtrip(self):
         values = "1.1", "-1.1", "10000", "20000", "-1000000000.123456789"
@@ -149,7 +149,7 @@ class Tests(unittest.TestCase):
             self.cursor.execute(
                 "create type lepton as enum ('electron', 'muon', 'tau')")
         except errors.ProgrammingError:
-            db.rollback()
+            self.db.rollback()
 
         v = 'muon'
         self.cursor.execute("SELECT cast(%s as lepton) as f1", (v,))
@@ -161,7 +161,7 @@ class Tests(unittest.TestCase):
         self.cursor.execute("INSERT INTO testenum VALUES (%s)", ('electron',))
         self.cursor.execute("drop table testenum")
         self.cursor.execute("drop type lepton")
-        db.commit()
+        self.db.commit()
 
     def testXmlRoundtrip(self):
         v = '<genome>gatccgagtac</genome>'
@@ -328,7 +328,7 @@ class Tests(unittest.TestCase):
             self.cursor.execute("SELECT %s(%%s) as f1" % method_out, (value,))
             retval = self.cursor.fetchall()
             self.assertEqual(
-                retval[0][0], db.make_params((value,))[0][2](value))
+                retval[0][0], self.db.make_params((value,))[0][2](value))
 
     def testInt4ArrayOut(self):
         self.cursor.execute(
@@ -479,16 +479,16 @@ class Tests(unittest.TestCase):
     def testArrayHasValue(self):
         self.assertRaises(
             errors.ArrayContentEmptyError,
-            db.array_inspect, [[None], [None], [None]])
-        db.rollback()
+            self.db.array_inspect, [[None], [None], [None]])
+        self.db.rollback()
 
     def testArrayContentNotSupported(self):
         class Kajigger(object):
             pass
         self.assertRaises(
             errors.ArrayContentNotSupportedError,
-            db.array_inspect, [[Kajigger()], [None], [None]])
-        db.rollback()
+            self.db.array_inspect, [[Kajigger()], [None], [None]])
+        self.db.rollback()
 
     def testArrayDimensions(self):
         for arr in (
@@ -498,22 +498,22 @@ class Tests(unittest.TestCase):
                 [[[[1]]], [[[2]]], [[[3, 4]]]],
                 [[1, 2, 3], [4, [5], 6]]):
 
-            arr_send = db.array_inspect(arr)[2]
+            arr_send = self.db.array_inspect(arr)[2]
             self.assertRaises(
                 errors.ArrayDimensionsNotConsistentError, arr_send, arr)
-            db.rollback()
+            self.db.rollback()
 
     def testArrayHomogenous(self):
         arr = [[[1]], [[2]], [[3.1]]]
-        arr_send = db.array_inspect(arr)[2]
+        arr_send = self.db.array_inspect(arr)[2]
         self.assertRaises(
             errors.ArrayContentNotHomogenousError, arr_send, arr)
-        db.rollback()
+        self.db.rollback()
 
     def testArrayInspect(self):
-        db.array_inspect([1, 2, 3])
-        db.array_inspect([[1], [2], [3]])
-        db.array_inspect([[[1]], [[2]], [[3]]])
+        self.db.array_inspect([1, 2, 3])
+        self.db.array_inspect([[1], [2], [3]])
+        self.db.array_inspect([[[1]], [[2]], [[3]]])
 
     def testMacaddr(self):
         self.cursor.execute("SELECT macaddr '08002b:010203'")

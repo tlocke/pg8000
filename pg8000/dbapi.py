@@ -775,6 +775,7 @@ class Connection(object):
             #self._read_bytes = self._sock_in.read
             self._sock = self._sock.makefile(mode="rwb")
         except socket.error:
+            self._sock.close()
             raise InterfaceError("communication error", exc_info()[1])
         self._flush = self._sock.flush
         if PRE_26:
@@ -1046,11 +1047,16 @@ class Connection(object):
         self._write(i_pack(len(val) + 4))
         self._write(val)
         self._flush()
+
         try:
-            self._sock_lock.acquire()
-            self.handle_messages(None)
-        finally:
-            self._sock_lock.release()
+            try:
+                self._sock_lock.acquire()
+                self.handle_messages()
+            finally:
+                self._sock_lock.release()
+        except:
+            self.close()
+            raise exc_info()[1]
 
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
