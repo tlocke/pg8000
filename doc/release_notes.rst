@@ -1,11 +1,97 @@
-Release History
-================
+Release Notes
+=============
 
-Development
------------
+Version 1.9.0
+-------------
+- For Python 3, the :class:`bytes` type replaces the :class:`pg8000.Bytea`
+  type. For backward compatibility the :class:`pg8000.Bytea` still works under
+  Python 3, but its use is deprecated.
+
+- A single codebase for Python 2 and 3.
+
+- Everything (functions, properties, classes) is now available under the
+  ``pg8000`` namespace. So for example:
+
+  - pg8000.DBAPI.connect() -> pg8000.connect()
+  - pg8000.DBAPI.apilevel -> pg8000.apilevel
+  - pg8000.DBAPI.threadsafety -> pg8000.threadsafety
+  - pg8000.DBAPI.paramstyle -> pg8000.paramstyle
+  - pg8000.types.Bytea -> pg8000.Bytea
+  - pg8000.types.Interval -> pg8000.Interval
+  - pg8000.errors.Warning -> pg8000.Warning
+  - pg8000.errors.Error -> pg8000.Error
+  - pg8000.errors.InterfaceError -> pg8000.InterfaceError
+  - pg8000.errors.DatabaseError -> pg8000.DatabaseError
+
+  The old locations are deprecated, but still work for backward compatibility.
+
+- Lots of performance improvements.
+
+  - Faster receiving of ``numeric`` types.
+  - Query only parsed when PreparedStatement is created.
+  - PreparedStatement re-used in executemany()
+  - Use ``collections.deque`` rather than ``list`` for the row cache. We're
+    adding to one end and removing from the other. This is O(n) for a list but
+    O(1) for a deque.
+  - Find the conversion function and do the format code check in the
+    ROW_DESCRIPTION handler, rather than every time in the ROW_DATA handler.
+  - Use the 'unpack_from' form of struct, when unpacking the data row, so we
+    don't have to slice the data.
+  - Return row as a list for better performance. At the moment result rows are
+    turned into a tuple before being returned. Returning the rows directly as a
+    list speeds up the performance tests about 5%.
+  - Simplify the event loop. Now the main event loop just continues until a
+    READY_FOR_QUERY message is received. This follows the suggestion in the
+    Postgres protocol docs. There's not much of a difference in speed, but the
+    code is a bit simpler, and it should make things more robust.
+  - Re-arrange the code as a state machine to give > 30% speedup.
+  - Using pre-compiled struct objects. Pre-compiled struct objects are a bit
+    faster than using the struct functions directly. It also hopefully adds to
+    the readability of the code.
+  - Speeded up _send. Before calling the socket 'write' method, we were
+    checking that the 'data' type implements the 'buffer' interface (bytes or
+    bytearray), but the check isn't needed because 'write' raises an exception
+    if data is of the wrong type.
+
+
+- Add facility for turning auto-commit on. This follows the suggestion of
+  funkybob to fix the problem of not be able to execute a command such as
+  'create database' that must be executed outside a transaction. Now you can do
+  conn.autocommit = True and then execute 'create database'.
+
+- Add support for the PostgreSQL ``uid`` type. Thanks to Rad Cirskis.
+
+- Add support for the PostgreSQL XML type.
+
+- Add support for the PostgreSQL ``enum`` user defined types.
+
+- Fix a socket leak, where a problem opening a connection could leave a socket
+  open.
+
+- Fix empty array issue. https://github.com/mfenniak/pg8000/issues/10
+
+- Fix scale on ``numeric`` types. https://github.com/mfenniak/pg8000/pull/13
+
+- Fix numeric_send. Thanks to Christian Hofstaedtler.
+
+Version 1.08, 2010-06-08
+------------------------
 
 - Removed usage of deprecated :mod:`md5` module, replaced with :mod:`hashlib`.
   Thanks to Gavin Sherry for the patch.
+
+- Start transactions on execute or executemany, rather than immediately at the
+  end of previous transaction.  Thanks to Ben Moran for the patch.
+
+- Add encoding lookups where needed, to address usage of SQL_ASCII encoding.
+  Thanks to Benjamin Schweizer for the patch.
+
+- Remove record type cache SQL query on every new pg8000 connection.
+
+- Fix and test SSL connections.
+
+- Handle out-of-band messages during authentication.
+
 
 Version 1.07, 2009-01-06
 ------------------------

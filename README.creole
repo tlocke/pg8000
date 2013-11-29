@@ -5,64 +5,9 @@ pg8000 is a pure-[[http://www.python.org/|Python]]
 [[http://www.python.org/dev/peps/pep-0249/|DB-API 2.0]]. The driver
 communicates with the database using the
 [[http://www.postgresql.org/docs/9.1/static/protocol.html|PostgreSQL Backend / Frontend Protocol]].
-The supported Python versions are:
 
-* CPython 2.5
-* CPython 2.6
-* CPython 2.7
-* CPython 3.2
-* CPython 3.3
-* PyPy
-* Jython 2.5
-
-==Usage
-
-{{{
-
->>> import pg8000
->>> conn = pg8000.DBAPI.connect(user='postgres', password='password')
-
-}}}
-
-The {{{connect}}} function takes the following parameters:
-
-|=parameter    |=default |
-|user          |         |
-|host          |localhost|
-|unix_sock     |         |
-|port          |5432     |
-|database      |         |
-|password      |         |
-|socket_timeout|60       |
-|ssl           |False    |
-
-{{{
-
->>> pg8000.DBAPI.paramstyle = 'numeric'
->>> cur = conn.cursor()
->>> cur.execute("create temporary table example (id int, name varchar)")
->>> cur.execute("insert into example values (1, 'hello')")
->>> conn.commit()
->>> cur.execute("select * from example where id = :1", (1,))
->>> for row in cur:
-...     print(row)
-[1, 'hello']
->>> cur.close()
->>> conn.commit()
-
-}}}
-
-Following the DB-API specification, autocommit is off by default. It can be
-turned on by using the {{{autocommit}}} property of the connection.
-
-{{{
-
->>> conn.autocommit = True
->>> cur = conn.cursor()
->>> cur.execute("vacuum")
->>> conn.autocommit = False
-
-}}}
+For more information, please see the
+[[https://pypi.python.org/pypi/pg8000|documentation]].
 
 =Regression Tests
 
@@ -84,6 +29,10 @@ and run {{{tox}}} from the {{{pg8000}}} directory:
 tox
 }}}
 
+The pg8000.tests.tests_1_8 package are a copy of the tests from the 1.8 release
+and are kept to make sure we retain backward compatibility with it. It will
+probably be removed in a 2.0 release.
+
 ==Performance Tests
 
 To run the performance tests from the {{{pg8000}}} directory:
@@ -92,3 +41,17 @@ To run the performance tests from the {{{pg8000}}} directory:
 python -m pg8000.tests.performance
 }}}
 
+=Building The Documentation
+
+The docs are written using [[http://sphinx-doc.org/|Sphinx]]. To build them,
+install sphinx:
+
+{{{
+pip install sphinx
+}}}
+
+Then in the {{{doc}}} directory type:
+
+{{{
+make html
+}}}

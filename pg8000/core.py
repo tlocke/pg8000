@@ -31,8 +31,7 @@ __author__ = "Mathieu Fenniak"
 
 import datetime
 from datetime import timedelta
-import time
-from pg8000.pg8000_types import (
+from pg8000 import (
     Interval, min_int2, max_int2, min_int4, max_int4, min_int8, max_int8,
     Bytea)
 from pg8000.errors import (
@@ -67,74 +66,6 @@ import uuid
 if PRE_26:
     bytearray = list
 
-##
-# The DBAPI level supported.  Currently 2.0.  This property is part of the
-# DBAPI 2.0 specification.
-apilevel = "2.0"
-
-##
-# Integer constant stating the level of thread safety the DBAPI interface
-# supports.  This DBAPI interface supports sharing of the module and
-# connections.  This property is part of the DBAPI 2.0 specification.
-threadsafety = 3
-
-##
-# String property stating the type of parameter marker formatting expected by
-# the interface.  This value defaults to "format".  This property is part of
-# the DBAPI 2.0 specification.
-# <p>
-# Unlike the DBAPI specification, this value is not constant.  It can be
-# changed to any standard paramstyle value (ie. qmark, numeric, named, format,
-# and pyformat).
-paramstyle = 'format'  # paramstyle can be changed to any DB-API paramstyle
-
-# I have no idea what this would be used for by a client app.  Should it be
-# TEXT, VARCHAR, CHAR?  It will only compare against row_description's
-# type_code if it is this one type.  It is the varchar type oid for now, this
-# appears to match expectations in the DB API 2.0 compliance test suite.
-
-STRING = 1043
-
-BINARY = pg8000.pg8000_types.Bytea
-
-# numeric type_oid
-NUMBER = 1700
-
-# timestamp type_oid
-DATETIME = 1114
-
-# oid type_oid
-ROWID = 26
-
-
-def Date(year, month, day):
-    return datetime.date(year, month, day)
-
-
-def Time(hour, minute, second):
-    return datetime.time(hour, minute, second)
-
-
-def Timestamp(year, month, day, hour, minute, second):
-    return datetime.datetime(year, month, day, hour, minute, second)
-
-
-def DateFromTicks(ticks):
-    return Date(*time.localtime(ticks)[:3])
-
-
-def TimeFromTicks(ticks):
-    return Time(*time.localtime(ticks)[3:6])
-
-
-def TimestampFromTicks(ticks):
-    return Timestamp(*time.localtime(ticks)[:6])
-
-
-##
-# Construct an object holding binary data.
-def Binary(value):
-    return pg8000.pg8000_types.Bytea(value)
 
 statement_number_lock = threading.Lock()
 statement_number = 0
@@ -825,9 +756,13 @@ class Connection(object):
             bool: (16, FC_BINARY, lambda x: b("\x01") if x else b("\x00")),
             float: (701, FC_BINARY, d_pack),
             Decimal: (1700, FC_BINARY, numeric_send),
-            pg8000.pg8000_types.Bytea: (17, FC_BINARY, byteasend),
             type(None): (-1, FC_BINARY, lambda value: i_pack(-1)),
             uuid.UUID: (2950, FC_BINARY, lambda v: v.bytes)}
+
+        if PY2:
+            self.py_types[pg8000.Bytea] = (17, FC_BINARY, lambda x: x)
+        else:
+            self.py_types[bytes] = (17, FC_BINARY, lambda x: x)
 
         def textout(v):
             return v.encode(self._client_encoding)
@@ -975,9 +910,7 @@ class Connection(object):
             return uuid.UUID(bytes=data[offset:offset+length])
 
         self.pg_types = defaultdict(lambda: (FC_BINARY, varcharin), {
-            #16: (FC_BINARY, lambda d, o, l: d[o] == b("\x01")),  # boolean
             16: (FC_BINARY, bool_recv),  # boolean
-            17: (FC_BINARY, lambda d, o, l: Bytea(d[o:o + l])),  # bytea
             19: (FC_BINARY, varcharin),  # name type
             20: (FC_BINARY, lambda d, o, l: q_unpack(d, o)[0]),  # int8
             21: (FC_BINARY, lambda d, o, l: h_unpack(d, o)[0]),  # int2
@@ -1010,6 +943,13 @@ class Connection(object):
             2275: (FC_BINARY, varcharin),  # cstring
             2950: (FC_BINARY, uuid_recv),  # uuid
         })
+
+        # bytea
+        if PY2:
+            self.pg_types[17] = (FC_BINARY, lambda d, o, l: Bytea(d[o:o + l]))
+        else:
+            self.pg_types[17] = (FC_BINARY, lambda d, o, l: d[o:o + l])
+
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,
             AUTHENTICATION_REQUEST: self.handle_AUTHENTICATION_REQUEST,
@@ -1657,51 +1597,6 @@ class Connection(object):
             return data
         return (array_typeoid, FC_BINARY, send_array)
 
-
-##
-# Creates a DBAPI 2.0 compatible interface to a PostgreSQL database.
-# <p>
-# Stability: Part of the DBAPI 2.0 specification.
-#
-# @param user   The username to connect to the PostgreSQL server with.  This
-# parameter is required.
-#
-# @keyparam host   The hostname of the PostgreSQL server to connect with.
-# Providing this parameter is necessary for TCP/IP connections.  One of either
-# host, or unix_sock, must be provided.
-#
-# @keyparam unix_sock   The path to the UNIX socket to access the database
-# through, for example, '/tmp/.s.PGSQL.5432'.  One of either unix_sock or host
-# must be provided.  The port parameter will have no affect if unix_sock is
-# provided.
-#
-# @keyparam port   The TCP/IP port of the PostgreSQL server instance.  This
-# parameter defaults to 5432, the registered and common port of PostgreSQL
-# TCP/IP servers.
-#
-# @keyparam database   The name of the database instance to connect with.  This
-# parameter is optional, if omitted the PostgreSQL server will assume the
-# database name is the same as the username.
-#
-# @keyparam password   The user password to connect to the server with.  This
-# parameter is optional.  If omitted, and the database server requests password
-# based authentication, the connection will fail.  On the other hand, if this
-# parameter is provided and the database does not request password
-# authentication, then the password will not be used.
-#
-# @keyparam socket_timeout  Socket connect timeout measured in seconds.
-# Defaults to 60 seconds.
-#
-# @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
-#
-# @return An instance of {@link #ConnectionWrapper ConnectionWrapper}.
-def connect(
-        user, host='localhost', unix_sock=None, port=5432, database=None,
-        password=None, socket_timeout=60, ssl=False):
-    return Connection(
-        user, host, unix_sock, port, database, password, socket_timeout, ssl)
-
-
 try:
     from pytz import utc
 except ImportError:
@@ -1727,10 +1622,6 @@ pg_array_types = {
     25: 1009,      # TEXT[]
     1700: 1231,  # NUMERIC[]
 }
-
-
-def byteasend(v):
-    return v
 
 
 def int2send(v):
@@ -2023,7 +1914,8 @@ class PreparedStatement(object):
         else:
             self.statement_name = statement_name
         self._cached_rows = deque()
-        self.statement, self.make_args = convert_paramstyle(paramstyle, query)
+        self.statement, self.make_args = convert_paramstyle(
+            pg8000.paramstyle, query)
         self.params = self.c.make_params(self.make_args(values))
         self.param_fcs = tuple(x[1] for x in self.params)
         self.statement_row_desc = None

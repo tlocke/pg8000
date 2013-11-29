@@ -1,7 +1,8 @@
 import unittest
-import pg8000
+from pg8000 import DBAPI
 from .connection_settings import db_connect
 import warnings
+from pg8000.errors import DatabaseError
 import datetime
 from sys import exc_info
 from pg8000.six import b
@@ -13,7 +14,7 @@ class TestException(Exception):
 
 class Tests(unittest.TestCase):
     def setUp(self):
-        self.db = pg8000.connect(**db_connect)
+        self.db = DBAPI.connect(**db_connect)
 
     def tearDown(self):
         self.db.close()
@@ -57,7 +58,7 @@ class Tests(unittest.TestCase):
                     cursor.execute("DROP TABLE t1")
                 finally:
                     cursor.close()
-            except pg8000.DatabaseError:
+            except DatabaseError:
                 e = exc_info()[1]
                 # the only acceptable error is:
                 self.assertEqual(e.args[1], b('42P01'))  # table does not exist
@@ -65,7 +66,7 @@ class Tests(unittest.TestCase):
 
     def testClosedConnection(self):
         warnings.simplefilter("ignore")
-        my_db = pg8000.connect(**db_connect)
+        my_db = DBAPI.connect(**db_connect)
         cursor = my_db.cursor()
         my_db.close()
         self.assertRaises(

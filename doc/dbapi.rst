@@ -1,20 +1,19 @@
-:mod:`pg8000.dbapi` --- DBAPI 2.0 PostgreSQL Interface
-======================================================
+:mod:`pg8000` API
+=================
 
-.. module:: pg8000.dbapi
-    :synopsis: DBAPI 2.0 compliant PostgreSQL interface using pg8000
+API Reference for pg8000.
 
-DBAPI Properties
-----------------
+Properties
+----------
 
-.. attribute:: apilevel
+.. attribute:: pg8000.apilevel
     
     The DBAPI level supported, currently "2.0".
 
     This property is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
-.. attribute:: threadsafety
+.. attribute:: pg8000.threadsafety
 
     Integer constant stating the level of thread safety the DBAPI interface
     supports.  This DBAPI module supports sharing the module, connections, and
@@ -23,7 +22,7 @@ DBAPI Properties
     This property is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
-.. attribute:: paramstyle
+.. attribute:: pg8000.paramstyle
 
     String property stating the type of parameter marker formatting expected by
     the interface.  This value defaults to "format", in which parameters are
@@ -46,17 +45,24 @@ DBAPI Properties
         pyformat
             Python format codes, eg. ``WHERE name=%(paramname)s``
 
-.. attribute:: STRING
-.. attribute:: BINARY
-.. attribute:: NUMBER
-.. attribute:: DATETIME
-.. attribute:: ROWID
+.. attribute:: pg8000.STRING
+.. attribute:: pg8000.BINARY
+.. attribute:: pg8000.NUMBER
+.. attribute:: pg8000.DATETIME
+.. attribute:: pg8000.ROWID
 
+.. attribute:: pg8000.autocommit
 
-DBAPI Functions
----------------
+    Following the DB-API specification, autocommit is off by default. It can be
+    turned on by setting this boolean pg8000-specific autocommit property to
+    True.
 
-.. function:: connect(user[, host, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False])
+    .. versionadded:: 1.9
+
+Functions
+---------
+
+.. function:: pg8000.connect(user[, host, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False])
     
     Creates a connection to a PostgreSQL database.
 
@@ -105,9 +111,9 @@ DBAPI Functions
         ``False``.
 
     :rtype:
-        An instance of :class:`pg8000.dbapi.ConnectionWrapper`.
+        A :class:`Connection` object.
 
-.. function:: Date(year, month, day)
+.. function:: pg8000.Date(year, month, day)
 
     Constuct an object holding a date value.
 
@@ -116,7 +122,7 @@ DBAPI Functions
 
     :rtype: :class:`datetime.date`
 
-.. function:: Time(hour, minute, second)
+.. function:: pg8000.Time(hour, minute, second)
 
     Construct an object holding a time value.
     
@@ -125,7 +131,7 @@ DBAPI Functions
 
     :rtype: :class:`datetime.time`
 
-.. function:: Timestamp(year, month, day, hour, minute, second)
+.. function:: pg8000.Timestamp(year, month, day, hour, minute, second)
 
     Construct an object holding a timestamp value.
     
@@ -134,7 +140,7 @@ DBAPI Functions
 
     :rtype: :class:`datetime.datetime`
 
-.. function:: DateFromTicks(ticks)
+.. function:: pg8000.DateFromTicks(ticks)
 
     Construct an object holding a date value from the given ticks value (number
     of seconds since the epoch).
@@ -144,7 +150,7 @@ DBAPI Functions
 
     :rtype: :class:`datetime.date`
 
-.. function:: TimeFromTicks(ticks)
+.. function:: pg8000.TimeFromTicks(ticks)
 
     Construct an objet holding a time value from the given ticks value (number
     of seconds since the epoch).
@@ -154,7 +160,7 @@ DBAPI Functions
 
     :rtype: :class:`datetime.time`
 
-.. function:: TimestampFromTicks(ticks)
+.. function:: pg8000.TimestampFromTicks(ticks)
 
     Construct an object holding a timestamp value from the given ticks value
     (number of seconds since the epoch).
@@ -164,7 +170,7 @@ DBAPI Functions
 
     :rtype: :class:`datetime.datetime`
 
-.. function:: Binary(string)
+.. function:: pg8000.Binary(string)
 
     Construct an object holding binary data.
 
@@ -174,18 +180,181 @@ DBAPI Functions
     :rtype: :class:`pg8000.types.Bytea`
 
 
-DBAPI Objects
--------------
+Generic Exceptions
+------------------
+pg8000 uses the standard DBAPI 2.0 exception tree as "generic" exceptions.
+Generally, more specific exception types are raised; these specific exception
+types are derived from the generic exceptions.
 
-.. class:: ConnectionWrapper
+.. exception:: pg8000.Warning(exceptions.StandardError)
 
-    A ``ConnectionWrapper`` instance represents a single physical connection
-    to a PostgreSQL database.  To construct an instance of this class, use the
-    :func:`~pg8000.dbapi.connect` function.
+    Generic exception raised for important database warnings like data
+    truncations.  This exception is not currently used by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: pg8000.Error(exceptions.StandardError)
+
+    Generic exception that is the base exception of all other error exceptions.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: pg8000.InterfaceError(Error)
+
+    Generic exception raised for errors that are related to the database
+    interface rather than the database itself.  For example, if the interface
+    attempts to use an SSL connection but the server refuses, an InterfaceError
+    will be raised.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: pg8000.DatabaseError(Error)
+
+    Generic exception raised for errors that are related to the database.  This
+    exception is currently never raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: pg8000.InternalError(DatabaseError)
+
+    Generic exception raised when the database encounters an internal error.
+    This is currently only raised when unexpected state occurs in the pg8000
+    interface itself, and is typically the result of a interface bug.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: pg8000.OperationalError(DatabaseError)
+
+    Generic exception raised for errors that are related to the database's
+    operation and not necessarily under the control of the programmer.  This
+    exception is currently never raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: pg8000.ProgrammingError(DatabaseError)
+
+    Generic exception raised for programming errors.  For example, this
+    exception is raised if more parameter fields are in a query string than
+    there are available parameters.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: pg8000.IntegrityError(DatabaseError)
+
+    Generic exception raised when the relational integrity of the database is
+    affected.  This exception is not currently raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: pg8000.DataError(DatabaseError)
+
+    Generic exception raised for errors that are due to problems with the
+    processed data.  This exception is not currently raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+.. exception:: pg8000.NotSupportedError(DatabaseError)
+
+    Generic exception raised in case a method or database API was used which is
+    not supported by the database.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+
+Specific Exceptions
+-------------------
+    
+Exceptions that are subclassed from the standard DB-API 2.0 exceptions above.
+
+.. exception:: pg8000.ConnectionClosedError(InterfaceError)
+
+    Raised when an attempt to use a connection fails due to the connection
+    being closed.
+
+.. exception:: pg8000.CursorClosedError(InterfaceError)
+
+    Raised when an attempt to use a cursor fails due to the cursor
+    being closed.
+
+.. exception:: pg8000.ArrayDataParseError(InternalError)
+
+    An exception that is raised when an internal error occurs trying to decode
+    binary array data received from the server.  This shouldn't occur unless
+    changes to the binary wire format for arrays occur between PostgreSQL
+    releases.
+
+.. exception:: pg8000.ArrayContentNotSupportedError(NotSupportedError)
+
+    Raised when attempting to transmit an array where the base type is not
+    supported for binary data transfer by the interface.
+
+.. exception:: pg8000.ArrayContentNotHomogenousError(ProgrammingError)
+
+    Raised when attempting to transmit an array that doesn't contain only a
+    single type of object.
+
+.. exception:: pg8000.ArrayContentEmptyError(ProgrammingError)
+
+    Raised when attempting to transmit an empty array.  The type oid of an
+    empty array cannot be determined, and so sending them is not permitted.
+
+.. exception:: pg8000.ArrayDimensionsNotConsistentError(ProgrammingError)
+
+    Raised when attempting to transmit an array that has inconsistent
+    multi-dimension sizes.
+
+.. exception:: pg8000.CopyQueryOrTableRequiredError(ProgrammingError)
+
+    Raised when :meth:`CursorWrapper.copy_to` or
+    :meth:`Cursor.copy_from` are called without specifying
+    the ``table`` or ``query`` keyword parameters.
+
+    .. versionadded:: 1.07
+
+.. exception:: pg8000.CopyQueryWithoutStreamError(ProgrammingError)
+
+    Raised when :meth:`Cursor.execute` is used to execute
+    a ``COPY ...`` query, rather than
+    :meth:`Cursor.copy_to` or
+    :meth:`Cursor.copy_from`.
+
+    .. versionadded:: 1.07
+
+.. exception:: pg8000.QueryParameterIndexError(ProgrammingError)
+
+    Raised when parameters in queries can't be matched with provided parameter
+    values.
+
+    .. versionadded:: 1.07
+
+.. exception:: pg8000.QueryParameterParseError(ProgrammingError)
+
+    A parsing error occurred while trying to parse parameters in a query.
+
+    .. versionadded:: 1.07
+
+
+Classes
+-------
+
+.. class:: Connection
+
+    A connection object is retuned by the :func:`pg8000.connect` function.
+    It represents a single physical connection to a PostgreSQL database. It has     the following methods:
 
     .. method:: cursor()
 
-        Creates a :class:`~pg8000.dbapi.CursorWrapper` instance bound to this
+        Creates a :class:`Cursor` object bound to this
         connection.
 
         This function is part of the `DBAPI 2.0 specification
@@ -262,10 +431,10 @@ DBAPI Objects
         used``.
 
 
-.. class:: CursorWrapper
+.. class:: Cursor
 
-    To construct an instance of this class, use the
-    :func:`pg8000.dbapi.ConnectionWrapper.cursor` method.
+    A cursor object is returned by the :meth:`~Connection.cursor` method of a connection.
+    It has the following attributes and methods:
 
     .. attribute:: arraysize
 
@@ -275,7 +444,7 @@ DBAPI Objects
     .. attribute:: connection
 
         This read-only attribute contains a reference to the connection object
-        (an instance of :class:`ConnectionWrapper`) on which the cursor was
+        (an instance of :class:`Connection`) on which the cursor was
         created.
 
         This attribute is part of a DBAPI 2.0 extension.  Accessing this
@@ -287,10 +456,6 @@ DBAPI Objects
         This read-only attribute contains the number of rows that the last
         execute method produced (for query statements like ``SELECT``) or
         affected (for modification statements like ``UPDATE``).
-
-        During a query statement, accessing this property requires reading the
-        entire result set into memory.  It is preferable to avoid using this
-        attribute to reduce memory usage.
 
         The value is -1 in case no execute method has been performed on the
         cursor, or there was no rowcount associated with the last operation.
@@ -424,7 +589,7 @@ DBAPI Objects
 
         :raises: 
 
-            :exc:`~pg8000.errors.CopyQueryOrTableRequiredError` when neither
+            :exc:`~pg8000.CopyQueryOrTableRequiredError` when neither
             *table* nor *query* parameters are provided.
 
         .. versionadded:: 1.07
@@ -453,76 +618,52 @@ DBAPI Objects
         implemented by pg8000.
 
 
-DBAPI Exceptions
-----------------
+Type Classes
+------------
 
-.. exception:: Warning(exceptions.StandardError)
+.. class:: pg8000.Bytea(str)
 
-    See :exc:`pg8000.errors.Warning`
+    Bytea is a str-derived class that is mapped to a PostgreSQL byte array.
+    This class is only used in Python 2, the built-in ``bytes`` type is used in
+    Python 3.
 
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
+.. class:: pg8000.Interval
 
-.. exception:: Error(exceptions.StandardError)
+    An Interval represents a measurement of time.  In PostgreSQL, an interval
+    is defined in the measure of months, days, and microseconds; as such, the
+    pg8000 interval type represents the same information.
 
-    See :exc:`pg8000.errors.Error`
+    Note that values of the :attr:`microseconds`, :attr:`days` and
+    :attr:`months` properties are independently measured and cannot be
+    converted to each other.  A month may be 28, 29, 30, or 31 days, and a day
+    may occasionally be lengthened slightly by a leap second.
 
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
+    .. method:: __init__(self, microseconds, days, months)
+    
+        Initializes an Interval instance with the given values for
+        microseconds, days, and months.
 
-.. exception:: InterfaceError(Error)
+    .. attribute:: microseconds
 
-    See :exc:`pg8000.errors.InterfaceError`
+        Measure of microseconds in the interval.
 
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
+        The microseconds value is constrained to fit into a signed 64-bit
+        integer.  Any attempt to set a value too large or too small will result
+        in an OverflowError being raised.
 
-.. exception:: DatabaseError(Error)
+    .. attribute:: days
 
-    See :exc:`pg8000.errors.DatabaseError`
+        Measure of days in the interval.
 
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
+        The days value is constrained to fit into a signed 32-bit integer.
+        Any attempt to set a value too large or too small will result in an
+        OverflowError being raised.
 
-.. exception:: InternalError(DatabaseError)
+    .. attribute:: months
 
-    See :exc:`pg8000.errors.InternalError`
+        Measure of months in the interval.
 
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-.. exception:: OperationalError(DatabaseError)
-
-    See :exc:`pg8000.errors.OperationalError`
-
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-.. exception:: ProgrammingError(DatabaseError)
-
-    See :exc:`pg8000.errors.ProgrammingError`
-
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-.. exception:: IntegrityError(DatabaseError)
-
-    See :exc:`pg8000.errors.IntegrityError`
-
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-.. exception:: DataError(DatabaseError)
-
-    See :exc:`pg8000.errors.DataError`
-
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-.. exception:: NotSupportedError(DatabaseError)
-
-    See :exc:`pg8000.errors.NotSupportedError`
-
-    This exception is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
+        The months value is constrained to fit into a signed 32-bit integer.
+        Any attempt to set a value too large or too small will result in an
+        OverflowError being raised.
 

@@ -1,6 +1,6 @@
 import unittest
 import threading
-import pg8000
+from pg8000 import dbapi
 from .connection_settings import db_connect
 from pg8000.six import u, b
 from sys import exc_info
@@ -13,7 +13,7 @@ from warnings import filterwarnings
 # pg8000 custom interface.
 class Tests(unittest.TestCase):
     def setUp(self):
-        self.db = pg8000.connect(**db_connect)
+        self.db = dbapi.connect(**db_connect)
         filterwarnings("ignore", "DB-API extension cursor.next()")
         filterwarnings("ignore", "DB-API extension cursor.__iter__()")
         self.db.paramstyle = 'format'
@@ -21,7 +21,7 @@ class Tests(unittest.TestCase):
             cursor = self.db.cursor()
             try:
                 cursor.execute("DROP TABLE t1")
-            except pg8000.DatabaseError:
+            except dbapi.DatabaseError:
                 e = exc_info()[1]
                 # the only acceptable error is:
                 self.assertEqual(e.args[1], b('42P01'))  # table does not exist
@@ -41,7 +41,7 @@ class Tests(unittest.TestCase):
         try:
             cursor = self.db.cursor()
             self.assertRaises(
-                pg8000.ProgrammingError, cursor.execute,
+                dbapi.ProgrammingError, cursor.execute,
                 "INSERT INTO t99 VALUES (1, 2, 3)")
         finally:
             cursor.close()

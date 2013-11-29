@@ -1,12 +1,24 @@
+Quick Start
+===========
+
+Installation
+------------
+pg8000 is available for Python 2.5, 2.6, 2.7, 3.2 and 3.3 (and has been tested
+on CPython, Jython and PyPy).
+
+To install pg8000 using `pip <https://pypi.python.org/pypi/pip>`_ type:
+
+``pip install pg8000``
+
 Interactive Example
-===================
+-------------------
 
 
 .. code-block:: python
 
-    >>> from pg8000 import DBAPI
+    >>> import pg8000
 
-    >>> conn = DBAPI.connect(host="pgsqldev4", user="jack", password="jack123")
+    >>> conn = pg8000.connect(host="pgsqldev", user="jack", password="jack123")
 
     >>> cursor = conn.cursor()
     >>> cursor.execute("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
@@ -30,11 +42,18 @@ Interactive Example
     >>> cursor.fetchone()
     (<<Interval 0 months 10454 days 49184111612 microseconds>,)
 
-    >>> DBAPI.paramstyle = "numeric"
+    >>> pg8000.paramstyle = "numeric"
     >>> cursor.execute("SELECT array_prepend(:1, :2)", ( 500, [1, 2, 3, 4], ))
     >>> cursor.fetchone()
     ([500, 1, 2, 3, 4],)
 
+    Following the DB-API specification, autocommit is off by default. It can be
+    turned on by using the autocommit property of the connection.
+
+    >>> conn.autocommit = True
+    >>> cur = conn.cursor()
+    >>> cur.execute("vacuum")
+    >>> conn.autocommit = False
+    
     >>> cursor.close()
     >>> conn.close()
-

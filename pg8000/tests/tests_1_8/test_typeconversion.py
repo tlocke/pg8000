@@ -1,5 +1,5 @@
 import unittest
-import pg8000
+from pg8000 import errors, types, dbapi
 import datetime
 import decimal
 import struct
@@ -15,7 +15,7 @@ if not IS_JYTHON:
 # Type conversion tests
 class Tests(unittest.TestCase):
     def setUp(self):
-        self.db = pg8000.connect(**db_connect)
+        self.db = dbapi.connect(**db_connect)
         self.cursor = self.db.cursor()
 
     def tearDown(self):
@@ -57,7 +57,7 @@ class Tests(unittest.TestCase):
         # See comment in TestNullRoundtrip.  This test is here to ensure that
         # this behaviour is documented and doesn't mysteriously change.
         self.assertRaises(
-            pg8000.ProgrammingError, self.cursor.execute,
+            errors.ProgrammingError, self.cursor.execute,
             "SELECT %s as f1", (None,))
         self.db.rollback()
 
@@ -128,7 +128,7 @@ class Tests(unittest.TestCase):
     def testByteaRoundtrip(self):
         self.cursor.execute(
             "SELECT %s as f1",
-            (pg8000.Binary(b("\x00\x01\x02\x03\x02\x01\x00")),))
+            (dbapi.Binary(b("\x00\x01\x02\x03\x02\x01\x00")),))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], b("\x00\x01\x02\x03\x02\x01\x00"))
 
@@ -139,7 +139,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], v)
 
     def testIntervalRoundtrip(self):
-        v = pg8000.Interval(microseconds=123456789, days=2, months=24)
+        v = types.Interval(microseconds=123456789, days=2, months=24)
         self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
@@ -148,7 +148,7 @@ class Tests(unittest.TestCase):
         try:
             self.cursor.execute(
                 "create type lepton as enum ('electron', 'muon', 'tau')")
-        except pg8000.ProgrammingError:
+        except errors.ProgrammingError:
             self.db.rollback()
 
         v = 'muon'
@@ -183,8 +183,8 @@ class Tests(unittest.TestCase):
         dt = retval[0][0]
         self.assertEqual(dt.tzinfo is not None, True, "no tzinfo returned")
         self.assertEqual(
-            dt.astimezone(pg8000.utc),
-            datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pg8000.utc),
+            dt.astimezone(types.utc),
+            datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, types.utc),
             "retrieved value match failed")
 
     def testTimestampTzRoundtrip(self):
@@ -304,7 +304,7 @@ class Tests(unittest.TestCase):
             "SELECT '1 month 16 days 12 hours 32 minutes 64 seconds'"
             "::interval")
         retval = self.cursor.fetchall()
-        expected_value = pg8000.Interval(
+        expected_value = types.Interval(
             microseconds=(12 * 60 * 60 * 1000 * 1000) +
             (32 * 60 * 1000 * 1000) + (64 * 1000 * 1000),
             days=16, months=1)
@@ -322,8 +322,8 @@ class Tests(unittest.TestCase):
         methods = (
             ("float8send", 22.2),
             ("timestamp_send", datetime.datetime(2001, 2, 3, 4, 5, 6, 789)),
-            ("byteasend", pg8000.Binary(b("\x01\x02"))),
-            ("interval_send", pg8000.Interval(1234567, 123, 123)),)
+            ("byteasend", dbapi.Binary(b("\x01\x02"))),
+            ("interval_send", types.Interval(1234567, 123, 123)),)
         for method_out, value in methods:
             self.cursor.execute("SELECT %s(%%s) as f1" % method_out, (value,))
             retval = self.cursor.fetchall()
@@ -478,7 +478,7 @@ class Tests(unittest.TestCase):
 
     def testArrayHasValue(self):
         self.assertRaises(
-            pg8000.ArrayContentEmptyError,
+            errors.ArrayContentEmptyError,
             self.db.array_inspect, [[None], [None], [None]])
         self.db.rollback()
 
@@ -486,7 +486,7 @@ class Tests(unittest.TestCase):
         class Kajigger(object):
             pass
         self.assertRaises(
-            pg8000.ArrayContentNotSupportedError,
+            errors.ArrayContentNotSupportedError,
             self.db.array_inspect, [[Kajigger()], [None], [None]])
         self.db.rollback()
 
@@ -500,14 +500,14 @@ class Tests(unittest.TestCase):
 
             arr_send = self.db.array_inspect(arr)[2]
             self.assertRaises(
-                pg8000.ArrayDimensionsNotConsistentError, arr_send, arr)
+                errors.ArrayDimensionsNotConsistentError, arr_send, arr)
             self.db.rollback()
 
     def testArrayHomogenous(self):
         arr = [[[1]], [[2]], [[3.1]]]
         arr_send = self.db.array_inspect(arr)[2]
         self.assertRaises(
-            pg8000.ArrayContentNotHomogenousError, arr_send, arr)
+            errors.ArrayContentNotHomogenousError, arr_send, arr)
         self.db.rollback()
 
     def testArrayInspect(self):

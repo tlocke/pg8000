@@ -1,6 +1,6 @@
 import unittest
-import pg8000
-from pg8000.tests.connection_settings import db_connect
+from pg8000 import dbapi
+from .connection_settings import db_connect
 from pg8000.six import PY2, PRE_26
 
 
@@ -8,18 +8,18 @@ from pg8000.six import PY2, PRE_26
 class Tests(unittest.TestCase):
     def testSocketMissing(self):
         self.assertRaises(
-            pg8000.InterfaceError, pg8000.connect,
+            dbapi.InterfaceError, dbapi.connect,
             unix_sock="/file-does-not-exist", user="doesn't-matter")
 
     def testDatabaseMissing(self):
         data = db_connect.copy()
         data["database"] = "missing-db"
-        self.assertRaises(pg8000.ProgrammingError, pg8000.connect, **data)
+        self.assertRaises(dbapi.ProgrammingError, dbapi.connect, **data)
 
     def testNotify(self):
 
         try:
-            db = pg8000.connect(**db_connect)
+            db = dbapi.connect(**db_connect)
             self.assertEqual(db.notifies, [])
             cursor = db.cursor()
             cursor.execute("LISTEN test")
@@ -43,18 +43,18 @@ class Tests(unittest.TestCase):
         # Should only raise an exception saying db doesn't exist
         if PY2:
             self.assertRaises(
-                pg8000.ProgrammingError, pg8000.connect, **data)
+                dbapi.ProgrammingError, dbapi.connect, **data)
         else:
             self.assertRaisesRegex(
-                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+                dbapi.ProgrammingError, '3D000', dbapi.connect, **data)
 
     def testSsl(self):
         data = db_connect.copy()
         data["ssl"] = True
         if PRE_26:
-            self.assertRaises(pg8000.InterfaceError, pg8000.connect, **data)
+            self.assertRaises(dbapi.InterfaceError, dbapi.connect, **data)
         else:
-            db = pg8000.connect(**data)
+            db = dbapi.connect(**data)
             db.close()
 
 if __name__ == "__main__":

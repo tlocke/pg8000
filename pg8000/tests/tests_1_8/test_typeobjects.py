@@ -1,5 +1,5 @@
 import unittest
-from pg8000 import Interval
+from pg8000.types import Interval
 
 
 # Type conversion tests

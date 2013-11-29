@@ -7,11 +7,13 @@ from .connection_settings import db_connect
 from sys import exc_info
 from pg8000.six import b, IS_JYTHON
 
+dbapi = pg8000.DBAPI
+
 
 # DBAPI compatible interface tests
 class Tests(unittest.TestCase):
     def setUp(self):
-        self.db = pg8000.connect(**db_connect)
+        self.db = dbapi.connect(**db_connect)
         # Jython 2.5.3 doesn't have a time.tzset() so skip
         if not IS_JYTHON:
             os.environ['TZ'] = "UTC"
@@ -76,9 +78,9 @@ class Tests(unittest.TestCase):
         self.db.rollback()
 
     def testQmark(self):
-        orig_paramstyle = pg8000.paramstyle
+        orig_paramstyle = dbapi.paramstyle
         try:
-            pg8000.paramstyle = "qmark"
+            dbapi.paramstyle = "qmark"
             c1 = self.db.cursor()
             c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > ?", (3,))
             while 1:
@@ -88,13 +90,13 @@ class Tests(unittest.TestCase):
                 f1, f2, f3 = row
             self.db.rollback()
         finally:
-            pg8000.paramstyle = orig_paramstyle
+            dbapi.paramstyle = orig_paramstyle
             c1.close()
 
     def testNumeric(self):
-        orig_paramstyle = pg8000.paramstyle
+        orig_paramstyle = dbapi.paramstyle
         try:
-            pg8000.paramstyle = "numeric"
+            dbapi.paramstyle = "numeric"
             c1 = self.db.cursor()
             c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :1", (3,))
             while 1:
@@ -104,13 +106,13 @@ class Tests(unittest.TestCase):
                 f1, f2, f3 = row
             self.db.rollback()
         finally:
-            pg8000.paramstyle = orig_paramstyle
+            dbapi.paramstyle = orig_paramstyle
             c1.close()
 
     def testNamed(self):
-        orig_paramstyle = pg8000.paramstyle
+        orig_paramstyle = dbapi.paramstyle
         try:
-            pg8000.paramstyle = "named"
+            dbapi.paramstyle = "named"
             c1 = self.db.cursor()
             c1.execute(
                 "SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
@@ -121,13 +123,13 @@ class Tests(unittest.TestCase):
                 f1, f2, f3 = row
             self.db.rollback()
         finally:
-            pg8000.paramstyle = orig_paramstyle
+            dbapi.paramstyle = orig_paramstyle
             c1.close()
 
     def testFormat(self):
-        orig_paramstyle = pg8000.paramstyle
+        orig_paramstyle = dbapi.paramstyle
         try:
-            pg8000.paramstyle = "format"
+            dbapi.paramstyle = "format"
             c1 = self.db.cursor()
             c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (3,))
             while 1:
@@ -137,13 +139,13 @@ class Tests(unittest.TestCase):
                 f1, f2, f3 = row
             self.db.commit()
         finally:
-            pg8000.paramstyle = orig_paramstyle
+            dbapi.paramstyle = orig_paramstyle
             c1.close()
 
     def testPyformat(self):
-        orig_paramstyle = pg8000.paramstyle
+        orig_paramstyle = dbapi.paramstyle
         try:
-            pg8000.paramstyle = "pyformat"
+            dbapi.paramstyle = "pyformat"
             c1 = self.db.cursor()
             c1.execute(
                 "SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
@@ -154,7 +156,7 @@ class Tests(unittest.TestCase):
                 f1, f2, f3 = row
             self.db.commit()
         finally:
-            pg8000.paramstyle = orig_paramstyle
+            dbapi.paramstyle = orig_paramstyle
             c1.close()
 
     def testArraysize(self):
@@ -169,42 +171,42 @@ class Tests(unittest.TestCase):
         self.db.commit()
 
     def testDate(self):
-        val = pg8000.Date(2001, 2, 3)
+        val = dbapi.Date(2001, 2, 3)
         self.assertEqual(val, datetime.date(2001, 2, 3))
 
     def testTime(self):
-        val = pg8000.Time(4, 5, 6)
+        val = dbapi.Time(4, 5, 6)
         self.assertEqual(val, datetime.time(4, 5, 6))
 
     def testTimestamp(self):
-        val = pg8000.Timestamp(2001, 2, 3, 4, 5, 6)
+        val = dbapi.Timestamp(2001, 2, 3, 4, 5, 6)
         self.assertEqual(val, datetime.datetime(2001, 2, 3, 4, 5, 6))
 
     def testDateFromTicks(self):
         if IS_JYTHON:
             return
 
-        val = pg8000.DateFromTicks(1173804319)
+        val = dbapi.DateFromTicks(1173804319)
         self.assertEqual(val, datetime.date(2007, 3, 13))
 
     def testTimeFromTicks(self):
         if IS_JYTHON:
             return
 
-        val = pg8000.TimeFromTicks(1173804319)
+        val = dbapi.TimeFromTicks(1173804319)
         self.assertEqual(val, datetime.time(16, 45, 19))
 
     def testTimestampFromTicks(self):
         if IS_JYTHON:
             return
 
-        val = pg8000.TimestampFromTicks(1173804319)
+        val = dbapi.TimestampFromTicks(1173804319)
         self.assertEqual(val, datetime.datetime(2007, 3, 13, 16, 45, 19))
 
     def testBinary(self):
-        v = pg8000.Binary(b("\x00\x01\x02\x03\x02\x01\x00"))
+        v = dbapi.Binary(b("\x00\x01\x02\x03\x02\x01\x00"))
         self.assertEqual(v, b("\x00\x01\x02\x03\x02\x01\x00"))
-        self.assertTrue(isinstance(v, pg8000.BINARY))
+        self.assertTrue(isinstance(v, dbapi.BINARY))
 
     def testRowCount(self):
         try:

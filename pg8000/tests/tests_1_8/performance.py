@@ -1,5 +1,5 @@
-import pg8000
-from pg8000.tests.connection_settings import db_connect
+from pg8000 import DBAPI
+from .connection_settings import db_connect
 import time
 import warnings
 from contextlib import closing
@@ -17,7 +17,7 @@ tests = (
         ("id / 100::numeric", 'numeric'),
 )
 
-with warnings.catch_warnings(), closing(pg8000.connect(**db_connect)) as db:
+with warnings.catch_warnings(), closing(DBAPI.connect(**db_connect)) as db:
     warnings.simplefilter("ignore")
 
     for txt, name in tests:

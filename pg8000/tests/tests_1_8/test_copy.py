@@ -1,5 +1,5 @@
 import unittest
-import pg8000
+from pg8000 import dbapi
 from .connection_settings import db_connect
 from pg8000.six import b, BytesIO
 from sys import exc_info
@@ -7,13 +7,13 @@ from sys import exc_info
 
 class Tests(unittest.TestCase):
     def setUp(self):
-        self.db = pg8000.connect(**db_connect)
+        self.db = dbapi.connect(**db_connect)
         try:
             cursor = self.db.cursor()
             try:
                 cursor = self.db.cursor()
                 cursor.execute("DROP TABLE t1")
-            except pg8000.DatabaseError:
+            except dbapi.DatabaseError:
                 e = exc_info()[1]
                 # the only acceptable error is:
                 self.assertEqual(
@@ -96,9 +96,9 @@ class Tests(unittest.TestCase):
             cursor = self.db.cursor()
             stream = BytesIO()
             self.assertRaises(
-                pg8000.CopyQueryOrTableRequiredError, cursor.copy_from, stream)
+                dbapi.CopyQueryOrTableRequiredError, cursor.copy_from, stream)
             self.assertRaises(
-                pg8000.CopyQueryOrTableRequiredError, cursor.copy_to, stream)
+                dbapi.CopyQueryOrTableRequiredError, cursor.copy_to, stream)
             self.db.rollback()
         finally:
             cursor.close()
