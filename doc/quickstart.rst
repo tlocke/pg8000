@@ -18,7 +18,7 @@ Interactive Example
 
     >>> import pg8000
 
-    >>> conn = pg8000.connect(host="pgsqldev", user="jack", password="jack123")
+    >>> conn = pg8000.connect(user="postgres", password="C.P.Snow")
 
     >>> cursor = conn.cursor()
     >>> cursor.execute("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
@@ -26,26 +26,29 @@ Interactive Example
     >>> cursor.execute(
     ...     "INSERT INTO book (title) VALUES (%s), (%s) RETURNING id, title",
     ...     ("Ender's Game", "Speaker for the Dead"))
-    >>> for row in cursor:
+    >>> results = cursor.fetchall()
+    >>> for row in results:
     ...     id, title = row
-    ...     print "id = %s, title = %s" % (id, title)
+    ...     print("id = %s, title = %s" % (id, title))
     id = 1, title = Ender's Game
     id = 2, title = Speaker for the Dead
     >>> conn.commit()
 
-    >>> cursor.execute("SELECT now()")
+    >>> cursor.execute("SELECT extract(millennium from now())")
     >>> cursor.fetchone()
-    (datetime.datetime(2008, 12, 10, 20, 39, 44, 111612, tzinfo=<UTC>),)
+    [3.0]
 
     >>> import datetime
-    >>> cursor.execute("SELECT now() - %s", (datetime.date(1980, 4, 27),))
+    >>> cursor.execute("SELECT timestamp '2013-12-01 16:06' - %s",
+    ... (datetime.date(1980, 4, 27),))
     >>> cursor.fetchone()
-    (<<Interval 0 months 10454 days 49184111612 microseconds>,)
+    [<Interval 0 months 12271 days 57960000000 microseconds>]
 
     >>> pg8000.paramstyle = "numeric"
     >>> cursor.execute("SELECT array_prepend(:1, :2)", ( 500, [1, 2, 3, 4], ))
     >>> cursor.fetchone()
-    ([500, 1, 2, 3, 4],)
+    [[500, 1, 2, 3, 4]]
+    >>> conn.rollback()
 
     Following the DB-API specification, autocommit is off by default. It can be
     turned on by using the autocommit property of the connection.

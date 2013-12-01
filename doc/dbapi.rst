@@ -62,7 +62,7 @@ Properties
 Functions
 ---------
 
-.. function:: pg8000.connect(user[, host, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False])
+.. function:: pg8000.connect(user[, host=localhost, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False])
     
     Creates a connection to a PostgreSQL database.
 
@@ -79,7 +79,7 @@ Functions
     :keyword host:
         The hostname of the PostgreSQL server to connect with.  Providing this
         parameter is necessary for TCP/IP connections.  One of either ``host``
-        or ``unix_sock`` must be provided.
+        or ``unix_sock`` must be provided. The default is ``localhost``.
 
     :keyword unix_sock:
         The path to the UNIX socket to access the database through, for
