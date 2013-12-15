@@ -1,8 +1,14 @@
 Release Notes
 =============
 
-Version 1.9.0
+Version 1.9.1
 -------------
+- Fixed bug where the Python 2 'unicode' type wasn't recognized in a query
+  parameter.
+
+
+Version 1.9.0, 2013-12-01
+-------------------------
 - For Python 3, the :class:`bytes` type replaces the :class:`pg8000.Bytea`
   type. For backward compatibility the :class:`pg8000.Bytea` still works under
   Python 3, but its use is deprecated.
@@ -73,6 +79,7 @@ Version 1.9.0
 - Fix scale on ``numeric`` types. https://github.com/mfenniak/pg8000/pull/13
 
 - Fix numeric_send. Thanks to Christian Hofstaedtler.
+
 
 Version 1.08, 2010-06-08
 ------------------------

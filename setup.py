@@ -19,7 +19,7 @@ PostgreSQL interface for Python."""
 
 setup(
         name="pg8000",
-        version="1.9.0",
+        version="1.9.1",
         description="PostgreSQL interface library",
         long_description=long_description,
         author="Mathieu Fenniak",
