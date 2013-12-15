@@ -4,7 +4,7 @@ import datetime
 import decimal
 import struct
 from .connection_settings import db_connect
-from pg8000.six import b, IS_JYTHON
+from pg8000.six import b, IS_JYTHON, text_type
 import uuid
 
 
@@ -93,6 +93,11 @@ class Tests(unittest.TestCase):
             "SELECT cast(%s as varchar) as f1", ("hello \u0173 world",))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], "hello \u0173 world")
+
+        v = text_type("hello \u0173 world")
+        self.cursor.execute("SELECT cast(%s as varchar) as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
 
     def testLongRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", (50000000000000,))

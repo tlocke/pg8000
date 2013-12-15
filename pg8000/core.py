@@ -58,7 +58,7 @@ from itertools import count
 from operator import itemgetter
 from pg8000.six.moves import map
 from pg8000.six import (
-    b, Iterator, PY2, binary_type, integer_types, next, PRE_26)
+    b, Iterator, PY2, binary_type, integer_types, next, PRE_26, text_type)
 from sys import exc_info
 import uuid
 
@@ -752,21 +752,23 @@ class Connection(object):
         self.NotificationReceived = pg8000.util.MulticastDelegate()
 
         self.ParameterStatusReceived += self.handle_PARAMETER_STATUS
+
+        def textout(v):
+            return v.encode(self._client_encoding)
+
         self.py_types = {
             bool: (16, FC_BINARY, lambda x: b("\x01") if x else b("\x00")),
             float: (701, FC_BINARY, d_pack),
             Decimal: (1700, FC_BINARY, numeric_send),
+            str: (705, FC_BINARY, textout),
             type(None): (-1, FC_BINARY, lambda value: i_pack(-1)),
             uuid.UUID: (2950, FC_BINARY, lambda v: v.bytes)}
 
         if PY2:
             self.py_types[pg8000.Bytea] = (17, FC_BINARY, lambda x: x)
+            self.py_types[text_type] = (705, FC_BINARY, textout)
         else:
             self.py_types[bytes] = (17, FC_BINARY, lambda x: x)
-
-        def textout(v):
-            return v.encode(self._client_encoding)
-        self.py_types[str] = (705, FC_BINARY, textout)
 
         def time_out(v):
             return v.isoformat().encode(self._client_encoding)
