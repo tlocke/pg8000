@@ -95,13 +95,20 @@ class Tests(unittest.TestCase):
             row_id = cursor.fetchone()[0]
             cursor.execute("SELECT data FROM t2 WHERE id = %s", (row_id,))
             self.assertEqual("test1", cursor.fetchone()[0])
-            self.assertEqual(cursor.rowcount, 1)
+
+            # In PostgreSQL 8.4 we don't know the row count for a select
+            if not self.db._server_version.startswith("8.4"):
+                self.assertEqual(cursor.rowcount, 1)
 
             # Test with multiple rows...
             cursor.execute(
                 "INSERT INTO t2 (data) VALUES (%s), (%s), (%s) "
                 "RETURNING id", ("test2", "test3", "test4"))
-            self.assertEqual(cursor.rowcount, 3)
+
+            # In PostgreSQL 8.4 we don't know the row count for a select
+            if not self.db._server_version.startswith("8.4"):
+                self.assertEqual(cursor.rowcount, 3)
+
             ids = tuple([x[0] for x in cursor])
             self.assertEqual(len(ids), 3)
         finally:
@@ -133,45 +140,47 @@ class Tests(unittest.TestCase):
             self.db.rollback()
 
     def testRowCount(self):
-        try:
-            cursor = self.db.cursor()
-            expected_count = 57
-            cursor.executemany(
-                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-                tuple((i, i, None) for i in range(expected_count)))
-            self.db.commit()
+        # In PostgreSQL 8.4 we don't know the row count for a select
+        if not self.db._server_version.startswith("8.4"):
+            try:
+                cursor = self.db.cursor()
+                expected_count = 57
+                cursor.executemany(
+                    "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+                    tuple((i, i, None) for i in range(expected_count)))
+                self.db.commit()
 
-            cursor.execute("SELECT * FROM t1")
+                cursor.execute("SELECT * FROM t1")
 
-            # Check row_count without doing any reading first...
-            self.assertEqual(expected_count, cursor.rowcount)
+                # Check row_count without doing any reading first...
+                self.assertEqual(expected_count, cursor.rowcount)
 
-            # Check rowcount after reading some rows, make sure it still
-            # works...
-            for i in range(expected_count // 2):
-                cursor.fetchone()
-            self.assertEqual(expected_count, cursor.rowcount)
-        finally:
-            cursor.close()
-            self.db.commit()
+                # Check rowcount after reading some rows, make sure it still
+                # works...
+                for i in range(expected_count // 2):
+                    cursor.fetchone()
+                self.assertEqual(expected_count, cursor.rowcount)
+            finally:
+                cursor.close()
+                self.db.commit()
 
-        try:
-            cursor = self.db.cursor()
-            # Restart the cursor, read a few rows, and then check rowcount
-            # again...
-            cursor = self.db.cursor()
-            cursor.execute("SELECT * FROM t1")
-            for i in range(expected_count // 3):
-                cursor.fetchone()
-            self.assertEqual(expected_count, cursor.rowcount)
-            self.db.rollback()
+            try:
+                cursor = self.db.cursor()
+                # Restart the cursor, read a few rows, and then check rowcount
+                # again...
+                cursor = self.db.cursor()
+                cursor.execute("SELECT * FROM t1")
+                for i in range(expected_count // 3):
+                    cursor.fetchone()
+                self.assertEqual(expected_count, cursor.rowcount)
+                self.db.rollback()
 
-            # Should be -1 for a command with no results
-            cursor.execute("DROP TABLE t1")
-            self.assertEqual(-1, cursor.rowcount)
-        finally:
-            cursor.close()
-            self.db.commit()
+                # Should be -1 for a command with no results
+                cursor.execute("DROP TABLE t1")
+                self.assertEqual(-1, cursor.rowcount)
+            finally:
+                cursor.close()
+                self.db.commit()
 
     def testRowCountUpdate(self):
         try:

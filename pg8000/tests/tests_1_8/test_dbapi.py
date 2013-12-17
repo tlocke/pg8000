@@ -209,19 +209,21 @@ class Tests(unittest.TestCase):
         self.assertTrue(isinstance(v, dbapi.BINARY))
 
     def testRowCount(self):
-        try:
-            c1 = self.db.cursor()
-            c1.execute("SELECT * FROM t1")
-            self.assertEqual(5, c1.rowcount)
+        # In PostgreSQL 8.4 we don't know the row count for a select
+        if not self.db._server_version.startswith("8.4"):
+            try:
+                c1 = self.db.cursor()
+                c1.execute("SELECT * FROM t1")
+                self.assertEqual(5, c1.rowcount)
 
-            c1.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", ("Hello!",))
-            self.assertEqual(2, c1.rowcount)
+                c1.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", ("Hello!",))
+                self.assertEqual(2, c1.rowcount)
 
-            c1.execute("DELETE FROM t1")
-            self.assertEqual(5, c1.rowcount)
-        finally:
-            c1.close()
-        self.db.commit()
+                c1.execute("DELETE FROM t1")
+                self.assertEqual(5, c1.rowcount)
+            finally:
+                c1.close()
+            self.db.commit()
 
     def testFetchMany(self):
         try:

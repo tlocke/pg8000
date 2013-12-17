@@ -658,6 +658,9 @@ class Connection(object):
             socket_timeout, ssl):
         self._client_encoding = "ascii"
         self._integer_datetimes = False
+        self._commands_with_count = (
+            b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
+            b("FETCH"), b("COPY"), b("SELECT"))
         self._sock_lock = threading.Lock()
         self.user = user
         self.password = password
@@ -1434,9 +1437,7 @@ class Connection(object):
         ps.cmd = {}
         data = data[:-1]
         values = data.split(b(" "))
-        if values[0] in (
-                b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"), b("FETCH"),
-                b("COPY"), b("SELECT")):
+        if values[0] in self._commands_with_count:
             ps.cmd['command'] = values[0]
             row_count = int(values[-1])
             if ps.row_count == -1:
@@ -1521,6 +1522,12 @@ class Connection(object):
             self._client_encoding = pg_to_py_encodings.get(encoding, encoding)
         elif key == b("integer_datetimes"):
             self._integer_datetimes = (value == b("on"))
+        elif key == b("server_version"):
+            self._server_version = value.decode("ascii")
+            if self._server_version.startswith("8.4"):
+                self._commands_with_count = (
+                    b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
+                    b("FETCH"), b("COPY"))
 
     def array_inspect(self, value):
         # Check if array has any values.  If not, we can't determine the proper
