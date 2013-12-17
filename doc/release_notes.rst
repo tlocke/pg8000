@@ -1,8 +1,16 @@
 Release Notes
 =============
 
-Version 1.9.1
--------------
+Version 1.9.2, 2013-12-17
+-------------------------
+- Fixed incompatibility with PostgreSQL 8.4. In 8.4, the CommandComplete
+  message doesn't return a row count if the command is SELECT. We now look at
+  the server version and don't look for a row count for a SELECT with version
+  8.4.
+
+
+Version 1.9.1, 2013-12-15
+-------------------------
 - Fixed bug where the Python 2 'unicode' type wasn't recognized in a query
   parameter.
 
