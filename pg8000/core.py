@@ -1,5 +1,3 @@
-# vim: sw=4:expandtab:foldmethod=marker
-#
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # All rights reserved.
 #
@@ -44,21 +42,21 @@ from pg8000.errors import (
 from warnings import warn
 import socket
 import threading
-from struct import unpack_from, pack, Struct
+from struct import pack, Struct
 from hashlib import md5
 from decimal import Decimal
 import pg8000
 import pg8000.util
 from pg8000 import i_unpack, ii_unpack, iii_unpack, hhhh_pack, h_pack, \
-    hhhh_unpack, d_unpack, q_unpack, d_pack, f_unpack, q_pack, i_pack, \
-    h_unpack, dii_unpack, qii_unpack, ci_unpack, bh_unpack, \
-    ihihih_unpack, cccc_unpack, ii_pack, iii_pack, dii_pack, qii_pack
+    d_unpack, q_unpack, d_pack, f_unpack, q_pack, i_pack, h_unpack, \
+    dii_unpack, qii_unpack, ci_unpack, bh_unpack, ihihih_unpack, cccc_unpack, \
+    ii_pack, iii_pack, dii_pack, qii_pack
 from collections import deque, defaultdict
 from itertools import count
 from operator import itemgetter
 from pg8000.six.moves import map
 from pg8000.six import (
-    b, Iterator, PY2, binary_type, integer_types, next, PRE_26, text_type)
+    b, Iterator, PY2, binary_type, integer_types, next, PRE_26, text_type, u)
 from sys import exc_info
 import uuid
 
@@ -815,6 +813,23 @@ class Connection(object):
             return self.timestamp_send(v.astimezone(utc).replace(tzinfo=None))
         self.timestamptz_send = timestamptz_send
 
+        trans_tab = dict(zip(map(ord, u('{}')), u('[]')))
+        glbls = {'Decimal': Decimal}
+
+        def array_in(data, idx, length):
+            arr = []
+            prev_c = None
+            for c in data[idx:idx+length].decode('ascii').translate(
+                    trans_tab).replace(u('NULL'), u('None')):
+                if c not in ('[', ']', ',', 'N') and prev_c in ('[', ','):
+                    arr.extend("Decimal('")
+                elif c in (']', ',') and prev_c not in ('[', ']', ',', 'e'):
+                    arr.extend("')")
+
+                arr.append(c)
+                prev_c = c
+            return eval(''.join(arr), glbls)
+
         def array_recv(data, idx, length):
             final_idx = idx + length
             dim, hasnull, typeoid = iii_unpack(data, idx)
@@ -856,6 +871,7 @@ class Connection(object):
                 return d[o] == b("\x01")
 
             self.inspect_funcs[long] = inspect_int  # noqa
+
         else:
             def varcharin(data, offset, length):
                 return str(
@@ -942,9 +958,9 @@ class Connection(object):
             1114: (FC_BINARY, timestamp_recv),
             1184: (FC_BINARY, timestamptz_recv),  # timestamp w/ tz
             1186: (FC_BINARY, interval_recv),
-            1231: (FC_BINARY, array_recv),  # NUMERIC[]
+            1231: (FC_TEXT, array_in),  # NUMERIC[]
             1263: (FC_BINARY, array_recv),  # cstring[]
-            1700: (FC_BINARY, numeric_recv),
+            1700: (FC_TEXT, numeric_in),  # NUMERIC
             2275: (FC_BINARY, varcharin),  # cstring
             2950: (FC_BINARY, uuid_recv),  # uuid
         })
@@ -1633,22 +1649,8 @@ pg_array_types = {
 }
 
 
-def int2send(v):
-    return h_pack(v)
-
-
-def numeric_recv(data, offset, recv):
-    num_digits, weight, sign, scale = hhhh_unpack(data, offset)
-    pos_weight = max(0, weight) + 1
-    digits = ['0000'] * abs(min(weight, 0)) + \
-        [str(d).zfill(4) for d in unpack_from(
-            "!" + "h" * num_digits, data, offset + 8)] \
-        + ['0000'] * (pos_weight - num_digits)
-    return Decimal(
-        ''.join(
-            ['-' if sign else '', ''.join(
-                digits[:pos_weight]), '.',
-                ''.join(digits[pos_weight:])[:scale]]))
+def numeric_in(data, offset, length):
+    return Decimal(data[offset: offset + length].decode('ascii'))
 
 DEC_DIGITS = 4
 

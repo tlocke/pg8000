@@ -62,11 +62,12 @@ class Tests(unittest.TestCase):
         self.db.rollback()
 
     def testDecimalRoundtrip(self):
-        values = "1.1", "-1.1", "10000", "20000", "-1000000000.123456789"
+        values = (
+            "1.1", "-1.1", "10000", "20000", "-1000000000.123456789", "1.0")
         for v in values:
             self.cursor.execute("SELECT %s as f1", (decimal.Decimal(v),))
             retval = self.cursor.fetchall()
-            self.assertEqual(retval[0][0], decimal.Decimal(v))
+            self.assertEqual(str(retval[0][0]), v)
 
     def testFloatRoundtrip(self):
         # This test ensures that the binary float value doesn't change in a
