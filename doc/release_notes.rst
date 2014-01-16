@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+Version 1.9.3, 2014-01-16
+-------------------------
+- Fixed bug where there were missing trailing zeros after the decimal point in
+  the NUMERIC type. For example, the NUMERIC value 1.0 was returned as 1 (with
+  no zero after the decimal point).
+    
+  This is fixed this by making pg8000 use the text rather than binary
+  representation for the numeric type. This actually doubles the speed of
+  numeric queries.
+
+
 Version 1.9.2, 2013-12-17
 -------------------------
 - Fixed incompatibility with PostgreSQL 8.4. In 8.4, the CommandComplete
