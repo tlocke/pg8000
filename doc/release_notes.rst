@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+Version 1.9.4, 2014-01-18
+-------------------------
+- Fixed a bug where with Python 2, a parameter with the value Decimal('12.44'),
+  (and probably other numbers) isn't sent correctly to PostgreSQL, and so the
+  command fails. This has been fixed by sending decimal types as text rather
+  than binary. I'd imagine it's slightly faster too.
+
+
 Version 1.9.3, 2014-01-16
 -------------------------
 - Fixed bug where there were missing trailing zeros after the decimal point in
