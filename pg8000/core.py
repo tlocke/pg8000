@@ -47,10 +47,11 @@ from hashlib import md5
 from decimal import Decimal
 import pg8000
 import pg8000.util
-from pg8000 import i_unpack, ii_unpack, iii_unpack, hhhh_pack, h_pack, \
-    d_unpack, q_unpack, d_pack, f_unpack, q_pack, i_pack, h_unpack, \
-    dii_unpack, qii_unpack, ci_unpack, bh_unpack, ihihih_unpack, cccc_unpack, \
-    ii_pack, iii_pack, dii_pack, qii_pack
+from pg8000 import (
+    i_unpack, ii_unpack, iii_unpack, h_pack, d_unpack, q_unpack, d_pack,
+    f_unpack, q_pack, i_pack, h_unpack, dii_unpack, qii_unpack, ci_unpack,
+    bh_unpack, ihihih_unpack, cccc_unpack, ii_pack, iii_pack, dii_pack,
+    qii_pack)
 from collections import deque, defaultdict
 from itertools import count
 from operator import itemgetter
@@ -59,6 +60,7 @@ from pg8000.six import (
     b, Iterator, PY2, binary_type, integer_types, next, PRE_26, text_type, u)
 from sys import exc_info
 import uuid
+from copy import deepcopy
 
 
 if PRE_26:
@@ -586,6 +588,8 @@ READY_STATUS = {
 def data_into_dict(data):
     return dict((s[0:1], s[1:]) for s in data.split(b("\x00")))
 
+arr_trans = dict(zip(map(ord, u("[] 'u")), list(u('{}')) + [None] * 3))
+
 
 ##
 # This class represents a connection to a PostgreSQL database.
@@ -760,7 +764,7 @@ class Connection(object):
         self.py_types = {
             bool: (16, FC_BINARY, lambda x: b("\x01") if x else b("\x00")),
             float: (701, FC_BINARY, d_pack),
-            Decimal: (1700, FC_BINARY, numeric_send),
+            Decimal: (1700, FC_TEXT, numeric_out),
             str: (705, FC_BINARY, textout),
             type(None): (-1, FC_BINARY, lambda value: i_pack(-1)),
             uuid.UUID: (2950, FC_BINARY, lambda v: v.bytes)}
@@ -1597,30 +1601,46 @@ class Connection(object):
                 raise ArrayContentNotSupportedError(
                     "type " + str(typ) + " not supported as array contents")
 
-        def send_array(arr):
-            # check for homogenous array
-            for v in array_flatten(value):
-                if v is not None and not isinstance(v, typ):
-                    raise ArrayContentNotHomogenousError(
-                        "not all array elements are of type " + str(typ))
+        if fc == FC_BINARY:
+            def send_array(arr):
+                # check for homogenous array
+                for a, i, v in walk_array(arr):
+                    if not isinstance(v, (typ, type(None))):
+                        raise ArrayContentNotHomogenousError(
+                            "not all array elements are of type " + str(typ))
 
-            # check that all array dimensions are consistent
-            array_check_dimensions(value)
+                # check that all array dimensions are consistent
+                array_check_dimensions(arr)
 
-            has_null = array_has_null(arr)
-            dim_lengths = array_dim_lengths(arr)
-            data = bytearray(iii_pack(len(dim_lengths), has_null, oid))
-            for i in dim_lengths:
-                data.extend(ii_pack(i, 1))
-            for v in array_flatten(arr):
-                if v is None:
-                    data += i_pack(-1)
-                else:
-                    inner_data = send_func(v)
-                    data += i_pack(len(inner_data))
-                    data += inner_data
-            return data
-        return (array_typeoid, FC_BINARY, send_array)
+                has_null = array_has_null(arr)
+                dim_lengths = array_dim_lengths(arr)
+                data = bytearray(iii_pack(len(dim_lengths), has_null, oid))
+                for i in dim_lengths:
+                    data.extend(ii_pack(i, 1))
+                for v in array_flatten(arr):
+                    if v is None:
+                        data += i_pack(-1)
+                    else:
+                        inner_data = send_func(v)
+                        data += i_pack(len(inner_data))
+                        data += inner_data
+                return data
+        else:
+            def send_array(arr):
+                for a, i, v in walk_array(arr):
+                    if not isinstance(v, (typ, type(None))):
+                        raise ArrayContentNotHomogenousError(
+                            "not all array elements are of type " + str(typ))
+                array_check_dimensions(arr)
+                ar = deepcopy(arr)
+                for a, i, v in walk_array(ar):
+                    if v is None:
+                        a[i] = 'NULL'
+                    else:
+                        a[i] = send_func(v).decode('ascii')
+
+                return u(str(ar)).translate(arr_trans).encode('ascii')
+        return (array_typeoid, fc, send_array)
 
 try:
     from pytz import utc
@@ -1652,94 +1672,9 @@ pg_array_types = {
 def numeric_in(data, offset, length):
     return Decimal(data[offset: offset + length].decode('ascii'))
 
-DEC_DIGITS = 4
 
-
-def numeric_send(d):
-    # This is a very straight port of src/backend/utils/adt/numeric.c
-    # set_var_from_str()
-    s = str(d)
-    pos = 0
-    sign = 0
-    if s[0] == '-':
-        sign = 0x4000  # NEG
-        pos = 1
-    elif s[0] == '+':
-        sign = 0  # POS
-        pos = 1
-    have_dp = False
-    decdigits = [0, 0, 0, 0]
-    dweight = -1
-    dscale = 0
-    for char in s[pos:]:
-        if char.isdigit():
-            decdigits.append(int(char))
-            if not have_dp:
-                dweight += 1
-            else:
-                dscale += 1
-            pos += 1
-        elif char == '.':
-            have_dp = True
-            pos += 1
-        else:
-            break
-
-    if len(s) > pos:
-        char = s[pos]
-        if char == 'e' or char == 'E':
-            pos += 1
-            exponent = int(s[pos:])
-            dweight += exponent
-            dscale -= exponent
-            if dscale < 0:
-                dscale = 0
-
-    if dweight >= 0:
-        weight = int((dweight + 1 + DEC_DIGITS - 1) / DEC_DIGITS - 1)
-    else:
-        weight = int(-((-dweight - 1) / DEC_DIGITS + 1))
-    offset = (weight + 1) * DEC_DIGITS - (dweight + 1)
-    ndigits = int(
-        (len(decdigits) - DEC_DIGITS + offset + DEC_DIGITS - 1) / DEC_DIGITS)
-
-    i = DEC_DIGITS - offset
-    decdigits.extend([0, 0, 0])
-    ndigits_ = ndigits
-    digits = b('')
-    while ndigits_ > 0:
-        # ifdef DEC_DIGITS == 4
-        digits += h_pack(
-            ((decdigits[i] * 10 + decdigits[i + 1]) * 10 + decdigits[i + 2])
-            * 10 + decdigits[i + 3])
-        ndigits_ -= 1
-        i += DEC_DIGITS
-
-    # strip_var()
-    for char in digits:
-        if ndigits == 0:
-            break
-        if char == '0':
-            weight -= 1
-            ndigits -= 1
-        else:
-            break
-
-    for char in reversed(digits):
-        if ndigits == 0:
-            break
-        if char == '0':
-            ndigits -= 1
-        else:
-            break
-
-    if ndigits == 0:
-        sign = 0x4000  # pos
-        weight = 0
-    # ----------
-
-    retval = hhhh_pack(ndigits, weight, sign, dscale) + digits
-    return retval
+def numeric_out(d):
+    return str(d).encode('ascii')
 
 
 # PostgreSQL encodings:
@@ -1795,6 +1730,15 @@ pg_to_py_encodings = {
     "win1257": "cp1257",
     "win1258": "cp1258",
 }
+
+
+def walk_array(arr):
+    for i, v in enumerate(arr):
+        if isinstance(v, list):
+            for a, i2, v2 in walk_array(v):
+                yield a, i2, v2
+        else:
+            yield arr, i, v
 
 
 def array_find_first_element(arr):
@@ -2047,4 +1991,4 @@ def inspect_int(value):
     elif min_int8 < value < max_int8:
         return (20, FC_BINARY, q_pack)
     else:
-        return (1700, FC_BINARY, numeric_send)
+        return (1700, FC_TEXT, numeric_out)

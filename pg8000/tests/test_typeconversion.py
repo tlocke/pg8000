@@ -63,7 +63,8 @@ class Tests(unittest.TestCase):
 
     def testDecimalRoundtrip(self):
         values = (
-            "1.1", "-1.1", "10000", "20000", "-1000000000.123456789", "1.0")
+            "1.1", "-1.1", "10000", "20000", "-1000000000.123456789", "1.0",
+            "12.44")
         for v in values:
             self.cursor.execute("SELECT %s as f1", (decimal.Decimal(v),))
             retval = self.cursor.fetchall()

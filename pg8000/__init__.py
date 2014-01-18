@@ -32,8 +32,8 @@ __author__ = "Mathieu Fenniak"
 
 exec("from struct import Struct")
 for fmt in (
-        "i", "h", "hhhh", "q", "d", "f", "iii", "ii", "qii", "dii", "ihihih",
-        "ci", "bh", "cccc"):
+        "i", "h", "q", "d", "f", "iii", "ii", "qii", "dii", "ihihih", "ci",
+        "bh", "cccc"):
     exec(fmt + "_struct = Struct('!" + fmt + "')")
     exec(fmt + "_unpack = " + fmt + "_struct.unpack_from")
     exec(fmt + "_pack = " + fmt + "_struct.pack")
