@@ -53,7 +53,7 @@ from pg8000 import (
     bh_unpack, ihihih_unpack, cccc_unpack, ii_pack, iii_pack, dii_pack,
     qii_pack)
 from collections import deque, defaultdict
-from itertools import count
+from itertools import count, islice
 from operator import itemgetter
 from pg8000.six.moves import map
 from pg8000.six import (
@@ -250,10 +250,6 @@ def require_open_cursor(fn):
     return _fn
 
 
-def unexpected_response(message_code):
-    return InternalError("Unexpected response msg " + message_code)
-
-
 ##
 # The class of object returned by the {@link #ConnectionWrapper.cursor cursor
 # method}.
@@ -282,54 +278,6 @@ class Cursor(Iterator):
                 raise ProgrammingError("attempting to use unexecuted cursor")
             return func(self, *args, **kwargs)
         return retval
-
-    ##
-    # Return a count of the number of rows currently being read.
-    # <p>
-    # Stability: Added in v1.03, stability guaranteed for v1.xx.
-    @property
-    @require_stmt
-    def row_count(self):
-        return self._stmt.row_count
-
-    ##
-    # Read a row from the database server, and return it in a dictionary
-    # indexed by column name/alias.  This method will raise an error if two
-    # columns have the same name.  Returns None after the last row.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    @require_stmt
-    def read_dict(self):
-        return self._stmt.read_dict()
-
-    ##
-    # Read a row from the database server, and return it as a tuple of values.
-    # Returns None after the last row.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    @require_stmt
-    def read_tuple(self):
-        return self._stmt.read_tuple()
-
-    ##
-    # Return an iterator for the output of this statement.  The iterator will
-    # return a tuple for each row, in the same manner as {@link
-    # #PreparedStatement.read_tuple read_tuple}.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    @require_stmt
-    def iterate_tuple(self):
-        return self._stmt.iterate_tuple()
-
-    ##
-    # Return an iterator for the output of this statement.  The iterator will
-    # return a dict for each row, in the same manner as {@link
-    # #PreparedStatement.read_dict read_dict}.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    @require_stmt
-    def iterate_dict(self):
-        return self._stmt.iterate_dict()
 
     ##
     # This read-only attribute returns a reference to the connection object on
@@ -384,7 +332,7 @@ class Cursor(Iterator):
     # or mapping and will be bound to variables in the operation.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    def execute(self, operation, args=(), stream=None):
+    def execute(self, operation, args=None, stream=None):
         self._row_count = -1
 
         try:
@@ -419,12 +367,12 @@ class Cursor(Iterator):
                 self._conn, operation, parameter_sets[0], statement_name="")
             for parameters in parameter_sets:
                 self._stmt.execute(parameters)
-                if self.row_count == -1:
+                if self._stmt.row_count == -1:
                     self._row_count = -1
                 elif self._row_count == -1:
-                    self._row_count = self.row_count
+                    self._row_count = self._stmt.row_count
                 else:
-                    self._row_count += self.row_count
+                    self._row_count += self._stmt.row_count
         finally:
             self._conn._unnamed_prepared_statement_lock.release()
 
@@ -457,9 +405,9 @@ class Cursor(Iterator):
     # Stability: Part of the DBAPI 2.0 specification.
     def fetchone(self):
         try:
-            return self._stmt.read_tuple()
-        except AttributeError:
-            raise ProgrammingError("attempting to use unexecuted cursor")
+            return next(self)
+        except StopIteration:
+            return None
 
     ##
     # Fetch the next set of rows of a query result, returning a sequence of
@@ -469,25 +417,16 @@ class Cursor(Iterator):
     # Stability: Part of the DBAPI 2.0 specification.
     # @param size   The number of rows to fetch when called.  If not provided,
     #               the arraysize property value is used instead.
-    def fetchmany(self, size=None):
-        if size is None:
-            size = self.arraysize
-        rows = []
-        for i in range(size):
-            value = self.fetchone()
-            if value is None:
-                break
-            rows.append(value)
-        return rows
+    def fetchmany(self, num=None):
+        return tuple(islice(self, self.arraysize if num is None else num))
 
     ##
     # Fetch all remaining rows of a query result, returning them as a sequence
     # of sequences.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    @require_open_cursor
     def fetchall(self):
-        return tuple(self.iterate_tuple())
+        return tuple(self)
 
     ##
     # Close the cursor.
@@ -501,17 +440,30 @@ class Cursor(Iterator):
         self._conn = None
 
     def __next__(self):
-        warn("DB-API extension cursor.next() used", stacklevel=2)
         try:
-            retval = self._stmt.read_tuple()
+            self._stmt._lock.acquire()
+            return self._stmt._cached_rows.popleft()
+        except IndexError:
+            if self._stmt.portal_suspended:
+                try:
+                    self._conn._sock_lock.acquire()
+                    self._conn.send_EXECUTE(
+                        self._stmt, PreparedStatement.row_cache_size)
+                    self._conn.handle_messages(self._stmt)
+                finally:
+                    self._conn._sock_lock.release()
+
+            try:
+                return self._stmt._cached_rows.popleft()
+            except IndexError:
+                if len(self._stmt.portal_row_desc) == 0:
+                    raise ProgrammingError("no result set")
+                self._conn.close_portal(self._stmt)
+                raise StopIteration()
         except AttributeError:
             raise ProgrammingError("attempting to use unexecuted cursor")
-        if retval is None:
-            raise StopIteration()
-        return retval
 
     def __iter__(self):
-        warn("DB-API extension cursor.__iter__() used", stacklevel=2)
         return self
 
     def setinputsizes(self, sizes):
@@ -1444,7 +1396,7 @@ class Connection(object):
     def handle_NO_DATA(self, msg, ps):
         assert self._sock_lock.locked()
         if ps is None:
-            raise unexpected_response(NO_DATA)
+            raise InternalError("Unexpected response msg " + NO_DATA)
 
         if ps.statement_row_desc is None:
             ps.statement_row_desc = []
@@ -1796,21 +1748,6 @@ def array_dim_lengths(arr):
     return retval
 
 
-class DataIterator(Iterator):
-    def __init__(self, obj, func):
-        self.obj = obj
-        self.func = func
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        retval = self.func(self.obj)
-        if retval is None:
-            raise StopIteration()
-        return retval
-
-
 ##
 # This class represents a prepared statement.  A prepared statement is
 # pre-parsed on the server, which reduces the need to parse the query every
@@ -1917,70 +1854,6 @@ class PreparedStatement(object):
                 self.c.close_portal(self)
         finally:
             self._lock.release()
-
-    ##
-    # Read a row from the database server, and return it as a tuple of values.
-    # Returns None after the last row.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def read_tuple(self):
-        try:
-            self._lock.acquire()
-            if len(self._cached_rows) == 0:
-                if self.portal_suspended:
-                    try:
-                        self.c._sock_lock.acquire()
-                        self.c.send_EXECUTE(
-                            self, PreparedStatement.row_cache_size)
-                        self.c.handle_messages(self)
-                    finally:
-                        self.c._sock_lock.release()
-                if len(self._cached_rows) == 0:
-                    if len(self.portal_row_desc) == 0:
-                        raise ProgrammingError("no result set")
-                    self.c.close_portal(self)
-                    return None
-            return self._cached_rows.popleft()
-        finally:
-            self._lock.release()
-
-    ##
-    # Read a row from the database server, and return it in a dictionary
-    # indexed by column name/alias.  This method will raise an error if two
-    # columns have the same name.  Returns None after the last row.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def read_dict(self):
-        row = self.read_tuple()
-        if row is None:
-            return row
-        retval = {}
-        for i in range(len(self.bind_row_desc.fields)):
-            col_name = self.bind_row_desc.fields[i]['name']
-            if col_name in retval:
-                raise InterfaceError(
-                    "cannot return dict of row when two columns have the same "
-                    "name (%r)" % (col_name,))
-            retval[col_name] = row[i]
-        return retval
-
-    ##
-    # Return an iterator for the output of this statement.  The iterator will
-    # return a tuple for each row, in the same manner as {@link
-    # #PreparedStatement.read_tuple read_tuple}.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def iterate_tuple(self):
-        return DataIterator(self, PreparedStatement.read_tuple)
-
-    ##
-    # Return an iterator for the output of this statement.  The iterator will
-    # return a dict for each row, in the same manner as {@link
-    # #PreparedStatement.read_dict read_dict}.
-    # <p>
-    # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def iterate_dict(self):
-        return DataIterator(self, PreparedStatement.read_dict)
 
 
 def inspect_int(value):
