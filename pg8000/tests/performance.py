@@ -7,14 +7,15 @@ from decimal import Decimal
 
 
 tests = (
-        ("(id / 100)::int2", 'int2'),
-        ("id::int4", 'int4'),
-        ("(id * 100)::int8", 'int8'),
+        ("cast(id / 100 as int2)", 'int2'),
+        ("cast(id as int4)", 'int4'),
+        ("cast(id * 100 as int8)", 'int8'),
         ("(id %% 2) = 0", 'bool'),
         ("N'Static text string'", 'txt'),
-        ("id / 100::float4", 'float4'),
-        ("id / 100::float8", 'float8'),
-        ("id / 100::numeric", 'numeric'),
+        ("cast(id / 100 as float4)", 'float4'),
+        ("cast(id / 100 as float8)", 'float8'),
+        ("cast(id / 100 as numeric)", 'numeric'),
+        ("timestamp '2001-09-28' + id * interval '1 second'", 'timestamp'),
 )
 
 with warnings.catch_warnings(), closing(pg8000.connect(**db_connect)) as db:

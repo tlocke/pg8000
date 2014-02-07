@@ -42,7 +42,7 @@ from pg8000.errors import (
 from warnings import warn
 import socket
 import threading
-from struct import pack, Struct
+from struct import pack
 from hashlib import md5
 from decimal import Decimal
 import pg8000
@@ -59,9 +59,26 @@ from pg8000.six.moves import map
 from pg8000.six import (
     b, Iterator, PY2, binary_type, integer_types, next, PRE_26, text_type, u)
 from sys import exc_info
-import uuid
+from uuid import UUID
 from copy import deepcopy
+from time import mktime
 
+try:
+    from pytz import utc
+except ImportError:
+    ZERO = timedelta(0)
+
+    class UTC(datetime.tzinfo):
+
+        def utcoffset(self, dt):
+            return ZERO
+
+        def tzname(self, dt):
+            return "UTC"
+
+        def dst(self, dt):
+            return ZERO
+    utc = UTC()
 
 if PRE_26:
     bytearray = list
@@ -248,6 +265,133 @@ def require_open_cursor(fn):
             raise CursorClosedError()
         return fn(self, *args, **kwargs)
     return _fn
+
+
+EPOCH = datetime.datetime(2000, 1, 1)
+EPOCH_TZ = EPOCH.replace(tzinfo=utc)
+EPOCH_SECONDS = mktime(EPOCH.timetuple())
+utcfromtimestamp = datetime.datetime.utcfromtimestamp
+
+
+# data is 64-bit integer representing microseconds since 2000-01-01
+def timestamp_recv_integer(data, offset, length):
+    return EPOCH + timedelta(microseconds=q_unpack(data, offset)[0])
+
+
+# data is double-precision float representing seconds since 2000-01-01
+def timestamp_recv_float(data, offset, length):
+    return utcfromtimestamp(EPOCH_SECONDS + d_unpack(data, offset)[0])
+
+
+# data is 64-bit integer representing microseconds since 2000-01-01
+def timestamp_send_integer(v):
+    return q_pack(
+        int((mktime(v.timetuple()) - EPOCH_SECONDS) * 1e6) + v.microsecond)
+
+
+# data is double-precision float representing seconds since 2000-01-01
+def timestamp_send_float(v):
+    return d_pack(mktime(v.timetuple) + v.microsecond / 1e6 - EPOCH_SECONDS)
+
+
+def timestamptz_send_integer(v):
+    # timestamps should be sent as UTC.  If they have zone info,
+    # convert them.
+    return timestamp_send_integer(v.astimezone(utc).replace(tzinfo=None))
+
+
+def timestamptz_send_float(v):
+    # timestamps should be sent as UTC.  If they have zone info,
+    # convert them.
+    return timestamp_send_float(v.astimezone(utc).replace(tzinfo=None))
+
+
+# return a timezone-aware datetime instance if we're reading from a
+# "timestamp with timezone" type.  The timezone returned will always be
+# UTC, but providing that additional information can permit conversion
+# to local.
+def timestamptz_recv_integer(data, offset, length):
+    return EPOCH_TZ + timedelta(microseconds=q_unpack(data, offset)[0])
+
+
+def timestamptz_recv_float(data, offset, length):
+    return timestamp_recv_float(data, offset, length).replace(tzinfo=utc)
+
+
+def interval_send_integer(v):
+    return qii_pack(v.microseconds, v.days, v.months)
+
+
+def interval_send_float(v):
+    return dii_pack(v.microseconds / 1000.0 / 1000.0, v.days, v.months)
+
+
+def interval_recv_integer(data, offset, length):
+    return Interval(*qii_unpack(data, offset))
+
+
+def interval_recv_float(data, offset, length):
+    seconds, days, months = dii_unpack(data, offset)
+    return Interval(int(seconds * 1000 * 1000), days, months)
+
+
+def int8_recv(data, offset, length):
+    return q_unpack(data, offset)[0]
+
+
+def int2_recv(data, offset, length):
+    return h_unpack(data, offset)[0]
+
+
+def int4_recv(data, offset, length):
+    return i_unpack(data, offset)[0]
+
+
+def float4_recv(data, offset, length):
+    return f_unpack(data, offset)[0]
+
+
+def float8_recv(data, offset, length):
+    return d_unpack(data, offset)[0]
+
+
+def bytea_send(v):
+    return v
+
+# bytea
+if PY2:
+    def bytea_recv(data, offset, length):
+        return Bytea(data[offset:offset + length])
+else:
+    def bytea_recv(data, offset, length):
+        return data[offset:offset + length]
+
+
+def uuid_send(v):
+    return v.bytes
+
+
+def uuid_recv(data, offset, length):
+    return UUID(bytes=data[offset:offset+length])
+
+
+TRUE = b("\x01")
+FALSE = b("\x00")
+
+
+def bool_send(v):
+    return TRUE if v else FALSE
+
+
+NULL = i_pack(-1)
+
+
+def null_send(v):
+    return NULL
+
+
+def oid_in(data, offset, length):
+    return int(data[offset: offset + length])
 
 
 ##
@@ -611,7 +755,6 @@ class Connection(object):
             self, user, host, unix_sock, port, database, password,
             socket_timeout, ssl):
         self._client_encoding = "ascii"
-        self._integer_datetimes = False
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
             b("FETCH"), b("COPY"), b("SELECT"))
@@ -710,64 +853,14 @@ class Connection(object):
 
         self.ParameterStatusReceived += self.handle_PARAMETER_STATUS
 
-        def textout(v):
+        def text_out(v):
             return v.encode(self._client_encoding)
-
-        self.py_types = {
-            bool: (16, FC_BINARY, lambda x: b("\x01") if x else b("\x00")),
-            float: (701, FC_BINARY, d_pack),
-            Decimal: (1700, FC_TEXT, numeric_out),
-            str: (705, FC_BINARY, textout),
-            type(None): (-1, FC_BINARY, lambda value: i_pack(-1)),
-            uuid.UUID: (2950, FC_BINARY, lambda v: v.bytes)}
-
-        if PY2:
-            self.py_types[pg8000.Bytea] = (17, FC_BINARY, lambda x: x)
-            self.py_types[text_type] = (705, FC_BINARY, textout)
-        else:
-            self.py_types[bytes] = (17, FC_BINARY, lambda x: x)
 
         def time_out(v):
             return v.isoformat().encode(self._client_encoding)
-        self.py_types[datetime.time] = (1083, FC_TEXT, time_out)
-
-        self.inspect_funcs = {
-            int: inspect_int,
-            datetime.datetime: self.inspect_datetime,
-            list: self.array_inspect}
-
-        def timestamp_send(v):
-            delta = v - datetime.datetime(2000, 1, 1)
-            val = delta.microseconds + delta.seconds * 1000000 + \
-                delta.days * 86400000000
-            if self._integer_datetimes:
-                # data is 64-bit integer representing milliseconds since
-                # 2000-01-01
-                return q_pack(val)
-            else:
-                # data is double-precision float representing seconds since
-                #2000-01-01
-                return d_pack(val / 1000.0 / 1000.0)
-        self.timestamp_send = timestamp_send
-
-        def interval_send(data):
-            if self._integer_datetimes:
-                return qii_pack(data.microseconds, data.days, data.months)
-            else:
-                return dii_pack(
-                    data.microseconds / 1000.0 / 1000.0, data.days,
-                    data.months)
-        self.py_types[Interval] = (1186, FC_BINARY, interval_send)
 
         def date_out(v):
             return v.isoformat().encode(self._client_encoding)
-        self.py_types[datetime.date] = (1082, FC_TEXT, date_out)
-
-        def timestamptz_send(v):
-            # timestamps should be sent as UTC.  If they have zone info,
-            # convert them.
-            return self.timestamp_send(v.astimezone(utc).replace(tzinfo=None))
-        self.timestamptz_send = timestamptz_send
 
         trans_tab = dict(zip(map(ord, u('{}')), u('[]')))
         glbls = {'Decimal': Decimal}
@@ -819,25 +912,20 @@ class Connection(object):
             return values
 
         if PY2:
-            def varcharin(data, offset, length):
+            def text_in(data, offset, length):
                     return unicode(  # noqa
                         data[offset: offset + length], self._client_encoding)
 
             def bool_recv(d, o, l):
-                return d[o] == b("\x01")
-
-            self.inspect_funcs[long] = inspect_int  # noqa
+                return d[o] == "\x01"
 
         else:
-            def varcharin(data, offset, length):
+            def text_in(data, offset, length):
                 return str(
                     data[offset: offset + length], self._client_encoding)
 
-            bool_struct = Struct("?")
-            bool_unpack = bool_struct.unpack_from
-
-            def bool_recv(d, o, l):
-                return bool_unpack(d, o)[0]
+            def bool_recv(data, offset, length):
+                return data[offset] == 1
 
         def time_in(data, offset, length):
             hour = int(data[offset:offset + 2])
@@ -846,86 +934,89 @@ class Connection(object):
             return datetime.time(
                 hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
-        def timestamp_recv(data, offset, length):
-            if self._integer_datetimes:
-                # data is 64-bit integer representing milliseconds since
-                # 2000-01-01
-                val = q_unpack(data, offset)[0]
-                return datetime.datetime(2000, 1, 1) + timedelta(
-                    microseconds=val)
-            else:
-                # data is double-precision float representing seconds since
-                # 2000-01-01
-                val = d_unpack(data, offset)[0]
-                return datetime(2000, 1, 1) + timedelta(seconds=val)
-
-        # return a timezone-aware datetime instance if we're reading from a
-        # "timestamp with timezone" type.  The timezone returned will always be
-        # UTC, but providing that additional information can permit conversion
-        # to local.
-        def timestamptz_recv(data, offset, length):
-            return timestamp_recv(data, offset, length).replace(tzinfo=utc)
-
-        def interval_recv(data, offset, length):
-            if self._integer_datetimes:
-                microseconds, days, months = qii_unpack(data, offset)
-            else:
-                seconds, days, months = dii_unpack(data, offset)
-                microseconds = int(seconds * 1000 * 1000)
-            return Interval(microseconds, days, months)
-
-        def oid_in(data, offset, length):
-            oid = data[offset: offset + length]
-            return Decimal(oid) if b('.') in oid else int(oid)
-
         def date_in(data, offset, length):
             return datetime.date(
                 int(data[offset:offset + 4]), int(data[offset + 5:offset + 7]),
                 int(data[offset + 8:offset + 10]))
 
-        def uuid_recv(data, offset, length):
-            return uuid.UUID(bytes=data[offset:offset+length])
+        self.pg_types = defaultdict(
+            lambda: (FC_BINARY, text_in), {
+                16: (FC_BINARY, bool_recv),  # boolean
+                17: (FC_BINARY, bytea_recv),  # bytea
+                19: (FC_BINARY, text_in),  # name type
+                20: (FC_BINARY, int8_recv),  # int8
+                21: (FC_BINARY, int2_recv),  # int2
+                23: (FC_BINARY, int4_recv),  # int4
+                25: (FC_BINARY, text_in),  # TEXT type
+                26: (FC_TEXT, oid_in),  # oid
+                700: (FC_BINARY, float4_recv),  # float4
+                701: (FC_BINARY, float8_recv),  # float8
+                705: (FC_BINARY, text_in),  # unknown
+                829: (FC_TEXT, text_in),  # MACADDR type
+                1000: (FC_BINARY, array_recv),  # BOOL[]
+                1003: (FC_BINARY, array_recv),  # NAME[]
+                1005: (FC_BINARY, array_recv),  # INT2[]
+                1007: (FC_BINARY, array_recv),  # INT4[]
+                1009: (FC_BINARY, array_recv),  # TEXT[]
+                1014: (FC_BINARY, array_recv),  # CHAR[]
+                1015: (FC_BINARY, array_recv),  # VARCHAR[]
+                1016: (FC_BINARY, array_recv),  # INT8[]
+                1021: (FC_BINARY, array_recv),  # FLOAT4[]
+                1022: (FC_BINARY, array_recv),  # FLOAT8[]
+                1042: (FC_BINARY, text_in),  # CHAR type
+                1043: (FC_BINARY, text_in),  # VARCHAR type
+                1082: (FC_TEXT, date_in),  # date
+                1083: (FC_TEXT, time_in),
+                1114: (FC_BINARY, timestamp_recv_float),  # timestamp w/ tz
+                1184: (FC_BINARY, timestamptz_recv_float),
+                1186: (FC_BINARY, interval_recv_integer),
+                1231: (FC_TEXT, array_in),  # NUMERIC[]
+                1263: (FC_BINARY, array_recv),  # cstring[]
+                1700: (FC_TEXT, numeric_in),  # NUMERIC
+                2275: (FC_BINARY, text_in),  # cstring
+                2950: (FC_BINARY, uuid_recv),  # uuid
+            })
 
-        self.pg_types = defaultdict(lambda: (FC_BINARY, varcharin), {
-            16: (FC_BINARY, bool_recv),  # boolean
-            19: (FC_BINARY, varcharin),  # name type
-            20: (FC_BINARY, lambda d, o, l: q_unpack(d, o)[0]),  # int8
-            21: (FC_BINARY, lambda d, o, l: h_unpack(d, o)[0]),  # int2
-            23: (FC_BINARY, lambda d, o, l: i_unpack(d, o)[0]),  # int4
-            25: (FC_BINARY, varcharin),  # TEXT type
-            26: (FC_TEXT, oid_in),  # oid
-            700: (FC_BINARY, lambda d, o, l: f_unpack(d, o)[0]),  # float4
-            701: (FC_BINARY, lambda d, o, l: d_unpack(d, o)[0]),  # float8
-            829: (FC_TEXT, varcharin),  # MACADDR type
-            1000: (FC_BINARY, array_recv),  # BOOL[]
-            1003: (FC_BINARY, array_recv),  # NAME[]
-            1005: (FC_BINARY, array_recv),  # INT2[]
-            1007: (FC_BINARY, array_recv),  # INT4[]
-            1009: (FC_BINARY, array_recv),  # TEXT[]
-            1014: (FC_BINARY, array_recv),  # CHAR[]
-            1015: (FC_BINARY, array_recv),  # VARCHAR[]
-            1016: (FC_BINARY, array_recv),  # INT8[]
-            1021: (FC_BINARY, array_recv),  # FLOAT4[]
-            1022: (FC_BINARY, array_recv),  # FLOAT8[]
-            1042: (FC_BINARY, varcharin),  # CHAR type
-            1043: (FC_BINARY, varcharin),  # VARCHAR type
-            1082: (FC_TEXT, date_in),  # date
-            1083: (FC_TEXT, time_in),
-            1114: (FC_BINARY, timestamp_recv),
-            1184: (FC_BINARY, timestamptz_recv),  # timestamp w/ tz
-            1186: (FC_BINARY, interval_recv),
-            1231: (FC_TEXT, array_in),  # NUMERIC[]
-            1263: (FC_BINARY, array_recv),  # cstring[]
-            1700: (FC_TEXT, numeric_in),  # NUMERIC
-            2275: (FC_BINARY, varcharin),  # cstring
-            2950: (FC_BINARY, uuid_recv),  # uuid
-        })
+        self.py_types = {
+            type(None): (-1, FC_BINARY, null_send),  # null
+            bool: (16, FC_BINARY, bool_send),
+            20: (20, FC_BINARY, q_pack),  # int8
+            21: (21, FC_BINARY, h_pack),  # int2
+            23: (23, FC_BINARY, i_pack),  # int4
+            float: (701, FC_BINARY, d_pack),  # float8
+            str: (705, FC_BINARY, text_out),  # unknown
+            datetime.date: (1082, FC_TEXT, date_out),  # date
+            datetime.time: (1083, FC_TEXT, time_out),  # time
+            1114: (1114, FC_BINARY, timestamp_send_integer),  # timestamp
+            # timestamp w/ tz
+            1184: (1184, FC_BINARY, timestamptz_send_integer),
+            Interval: (1186, FC_BINARY, interval_send_integer),
+            Decimal: (1700, FC_TEXT, numeric_out),  # Decimal
+            UUID: (2950, FC_BINARY, uuid_send),  # uuid
+        }
 
-        # bytea
+        def inspect_int(value):
+            if min_int2 < value < max_int2:
+                return self.py_types[21]
+            elif min_int4 < value < max_int4:
+                return self.py_types[23]
+            elif min_int8 < value < max_int8:
+                return self.py_types[20]
+            else:
+                return Decimal
+
+        self.inspect_funcs = {
+            int: inspect_int,
+            datetime.datetime: self.inspect_datetime,
+            list: self.array_inspect}
+
         if PY2:
-            self.pg_types[17] = (FC_BINARY, lambda d, o, l: Bytea(d[o:o + l]))
+            self.py_types[pg8000.Bytea] = (17, FC_BINARY, bytea_send)  # bytea
+            self.py_types[text_type] = (705, FC_BINARY, text_out)  # unknown
+
+            self.inspect_funcs[long] = inspect_int  # noqa
         else:
-            self.pg_types[17] = (FC_BINARY, lambda d, o, l: d[o:o + l])
+            self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
 
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,
@@ -1203,12 +1294,10 @@ class Connection(object):
         self._backend_key_data = data
 
     def inspect_datetime(self, value):
-        if value.tzinfo is not None:
-            # send as timestamptz if timezone is provided
-            return (1184, FC_BINARY, self.timestamptz_send)
+        if value.tzinfo is None:
+            return self.py_types[1114]  # timestamp
         else:
-            # otherwise send as timestamp
-            return (1114, FC_BINARY, self.timestamp_send)
+            return self.py_types[1184]  # send as timestamptz
 
     def make_params(self, values):
         params = []
@@ -1492,8 +1581,30 @@ class Connection(object):
         if key == b("client_encoding"):
             encoding = value.decode("ascii").lower()
             self._client_encoding = pg_to_py_encodings.get(encoding, encoding)
+
         elif key == b("integer_datetimes"):
-            self._integer_datetimes = (value == b("on"))
+            if value == b('on'):
+
+                self.py_types[1114] = (1114, FC_BINARY, timestamp_send_integer)
+                self.pg_types[1114] = (FC_BINARY, timestamp_recv_integer)
+
+                self.py_types[1184] = (
+                    1184, FC_BINARY, timestamptz_send_integer)
+                self.pg_types[1184] = (FC_BINARY, timestamptz_recv_integer)
+
+                self.py_types[Interval] = (
+                    1186, FC_BINARY, interval_send_integer)
+                self.pg_types[1186] = (FC_BINARY, interval_recv_integer)
+            else:
+                self.py_types[1114] = (1114, FC_BINARY, timestamp_send_float)
+                self.pg_types[1114] = (FC_BINARY, timestamp_recv_float)
+                self.py_types[1184] = (1184, FC_BINARY, timestamptz_send_float)
+                self.pg_types[1184] = (FC_BINARY, timestamptz_recv_float)
+
+                self.py_types[Interval] = (
+                    1186, FC_BINARY, interval_send_float)
+                self.pg_types[1186] = (FC_BINARY, interval_recv_float)
+
         elif key == b("server_version"):
             self._server_version = value.decode("ascii")
             if self._server_version.startswith("8.4"):
@@ -1593,23 +1704,6 @@ class Connection(object):
 
                 return u(str(ar)).translate(arr_trans).encode('ascii')
         return (array_typeoid, fc, send_array)
-
-try:
-    from pytz import utc
-except ImportError:
-    ZERO = timedelta(0)
-
-    class UTC(datetime.tzinfo):
-
-        def utcoffset(self, dt):
-            return ZERO
-
-        def tzname(self, dt):
-            return "UTC"
-
-        def dst(self, dt):
-            return ZERO
-    utc = UTC()
 
 
 # pg element typeoid -> pg array typeoid
@@ -1854,14 +1948,3 @@ class PreparedStatement(object):
                 self.c.close_portal(self)
         finally:
             self._lock.release()
-
-
-def inspect_int(value):
-    if min_int2 < value < max_int2:
-        return (21, FC_BINARY, h_pack)
-    elif min_int4 < value < max_int4:
-        return (23, FC_BINARY, i_pack)
-    elif min_int8 < value < max_int8:
-        return (20, FC_BINARY, q_pack)
-    else:
-        return (1700, FC_TEXT, numeric_out)
