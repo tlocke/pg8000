@@ -84,12 +84,6 @@ if PRE_26:
     bytearray = list
 
 
-statement_number_lock = threading.Lock()
-statement_number = 0
-
-portal_number_lock = threading.Lock()
-portal_number = 0
-
 FC_TEXT = 0
 FC_BINARY = 1
 
@@ -763,6 +757,13 @@ class Connection(object):
         self.password = password
         self.autocommit = False
         self.binding = False
+
+        self.statement_number_lock = threading.Lock()
+        self.statement_number = 0
+
+        self.portal_number_lock = threading.Lock()
+        self.portal_number = 0
+
         try:
             if unix_sock is None and host is not None:
                 self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1884,13 +1885,12 @@ class PreparedStatement(object):
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
         self.row_count = -1
 
-        global statement_number
         try:
-            statement_number_lock.acquire()
-            self._statement_number = statement_number
-            statement_number += 1
+            connection.statement_number_lock.acquire()
+            self._statement_number = connection.statement_number
+            connection.statement_number += 1
         finally:
-            statement_number_lock.release()
+            connection.statement_number_lock.release()
 
         self.c = connection
         self.portal_name = None
@@ -1933,12 +1933,11 @@ class PreparedStatement(object):
             self.row_count = -1
             self.portal_suspended = False
             try:
-                portal_number_lock.acquire()
-                global portal_number
-                self.portal_name = "pg8000_portal_" + str(portal_number)
-                portal_number += 1
+                self.c.portal_number_lock.acquire()
+                self.portal_name = "pg8000_portal_" + str(self.c.portal_number)
+                self.c.portal_number += 1
             finally:
-                portal_number_lock.release()
+                self.c.portal_number_lock.release()
 
             self.cmd = None
             self.stream = stream
