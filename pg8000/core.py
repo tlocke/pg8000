@@ -63,22 +63,21 @@ from uuid import UUID
 from copy import deepcopy
 from time import mktime
 
-try:
-    from pytz import utc
-except ImportError:
-    ZERO = timedelta(0)
+ZERO = timedelta(0)
 
-    class UTC(datetime.tzinfo):
 
-        def utcoffset(self, dt):
-            return ZERO
+class UTC(datetime.tzinfo):
 
-        def tzname(self, dt):
-            return "UTC"
+    def utcoffset(self, dt):
+        return ZERO
 
-        def dst(self, dt):
-            return ZERO
-    utc = UTC()
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return ZERO
+
+utc = UTC()
 
 if PRE_26:
     bytearray = list
