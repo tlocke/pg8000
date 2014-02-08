@@ -931,7 +931,8 @@ class Connection(object):
         def time_in(data, offset, length):
             hour = int(data[offset:offset + 2])
             minute = int(data[offset + 3:offset + 5])
-            sec = Decimal(data[offset + 6:offset + length].decode("ascii"))
+            sec = Decimal(
+                data[offset + 6:offset + length].decode(self._client_encoding))
             return datetime.time(
                 hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
@@ -939,6 +940,13 @@ class Connection(object):
             return datetime.date(
                 int(data[offset:offset + 4]), int(data[offset + 5:offset + 7]),
                 int(data[offset + 8:offset + 10]))
+
+        def numeric_in(data, offset, length):
+            return Decimal(
+                data[offset: offset + length].decode(self._client_encoding))
+
+        def numeric_out(d):
+            return str(d).encode(self._client_encoding)
 
         self.pg_types = defaultdict(
             lambda: (FC_BINARY, text_in), {
@@ -1714,14 +1722,6 @@ pg_array_types = {
     25: 1009,      # TEXT[]
     1700: 1231,  # NUMERIC[]
 }
-
-
-def numeric_in(data, offset, length):
-    return Decimal(data[offset: offset + length].decode('ascii'))
-
-
-def numeric_out(d):
-    return str(d).encode('ascii')
 
 
 # PostgreSQL encodings:
