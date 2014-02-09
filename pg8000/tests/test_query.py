@@ -224,6 +224,15 @@ class Tests(unittest.TestCase):
             cursor.close()
             self.db.commit()
 
+    def testExecutemany(self):
+        try:
+            cursor = self.db.cursor()
+            cursor.executemany(
+                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+                ((1, 1, 'Avast ye!'), (2, 1, None)))
+        finally:
+            cursor.close()
+            self.db.commit()
 
 if __name__ == "__main__":
     unittest.main()

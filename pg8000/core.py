@@ -1436,8 +1436,10 @@ class Connection(object):
                     *tuple(map(itemgetter(1), ps.params))))
             retval.extend(h_pack(len(ps.params)))
             for value, (oid, fc, send_func) in zip(values, ps.params):
-                val = send_func(value)
-                if oid != -1:
+                if value is None:
+                    val = NULL
+                else:
+                    val = send_func(value)
                     retval.extend(i_pack(len(val)))
                 retval.extend(val)
             retval.extend(h_pack(len(output_fc)))
