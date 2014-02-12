@@ -6,6 +6,8 @@ import struct
 from .connection_settings import db_connect
 from pg8000.six import b, IS_JYTHON, text_type
 import uuid
+import os
+import time
 
 
 if not IS_JYTHON:
@@ -144,6 +146,20 @@ class Tests(unittest.TestCase):
         self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
+
+        # Test that time zone doesn't affect it
+        # Jython 2.5.3 doesn't have a time.tzset() so skip
+        if not IS_JYTHON:
+            orig_tz = os.environ['TZ']
+            os.environ['TZ'] = "America/Edmonton"
+            time.tzset()
+
+            self.cursor.execute("SELECT %s as f1", (v,))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], v)
+
+            os.environ['TZ'] = orig_tz
+            time.tzset()
 
     def testIntervalRoundtrip(self):
         v = pg8000.Interval(microseconds=123456789, days=2, months=24)

@@ -61,7 +61,7 @@ from pg8000.six import (
 from sys import exc_info
 from uuid import UUID
 from copy import deepcopy
-from time import mktime
+from calendar import timegm
 
 ZERO = timedelta(0)
 
@@ -262,7 +262,7 @@ def require_open_cursor(fn):
 
 EPOCH = datetime.datetime(2000, 1, 1)
 EPOCH_TZ = EPOCH.replace(tzinfo=utc)
-EPOCH_SECONDS = mktime(EPOCH.timetuple())
+EPOCH_SECONDS = timegm(EPOCH.timetuple())
 utcfromtimestamp = datetime.datetime.utcfromtimestamp
 
 
@@ -279,12 +279,12 @@ def timestamp_recv_float(data, offset, length):
 # data is 64-bit integer representing microseconds since 2000-01-01
 def timestamp_send_integer(v):
     return q_pack(
-        int((mktime(v.timetuple()) - EPOCH_SECONDS) * 1e6) + v.microsecond)
+        int((timegm(v.timetuple()) - EPOCH_SECONDS) * 1e6) + v.microsecond)
 
 
 # data is double-precision float representing seconds since 2000-01-01
 def timestamp_send_float(v):
-    return d_pack(mktime(v.timetuple) + v.microsecond / 1e6 - EPOCH_SECONDS)
+    return d_pack(timegm(v.timetuple) + v.microsecond / 1e6 - EPOCH_SECONDS)
 
 
 def timestamptz_send_integer(v):
