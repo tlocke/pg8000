@@ -1,6 +1,25 @@
 Release Notes
 =============
 
+Version 1.9.5, 2014-02-15
+-------------------------
+- Removed warn() calls for __next__() and __iter__(). Removing the warn() in
+  __next__() improves the performance tests by ~20%.
+
+- Increased performance of timestamp by ~20%. Should also improve timestamptz.
+
+- Moved statement_number and portal_number from module to Connection. This
+  should reduce lock contention for cases where there's a single module and
+  lots of connections.
+
+- Make decimal_out/in and time_in use client_encoding. These functions used to
+  assume ascii, and I can't think of a case where that wouldn't work.
+  Nonetheless, that theoretical bug is now fixed.
+
+- Fixed a bug in cursor.executemany(), where a non-None parameter in a sequence
+  of parameters, is None in a subsequent sequence of parameters.
+
+
 Version 1.9.4, 2014-01-18
 -------------------------
 - Fixed a bug where with Python 2, a parameter with the value Decimal('12.44'),
