@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+Version 1.9.6, 2014-02-26
+-------------------------
+- Fixed a bug where 'portal does not exist' errors were being generated. Some
+  queries that should have been run in a transaction were run in autocommit
+  mode and so any that suspended a portal had the portal immediately closed,
+  because a portal can only exist within a transaction. This has been solved by
+  determining the transaction status from the READY_FOR_QUERY message.
+
+
 Version 1.9.5, 2014-02-15
 -------------------------
 - Removed warn() calls for __next__() and __iter__(). Removing the warn() in
