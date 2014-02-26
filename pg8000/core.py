@@ -1210,7 +1210,6 @@ class Connection(object):
         # statements on other threads.  Support for that type of lock will
         # be done later.
         self._commit.execute()
-        self.in_transaction = False
 
     ##
     # Rolls back the current database transaction.
@@ -1219,7 +1218,6 @@ class Connection(object):
     def rollback(self):
         # see bug description in commit.
         self._rollback.execute()
-        self.in_transaction = False
 
     ##
     # Closes the database connection.
@@ -1243,7 +1241,6 @@ class Connection(object):
     def begin(self):
         if not self.in_transaction and not self.autocommit:
             self._begin.execute()
-            self.in_transaction = True
 
     def handle_AUTHENTICATION_REQUEST(self, data, ps):
         assert self._sock_lock.locked()
@@ -1297,6 +1294,7 @@ class Connection(object):
     def handle_READY_FOR_QUERY(self, data, ps):
         # Byte1 -   Status indicator.
         self._ready_status = READY_STATUS[data]
+        self.in_transaction = data != b("I")
 
     def handle_BACKEND_KEY_DATA(self, data, ps):
         self._backend_key_data = data

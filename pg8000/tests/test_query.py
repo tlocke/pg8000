@@ -234,5 +234,22 @@ class Tests(unittest.TestCase):
             cursor.close()
             self.db.commit()
 
+    # Check that autocommit stays off
+    # We keep track of whether we're in a transaction or not by using the
+    # READY_FOR_QUERY message.
+    def testTransactions(self):
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("commit")
+            cursor.execute(
+                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+                (1, 1, "Zombie"))
+            cursor.execute("rollback")
+            cursor.execute("select * from t1")
+            self.assertEqual(cursor.rowcount, 0)
+        finally:
+            cursor.close()
+            self.db.commit()
+
 if __name__ == "__main__":
     unittest.main()
