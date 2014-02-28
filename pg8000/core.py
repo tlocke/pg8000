@@ -63,6 +63,7 @@ from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
 
+
 ZERO = timedelta(0)
 
 
@@ -265,10 +266,22 @@ EPOCH_TZ = EPOCH.replace(tzinfo=utc)
 EPOCH_SECONDS = timegm(EPOCH.timetuple())
 utcfromtimestamp = datetime.datetime.utcfromtimestamp
 
+INFINITY_MICROSECONDS = 2 ** 63 - 1
+MINUS_INFINITY_MICROSECONDS = -1 * INFINITY_MICROSECONDS - 1
+
 
 # data is 64-bit integer representing microseconds since 2000-01-01
 def timestamp_recv_integer(data, offset, length):
-    return EPOCH + timedelta(microseconds=q_unpack(data, offset)[0])
+    micros = q_unpack(data, offset)[0]
+    try:
+        return EPOCH + timedelta(microseconds=micros)
+    except OverflowError:
+        if micros == INFINITY_MICROSECONDS:
+            return datetime.datetime.max
+        elif micros == MINUS_INFINITY_MICROSECONDS:
+            return datetime.datetime.min
+        else:
+            raise exc_info()[1]
 
 
 # data is double-precision float representing seconds since 2000-01-01
@@ -278,8 +291,14 @@ def timestamp_recv_float(data, offset, length):
 
 # data is 64-bit integer representing microseconds since 2000-01-01
 def timestamp_send_integer(v):
-    return q_pack(
-        int((timegm(v.timetuple()) - EPOCH_SECONDS) * 1e6) + v.microsecond)
+    if v == datetime.datetime.max:
+        micros = INFINITY_MICROSECONDS
+    elif v == datetime.datetime.min:
+        micros = MINUS_INFINITY_MICROSECONDS
+    else:
+        micros = int(
+            (timegm(v.timetuple()) - EPOCH_SECONDS) * 1e6) + v.microsecond
+    return q_pack(micros)
 
 
 # data is double-precision float representing seconds since 2000-01-01
@@ -304,7 +323,16 @@ def timestamptz_send_float(v):
 # UTC, but providing that additional information can permit conversion
 # to local.
 def timestamptz_recv_integer(data, offset, length):
-    return EPOCH_TZ + timedelta(microseconds=q_unpack(data, offset)[0])
+    micros = q_unpack(data, offset)[0]
+    try:
+        return EPOCH_TZ + timedelta(microseconds=micros)
+    except OverflowError:
+        if micros == INFINITY_MICROSECONDS:
+            return datetime.datetime.max
+        elif micros == MINUS_INFINITY_MICROSECONDS:
+            return datetime.datetime.min
+        else:
+            raise exc_info()[1]
 
 
 def timestamptz_recv_float(data, offset, length):
@@ -860,7 +888,12 @@ class Connection(object):
             return v.isoformat().encode(self._client_encoding)
 
         def date_out(v):
-            return v.isoformat().encode(self._client_encoding)
+            if v == datetime.date.max:
+                return 'infinity'.encode(self._client_encoding)
+            elif v == datetime.date.min:
+                return '-infinity'.encode(self._client_encoding)
+            else:
+                return v.isoformat().encode(self._client_encoding)
 
         trans_tab = dict(zip(map(ord, u('{}')), u('[]')))
         glbls = {'Decimal': Decimal}
@@ -936,9 +969,15 @@ class Connection(object):
                 hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
         def date_in(data, offset, length):
-            return datetime.date(
-                int(data[offset:offset + 4]), int(data[offset + 5:offset + 7]),
-                int(data[offset + 8:offset + 10]))
+            year_str = data[offset:offset + 4].decode(self._client_encoding)
+            if year_str == 'infi':
+                return datetime.date.max
+            elif year_str == '-inf':
+                return datetime.date.min
+            else:
+                return datetime.date(
+                    int(year_str), int(data[offset + 5:offset + 7]),
+                    int(data[offset + 8:offset + 10]))
 
         def numeric_in(data, offset, length):
             return Decimal(
