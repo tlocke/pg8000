@@ -48,6 +48,7 @@ Interactive Example
     >>> cursor.execute("SELECT array_prepend(:1, :2)", ( 500, [1, 2, 3, 4], ))
     >>> cursor.fetchone()
     [[500, 1, 2, 3, 4]]
+    >>> pg8000.paramstyle = "format"
     >>> conn.rollback()
 
     Following the DB-API specification, autocommit is off by default. It can be
@@ -60,3 +61,17 @@ Interactive Example
     
     >>> cursor.close()
     >>> conn.close()
+
+    Try the ``use_cache`` feature:
+
+    >>> conn = pg8000.connect(
+    ... user="postgres", password="C.P.Snow", use_cache=True)
+    >>> cur = conn.cursor()
+    >>> cur.execute("select cast(%s as varchar) as f1", ('Troon',))
+    >>> res = cur.fetchall()
+
+    Now subsequent queries with the same SQL will use the cached prepared
+    statement.
+
+    >>> cur.execute("select cast(%s as varchar) as f1", ('Trunho',))
+    >>> res = cur.fetchall()

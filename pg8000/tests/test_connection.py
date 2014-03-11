@@ -7,9 +7,12 @@ from pg8000.six import PY2, PRE_26
 # Tests related to connecting to a database.
 class Tests(unittest.TestCase):
     def testSocketMissing(self):
-        self.assertRaises(
-            pg8000.InterfaceError, pg8000.connect,
-            unix_sock="/file-does-not-exist", user="doesn't-matter")
+        conn_params = {
+            'unix_sock': "/file-does-not-exist",
+            'user': "doesn't-matter"}
+        if 'use_cache' in db_connect:
+            conn_params['use_cache'] = db_connect['use_cache']
+        self.assertRaises(pg8000.InterfaceError, pg8000.connect, **conn_params)
 
     def testDatabaseMissing(self):
         data = db_connect.copy()

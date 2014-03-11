@@ -6,6 +6,8 @@ from contextlib import closing
 from decimal import Decimal
 
 
+whole_begin_time = time.time()
+
 tests = (
         ("cast(id / 100 as int2)", 'int2'),
         ("cast(id as int4)", 'int4'),
@@ -19,8 +21,6 @@ tests = (
 )
 
 with warnings.catch_warnings(), closing(pg8000.connect(**db_connect)) as db:
-    warnings.simplefilter("ignore")
-
     for txt, name in tests:
         query = """SELECT {0} AS column1, {0} AS column2, {0} AS column3,
             {0} AS column4, {0} AS column5, {0} AS column6, {0} AS column7
@@ -35,7 +35,6 @@ with warnings.catch_warnings(), closing(pg8000.connect(**db_connect)) as db:
             end_time = time.time()
             print("Attempt %s - %s seconds." % (i, end_time - begin_time))
     db.commit()
-
     cursor = db.cursor()
     cursor.execute(
         "CREATE TEMPORARY TABLE t1 (f1 serial primary key, "
@@ -50,3 +49,12 @@ with warnings.catch_warnings(), closing(pg8000.connect(**db_connect)) as db:
         db.commit()
         end_time = time.time()
         print("Attempt {0} took {1} seconds.".format(i, end_time - begin_time))
+
+    print("Beginning reuse statements test...")
+    begin_time = time.time()
+    for i in range(2000):
+        cursor.execute("select count(*) from t1")
+        cursor.fetchall()
+    print("Took {0} seconds.".format(time.time() - begin_time))
+
+print("Whole time - %s seconds." % (time.time() - whole_begin_time))

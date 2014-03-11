@@ -33,6 +33,9 @@ The pg8000.tests.tests_1_8 package are a copy of the tests from the 1.8 release
 and are kept to make sure we retain backward compatibility with it. It will
 probably be removed in a 2.0 release.
 
+Unfortunately, {{{tox}}} doesn't support Python 2.5, so to test CPython 2.5 and
+Jython 2.5, run the {{{run_25}} script.
+
 ==Performance Tests
 
 To run the performance tests from the {{{pg8000}}} directory:

@@ -1,3 +1,6 @@
+import os
+
+
 db_stewart_connect = {
     "host": "127.0.0.1",
     "user": "pg8000-test",
@@ -22,5 +25,14 @@ db_oracledev2_connect = {
     "password": "password",
     "database": "mfenniak"}
 
-import os
 db_connect = eval(os.environ["PG8000_TEST"])
+
+try:
+    from testconfig import config
+    try:
+        db_connect['use_cache'] = config['use_cache'] == 'true'
+    except KeyError:
+        pass
+except:
+    # This means we're using Python 2.5 which is a special case.
+    pass

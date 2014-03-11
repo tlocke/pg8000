@@ -105,21 +105,21 @@ class Tests(unittest.TestCase):
         int8 = 20
         #numeric = 1700
         test_values = [
-            (0, int2),
-            (-32767, int2),
-            (-32768, int4),
-            (+32767, int2),
-            (+32768, int4),
-            (-2147483647, int4),
-            (-2147483648, int8),
-            (+2147483647, int4),
-            (+2147483648, int8),
-            (-9223372036854775807, int8),
-            (+9223372036854775807, int8), ]
+            (0, int2, 'smallint'),
+            (-32767, int2, 'smallint'),
+            (-32768, int4, 'integer'),
+            (+32767, int2, 'smallint'),
+            (+32768, int4, 'integer'),
+            (-2147483647, int4, 'integer'),
+            (-2147483648, int8, 'bigint'),
+            (+2147483647, int4, 'integer'),
+            (+2147483648, int8, 'bigint'),
+            (-9223372036854775807, int8, 'bigint'),
+            (+9223372036854775807, int8, 'bigint'), ]
             #(-9223372036854775808, numeric),
             #(+9223372036854775808, numeric),
-        for value, typoid in test_values:
-            self.cursor.execute("SELECT %s as f1", (value,))
+        for value, typoid, tp in test_values:
+            self.cursor.execute("SELECT %s as f1 -- " + tp, (value,))
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], value)
             column_name, column_typeoid = self.cursor.description[0][0:2]
@@ -410,14 +410,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(column_typeoid, 1005, "type should be INT2[]")
 
         # a larger value should kick it up to INT4[]...
-        self.cursor.execute("SELECT %s as f1", ([70000, 2, 3],))
+        self.cursor.execute("SELECT %s as f1 -- integer[]", ([70000, 2, 3],))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], [70000, 2, 3])
         column_name, column_typeoid = self.cursor.description[0][0:2]
         self.assertEqual(column_typeoid, 1007, "type should be INT4[]")
 
         # a much larger value should kick it up to INT8[]...
-        self.cursor.execute("SELECT %s as f1", ([7000000000, 2, 3],))
+        self.cursor.execute(
+            "SELECT %s as f1 -- bigint[]", ([7000000000, 2, 3],))
         retval = self.cursor.fetchall()
         self.assertEqual(
             retval[0][0], [7000000000, 2, 3],

@@ -54,15 +54,13 @@ from pg8000 import (
     qii_pack)
 from collections import deque, defaultdict
 from itertools import count, islice
-from operator import itemgetter
 from pg8000.six.moves import map
 from pg8000.six import (
-    b, Iterator, PY2, binary_type, integer_types, next, PRE_26, text_type, u)
+    b, Iterator, PY2, integer_types, next, PRE_26, text_type, u, IS_JYTHON)
 from sys import exc_info
 from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
-
 
 ZERO = timedelta(0)
 
@@ -255,7 +253,7 @@ def convert_paramstyle(style, query):
 
 def require_open_cursor(fn):
     def _fn(self, *args, **kwargs):
-        if self._conn is None:
+        if self._c is None:
             raise CursorClosedError()
         return fn(self, *args, **kwargs)
     return _fn
@@ -406,6 +404,8 @@ def bool_send(v):
 
 NULL = i_pack(-1)
 
+NULL_BYTE = b('\x00')
+
 
 def null_send(v):
     return NULL
@@ -432,7 +432,7 @@ def oid_in(data, offset, length):
 # @param connection     An instance of {@link Connection Connection}.
 class Cursor(Iterator):
     def __init__(self, connection):
-        self._conn = connection
+        self._c = connection
         self._stmt = None
         self.arraysize = 1
         self._row_count = -1
@@ -453,7 +453,7 @@ class Cursor(Iterator):
     @property
     def connection(self):
         warn("DB-API extension cursor.connection used", stacklevel=3)
-        return self._conn
+        return self._c
 
     ##
     # This read-only attribute specifies the number of rows that the last
@@ -501,20 +501,22 @@ class Cursor(Iterator):
         self._row_count = -1
 
         try:
-            self._conn.begin()
+            self._c.begin()
         except AttributeError:
-            if self._conn is None:
+            if self._c is None:
                 raise InterfaceError("Cursor closed")
             else:
                 raise exc_info()[1]
+        if self._c.use_cache:
+            try:
+                self._stmt = self._c.statement_cache[operation]
+            except KeyError:
+                self._stmt = PreparedStatement(self._c, operation, args)
+                self._c.statement_cache[operation] = self._stmt
+        else:
+            self._stmt = PreparedStatement(self._c, operation, args)
 
-        try:
-            self._conn._unnamed_prepared_statement_lock.acquire()
-            self._stmt = PreparedStatement(
-                self._conn, operation, args, statement_name="")
-            self._stmt.execute(args, stream=stream)
-        finally:
-            self._conn._unnamed_prepared_statement_lock.release()
+        self._stmt.execute(args, stream=stream)
         self._row_count = self._stmt.row_count
 
     ##
@@ -522,24 +524,35 @@ class Cursor(Iterator):
     # sequences or mappings provided.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    @require_open_cursor
-    def executemany(self, operation, parameter_sets):
+    def executemany(self, operation, param_sets):
         self._row_count = -1
-        self._conn.begin()
+
         try:
-            self._conn._unnamed_prepared_statement_lock.acquire()
-            self._stmt = PreparedStatement(
-                self._conn, operation, parameter_sets[0], statement_name="")
-            for parameters in parameter_sets:
-                self._stmt.execute(parameters)
-                if self._stmt.row_count == -1:
-                    self._row_count = -1
-                elif self._row_count == -1:
-                    self._row_count = self._stmt.row_count
-                else:
-                    self._row_count += self._stmt.row_count
-        finally:
-            self._conn._unnamed_prepared_statement_lock.release()
+            self._c.begin()
+        except AttributeError:
+            if self._c is None:
+                raise InterfaceError("Cursor closed")
+            else:
+                raise exc_info()[1]
+
+        if self._c.use_cache:
+            try:
+                self._stmt = self._c.statement_cache[operation]
+            except KeyError:
+                self._stmt = PreparedStatement(
+                    self._c, operation, param_sets[0])
+                self._c.statement_cache[operation] = self._stmt
+        else:
+            self._stmt = PreparedStatement(self._c, operation, param_sets[0])
+
+        for parameters in param_sets:
+            self._stmt.execute(parameters)
+            if self._stmt.row_count == -1:
+                self._row_count = -1
+            elif self._row_count == -1:
+                self._row_count = self._stmt.row_count
+            else:
+                self._row_count += self._stmt.row_count
 
     def copy_from(self, fileobj, table=None, sep='\t', null=None, query=None):
         if query is None:
@@ -570,9 +583,13 @@ class Cursor(Iterator):
     # Stability: Part of the DBAPI 2.0 specification.
     def fetchone(self):
         try:
-            return next(self)
+            return next(self._stmt)
         except StopIteration:
             return None
+        except TypeError:
+            raise ProgrammingError("attempting to use unexecuted cursor")
+        except AttributeError:
+            raise ProgrammingError("attempting to use unexecuted cursor")
 
     ##
     # Fetch the next set of rows of a query result, returning a sequence of
@@ -582,16 +599,42 @@ class Cursor(Iterator):
     # Stability: Part of the DBAPI 2.0 specification.
     # @param size   The number of rows to fetch when called.  If not provided,
     #               the arraysize property value is used instead.
-    def fetchmany(self, num=None):
-        return tuple(islice(self, self.arraysize if num is None else num))
+    if IS_JYTHON:
+        def fetchmany(self, num=None):
+            if self._stmt is None:
+                raise ProgrammingError("attempting to use unexecuted cursor")
+            else:
+                try:
+                    return tuple(
+                        islice(self, self.arraysize if num is None else num))
+                except TypeError:
+                    raise ProgrammingError(
+                        "attempting to use unexecuted cursor")
+    else:
+        def fetchmany(self, num=None):
+            try:
+                return tuple(
+                    islice(self, self.arraysize if num is None else num))
+            except TypeError:
+                raise ProgrammingError("attempting to use unexecuted cursor")
 
     ##
     # Fetch all remaining rows of a query result, returning them as a sequence
     # of sequences.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    def fetchall(self):
-        return tuple(self)
+    if IS_JYTHON:
+        def fetchall(self):
+            if self._stmt is None:
+                raise ProgrammingError("attempting to use unexecuted cursor")
+            else:
+                return tuple(self)
+    else:
+        def fetchall(self):
+            try:
+                return tuple(self)
+            except TypeError:
+                raise ProgrammingError("attempting to use unexecuted cursor")
 
     ##
     # Close the cursor.
@@ -599,37 +642,13 @@ class Cursor(Iterator):
     # Stability: Part of the DBAPI 2.0 specification.
     @require_open_cursor
     def close(self):
-        if self._stmt is not None:
+        if self._stmt is not None and not self._c.use_cache:
             self._stmt.close()
             self._stmt = None
-        self._conn = None
-
-    def __next__(self):
-        try:
-            self._stmt._lock.acquire()
-            return self._stmt._cached_rows.popleft()
-        except IndexError:
-            if self._stmt.portal_suspended:
-                try:
-                    self._conn._sock_lock.acquire()
-                    self._conn.send_EXECUTE(
-                        self._stmt, PreparedStatement.row_cache_size)
-                    self._conn.handle_messages(self._stmt)
-                finally:
-                    self._conn._sock_lock.release()
-
-            try:
-                return self._stmt._cached_rows.popleft()
-            except IndexError:
-                if len(self._stmt.portal_row_desc) == 0:
-                    raise ProgrammingError("no result set")
-                self._conn.close_portal(self._stmt)
-                raise StopIteration()
-        except AttributeError:
-            raise ProgrammingError("attempting to use unexecuted cursor")
+        self._c = None
 
     def __iter__(self):
-        return self
+        return self._stmt
 
     def setinputsizes(self, sizes):
         pass
@@ -670,12 +689,14 @@ DESCRIBE = b('D')
 TERMINATE = b('X')
 CLOSE = b('C')
 
-SINGLETON_MESSAGES = {
-    FLUSH: FLUSH + i_pack(4),
-    SYNC: SYNC + i_pack(4),
-    TERMINATE: TERMINATE + i_pack(4),
-    COPY_DONE: COPY_DONE + i_pack(4),
-}
+FLUSH_MSG = FLUSH + i_pack(4)
+SYNC_MSG = SYNC + i_pack(4)
+TERMINATE_MSG = TERMINATE + i_pack(4)
+COPY_DONE_MSG = COPY_DONE + i_pack(4)
+
+# DESCRIBE constants
+STATEMENT = b('S')
+PORTAL = b('P')
 
 # ErrorResponse codes
 RESPONSE_SEVERITY = b("S")  # always present
@@ -691,10 +712,9 @@ RESPONSE_FILE = b("F")
 RESPONSE_LINE = b("L")
 RESPONSE_ROUTINE = b("R")
 
-READY_STATUS = {
-    b("I"): "Idle",
-    b("T"): "Idle in Transaction",
-    b("E"): "Idle in Failed Transaction"}
+IDLE = b("I")
+IDLE_IN_TRANSACTION = b("T")
+IDLE_IN_FAILED_TRANSACTION = b("E")
 
 
 # Byte1('N') - Identifier
@@ -703,7 +723,7 @@ READY_STATUS = {
 #   Byte1 - code identifying the field type (see responseKeys)
 #   String - field value
 def data_into_dict(data):
-    return dict((s[0:1], s[1:]) for s in data.split(b("\x00")))
+    return dict((s[0:1], s[1:]) for s in data.split(NULL_BYTE))
 
 arr_trans = dict(zip(map(ord, u("[] 'u")), list(u('{}')) + [None] * 3))
 
@@ -774,7 +794,7 @@ class Connection(object):
 
     def __init__(
             self, user, host, unix_sock, port, database, password,
-            socket_timeout, ssl):
+            socket_timeout, ssl, use_cache):
         self._client_encoding = "ascii"
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
@@ -785,11 +805,14 @@ class Connection(object):
         self.autocommit = False
         self.binding = False
 
+        self.statement_cache = {}
+
         self.statement_number_lock = threading.Lock()
         self.statement_number = 0
 
         self.portal_number_lock = threading.Lock()
         self.portal_number = 0
+        self.use_cache = use_cache
 
         try:
             if unix_sock is None and host is not None:
@@ -837,6 +860,8 @@ class Connection(object):
             self._sock.close()
             raise InterfaceError("communication error", exc_info()[1])
         self._flush = self._sock.flush
+        self._read = self._sock.read
+
         if PRE_26:
             self._write = self._sock.writelines
         else:
@@ -1094,10 +1119,10 @@ class Connection(object):
         #   String - Parameter value
         protocol = 196608
         val = bytearray(i_pack(protocol) + b("user\x00"))
-        val.extend(user.encode("ascii") + b("\x00"))
+        val.extend(user.encode("ascii") + NULL_BYTE)
         if database is not None:
             val.extend(
-                b("database\x00") + database.encode("ascii") + b("\x00"))
+                b("database\x00") + database.encode("ascii") + NULL_BYTE)
         val.append(0)
         self._write(i_pack(len(val) + 4))
         self._write(val)
@@ -1116,7 +1141,6 @@ class Connection(object):
         self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
         self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
         self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
-        self._unnamed_prepared_statement_lock = threading.RLock()
         self.in_transaction = False
         self.notifies = []
         self.notifies_lock = threading.Lock()
@@ -1125,7 +1149,8 @@ class Connection(object):
         msg_dict = data_into_dict(data)
         if self.binding:
             self.binding = False
-            self._send_messages(SYNC)
+            self._write(SYNC_MSG)
+            self._flush()
         if msg_dict[RESPONSE_CODE] == "28000":
             raise InterfaceError("md5 password authentication failed")
         else:
@@ -1201,7 +1226,9 @@ class Connection(object):
         # Send CopyDone
         # Byte1('c') - Identifier.
         # Int32(4) - Message length, including self.
-        self._send_messages(COPY_DONE, SYNC)
+        self._write(COPY_DONE_MSG)
+        self._write(SYNC_MSG)
+        self._flush()
 
     def handle_NOTIFICATION_RESPONSE(self, data, ps):
         self.NotificationReceived(data)
@@ -1214,10 +1241,10 @@ class Connection(object):
         # guaranteed for v1.xx.
         backend_pid = i_unpack(data)[0]
         idx = 4
-        null = data.find(b("\x00"), idx) - idx
+        null = data.find(NULL_BYTE, idx) - idx
         condition = data[idx:idx + null].decode("ascii")
         idx += null + 1
-        null = data.find(b("\x00"), idx) - idx
+        null = data.find(NULL_BYTE, idx) - idx
         # additional_info = data[idx:idx + null]
 
         # psycopg2 compatible notification interface
@@ -1267,9 +1294,14 @@ class Connection(object):
             self._sock_lock.acquire()
             # Byte1('X') - Identifies the message as a terminate message.
             # Int32(4) - Message length, including self.
-            self._send_messages(TERMINATE)
+            self._write(TERMINATE_MSG)
+            self._flush()
             self._sock.close()
             self._sock = None
+        except AttributeError:
+            raise pg8000.InterfaceError("Connection is closed.")
+        except ValueError:
+            raise pg8000.InterfaceError("Connection is closed.")
         finally:
             self._sock_lock.release()
 
@@ -1321,7 +1353,8 @@ class Connection(object):
             # Byte1('p') - Identifies the message as a password message.
             # Int32 - Message length including self.
             # String - The password.  Password may be encrypted.
-            self._send_messages((PASSWORD, bytearray(pwd + b('\x00'))))
+            self._send_message(PASSWORD, pwd + NULL_BYTE)
+            self._flush()
 
         elif auth_code in (2, 3, 4, 6, 7, 8, 9):
             raise NotSupportedError(
@@ -1332,8 +1365,7 @@ class Connection(object):
 
     def handle_READY_FOR_QUERY(self, data, ps):
         # Byte1 -   Status indicator.
-        self._ready_status = READY_STATUS[data]
-        self.in_transaction = data != b("I")
+        self.in_transaction = data != IDLE
 
     def handle_BACKEND_KEY_DATA(self, data, ps):
         self._backend_key_data = data
@@ -1364,7 +1396,7 @@ class Connection(object):
         idx = 2
         row_desc = []
         for i in range(count):
-            field = {'name': data[idx:data.find(b("\x00"), idx)]}
+            field = {'name': data[idx:data.find(NULL_BYTE, idx)]}
             idx += len(field['name']) + 1
             field.update(
                 dict(zip((
@@ -1395,12 +1427,11 @@ class Connection(object):
             # rogue Sync between Bind and Execute.  Since it is quite
             # likely that data will be read from us right away anyways,
             # this seems a safe move for now.
-            self.send_EXECUTE(ps, PreparedStatement.row_cache_size)
+            self.send_EXECUTE(ps)
 
     def parse(self, ps, statement):
         try:
             self._sock_lock.acquire()
-            statement_name = ps.statement_name.encode('ascii')
             # Byte1('P') - Identifies the message as a Parse command.
             # Int32 -   Message length, including self.
             # String -  Prepared statement name. An empty string selects the
@@ -1409,8 +1440,8 @@ class Connection(object):
             # Int16 -   Number of parameter data types specified (can be zero).
             # For each parameter:
             #   Int32 - The OID of the parameter data type.
-            val = bytearray(statement_name + b("\x00"))
-            val.extend(statement.encode(self._client_encoding) + b("\x00"))
+            val = bytearray(ps.statement_name_bin)
+            val.extend(statement.encode(self._client_encoding) + NULL_BYTE)
             val.extend(h_pack(len(ps.params)))
             for oid, fc, send_func in ps.params:
                 # Parse message doesn't seem to handle the -1 type_oid for NULL
@@ -1424,9 +1455,11 @@ class Connection(object):
             # Int32 - Message length, including self.
             # Byte1 - 'S' for prepared statement, 'P' for portal.
             # String - The name of the item to describe.
-            desc_data = bytearray(b("S") + statement_name + b('\x00'))
-            self._send_messages(
-                (PARSE, val), (DESCRIBE, desc_data), SYNC, FLUSH)
+            self._send_message(PARSE, val)
+            self._send_message(DESCRIBE, STATEMENT + ps.statement_name_bin)
+            self._write(SYNC_MSG)
+            self._write(FLUSH_MSG)
+            self._flush()
             self.handle_messages(ps)
         finally:
             self._sock_lock.release()
@@ -1435,18 +1468,6 @@ class Connection(object):
         try:
             self._sock_lock.acquire()
             self.binding = True
-            if ps.statement_row_desc is None:
-                # no data going out
-                output_fc = ()
-            else:
-                # We've got row_desc that allows us to identify what we're
-                # going to get back from this statement.
-                output_fc = tuple(
-                    self.pg_types[f['type_oid']][0] for f in
-                    ps.statement_row_desc)
-
-            statement_name_bin = ps.statement_name.encode('ascii')
-            portal_name_bin = ps.portal_name.encode('ascii')
 
             # Byte1('B') - Identifies the Bind command.
             # Int32 - Message length, including self.
@@ -1464,23 +1485,15 @@ class Connection(object):
             # Int16 - The number of result-column format codes.
             # For each result-column format code:
             #   Int16 - The format code.
-            retval = bytearray(portal_name_bin + b("\x00"))
-            retval.extend(statement_name_bin + b("\x00"))
-            retval.extend(h_pack(len(ps.params)))
-            retval.extend(
-                pack(
-                    "!" + "h" * len(ps.params),
-                    *tuple(map(itemgetter(1), ps.params))))
-            retval.extend(h_pack(len(ps.params)))
-            for value, (oid, fc, send_func) in zip(values, ps.params):
+            retval = bytearray(ps.portal_name_bin + ps.bind_1)
+            for value, send_func in zip(values, ps.param_funcs):
                 if value is None:
                     val = NULL
                 else:
                     val = send_func(value)
                     retval.extend(i_pack(len(val)))
                 retval.extend(val)
-            retval.extend(h_pack(len(output_fc)))
-            retval.extend(pack("!" + "h" * len(output_fc), *output_fc))
+            retval.extend(ps.bind_2)
 
             # We need to describe the portal after bind, since the return
             # format codes will be different (hopefully, always what we
@@ -1490,56 +1503,60 @@ class Connection(object):
             # Int32 - Message length, including self.
             # Byte1 - 'S' for prepared statement, 'P' for portal.
             # String - The name of the item.
-            val = bytearray(b('P') + portal_name_bin + b('\x00'))
             assert self._sock_lock.locked()
-            self._send_messages((BIND, retval), (DESCRIBE, val), FLUSH)
+            # We need to describe the portal after bind, since the return
+            # format codes will be different (hopefully, always what we
+            # requested).
+
+            # Byte1('D') - Identifies the message as a describe command.
+            # Int32 - Message length, including self.
+            # Byte1 - 'S' for prepared statement, 'P' for portal.
+            # String - The name of the item.
+            self._send_message(BIND, retval)
+            self._send_message(DESCRIBE, PORTAL + ps.portal_name_bin)
+            self._write(FLUSH_MSG)
+            self._flush()
             self.handle_messages(ps)
+        except AttributeError:
+            raise pg8000.InterfaceError("Connection is closed.")
         finally:
             self._sock_lock.release()
 
-    def _send_messages(self, *messages):
+    def _send_message(self, code, data):
         try:
-
-            for msg in messages:
-                if isinstance(msg, binary_type):
-                    self._write(SINGLETON_MESSAGES[msg])
-                else:
-                    msg_data = msg[1]
-                    self._write(msg[0] + i_pack(len(msg_data) + 4))
-                    self._write(msg_data)
-
-            self._flush()
+            self._write(code)
+            self._write(i_pack(len(data) + 4))
+            self._write(data)
         except ValueError:
             if str(exc_info()[1]) == "write to closed file":
-                raise pg8000.errors.InterfaceError("Connection is closed.")
+                raise pg8000.InterfaceError("Connection is closed.")
             else:
                 raise exc_info()[1]
         except AttributeError:
-            raise pg8000.errors.InterfaceError("Connection is closed.")
+            raise pg8000.InterfaceError("Connection is closed.")
 
     # Byte1('E') - Identifies the message as an execute message.
     # Int32 -   Message length, including self.
     # String -  The name of the portal to execute.
     # Int32 -   Maximum number of rows to return, if portal contains a query
     # that returns rows.  0 = no limit.
-    def send_EXECUTE(self, ps, row_count):
+    def send_EXECUTE(self, ps):
         ps.cmd = None
         ps.portal_suspended = False
-        portal_name_b = ps.portal_name.encode('ascii')
-        val = portal_name_b + b('\x00') + i_pack(row_count)
-        self._send_messages((EXECUTE, val), SYNC, FLUSH)
+        self._send_message(EXECUTE, ps.portal_name_bin + ps.row_cache_size_bin)
+        self._write(SYNC_MSG)
+        self._write(FLUSH_MSG)
+        self._flush()
 
     def handle_NO_DATA(self, msg, ps):
         assert self._sock_lock.locked()
-        if ps is None:
-            raise InternalError("Unexpected response msg " + NO_DATA)
 
         if ps.statement_row_desc is None:
             ps.statement_row_desc = []
         else:
             # Bind message returned NoData, causing us to execute the command.
             ps.portal_row_desc = []
-            self.send_EXECUTE(ps, 0)
+            self.send_EXECUTE(ps)
 
     def handle_COMMAND_COMPLETE(self, data, ps):
         ps.cmd = {}
@@ -1570,21 +1587,20 @@ class Connection(object):
                 data_idx += vlen
         ps._cached_rows.append(row)
 
-    def handle_messages(self, prepared_statement=None):
-        assert self._sock_lock.locked()
+    def handle_messages(self, ps=None):
         message_code = None
         error = None
+
         while message_code != READY_FOR_QUERY:
-            message_code, data_len = ci_unpack(self._sock.read(5))
+            message_code, data_len = ci_unpack(self._read(5))
             try:
-                self.message_types[message_code](
-                    self._sock.read(data_len - 4), prepared_statement)
+                self.message_types[message_code](self._read(data_len - 4), ps)
             except KeyError:
                 raise InternalError(
                     "Unrecognised message code " + message_code)
             except pg8000.errors.Error:
                 e = exc_info()[1]
-                if prepared_statement is None:
+                if ps is None:
                     raise e
                 else:
                     error = e
@@ -1595,25 +1611,12 @@ class Connection(object):
     # Int32 - Message length, including self.
     # Byte1 - 'S' for prepared statement, 'P' for portal.
     # String - The name of the item to close.
-    def _make_CLOSE(self, typ, ps):
-        return CLOSE, \
-            bytearray(typ + ps.statement_name.encode("ascii") + b("\x00"))
-
-    def _make_CLOSE_portal(self, ps):
-        return self._make_CLOSE(b("P"), ps)
-
     def close_statement(self, ps):
         try:
             self._sock_lock.acquire()
-            self._send_messages(self._make_CLOSE(b("S"), ps), SYNC)
-            self.handle_messages(ps)
-        finally:
-            self._sock_lock.release()
-
-    def close_portal(self, ps):
-        try:
-            self._sock_lock.acquire()
-            self._send_messages(self._make_CLOSE_portal(ps), SYNC)
+            self._send_message(CLOSE, STATEMENT + ps.statement_name_bin)
+            self._write(SYNC_MSG)
+            self._flush()
             self.handle_messages(ps)
         finally:
             self._sock_lock.release()
@@ -1623,7 +1626,7 @@ class Connection(object):
         self.NoticeReceived(resp)
 
     def handle_PARAMETER_STATUS(self, data, ps):
-        pos = data.find(b("\x00"))
+        pos = data.find(NULL_BYTE)
         key, value = data[:pos], data[pos + 1:-1]
         if key == b("client_encoding"):
             encoding = value.decode("ascii").lower()
@@ -1904,7 +1907,7 @@ def array_dim_lengths(arr):
 #
 # @param types          Python type objects for each parameter in the SQL
 # statement.  For example, int, float, str.
-class PreparedStatement(object):
+class PreparedStatement(Iterator):
 
     ##
     # Determines the number of rows to read from the database server at once.
@@ -1918,40 +1921,73 @@ class PreparedStatement(object):
     # parameter to be ignored.
     row_cache_size = 100
 
-    def __init__(self, connection, query, values=None, statement_name=None):
+    def __init__(self, connection, query, values=None):
 
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
         self.row_count = -1
 
-        try:
-            connection.statement_number_lock.acquire()
-            self._statement_number = connection.statement_number
-            connection.statement_number += 1
-        finally:
-            connection.statement_number_lock.release()
-
         self.c = connection
         self.portal_name = None
-        if statement_name is None:
+        self.row_cache_size_bin = i_pack(PreparedStatement.row_cache_size)
+
+        try:
+            self.c.statement_number_lock.acquire()
             self.statement_name = "pg8000_statement_" + \
-                str(self._statement_number)
-        else:
-            self.statement_name = statement_name
+                str(self.c.statement_number)
+            self.c.statement_number += 1
+        finally:
+            self.c.statement_number_lock.release()
+
+        self.statement_name_bin = self.statement_name.encode('ascii') + \
+            NULL_BYTE
         self._cached_rows = deque()
         self.statement, self.make_args = convert_paramstyle(
             pg8000.paramstyle, query)
         self.params = self.c.make_params(self.make_args(values))
-        self.param_fcs = tuple(x[1] for x in self.params)
+        param_fcs = tuple(x[1] for x in self.params)
+        self.param_funcs = tuple(x[2] for x in self.params)
         self.statement_row_desc = None
         self.c.parse(self, self.statement)
         self._lock = threading.RLock()
         self.cmd = None
 
+        if self.statement_row_desc is None:
+            # no data going out
+            output_fc = ()
+        else:
+            # We've got row_desc that allows us to identify what we're
+            # going to get back from this statement.
+            output_fc = tuple(
+                self.c.pg_types[f['type_oid']][0] for f in
+                self.statement_row_desc)
+
+        # Byte1('B') - Identifies the Bind command.
+        # Int32 - Message length, including self.
+        # String - Name of the destination portal.
+        # String - Name of the source prepared statement.
+        # Int16 - Number of parameter format codes.
+        # For each parameter format code:
+        #   Int16 - The parameter format code.
+        # Int16 - Number of parameter values.
+        # For each parameter value:
+        #   Int32 - The length of the parameter value, in bytes, not
+        #           including this length.  -1 indicates a NULL parameter
+        #           value, in which no value bytes follow.
+        #   Byte[n] - Value of the parameter.
+        # Int16 - The number of result-column format codes.
+        # For each result-column format code:
+        #   Int16 - The format code.
+        self.bind_1 = self.statement_name_bin + h_pack(len(self.params)) + \
+            pack("!" + "h" * len(param_fcs), *param_fcs) + \
+            h_pack(len(self.params))
+
+        self.bind_2 = h_pack(len(output_fc)) + \
+            pack("!" + "h" * len(output_fc), *output_fc)
+
     def close(self):
         if self.statement_name != "":  # don't close unnamed statement
             self.c.close_statement(self)
         if self.portal_name is not None:
-            self.c.close_portal(self)
             self.portal_name = None
 
     def get_row_description(self):
@@ -1964,6 +2000,7 @@ class PreparedStatement(object):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def execute(self, values=None, stream=None):
+        #print("starting execute")
         try:
             self._lock.acquire()
             # cleanup last execute
@@ -1976,12 +2013,32 @@ class PreparedStatement(object):
                 self.c.portal_number += 1
             finally:
                 self.c.portal_number_lock.release()
-
+            self.portal_name_bin = self.portal_name.encode('ascii') + NULL_BYTE
             self.cmd = None
             self.stream = stream
             self.portal_row_desc = None
             self.c.bind(self, self.make_args(values))
-            if len(self.portal_row_desc) == 0:
-                self.c.close_portal(self)
+        finally:
+            self._lock.release()
+
+    def __next__(self):
+        try:
+            self._lock.acquire()
+            return self._cached_rows.popleft()
+        except IndexError:
+            if self.portal_suspended:
+                try:
+                    self.c._sock_lock.acquire()
+                    self.c.send_EXECUTE(self)
+                    self.c.handle_messages(self)
+                finally:
+                    self.c._sock_lock.release()
+
+            try:
+                return self._cached_rows.popleft()
+            except IndexError:
+                if len(self.portal_row_desc) == 0:
+                    raise ProgrammingError("no result set")
+                raise StopIteration()
         finally:
             self._lock.release()
