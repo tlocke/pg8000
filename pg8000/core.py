@@ -974,8 +974,8 @@ class Connection(object):
 
         if PY2:
             def text_in(data, offset, length):
-                    return unicode(  # noqa
-                        data[offset: offset + length], self._client_encoding)
+                return unicode(  # noqa
+                    data[offset: offset + length], self._client_encoding)
 
             def bool_recv(d, o, l):
                 return d[o] == "\x01"
@@ -1015,14 +1015,14 @@ class Connection(object):
             return str(d).encode(self._client_encoding)
 
         self.pg_types = defaultdict(
-            lambda: (FC_BINARY, text_in), {
+            lambda: (FC_TEXT, text_in), {
                 16: (FC_BINARY, bool_recv),  # boolean
                 17: (FC_BINARY, bytea_recv),  # bytea
                 19: (FC_BINARY, text_in),  # name type
                 20: (FC_BINARY, int8_recv),  # int8
                 21: (FC_BINARY, int2_recv),  # int2
                 23: (FC_BINARY, int4_recv),  # int4
-                25: (FC_BINARY, text_in),  # TEXT type
+                25: (FC_TEXT, text_in),  # TEXT type
                 26: (FC_TEXT, oid_in),  # oid
                 700: (FC_BINARY, float4_recv),  # float4
                 701: (FC_BINARY, float8_recv),  # float8
@@ -1038,8 +1038,8 @@ class Connection(object):
                 1016: (FC_BINARY, array_recv),  # INT8[]
                 1021: (FC_BINARY, array_recv),  # FLOAT4[]
                 1022: (FC_BINARY, array_recv),  # FLOAT8[]
-                1042: (FC_BINARY, text_in),  # CHAR type
-                1043: (FC_BINARY, text_in),  # VARCHAR type
+                1042: (FC_TEXT, text_in),  # CHAR type
+                1043: (FC_TEXT, text_in),  # VARCHAR type
                 1082: (FC_TEXT, date_in),  # date
                 1083: (FC_TEXT, time_in),
                 1114: (FC_BINARY, timestamp_recv_float),  # timestamp w/ tz
@@ -1048,7 +1048,7 @@ class Connection(object):
                 1231: (FC_TEXT, array_in),  # NUMERIC[]
                 1263: (FC_BINARY, array_recv),  # cstring[]
                 1700: (FC_TEXT, numeric_in),  # NUMERIC
-                2275: (FC_BINARY, text_in),  # cstring
+                2275: (FC_TEXT, text_in),  # cstring
                 2950: (FC_BINARY, uuid_recv),  # uuid
             })
 
@@ -1092,6 +1092,23 @@ class Connection(object):
             self.inspect_funcs[long] = inspect_int  # noqa
         else:
             self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
+
+        try:
+            from ipaddress import ip_network, IPv4Network, IPv6Network
+
+            def inet_out(v):
+                return str(v).encode(self._client_encoding)
+
+            def inet_in(data, offset, length):
+                return ip_network(
+                    data[offset: offset + length].decode(
+                        self._client_encoding), False)
+
+            self.py_types[IPv4Network] = (869, FC_TEXT, inet_out)  # inet
+            self.py_types[IPv6Network] = (869, FC_TEXT, inet_out)  # inet
+            self.pg_types[869] = (FC_TEXT, inet_in)  # inet
+        except ImportError:
+            pass
 
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,
@@ -2003,7 +2020,6 @@ class PreparedStatement(Iterator):
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def execute(self, values=None, stream=None):
-        #print("starting execute")
         try:
             self._lock.acquire()
             # cleanup last execute

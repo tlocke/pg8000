@@ -199,6 +199,21 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 
+    def testInetRoundtrip(self):
+        try:
+            import ipaddress
+
+            v = ipaddress.ip_network('192.168.0.0/28')
+            self.cursor.execute("select %s as f1", (v,))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], v)
+        except ImportError:
+            v = '192.168.100.128/25'
+            self.cursor.execute(
+                "select cast(cast(%s as varchar) as inet) as f1", (v,))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], v)
+
     def testTimestampTzOut(self):
         self.cursor.execute(
             "SELECT '2001-02-03 04:05:06.17 America/Edmonton'"
