@@ -315,6 +315,9 @@ def timestamptz_send_float(v):
     # convert them.
     return timestamp_send_float(v.astimezone(utc).replace(tzinfo=None))
 
+DATETIME_MAX_TZ = datetime.datetime.max.replace(tzinfo=utc)
+DATETIME_MIN_TZ = datetime.datetime.min.replace(tzinfo=utc)
+
 
 # return a timezone-aware datetime instance if we're reading from a
 # "timestamp with timezone" type.  The timezone returned will always be
@@ -326,9 +329,9 @@ def timestamptz_recv_integer(data, offset, length):
         return EPOCH_TZ + timedelta(microseconds=micros)
     except OverflowError:
         if micros == INFINITY_MICROSECONDS:
-            return datetime.datetime.max
+            return DATETIME_MAX_TZ
         elif micros == MINUS_INFINITY_MICROSECONDS:
-            return datetime.datetime.min
+            return DATETIME_MIN_TZ
         else:
             raise exc_info()[1]
 
