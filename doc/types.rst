@@ -38,6 +38,8 @@ XML types.
 | (w/ tzinfo)                    | time zone       | maps to ``infinity``, and |
 |                                |                 | ``datetime.datetime.min`` |
 |                                |                 | maps to ``-infinity``.    |
+|                                |                 | The max and min datetimes |
+|                                |                 | have a UTC timezone.      |
 +--------------------------------+-----------------+---------------------------+
 | :class:`datetime.date`         | date            | ``datetime.date.max``     |
 |                                |                 | maps to ``infinity``, and |
