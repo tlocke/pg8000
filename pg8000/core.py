@@ -1094,16 +1094,23 @@ class Connection(object):
             self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
 
         try:
-            from ipaddress import ip_network, IPv4Network, IPv6Network
+            from ipaddress import (
+                ip_address, IPv4Address, IPv6Address, ip_network, IPv4Network,
+                IPv6Network)
 
             def inet_out(v):
                 return str(v).encode(self._client_encoding)
 
             def inet_in(data, offset, length):
-                return ip_network(
-                    data[offset: offset + length].decode(
-                        self._client_encoding), False)
+                inet_str = data[offset: offset + length].decode(
+                    self._client_encoding)
+                if '/' in inet_str:
+                    return ip_network(inet_str, False)
+                else:
+                    return ip_address(inet_str)
 
+            self.py_types[IPv4Address] = (869, FC_TEXT, inet_out)  # inet
+            self.py_types[IPv6Address] = (869, FC_TEXT, inet_out)  # inet
             self.py_types[IPv4Network] = (869, FC_TEXT, inet_out)  # inet
             self.py_types[IPv6Network] = (869, FC_TEXT, inet_out)  # inet
             self.pg_types[869] = (FC_TEXT, inet_in)  # inet

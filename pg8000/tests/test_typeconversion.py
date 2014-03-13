@@ -207,12 +207,18 @@ class Tests(unittest.TestCase):
             self.cursor.execute("select %s as f1", (v,))
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], v)
-        except ImportError:
-            v = '192.168.100.128/25'
-            self.cursor.execute(
-                "select cast(cast(%s as varchar) as inet) as f1", (v,))
+
+            v = ipaddress.ip_address('192.168.0.1')
+            self.cursor.execute("select %s as f1", (v,))
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], v)
+
+        except ImportError:
+            for v in ('192.168.100.128/25', '192.168.0.1'):
+                self.cursor.execute(
+                    "select cast(cast(%s as varchar) as inet) as f1", (v,))
+                retval = self.cursor.fetchall()
+                self.assertEqual(retval[0][0], v)
 
     def testTimestampTzOut(self):
         self.cursor.execute(
