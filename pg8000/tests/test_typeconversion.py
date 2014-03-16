@@ -220,6 +220,18 @@ class Tests(unittest.TestCase):
                 retval = self.cursor.fetchall()
                 self.assertEqual(retval[0][0], v)
 
+    def testXidRoundtrip(self):
+        v = 86722
+        self.cursor.execute(
+            "select cast(cast(%s as varchar) as xid) as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
+
+        # Should complete without an exception
+        self.cursor.execute(
+            "select * from pg_locks where transactionid = %s", (97712,))
+        retval = self.cursor.fetchall()
+
     def testTimestampTzOut(self):
         self.cursor.execute(
             "SELECT '2001-02-03 04:05:06.17 America/Edmonton'"

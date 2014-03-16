@@ -414,7 +414,7 @@ def null_send(v):
     return NULL
 
 
-def oid_in(data, offset, length):
+def int_in(data, offset, length):
     return int(data[offset: offset + length])
 
 
@@ -1023,7 +1023,8 @@ class Connection(object):
                 21: (FC_BINARY, int2_recv),  # int2
                 23: (FC_BINARY, int4_recv),  # int4
                 25: (FC_TEXT, text_in),  # TEXT type
-                26: (FC_TEXT, oid_in),  # oid
+                26: (FC_TEXT, int_in),  # oid
+                28: (FC_TEXT, int_in),  # xid
                 700: (FC_BINARY, float4_recv),  # float4
                 701: (FC_BINARY, float8_recv),  # float8
                 705: (FC_BINARY, text_in),  # unknown
