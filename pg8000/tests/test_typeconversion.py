@@ -232,6 +232,15 @@ class Tests(unittest.TestCase):
             "select * from pg_locks where transactionid = %s", (97712,))
         retval = self.cursor.fetchall()
 
+    def testInt2VectorIn(self):
+        self.cursor.execute("select cast('1 2' as int2vector) as f1")
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], [1, 2])
+
+        # Should complete without an exception
+        self.cursor.execute("select indkey from pg_index")
+        retval = self.cursor.fetchall()
+
     def testTimestampTzOut(self):
         self.cursor.execute(
             "SELECT '2001-02-03 04:05:06.17 America/Edmonton'"

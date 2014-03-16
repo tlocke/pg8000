@@ -929,7 +929,8 @@ class Connection(object):
         def array_in(data, idx, length):
             arr = []
             prev_c = None
-            for c in data[idx:idx+length].decode('ascii').translate(
+            for c in data[idx:idx+length].decode(
+                    self._client_encoding).translate(
                     trans_tab).replace(u('NULL'), u('None')):
                 if c not in ('[', ']', ',', 'N') and prev_c in ('[', ','):
                     arr.extend("Decimal('")
@@ -971,6 +972,10 @@ class Connection(object):
             for length in reversed(dim_lengths[1:]):
                 values = list(map(list, zip(*[iter(values)] * length)))
             return values
+
+        def vector_in(data, idx, length):
+            return eval('[' + data[idx:idx+length].decode(
+                self._client_encoding).replace(' ', ',') + ']')
 
         if PY2:
             def text_in(data, offset, length):
@@ -1021,6 +1026,7 @@ class Connection(object):
                 19: (FC_BINARY, text_in),  # name type
                 20: (FC_BINARY, int8_recv),  # int8
                 21: (FC_BINARY, int2_recv),  # int2
+                22: (FC_TEXT, vector_in),  # int2vector
                 23: (FC_BINARY, int4_recv),  # int4
                 25: (FC_TEXT, text_in),  # TEXT type
                 26: (FC_TEXT, int_in),  # oid
