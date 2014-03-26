@@ -1,6 +1,25 @@
 Release Notes
 =============
 
+Version 1.9.7, 2014-03-26
+-------------------------
+- Caching of prepared statements. There's now a 'use_cache' boolean parameter
+  for the connect() function, which causes all prepared statements to be cached
+  by pg8000, keyed on the SQL query string. This should speed things up
+  significantly in most cases.
+
+- Added support for the PostgreSQL inet type. It maps to the Python types
+  IPv*Address and IPv*Network. 
+
+- Added support for PostgreSQL +/- infinity date and timestamp values. Now the
+  Python value datetime.datetime.max maps to the PostgreSQL value 'infinity'
+  and datetime.datetime.min maps to '-infinity', and the same for
+  datetime.date.
+
+- Added support for the PostgreSQL types int2vector and xid, which are mostly
+  used internally by PostgreSQL.
+
+
 Version 1.9.6, 2014-02-26
 -------------------------
 - Fixed a bug where 'portal does not exist' errors were being generated. Some
