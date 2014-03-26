@@ -95,7 +95,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], "hello \u0173 world")
 
     def testLongRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", (50000000000000,))
+        self.cursor.execute(
+            "SELECT cast(%s as bigint) as f1", (50000000000000,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], 50000000000000)
 
@@ -119,7 +120,8 @@ class Tests(unittest.TestCase):
             #(-9223372036854775808, numeric),
             #(+9223372036854775808, numeric),
         for value, typoid, tp in test_values:
-            self.cursor.execute("SELECT %s as f1 -- " + tp, (value,))
+            self.cursor.execute(
+                "SELECT cast(%s as " + tp + ") as f1", (value,))
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], value)
             column_name, column_typeoid = self.cursor.description[0][0:2]

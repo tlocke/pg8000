@@ -923,6 +923,9 @@ class Connection(object):
             else:
                 return v.isoformat().encode(self._client_encoding)
 
+        def unknown_out(v):
+            return str(v).encode(self._client_encoding)
+
         trans_tab = dict(zip(map(ord, u('{}')), u('[]')))
         glbls = {'Decimal': Decimal}
 
@@ -1062,11 +1065,9 @@ class Connection(object):
         self.py_types = {
             type(None): (-1, FC_BINARY, null_send),  # null
             bool: (16, FC_BINARY, bool_send),
-            20: (20, FC_BINARY, q_pack),  # int8
-            21: (21, FC_BINARY, h_pack),  # int2
-            23: (23, FC_BINARY, i_pack),  # int4
+            int: (705, FC_TEXT, unknown_out),
             float: (701, FC_BINARY, d_pack),  # float8
-            str: (705, FC_BINARY, text_out),  # unknown
+            str: (705, FC_TEXT, text_out),  # unknown
             datetime.date: (1082, FC_TEXT, date_out),  # date
             datetime.time: (1083, FC_TEXT, time_out),  # time
             1114: (1114, FC_BINARY, timestamp_send_integer),  # timestamp
@@ -1077,18 +1078,7 @@ class Connection(object):
             UUID: (2950, FC_BINARY, uuid_send),  # uuid
         }
 
-        def inspect_int(value):
-            if min_int2 < value < max_int2:
-                return self.py_types[21]
-            elif min_int4 < value < max_int4:
-                return self.py_types[23]
-            elif min_int8 < value < max_int8:
-                return self.py_types[20]
-            else:
-                return Decimal
-
         self.inspect_funcs = {
-            int: inspect_int,
             datetime.datetime: self.inspect_datetime,
             list: self.array_inspect}
 
@@ -1096,7 +1086,7 @@ class Connection(object):
             self.py_types[pg8000.Bytea] = (17, FC_BINARY, bytea_send)  # bytea
             self.py_types[text_type] = (705, FC_BINARY, text_out)  # unknown
 
-            self.inspect_funcs[long] = inspect_int  # noqa
+            self.py_types[long] = (705, FC_TEXT, unknown_out)  # noqa
         else:
             self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
 
