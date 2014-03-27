@@ -113,6 +113,14 @@ class Tests(unittest.TestCase):
         self.cursor.executemany("SELECT cast(%s as integer)", ((1,), (40000,)))
         self.cursor.fetchall()
 
+        v = ([None], [4])
+        self.cursor.execute(
+            "create temporary table test_int (f integer)")
+        self.cursor.executemany("INSERT INTO test_int VALUES (%s)", v)
+        self.cursor.execute("SELECT * from test_int")
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval, v)
+
     def testIntRoundtrip(self):
         int2 = 21
         int4 = 23

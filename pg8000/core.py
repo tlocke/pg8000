@@ -510,15 +510,11 @@ class Cursor(Iterator):
                 raise InterfaceError("Cursor closed")
             else:
                 raise exc_info()[1]
-        if self._c.use_cache:
-            try:
-                self._stmt = self._c.statement_cache[operation]
-            except KeyError:
-                self._stmt = PreparedStatement(self._c, operation, args)
-                self._c.statement_cache[operation] = self._stmt
-        else:
-            self._stmt = PreparedStatement(self._c, operation, args)
 
+        if not self._c.use_cache:
+            self._c.statement_cache.clear()
+
+        self._stmt = self._get_ps(operation, args)
         self._stmt.execute(args, stream=stream)
         self._row_count = self._stmt.row_count
 
@@ -538,17 +534,11 @@ class Cursor(Iterator):
             else:
                 raise exc_info()[1]
 
-        if self._c.use_cache:
-            try:
-                self._stmt = self._c.statement_cache[operation]
-            except KeyError:
-                self._stmt = PreparedStatement(
-                    self._c, operation, param_sets[0])
-                self._c.statement_cache[operation] = self._stmt
-        else:
-            self._stmt = PreparedStatement(self._c, operation, param_sets[0])
+        if not self._c.use_cache:
+            self._c.statement_cache.clear()
 
         for parameters in param_sets:
+            self._stmt = self._get_ps(operation, parameters)
             self._stmt.execute(parameters)
             if self._stmt.row_count == -1:
                 self._row_count = -1
@@ -574,6 +564,16 @@ class Cursor(Iterator):
             if null is not None:
                 query += " NULL '%s'" % (null,)
         self.copy_execute(fileobj, query)
+
+    def _get_ps(self, operation, params):
+        key = (None if params is None else tuple(map(type, params))), operation
+
+        try:
+            return self._c.statement_cache[key]
+        except KeyError:
+            ps = PreparedStatement(self._c, operation, params)
+            self._c.statement_cache[key] = ps
+            return ps
 
     @require_open_cursor
     def copy_execute(self, fileobj, query):
