@@ -1681,7 +1681,7 @@ class Connection(object):
 
         elif key == b("server_version"):
             self._server_version = value.decode("ascii")
-            if self._server_version.startswith("8.4"):
+            if self._server_version.startswith("8"):
                 self._commands_with_count = (
                     b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
                     b("FETCH"), b("COPY"))
