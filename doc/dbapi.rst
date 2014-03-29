@@ -112,9 +112,9 @@ Functions
 
     :keyword use_cache:
         Cache prepared statements if ``True``. This is an experimental
-        feature that caches prepared statements keyed on the SQL query
-        and re-uses them if that SQL query is used again in execute() or
-        executemany(). Defaults to ``False``.
+        feature that caches prepared statements keyed on the types of the
+        parameters and the SQL query and re-uses them if that SQL query is used
+        again in execute() or executemany(). Defaults to ``False``.
 
     :rtype:
         A :class:`Connection` object.
