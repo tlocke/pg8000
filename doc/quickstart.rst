@@ -51,7 +51,7 @@ A query that returns the PostgreSQL interval type:
     >>> cursor.fetchone()
     [<Interval 0 months 12271 days 57960000000 microseconds>]
 
-pg8000 suppors all the DB-API parameter styles. Here's an example of using
+pg8000 supports all the DB-API parameter styles. Here's an example of using
 the 'numeric' parameter style:
 
 .. code-block:: python
