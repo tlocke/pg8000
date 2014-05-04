@@ -125,7 +125,7 @@ class Tests(unittest.TestCase):
         int2 = 21
         int4 = 23
         int8 = 20
-        #numeric = 1700
+
         test_values = [
             (0, int2, 'smallint'),
             (-32767, int2, 'smallint'),
@@ -138,8 +138,7 @@ class Tests(unittest.TestCase):
             (+2147483648, int8, 'bigint'),
             (-9223372036854775807, int8, 'bigint'),
             (+9223372036854775807, int8, 'bigint'), ]
-            #(-9223372036854775808, numeric),
-            #(+9223372036854775808, numeric),
+
         for value, typoid, tp in test_values:
             self.cursor.execute("SELECT cast(%s as " + tp + ")", (value,))
             retval = self.cursor.fetchall()

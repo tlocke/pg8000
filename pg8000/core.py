@@ -487,7 +487,7 @@ class Cursor(Iterator):
         if self._stmt is None:
             return None
         row_desc = self._stmt.get_row_description()
-        if row_desc is None or len(row_desc) == 0:
+        if len(row_desc) == 0:
             return None
         columns = []
         for col in row_desc:
@@ -502,6 +502,8 @@ class Cursor(Iterator):
     # Stability: Part of the DBAPI 2.0 specification.
     def execute(self, operation, args=None, stream=None):
         self._row_count = -1
+        if not self._c.use_cache:
+            self._c.statement_cache.clear()
 
         try:
             self._c.begin()
@@ -510,9 +512,6 @@ class Cursor(Iterator):
                 raise InterfaceError("Cursor closed")
             else:
                 raise exc_info()[1]
-
-        if not self._c.use_cache:
-            self._c.statement_cache.clear()
 
         self._stmt = self._get_ps(operation, args)
         self._stmt.execute(args, stream=stream)
@@ -806,7 +805,6 @@ class Connection(object):
         self.user = user
         self.password = password
         self.autocommit = False
-        self.binding = False
 
         self.statement_cache = {}
 
@@ -855,9 +853,6 @@ class Connection(object):
 
             # settimeout causes ssl failure, on windows.  Python bug 1462352.
             self._usock.settimeout(socket_timeout)
-
-            #self._sock_in = self._sock.makefile(mode="rb")
-            #self._read_bytes = self._sock_in.read
             self._sock = self._usock.makefile(mode="rwb")
         except socket.error:
             self._usock.close()
@@ -1171,10 +1166,6 @@ class Connection(object):
 
     def handle_ERROR_RESPONSE(self, data, ps):
         msg_dict = data_into_dict(data)
-        if self.binding:
-            self.binding = False
-            self._write(SYNC_MSG)
-            self._flush()
         if msg_dict[RESPONSE_CODE] == "28000":
             raise InterfaceError("md5 password authentication failed")
         else:
@@ -1191,7 +1182,7 @@ class Connection(object):
         pass
 
     def handle_BIND_COMPLETE(self, data, ps):
-        self.binding = False
+        pass
 
     def handle_PORTAL_SUSPENDED(self, data, ps):
         ps.portal_suspended = True
@@ -1419,7 +1410,6 @@ class Connection(object):
     def handle_ROW_DESCRIPTION(self, data, ps):
         count = h_unpack(data)[0]
         idx = 2
-        row_desc = []
         for i in range(count):
             field = {'name': data[idx:data.find(NULL_BYTE, idx)]}
             idx += len(field['name']) + 1
@@ -1429,30 +1419,13 @@ class Connection(object):
                     "type_size", "type_modifier", "format"),
                     ihihih_unpack(data, idx))))
             idx += 18
-            row_desc.append(field)
+            ps.row_desc.append(field)
             try:
                 field['pg8000_fc'], field['func'] = self.pg_types[
                     field['type_oid']]
             except KeyError:
                 raise NotSupportedError(
                     "type oid " + exc_info()[1] + " not supported")
-
-        if ps.statement_row_desc is None:
-            ps.statement_row_desc = row_desc
-        else:
-            ps.portal_row_desc = row_desc
-            for d in row_desc:
-                if d['format'] != d['pg8000_fc']:
-                    raise NotSupportedError(
-                        "format code " + d['format'] +
-                        " not supported for type " + d['type_oid'])
-
-            # We execute our cursor right away to fill up our cache. This
-            # prevents the cursor from being destroyed, apparently, by a
-            # rogue Sync between Bind and Execute.  Since it is quite
-            # likely that data will be read from us right away anyways,
-            # this seems a safe move for now.
-            self.send_EXECUTE(ps)
 
     def parse(self, ps, statement):
         try:
@@ -1492,7 +1465,6 @@ class Connection(object):
     def bind(self, ps, values):
         try:
             self._sock_lock.acquire()
-            self.binding = True
 
             # Byte1('B') - Identifies the Bind command.
             # Int32 - Message length, including self.
@@ -1520,25 +1492,9 @@ class Connection(object):
                 retval.extend(val)
             retval.extend(ps.bind_2)
 
-            # We need to describe the portal after bind, since the return
-            # format codes will be different (hopefully, always what we
-            # requested).
-
-            # Byte1('D') - Identifies the message as a describe command.
-            # Int32 - Message length, including self.
-            # Byte1 - 'S' for prepared statement, 'P' for portal.
-            # String - The name of the item.
-            assert self._sock_lock.locked()
-            # We need to describe the portal after bind, since the return
-            # format codes will be different (hopefully, always what we
-            # requested).
-
-            # Byte1('D') - Identifies the message as a describe command.
-            # Int32 - Message length, including self.
-            # Byte1 - 'S' for prepared statement, 'P' for portal.
-            # String - The name of the item.
             self._send_message(BIND, retval)
-            self._send_message(DESCRIBE, PORTAL + ps.portal_name_bin)
+            self.send_EXECUTE(ps)
+            self._write(SYNC_MSG)
             self._write(FLUSH_MSG)
             self._flush()
             self.handle_messages(ps)
@@ -1560,28 +1516,20 @@ class Connection(object):
         except AttributeError:
             raise pg8000.InterfaceError("Connection is closed.")
 
-    # Byte1('E') - Identifies the message as an execute message.
-    # Int32 -   Message length, including self.
-    # String -  The name of the portal to execute.
-    # Int32 -   Maximum number of rows to return, if portal contains a query
-    # that returns rows.  0 = no limit.
     def send_EXECUTE(self, ps):
+        # Byte1('E') - Identifies the message as an execute message.
+        # Int32 -   Message length, including self.
+        # String -  The name of the portal to execute.
+        # Int32 -   Maximum number of rows to return, if portal
+        #           contains a query # that returns rows.
+        #           0 = no limit.
         ps.cmd = None
         ps.portal_suspended = False
-        self._send_message(EXECUTE, ps.portal_name_bin + ps.row_cache_size_bin)
-        self._write(SYNC_MSG)
-        self._write(FLUSH_MSG)
-        self._flush()
+        self._send_message(
+            EXECUTE, ps.portal_name_bin + ps.row_cache_size_bin)
 
     def handle_NO_DATA(self, msg, ps):
-        assert self._sock_lock.locked()
-
-        if ps.statement_row_desc is None:
-            ps.statement_row_desc = []
-        else:
-            # Bind message returned NoData, causing us to execute the command.
-            ps.portal_row_desc = []
-            self.send_EXECUTE(ps)
+        pass
 
     def handle_COMMAND_COMPLETE(self, data, ps):
         ps.cmd = {}
@@ -1602,13 +1550,13 @@ class Connection(object):
     def handle_DATA_ROW(self, data, ps):
         data_idx = 2
         row = []
-        for desc in ps.portal_row_desc:
+        for func in ps.input_funcs:
             vlen = i_unpack(data, data_idx)[0]
             data_idx += 4
             if vlen == -1:
                 row.append(None)
             else:
-                row.append(desc['func'](data, data_idx, vlen))
+                row.append(func(data, data_idx, vlen))
                 data_idx += vlen
         ps._cached_rows.append(row)
 
@@ -1803,16 +1751,16 @@ pg_to_py_encodings = {
     "euc_tw": None,
 
     # Name fine as-is:
-    #"euc_jp",
-    #"euc_jis_2004",
-    #"euc_kr",
-    #"gb18030",
-    #"gbk",
-    #"johab",
-    #"sjis",
-    #"shift_jis_2004",
-    #"uhc",
-    #"utf8",
+    # "euc_jp",
+    # "euc_jis_2004",
+    # "euc_kr",
+    # "gb18030",
+    # "gbk",
+    # "johab",
+    # "sjis",
+    # "shift_jis_2004",
+    # "uhc",
+    # "utf8",
 
     # Different name:
     "euc_cn": "gb2312",
@@ -1972,21 +1920,17 @@ class PreparedStatement(Iterator):
         self.params = self.c.make_params(self.make_args(values))
         param_fcs = tuple(x[1] for x in self.params)
         self.param_funcs = tuple(x[2] for x in self.params)
-        self.statement_row_desc = None
+        self.row_desc = []
         self.c.parse(self, self.statement)
         self._lock = threading.RLock()
         self.cmd = None
 
-        if self.statement_row_desc is None:
-            # no data going out
-            output_fc = ()
-        else:
-            # We've got row_desc that allows us to identify what we're
-            # going to get back from this statement.
-            output_fc = tuple(
-                self.c.pg_types[f['type_oid']][0] for f in
-                self.statement_row_desc)
+        # We've got row_desc that allows us to identify what we're
+        # going to get back from this statement.
+        output_fc = tuple(
+            self.c.pg_types[f['type_oid']][0] for f in self.row_desc)
 
+        self.input_funcs = tuple(f['func'] for f in self.row_desc)
         # Byte1('B') - Identifies the Bind command.
         # Int32 - Message length, including self.
         # String - Name of the destination portal.
@@ -2017,9 +1961,7 @@ class PreparedStatement(Iterator):
             self.portal_name = None
 
     def get_row_description(self):
-        if self.portal_row_desc is not None:
-            return self.portal_row_desc
-        return self.statment_row_desc
+        return self.row_desc
 
     ##
     # Run the SQL prepared statement with the given parameters.
@@ -2041,7 +1983,6 @@ class PreparedStatement(Iterator):
             self.portal_name_bin = self.portal_name.encode('ascii') + NULL_BYTE
             self.cmd = None
             self.stream = stream
-            self.portal_row_desc = None
             self.c.bind(self, self.make_args(values))
         finally:
             self._lock.release()
@@ -2055,6 +1996,9 @@ class PreparedStatement(Iterator):
                 try:
                     self.c._sock_lock.acquire()
                     self.c.send_EXECUTE(self)
+                    self.c._write(SYNC_MSG)
+                    self.c._write(FLUSH_MSG)
+                    self.c._flush()
                     self.c.handle_messages(self)
                 finally:
                     self.c._sock_lock.release()
@@ -2062,7 +2006,7 @@ class PreparedStatement(Iterator):
             try:
                 return self._cached_rows.popleft()
             except IndexError:
-                if len(self.portal_row_desc) == 0:
+                if len(self.row_desc) == 0:
                     raise ProgrammingError("no result set")
                 raise StopIteration()
         finally:

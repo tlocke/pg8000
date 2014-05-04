@@ -251,5 +251,15 @@ class Tests(unittest.TestCase):
             cursor.close()
             self.db.commit()
 
+    def testIn(self):
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT typname FROM pg_type WHERE oid = any(%s)", ([16, 23],))
+            ret = cursor.fetchall()
+            self.assertEqual(ret[0][0], 'bool')
+        finally:
+            cursor.close()
+
 if __name__ == "__main__":
     unittest.main()
