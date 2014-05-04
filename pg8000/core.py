@@ -819,20 +819,20 @@ class Connection(object):
 
         try:
             if unix_sock is None and host is not None:
-                self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self._usock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             elif unix_sock is not None:
                 if not hasattr(socket, "AF_UNIX"):
                     raise InterfaceError(
                         "attempt to connect to unix socket on unsupported "
                         "platform")
-                self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self._usock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             else:
                 raise ProgrammingError(
                     "one of host or unix_sock must be provided")
             if unix_sock is None and host is not None:
-                self._sock.connect((host, port))
+                self._usock.connect((host, port))
             elif unix_sock is not None:
-                self._sock.connect(unix_sock)
+                self._usock.connect(unix_sock)
 
             if ssl:
                 try:
@@ -840,10 +840,10 @@ class Connection(object):
                     import ssl as sslmodule
                     # Int32(8) - Message length, including self.
                     # Int32(80877103) - The SSL request code.
-                    self._sock.sendall(ii_pack(8, 80877103))
-                    resp = self._sock.recv(1)
+                    self._usock.sendall(ii_pack(8, 80877103))
+                    resp = self._usock.recv(1)
                     if resp == b('S'):
-                        self._sock = sslmodule.wrap_socket(self._sock)
+                        self._usock = sslmodule.wrap_socket(self._usock)
                     else:
                         raise InterfaceError("Server refuses SSL")
                 except ImportError:
@@ -854,13 +854,13 @@ class Connection(object):
                     self._sock_lock.release()
 
             # settimeout causes ssl failure, on windows.  Python bug 1462352.
-            self._sock.settimeout(socket_timeout)
+            self._usock.settimeout(socket_timeout)
 
             #self._sock_in = self._sock.makefile(mode="rb")
             #self._read_bytes = self._sock_in.read
-            self._sock = self._sock.makefile(mode="rwb")
+            self._sock = self._usock.makefile(mode="rwb")
         except socket.error:
-            self._sock.close()
+            self._usock.close()
             raise InterfaceError("communication error", exc_info()[1])
         self._flush = self._sock.flush
         self._read = self._sock.read
@@ -1321,6 +1321,7 @@ class Connection(object):
             self._write(TERMINATE_MSG)
             self._flush()
             self._sock.close()
+            self._usock.close()
             self._sock = None
         except AttributeError:
             raise pg8000.InterfaceError("Connection is closed.")
