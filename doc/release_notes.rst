@@ -1,6 +1,26 @@
 Release Notes
 =============
 
+Version 1.9.8, 2014-05-05
+-------------------------
+- We used to ask the server for a description of the statement, and then ask
+  for a description of each subsequent portal. We now only ask for a
+  description of the statement. This results in a significant performance
+  improvement, especially for executemany() calls and when using the
+  'use_cache' option of the connect() function.
+
+- Fixed warning in Python 3.4 which was saying that a socket hadn't been
+  closed. It seems that closing a socket file doesn't close the underlying
+  socket.
+
+- Now should cope with PostgreSQL 8 versions before 8.4. This includes Amazon
+  Redshift.
+
+- Added 'unicode' alias for 'utf-8', which is needed for Amazon Redshift.
+
+- Various other bug fixes.
+
+
 Version 1.9.7, 2014-03-26
 -------------------------
 - Caching of prepared statements. There's now a 'use_cache' boolean parameter
