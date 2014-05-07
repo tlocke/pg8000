@@ -223,28 +223,12 @@ def Binary(value):
     else:
         return value
 
-try:
-    from pytz import utc
-except ImportError:
-    ZERO = datetime.timedelta(0)
-
-    class UTC(datetime.tzinfo):
-
-        def utcoffset(self, dt):
-            return ZERO
-
-        def tzname(self, dt):
-            return "UTC"
-
-        def dst(self, dt):
-            return ZERO
-    utc = UTC()
-
 
 # For compatibility with 1.8
 import pg8000 as dbapi
 DBAPI = dbapi
 pg8000_dbapi = DBAPI
+from pg8000.core import utc
 
 from pg8000.errors import (
     Warning, DatabaseError, InterfaceError,
@@ -258,4 +242,4 @@ __all__ = [
     CopyQueryOrTableRequiredError, Error, OperationalError, IntegrityError,
     InternalError, NotSupportedError, ArrayContentNotHomogenousError,
     ArrayContentEmptyError, ArrayDimensionsNotConsistentError,
-    ArrayContentNotSupportedError]
+    ArrayContentNotSupportedError, utc]

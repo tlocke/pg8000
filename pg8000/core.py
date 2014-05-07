@@ -242,11 +242,11 @@ def convert_paramstyle(style, query):
         prev_c = c
 
     if style in ('numeric', 'qmark', 'format'):
-        def make_args(args):
-            return () if args is None else args
+        def make_args(vals):
+            return vals
     else:
-        def make_args(args):
-            return tuple(args[p] for p in placeholders)
+        def make_args(vals):
+            return tuple(vals[p] for p in placeholders)
 
     return ''.join(output_query), make_args
 
@@ -501,6 +501,9 @@ class Cursor(Iterator):
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
     def execute(self, operation, args=None, stream=None):
+        if args is None:
+            args = tuple()
+
         self._row_count = -1
         if not self._c.use_cache:
             self._c.statement_cache.clear()
@@ -564,13 +567,18 @@ class Cursor(Iterator):
                 query += " NULL '%s'" % (null,)
         self.copy_execute(fileobj, query)
 
-    def _get_ps(self, operation, params):
-        key = (None if params is None else tuple(map(type, params))), operation
+    def _get_ps(self, operation, vals):
+        if pg8000.paramstyle in ('numeric', 'qmark', 'format'):
+            args = vals
+        else:
+            args = tuple(vals[k] for k in sorted(vals.keys()))
+
+        key = tuple(oid for oid, x, y in self._c.make_params(args)), operation
 
         try:
             return self._c.statement_cache[key]
         except KeyError:
-            ps = PreparedStatement(self._c, operation, params)
+            ps = PreparedStatement(self._c, operation, vals)
             self._c.statement_cache[key] = ps
             return ps
 
@@ -1157,9 +1165,9 @@ class Connection(object):
             self.close()
             raise exc_info()[1]
 
-        self._begin = PreparedStatement(self, "BEGIN TRANSACTION")
-        self._commit = PreparedStatement(self, "COMMIT TRANSACTION")
-        self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION")
+        self._begin = PreparedStatement(self, "BEGIN TRANSACTION", ())
+        self._commit = PreparedStatement(self, "COMMIT TRANSACTION", ())
+        self._rollback = PreparedStatement(self, "ROLLBACK TRANSACTION", ())
         self.in_transaction = False
         self.notifies = []
         self.notifies_lock = threading.Lock()
@@ -1290,7 +1298,7 @@ class Connection(object):
         # database connection entirely, so that no cursors can execute
         # statements on other threads.  Support for that type of lock will
         # be done later.
-        self._commit.execute()
+        self._commit.execute(())
 
     ##
     # Rolls back the current database transaction.
@@ -1298,7 +1306,7 @@ class Connection(object):
     # Stability: Part of the DBAPI 2.0 specification.
     def rollback(self):
         # see bug description in commit.
-        self._rollback.execute()
+        self._rollback.execute(())
 
     ##
     # Closes the database connection.
@@ -1327,7 +1335,7 @@ class Connection(object):
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
     def begin(self):
         if not self.in_transaction and not self.autocommit:
-            self._begin.execute()
+            self._begin.execute(())
 
     def handle_AUTHENTICATION_REQUEST(self, data, ps):
         assert self._sock_lock.locked()
@@ -1445,9 +1453,7 @@ class Connection(object):
                 # Parse message doesn't seem to handle the -1 type_oid for NULL
                 # values that other messages handle.  So we'll provide type_oid
                 # 705, the PG "unknown" type.
-                if oid == -1:
-                    oid = 705
-                val.extend(i_pack(oid))
+                val.extend(i_pack(705 if oid == -1 else oid))
 
             # Byte1('D') - Identifies the message as a describe command.
             # Int32 - Message length, including self.
@@ -1895,7 +1901,7 @@ class PreparedStatement(Iterator):
     # parameter to be ignored.
     row_cache_size = 100
 
-    def __init__(self, connection, query, values=None):
+    def __init__(self, connection, query, values):
 
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
         self.row_count = -1
@@ -1967,7 +1973,7 @@ class PreparedStatement(Iterator):
     # Run the SQL prepared statement with the given parameters.
     # <p>
     # Stability: Added in v1.00, stability guaranteed for v1.xx.
-    def execute(self, values=None, stream=None):
+    def execute(self, values, stream=None):
         try:
             self._lock.acquire()
             # cleanup last execute

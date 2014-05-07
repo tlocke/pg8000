@@ -4,6 +4,7 @@ import pg8000
 from .connection_settings import db_connect
 from pg8000.six import u, b
 from sys import exc_info
+import datetime
 
 
 from warnings import filterwarnings
@@ -230,6 +231,12 @@ class Tests(unittest.TestCase):
             cursor.executemany(
                 "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                 ((1, 1, 'Avast ye!'), (2, 1, None)))
+
+            cursor.executemany(
+                "select %s",
+                (
+                    (datetime.datetime(2014, 5, 7, tzinfo=pg8000.core.utc), ),
+                    (datetime.datetime(2014, 5, 7),)))
         finally:
             cursor.close()
             self.db.commit()
