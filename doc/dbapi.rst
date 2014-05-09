@@ -51,13 +51,6 @@ Properties
 .. attribute:: pg8000.DATETIME
 .. attribute:: pg8000.ROWID
 
-.. attribute:: pg8000.autocommit
-
-    Following the DB-API specification, autocommit is off by default. It can be
-    turned on by setting this boolean pg8000-specific autocommit property to
-    True.
-
-    .. versionadded:: 1.9
 
 Functions
 ---------
@@ -436,6 +429,13 @@ Classes
         generate the warning ``DB-API extension connection.DatabaseError
         used``.
 
+    .. attribute:: autocommit
+
+    Following the DB-API specification, autocommit is off by default. It can be
+    turned on by setting this boolean pg8000-specific autocommit property to
+    True.
+
+    .. versionadded:: 1.9
 
 .. class:: Cursor
 
