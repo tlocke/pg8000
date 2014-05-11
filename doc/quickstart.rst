@@ -49,7 +49,7 @@ A query that returns the PostgreSQL interval type:
     >>> cursor.execute("SELECT timestamp '2013-12-01 16:06' - %s",
     ... (datetime.date(1980, 4, 27),))
     >>> cursor.fetchone()
-    [<Interval 0 months 12271 days 57960000000 microseconds>]
+    [datetime.timedelta(12271, 57960)]
 
 pg8000 supports all the DB-API parameter styles. Here's an example of using
 the 'numeric' parameter style:

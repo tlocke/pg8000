@@ -179,6 +179,11 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 
+        v = datetime.timedelta(seconds=30)
+        self.cursor.execute("SELECT %s as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
+
     def testEnumRoundtrip(self):
         try:
             self.cursor.execute(
@@ -385,6 +390,16 @@ class Tests(unittest.TestCase):
             microseconds=(12 * 60 * 60 * 1000 * 1000) +
             (32 * 60 * 1000 * 1000) + (64 * 1000 * 1000),
             days=16, months=1)
+        self.assertEqual(retval[0][0], expected_value)
+
+        self.cursor.execute("select interval '30 seconds'")
+        retval = self.cursor.fetchall()
+        expected_value = datetime.timedelta(seconds=30)
+        self.assertEqual(retval[0][0], expected_value)
+
+        self.cursor.execute("select interval '12 days 30 seconds'")
+        retval = self.cursor.fetchall()
+        expected_value = datetime.timedelta(days=12, seconds=30)
         self.assertEqual(retval[0][0], expected_value)
 
     def testTimestampOut(self):

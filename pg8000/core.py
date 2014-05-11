@@ -341,20 +341,51 @@ def timestamptz_recv_float(data, offset, length):
 
 
 def interval_send_integer(v):
-    return qii_pack(v.microseconds, v.days, v.months)
+    microseconds = v.microseconds
+    try:
+        microseconds += int(v.seconds * 1e6)
+    except AttributeError:
+        pass
+
+    try:
+        months = v.months
+    except AttributeError:
+        months = 0
+
+    return qii_pack(microseconds, v.days, months)
 
 
 def interval_send_float(v):
-    return dii_pack(v.microseconds / 1000.0 / 1000.0, v.days, v.months)
+    seconds = v.microseconds / 1000.0 / 1000.0
+    try:
+        seconds += v.seconds
+    except AttributeError:
+        pass
+
+    try:
+        months = v.months
+    except AttributeError:
+        months = 0
+
+    return dii_pack(seconds, v.days, months)
 
 
 def interval_recv_integer(data, offset, length):
-    return Interval(*qii_unpack(data, offset))
+    microseconds, days, months = qii_unpack(data, offset)
+    if months == 0:
+        seconds, micros = divmod(microseconds, 1e6)
+        return datetime.timedelta(days, seconds, micros)
+    else:
+        return Interval(microseconds, days, months)
 
 
 def interval_recv_float(data, offset, length):
     seconds, days, months = dii_unpack(data, offset)
-    return Interval(int(seconds * 1000 * 1000), days, months)
+    if months == 0:
+        secs, microseconds = divmod(seconds, 1e6)
+        return datetime.timedelta(days, secs, microseconds)
+    else:
+        return Interval(int(seconds * 1000 * 1000), days, months)
 
 
 def int8_recv(data, offset, length):
@@ -1076,6 +1107,7 @@ class Connection(object):
             1114: (1114, FC_BINARY, timestamp_send_integer),  # timestamp
             # timestamp w/ tz
             1184: (1184, FC_BINARY, timestamptz_send_integer),
+            datetime.timedelta: (1186, FC_BINARY, interval_send_integer),
             Interval: (1186, FC_BINARY, interval_send_integer),
             Decimal: (1700, FC_TEXT, numeric_out),  # Decimal
             UUID: (2950, FC_BINARY, uuid_send),  # uuid
@@ -1623,6 +1655,8 @@ class Connection(object):
 
                 self.py_types[Interval] = (
                     1186, FC_BINARY, interval_send_integer)
+                self.py_types[datetime.timedelta] = (
+                    1186, FC_BINARY, interval_send_integer)
                 self.pg_types[1186] = (FC_BINARY, interval_recv_integer)
             else:
                 self.py_types[1114] = (1114, FC_BINARY, timestamp_send_float)
@@ -1631,6 +1665,8 @@ class Connection(object):
                 self.pg_types[1184] = (FC_BINARY, timestamptz_recv_float)
 
                 self.py_types[Interval] = (
+                    1186, FC_BINARY, interval_send_float)
+                self.py_types[datetime.timedelta] = (
                     1186, FC_BINARY, interval_send_float)
                 self.pg_types[1186] = (FC_BINARY, interval_recv_float)
 

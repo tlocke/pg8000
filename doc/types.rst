@@ -49,7 +49,10 @@ XML types.
 | :class:`datetime.time`         | time without    |                           |
 |                                | time zone       |                           |
 +--------------------------------+-----------------+---------------------------+
-| :class:`pg8000.Interval`       | interval        |                           |
+| :class:`datetime.timedelta`    | interval        | datetime.timedelta is     |
+| :class:`pg8000.Interval`       |                 | used unless the interval  |
+|                                |                 | has months, in which case |
+|                                |                 | pg8000.Interval is used   |
 +--------------------------------+-----------------+---------------------------+
 | None                           | NULL            |                           |
 +--------------------------------+-----------------+---------------------------+
