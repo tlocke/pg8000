@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+Version 1.9.9, 2014-05-12
+-------------------------
+- The PostgreSQL interval type is now mapped to datetime.timedelta where
+  possible. Previously the PostgreSQL interval type was always mapped to the
+  pg8000.Interval type. However, to support the datetime.timedelta type we
+  now use it whenever possible. Unfortunately it's not always possible because
+  timedelta doesn't support months. If months are needed then the fall-back
+  is the pg8000.Interval type. This approach means we handle timedelta in a
+  similar way to other Python PostgreSQL drivers, and it makes pg8000
+  compatible with popular ORMs like SQLAlchemy.
+
+* Fixed bug in executemany() where a new prepared statement should be created
+  for each variation in the oids of the parameter sets.
+
+
 Version 1.9.8, 2014-05-05
 -------------------------
 - We used to ask the server for a description of the statement, and then ask
