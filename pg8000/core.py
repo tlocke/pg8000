@@ -1633,6 +1633,20 @@ class Connection(object):
         finally:
             self._sock_lock.release()
 
+    # Byte1('C') - Identifies the message as a close command.
+    # Int32 - Message length, including self.
+    # Byte1 - 'S' for prepared statement, 'P' for portal.
+    # String - The name of the item to close.
+    def close_portal(self, ps):
+        try:
+            self._sock_lock.acquire()
+            self._send_message(CLOSE, PORTAL + ps.portal_name_bin)
+            self._write(SYNC_MSG)
+            self._flush()
+            self.handle_messages(ps)
+        finally:
+            self._sock_lock.release()
+
     def handle_NOTICE_RESPONSE(self, data, ps):
         resp = data_into_dict(data)
         self.NoticeReceived(resp)
@@ -2002,6 +2016,7 @@ class PreparedStatement(Iterator):
         if self.statement_name != "":  # don't close unnamed statement
             self.c.close_statement(self)
         if self.portal_name is not None:
+            self.c.close_portal(self)
             self.portal_name = None
 
     def get_row_description(self):
@@ -2028,6 +2043,8 @@ class PreparedStatement(Iterator):
             self.cmd = None
             self.stream = stream
             self.c.bind(self, self.make_args(values))
+            if len(self.row_desc) == 0:
+                self.c.close_portal(self)
         finally:
             self._lock.release()
 
@@ -2051,6 +2068,7 @@ class PreparedStatement(Iterator):
             except IndexError:
                 if len(self.row_desc) == 0:
                     raise ProgrammingError("no result set")
+                self.c.close_portal(self)
                 raise StopIteration()
         finally:
             self._lock.release()
