@@ -1494,7 +1494,6 @@ class Connection(object):
             self._send_message(PARSE, val)
             self._send_message(DESCRIBE, STATEMENT + ps.statement_name_bin)
             self._write(SYNC_MSG)
-            self._write(FLUSH_MSG)
             self._flush()
             self.handle_messages(ps)
         finally:
@@ -1533,7 +1532,6 @@ class Connection(object):
             self._send_message(BIND, retval)
             self.send_EXECUTE(ps)
             self._write(SYNC_MSG)
-            self._write(FLUSH_MSG)
             self._flush()
             self.handle_messages(ps)
         except AttributeError:
@@ -1546,6 +1544,7 @@ class Connection(object):
             self._write(code)
             self._write(i_pack(len(data) + 4))
             self._write(data)
+            self._write(FLUSH_MSG)
         except ValueError:
             if str(exc_info()[1]) == "write to closed file":
                 raise pg8000.InterfaceError("Connection is closed.")
@@ -2039,7 +2038,6 @@ class PreparedStatement(Iterator):
                     self.c._sock_lock.acquire()
                     self.c.send_EXECUTE(self)
                     self.c._write(SYNC_MSG)
-                    self.c._write(FLUSH_MSG)
                     self.c._flush()
                     self.c.handle_messages(self)
                 finally:
