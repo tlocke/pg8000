@@ -943,7 +943,7 @@ class Connection(object):
 
         self.ParameterStatusReceived += self.handle_PARAMETER_STATUS
 
-        def text_out(v):
+        def text_send(v):
             return v.encode(self._client_encoding)
 
         def time_out(v):
@@ -1015,7 +1015,7 @@ class Connection(object):
                 self._client_encoding).replace(' ', ',') + ']')
 
         if PY2:
-            def text_in(data, offset, length):
+            def text_recv(data, offset, length):
                 return unicode(  # noqa
                     data[offset: offset + length], self._client_encoding)
 
@@ -1023,7 +1023,7 @@ class Connection(object):
                 return d[o] == "\x01"
 
         else:
-            def text_in(data, offset, length):
+            def text_recv(data, offset, length):
                 return str(
                     data[offset: offset + length], self._client_encoding)
 
@@ -1057,21 +1057,21 @@ class Connection(object):
             return str(d).encode(self._client_encoding)
 
         self.pg_types = defaultdict(
-            lambda: (FC_TEXT, text_in), {
+            lambda: (FC_TEXT, text_recv), {
                 16: (FC_BINARY, bool_recv),  # boolean
                 17: (FC_BINARY, bytea_recv),  # bytea
-                19: (FC_BINARY, text_in),  # name type
+                19: (FC_BINARY, text_recv),  # name type
                 20: (FC_BINARY, int8_recv),  # int8
                 21: (FC_BINARY, int2_recv),  # int2
                 22: (FC_TEXT, vector_in),  # int2vector
                 23: (FC_BINARY, int4_recv),  # int4
-                25: (FC_TEXT, text_in),  # TEXT type
+                25: (FC_BINARY, text_recv),  # TEXT type
                 26: (FC_TEXT, int_in),  # oid
                 28: (FC_TEXT, int_in),  # xid
                 700: (FC_BINARY, float4_recv),  # float4
                 701: (FC_BINARY, float8_recv),  # float8
-                705: (FC_BINARY, text_in),  # unknown
-                829: (FC_TEXT, text_in),  # MACADDR type
+                705: (FC_BINARY, text_recv),  # unknown
+                829: (FC_TEXT, text_recv),  # MACADDR type
                 1000: (FC_BINARY, array_recv),  # BOOL[]
                 1003: (FC_BINARY, array_recv),  # NAME[]
                 1005: (FC_BINARY, array_recv),  # INT2[]
@@ -1082,8 +1082,8 @@ class Connection(object):
                 1016: (FC_BINARY, array_recv),  # INT8[]
                 1021: (FC_BINARY, array_recv),  # FLOAT4[]
                 1022: (FC_BINARY, array_recv),  # FLOAT8[]
-                1042: (FC_TEXT, text_in),  # CHAR type
-                1043: (FC_TEXT, text_in),  # VARCHAR type
+                1042: (FC_BINARY, text_recv),  # CHAR type
+                1043: (FC_BINARY, text_recv),  # VARCHAR type
                 1082: (FC_TEXT, date_in),  # date
                 1083: (FC_TEXT, time_in),
                 1114: (FC_BINARY, timestamp_recv_float),  # timestamp w/ tz
@@ -1092,7 +1092,7 @@ class Connection(object):
                 1231: (FC_TEXT, array_in),  # NUMERIC[]
                 1263: (FC_BINARY, array_recv),  # cstring[]
                 1700: (FC_TEXT, numeric_in),  # NUMERIC
-                2275: (FC_TEXT, text_in),  # cstring
+                2275: (FC_BINARY, text_recv),  # cstring
                 2950: (FC_BINARY, uuid_recv),  # uuid
             })
 
@@ -1101,7 +1101,7 @@ class Connection(object):
             bool: (16, FC_BINARY, bool_send),
             int: (705, FC_TEXT, unknown_out),
             float: (701, FC_BINARY, d_pack),  # float8
-            str: (705, FC_TEXT, text_out),  # unknown
+            str: (705, FC_BINARY, text_send),  # unknown
             datetime.date: (1082, FC_TEXT, date_out),  # date
             datetime.time: (1083, FC_TEXT, time_out),  # time
             1114: (1114, FC_BINARY, timestamp_send_integer),  # timestamp
@@ -1115,11 +1115,13 @@ class Connection(object):
 
         self.inspect_funcs = {
             datetime.datetime: self.inspect_datetime,
-            list: self.array_inspect}
+            list: self.array_inspect,
+            tuple: self.array_inspect,
+        }
 
         if PY2:
             self.py_types[pg8000.Bytea] = (17, FC_BINARY, bytea_send)  # bytea
-            self.py_types[text_type] = (705, FC_BINARY, text_out)  # unknown
+            self.py_types[text_type] = (705, FC_BINARY, text_send)  # unknown
 
             self.py_types[long] = (705, FC_TEXT, unknown_out)  # noqa
         else:
@@ -1678,7 +1680,7 @@ class Connection(object):
 
     def array_inspect(self, value):
         # Check if array has any values.  If not, we can't determine the proper
-        # array typeoid.
+        # array oid.
         first_element = array_find_first_element(value)
         if first_element is None:
             raise ArrayContentEmptyError("array has no values")
@@ -1703,27 +1705,28 @@ class Connection(object):
                     continue
                 int8_ok = False
             if int2_ok:
-                array_typeoid = 1005  # INT2[]
+                array_oid = 1005  # INT2[]
                 oid, fc, send_func = (21, FC_BINARY, h_pack)
             elif int4_ok:
-                array_typeoid = 1007  # INT4[]
+                array_oid = 1007  # INT4[]
                 oid, fc, send_func = (23, FC_BINARY, i_pack)
             elif int8_ok:
-                array_typeoid = 1016  # INT8[]
+                array_oid = 1016  # INT8[]
                 oid, fc, send_func = (20, FC_BINARY, q_pack)
             else:
                 raise ArrayContentNotSupportedError(
                     "numeric not supported as array contents")
-        elif typ is str:
-            oid, fc, send_func = (25, FC_BINARY, self.py_types[str][2])
-            array_typeoid = pg_array_types[oid]
         else:
             try:
                 oid, fc, send_func = self.make_params((first_element,))[0]
-                array_typeoid = pg_array_types[oid]
+
+                # If unknown, assume it's a string array
+                if oid == 705:
+                    oid = 25
+                array_oid = pg_array_types[oid]
             except KeyError:
                 raise ArrayContentNotSupportedError(
-                    "type " + str(typ) + " not supported as array contents")
+                    "oid " + str(oid) + " not supported as array contents")
             except NotSupportedError:
                 raise ArrayContentNotSupportedError(
                     "type " + str(typ) + " not supported as array contents")
@@ -1767,14 +1770,14 @@ class Connection(object):
                         a[i] = send_func(v).decode('ascii')
 
                 return u(str(ar)).translate(arr_trans).encode('ascii')
-        return (array_typeoid, fc, send_array)
+        return (array_oid, fc, send_array)
 
 
-# pg element typeoid -> pg array typeoid
+# pg element oid -> pg array typeoid
 pg_array_types = {
-    701: 1022,
     16: 1000,
-    25: 1009,      # TEXT[]
+    25: 1009,    # TEXT[]
+    701: 1022,
     1700: 1231,  # NUMERIC[]
 }
 

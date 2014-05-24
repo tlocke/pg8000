@@ -4,7 +4,7 @@ import datetime
 import decimal
 import struct
 from .connection_settings import db_connect
-from pg8000.six import b, IS_JYTHON, text_type
+from pg8000.six import b, IS_JYTHON, text_type, PY2
 import uuid
 import os
 import time
@@ -565,9 +565,12 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], ["Hello!", "World!", None])
 
-        self.cursor.execute("SELECT %s as f1", (["Hello!", "World!", None],))
-        retval = self.cursor.fetchall()
-        self.assertEqual(retval[0][0], ["Hello!", "World!", None])
+    def testUnicodeArrayRoundtrip(self):
+        if PY2:
+            v = map(unicode, ("Second", "To", None))  # noqa
+            self.cursor.execute("SELECT %s as f1", (v,))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], v)
 
     def testArrayHasValue(self):
         self.assertRaises(
