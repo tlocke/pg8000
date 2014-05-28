@@ -44,6 +44,17 @@ To run the performance tests from the {{{pg8000}}} directory:
 python -m pg8000.tests.performance
 }}}
 
+==Stress Test
+
+There's a stress test that is run by doing:
+
+{{{
+python ./multi
+}}}
+
+The idea is to set {{{shared_buffers}} in postgresql.conf to 128kB, and then
+run the stress test, and you should get {{{no unpinned buffers}}} errors.
+
 =Building The Documentation
 
 The docs are written using [[http://sphinx-doc.org/|Sphinx]]. To build them,
