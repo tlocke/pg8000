@@ -142,12 +142,10 @@ import pg8000.core
 # @return An instance of {@link #ConnectionWrapper ConnectionWrapper}.
 def connect(
         user, host='localhost', unix_sock=None, port=5432, database=None,
-        password=None, socket_timeout=60, ssl=False, use_cache=False,
-        **kwargs):
+        password=None, socket_timeout=60, ssl=False, **kwargs):
 
     return pg8000.core.Connection(
-        user, host, unix_sock, port, database, password, socket_timeout, ssl,
-        use_cache)
+        user, host, unix_sock, port, database, password, socket_timeout, ssl)
 
 ##
 # The DBAPI level supported.  Currently 2.0.  This property is part of the

@@ -84,6 +84,40 @@ class Tests(unittest.TestCase):
             cursor.close()
         self.db.rollback()
 
+    def testParallelOpenPortals(self):
+        try:
+            c1, c2 = self.db.cursor(), self.db.cursor()
+            c1count, c2count = 0, 0
+            q = "select * from generate_series(1, %s)"
+            params = (self.db._row_cache_size + 1,)
+            c1.execute(q, params)
+            c2.execute(q, params)
+            for c2row in c2:
+                c2count += 1
+            for c1row in c1:
+                c1count += 1
+        finally:
+            c1.close()
+            c2.close()
+            self.db.rollback()
+
+        self.assertEqual(c1count, c2count)
+
+    # Test query works if the number of rows returned is exactly the same as
+    # the size of the row cache
+
+    def testQuerySizeCache(self):
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                "select * from generate_series(1, %s)",
+                (self.db._row_cache_size,))
+            for row in cursor:
+                pass
+        finally:
+            cursor.close()
+            self.db.rollback()
+
     def testInsertReturning(self):
         try:
             cursor = self.db.cursor()

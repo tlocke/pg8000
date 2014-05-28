@@ -1,14 +1,23 @@
 Quick Start
 ===========
 
+Key Points
+----------
+
+- Runs on Python version 2.5, 2.6, 2.7, 3.2, 3.3 and 3.4
+- Runs on CPython, Jython and PyPy
+- Although it's possible for threads to share cursors and connections, for
+  performance reasons it's best to use one thread per connection.
+- Internally, all queries use prepared statements. pg8000 remembers that a
+  prepared statement has been created, and uses it on subsequent queries.
+
 Installation
 ------------
-pg8000 is available for Python 2.5, 2.6, 2.7, 3.2, 3.3 and 3.4 (and has been
-tested on CPython, Jython and PyPy).
 
 To install pg8000 using `pip <https://pypi.python.org/pypi/pip>`_ type:
 
 ``pip install pg8000``
+
 
 Interactive Example
 -------------------
@@ -74,21 +83,3 @@ turned on by using the autocommit property of the connection.
     >>> conn.autocommit = False
     >>> cursor.close()
     >>> conn.close()
-
-Try the use_cache feature:
-
-.. code-block:: python
-
-    >>> conn = pg8000.connect(
-    ... user="postgres", password="C.P.Snow", use_cache=True)
-    >>> cur = conn.cursor()
-    >>> cur.execute("select cast(%s as varchar) as f1", ('Troon',))
-    >>> res = cur.fetchall()
-
-Now subsequent queries with the same parameter types and SQL will use the
-cached prepared statement.
-
-.. code-block:: python
-
-    >>> cur.execute("select cast(%s as varchar) as f1", ('Trunho',))
-    >>> res = cur.fetchall()
