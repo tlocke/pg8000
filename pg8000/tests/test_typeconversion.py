@@ -616,5 +616,12 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], "08:00:2b:01:02:03")
 
+    def testTsvectorRoundtrip(self):
+        self.cursor.execute(
+            "SELECT cast(%s as tsvector)",
+            ('a fat cat sat on a mat and ate a fat rat',))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], "'a' 'and' 'ate' 'cat' 'fat' 'mat' 'on' 'rat' 'sat'")
+
 if __name__ == "__main__":
     unittest.main()

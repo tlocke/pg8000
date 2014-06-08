@@ -899,7 +899,7 @@ class Connection(object):
 
         self.ParameterStatusReceived += self.handle_PARAMETER_STATUS
 
-        def text_send(v):
+        def text_out(v):
             return v.encode(self._client_encoding)
 
         def time_out(v):
@@ -1057,7 +1057,7 @@ class Connection(object):
             bool: (16, FC_BINARY, bool_send),
             int: (705, FC_TEXT, unknown_out),
             float: (701, FC_BINARY, d_pack),  # float8
-            str: (705, FC_BINARY, text_send),  # unknown
+            str: (705, FC_TEXT, text_out),  # unknown
             datetime.date: (1082, FC_TEXT, date_out),  # date
             datetime.time: (1083, FC_TEXT, time_out),  # time
             1114: (1114, FC_BINARY, timestamp_send_integer),  # timestamp
@@ -1077,7 +1077,7 @@ class Connection(object):
 
         if PY2:
             self.py_types[pg8000.Bytea] = (17, FC_BINARY, bytea_send)  # bytea
-            self.py_types[text_type] = (705, FC_BINARY, text_send)  # unknown
+            self.py_types[text_type] = (705, FC_TEXT, text_out)  # unknown
 
             self.py_types[long] = (705, FC_TEXT, unknown_out)  # noqa
         else:
