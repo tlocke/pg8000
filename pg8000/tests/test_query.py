@@ -118,6 +118,33 @@ class Tests(unittest.TestCase):
             cursor.close()
             self.db.rollback()
 
+    # Run a query on a table, alter the structure of the table, then run the
+    # original query again.
+
+    def testAlter(self):
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("select * from t1")
+            cursor.execute("alter table t1 drop column f3")
+            cursor.execute("select * from t1")
+        finally:
+            cursor.close()
+            self.db.rollback()
+
+    # Run a query on a table, drop then re-create the table, then run the
+    # original query again.
+
+    def testCreate(self):
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("select * from t1")
+            cursor.execute("drop table t1")
+            cursor.execute("create temporary table t1 (f1 int primary key)")
+            cursor.execute("select * from t1")
+        finally:
+            cursor.close()
+            self.db.rollback()
+
     def testInsertReturning(self):
         try:
             cursor = self.db.cursor()

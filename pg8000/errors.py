@@ -42,16 +42,6 @@ class InterfaceError(Error):
     pass
 
 
-class ConnectionClosedError(InterfaceError):
-    def __init__(self):
-        InterfaceError.__init__(self, "connection is closed")
-
-
-class CursorClosedError(InterfaceError):
-    def __init__(self):
-        InterfaceError.__init__(self, "cursor is closed")
-
-
 class DatabaseError(Error):
     pass
 

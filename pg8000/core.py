@@ -35,7 +35,7 @@ from pg8000 import (
 from pg8000.errors import (
     NotSupportedError, ProgrammingError, InternalError, IntegrityError,
     OperationalError, DatabaseError, InterfaceError, Error,
-    CopyQueryOrTableRequiredError, CursorClosedError, QueryParameterParseError,
+    CopyQueryOrTableRequiredError, QueryParameterParseError,
     ArrayContentNotHomogenousError, ArrayContentEmptyError,
     ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError, Warning,
     CopyQueryWithoutStreamError)
@@ -84,6 +84,9 @@ if PRE_26:
 
 FC_TEXT = 0
 FC_BINARY = 1
+
+BINARY_SPACE = b(" ")
+DDL_COMMANDS = b("ALTER"), b("CREATE")
 
 
 def convert_paramstyle(style, query):
@@ -249,14 +252,6 @@ def convert_paramstyle(style, query):
             return tuple(vals[p] for p in placeholders)
 
     return ''.join(output_query), make_args
-
-
-def require_open_cursor(fn):
-    def _fn(self, *args, **kwargs):
-        if self._c is None:
-            raise CursorClosedError()
-        return fn(self, *args, **kwargs)
-    return _fn
 
 
 EPOCH = datetime.datetime(2000, 1, 1)
@@ -598,42 +593,23 @@ class Cursor(Iterator):
     # Stability: Part of the DBAPI 2.0 specification.
     # @param size   The number of rows to fetch when called.  If not provided,
     #               the arraysize property value is used instead.
-    if IS_JYTHON:
-        def fetchmany(self, num=None):
-            if self._stmt is None:
-                raise ProgrammingError("attempting to use unexecuted cursor")
-            else:
-                try:
-                    return tuple(
-                        islice(self, self.arraysize if num is None else num))
-                except TypeError:
-                    raise ProgrammingError(
-                        "attempting to use unexecuted cursor")
-    else:
-        def fetchmany(self, num=None):
-            try:
-                return tuple(
-                    islice(self, self.arraysize if num is None else num))
-            except TypeError:
-                raise ProgrammingError("attempting to use unexecuted cursor")
+    def fetchmany(self, num=None):
+        try:
+            return tuple(
+                islice(self, self.arraysize if num is None else num))
+        except TypeError:
+            raise ProgrammingError("attempting to use unexecuted cursor")
 
     ##
     # Fetch all remaining rows of a query result, returning them as a sequence
     # of sequences.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    if IS_JYTHON:
-        def fetchall(self):
-            if self._stmt is None:
-                raise ProgrammingError("attempting to use unexecuted cursor")
-            else:
-                return tuple(self)
-    else:
-        def fetchall(self):
-            try:
-                return tuple(self)
-            except TypeError:
-                raise ProgrammingError("attempting to use unexecuted cursor")
+    def fetchall(self):
+        try:
+            return tuple(self)
+        except TypeError:
+            raise ProgrammingError("attempting to use unexecuted cursor")
 
     ##
     # Close the cursor.
@@ -1607,13 +1583,17 @@ class Connection(object):
         pass
 
     def handle_COMMAND_COMPLETE(self, data, cursor):
-        values = data[:-1].split(b(" "))
-        if values[0] in self._commands_with_count:
+        values = data[:-1].split(BINARY_SPACE)
+        command = values[0]
+        if command in self._commands_with_count:
             row_count = int(values[-1])
             if cursor._row_count == -1:
                 cursor._row_count = row_count
             else:
                 cursor._row_count += row_count
+        if command in DDL_COMMANDS:
+            for k in self._caches:
+                self._caches[k]['ps'].clear()
 
     def handle_DATA_ROW(self, data, cursor):
         data_idx = 2
