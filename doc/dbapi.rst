@@ -275,23 +275,6 @@ Specific Exceptions
     
 Exceptions that are subclassed from the standard DB-API 2.0 exceptions above.
 
-.. exception:: pg8000.ConnectionClosedError(InterfaceError)
-
-    Raised when an attempt to use a connection fails due to the connection
-    being closed.
-
-.. exception:: pg8000.CursorClosedError(InterfaceError)
-
-    Raised when an attempt to use a cursor fails due to the cursor
-    being closed.
-
-.. exception:: pg8000.ArrayDataParseError(InternalError)
-
-    An exception that is raised when an internal error occurs trying to decode
-    binary array data received from the server.  This shouldn't occur unless
-    changes to the binary wire format for arrays occur between PostgreSQL
-    releases.
-
 .. exception:: pg8000.ArrayContentNotSupportedError(NotSupportedError)
 
     Raised when attempting to transmit an array where the base type is not

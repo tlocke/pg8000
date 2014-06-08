@@ -621,7 +621,8 @@ class Tests(unittest.TestCase):
             "SELECT cast(%s as tsvector)",
             ('a fat cat sat on a mat and ate a fat rat',))
         retval = self.cursor.fetchall()
-        self.assertEqual(retval[0][0], "'a' 'and' 'ate' 'cat' 'fat' 'mat' 'on' 'rat' 'sat'")
+        self.assertEqual(
+            retval[0][0], "'a' 'and' 'ate' 'cat' 'fat' 'mat' 'on' 'rat' 'sat'")
 
 if __name__ == "__main__":
     unittest.main()

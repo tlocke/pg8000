@@ -1,6 +1,26 @@
 Release Notes
 =============
 
+Version 1.9.10, 2014-06-08
+--------------------------
+- Remember prepared statements. Now prepared statements are never closed, and
+  pg8000 remembers which ones are on the server, and uses them when a query is
+  repeated. This gives an increase in performance, because on subsequent
+  queries the prepared statement doesn't need to be created each time.
+
+- For performance reasons, pg8000 never closed portals explicitly, it just
+  let the server close them at the end of the transaction. However, this can
+  cause memory problems for long running transactions, so now pg800 always
+  closes a portal after it's exhausted.
+
+- Fixed bug where unicode arrays failed under Python 2. Thanks to
+  https://github.com/jdkx for reporting this.
+
+- A FLUSH message is now sent after every message (except SYNC). This is in
+  accordance with the protocol docs, and ensures the server sends back its
+  responses straight away.
+
+
 Version 1.9.9, 2014-05-12
 -------------------------
 - The PostgreSQL interval type is now mapped to datetime.timedelta where
@@ -44,7 +64,7 @@ Version 1.9.7, 2014-03-26
   significantly in most cases.
 
 - Added support for the PostgreSQL inet type. It maps to the Python types
-  IPv*Address and IPv*Network. 
+  IPv*Address and IPv*Network.
 
 - Added support for PostgreSQL +/- infinity date and timestamp values. Now the
   Python value datetime.datetime.max maps to the PostgreSQL value 'infinity'
@@ -96,7 +116,7 @@ Version 1.9.3, 2014-01-16
 - Fixed bug where there were missing trailing zeros after the decimal point in
   the NUMERIC type. For example, the NUMERIC value 1.0 was returned as 1 (with
   no zero after the decimal point).
-    
+
   This is fixed this by making pg8000 use the text rather than binary
   representation for the numeric type. This actually doubles the speed of
   numeric queries.
@@ -246,7 +266,7 @@ Version 1.06, 2008-12-09
 - Limited support for receiving RECORD types.  If a record type is received,
   it will be translated into a Python dict object.
 
-- Fixed potential threading bug where the socket lock could be lost during 
+- Fixed potential threading bug where the socket lock could be lost during
   error handling.
 
 

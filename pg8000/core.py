@@ -56,7 +56,7 @@ from collections import deque, defaultdict
 from itertools import count, islice
 from pg8000.six.moves import map
 from pg8000.six import (
-    b, Iterator, PY2, integer_types, next, PRE_26, text_type, u, IS_JYTHON)
+    b, Iterator, PY2, integer_types, next, PRE_26, text_type, u)
 from sys import exc_info
 from uuid import UUID
 from copy import deepcopy
