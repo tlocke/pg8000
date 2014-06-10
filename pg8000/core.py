@@ -1361,11 +1361,13 @@ class Connection(object):
             self._flush()
 
         elif auth_code in (2, 3, 4, 6, 7, 8, 9):
-            raise NotSupportedError(
-                "authentication method " + auth_code + " not supported")
+            raise InterfaceError(
+                "Authentication method " + str(auth_code) +
+                " not supported by pg8000.")
         else:
-            raise InternalError(
-                "Authentication method " + auth_code + " not recognized")
+            raise InterfaceError(
+                "Authentication method " + str(auth_code) +
+                " not recognized by pg8000.")
 
     def handle_READY_FOR_QUERY(self, data, ps):
         # Byte1 -   Status indicator.
