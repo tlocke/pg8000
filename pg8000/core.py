@@ -61,6 +61,7 @@ from sys import exc_info
 from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
+import os
 
 ZERO = timedelta(0)
 
@@ -802,7 +803,21 @@ class Connection(object):
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
             b("FETCH"), b("COPY"), b("SELECT"))
         self._lock = threading.Lock()
-        self.user = user
+
+        if user is None:
+            try:
+                self.user = os.environ['PGUSER']
+            except KeyError:
+                try:
+                    self.user = os.environ['USER']
+                except KeyError:
+                    raise InterfaceError(
+                        "The 'user' connection parameter was omitted, and "
+                        "neither the PGUSER or USER environment variables "
+                        "were set.")
+        else:
+            self.user = user
+
         self.password = password
         self.autocommit = False
 

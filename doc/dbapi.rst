@@ -55,7 +55,7 @@ Properties
 Functions
 ---------
 
-.. function:: pg8000.connect(user[, host=localhost, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False])
+.. function:: pg8000.connect([user, host=localhost, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False])
     
     Creates a connection to a PostgreSQL database.
 
@@ -66,8 +66,9 @@ Functions
     function definition.
 
     :param user:
-        The username to connect to the PostgreSQL server with.  This
-        parameter is required.
+        The username to connect to the PostgreSQL server with. If this is not
+        provided, pg8000 looks first for the PGUSER then the USER environment
+        variables.
 
     :keyword host:
         The hostname of the PostgreSQL server to connect with.  Providing this

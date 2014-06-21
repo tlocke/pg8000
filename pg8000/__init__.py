@@ -141,7 +141,7 @@ import pg8000.core
 #
 # @return An instance of {@link #ConnectionWrapper ConnectionWrapper}.
 def connect(
-        user, host='localhost', unix_sock=None, port=5432, database=None,
+        user=None, host='localhost', unix_sock=None, port=5432, database=None,
         password=None, socket_timeout=60, ssl=False, **kwargs):
 
     return pg8000.core.Connection(
