@@ -55,7 +55,7 @@ Properties
 Functions
 ---------
 
-.. function:: pg8000.connect(user[, host=localhost, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False, use_cache=False])
+.. function:: pg8000.connect(user[, host=localhost, unix_sock, port=5432, database, password, socket_timeout=60, ssl=False])
     
     Creates a connection to a PostgreSQL database.
 
@@ -102,12 +102,6 @@ Functions
     :keyword ssl:
         Use SSL encryption for TCP/IP sockets if ``True``.  Defaults to
         ``False``.
-
-    :keyword use_cache:
-        Cache prepared statements if ``True``. This is an experimental
-        feature that caches prepared statements keyed on the types of the
-        parameters and the SQL query and re-uses them if that SQL query is used
-        again in execute() or executemany(). Defaults to ``False``.
 
     :rtype:
         A :class:`Connection` object.
