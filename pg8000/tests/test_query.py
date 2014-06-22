@@ -158,8 +158,8 @@ class Tests(unittest.TestCase):
             cursor.execute("SELECT data FROM t2 WHERE id = %s", (row_id,))
             self.assertEqual("test1", cursor.fetchone()[0])
 
-            # In PostgreSQL 8.4 we don't know the row count for a select
-            if not self.db._server_version.startswith("8.4"):
+            # Before PostgreSQL 9 we don't know the row count for a select
+            if self.db._server_version[0] > 8:
                 self.assertEqual(cursor.rowcount, 1)
 
             # Test with multiple rows...
@@ -198,8 +198,8 @@ class Tests(unittest.TestCase):
             self.db.rollback()
 
     def testRowCount(self):
-        # In PostgreSQL 8.4 we don't know the row count for a select
-        if not self.db._server_version.startswith("8.4"):
+        # Before PostgreSQL 9 we don't know the row count for a select
+        if self.db._server_version[0] > 8:
             try:
                 cursor = self.db.cursor()
                 expected_count = 57
@@ -314,7 +314,10 @@ class Tests(unittest.TestCase):
                 (1, 1, "Zombie"))
             cursor.execute("rollback")
             cursor.execute("select * from t1")
-            self.assertEqual(cursor.rowcount, 0)
+
+            # Before PostgreSQL 9 we don't know the row count for a select
+            if self.db._server_version[0] > 8:
+                self.assertEqual(cursor.rowcount, 0)
         finally:
             cursor.close()
             self.db.commit()

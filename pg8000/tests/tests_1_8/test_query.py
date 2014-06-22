@@ -96,8 +96,8 @@ class Tests(unittest.TestCase):
             cursor.execute("SELECT data FROM t2 WHERE id = %s", (row_id,))
             self.assertEqual("test1", cursor.fetchone()[0])
 
-            # In PostgreSQL 8.4 we don't know the row count for a select
-            if not self.db._server_version.startswith("8.4"):
+            # Before PostgreSQL 9 we don't know the row count for a select
+            if self.db._server_version[0] > 8:
                 self.assertEqual(cursor.rowcount, 1)
 
             # Test with multiple rows...
@@ -105,8 +105,8 @@ class Tests(unittest.TestCase):
                 "INSERT INTO t2 (data) VALUES (%s), (%s), (%s) "
                 "RETURNING id", ("test2", "test3", "test4"))
 
-            # In PostgreSQL 8.4 we don't know the row count for a select
-            if not self.db._server_version.startswith("8.4"):
+            # Before PostgreSQL 9 we don't know the row count for a select
+            if self.db._server_version[0] > 8:
                 self.assertEqual(cursor.rowcount, 3)
 
             ids = tuple([x[0] for x in cursor])
@@ -140,8 +140,8 @@ class Tests(unittest.TestCase):
             self.db.rollback()
 
     def testRowCount(self):
-        # In PostgreSQL 8.4 we don't know the row count for a select
-        if not self.db._server_version.startswith("8.4"):
+        # Before PostgreSQL 9 we don't know the row count for a select
+        if self.db._server_version[0] > 8:
             try:
                 cursor = self.db.cursor()
                 expected_count = 57

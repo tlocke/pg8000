@@ -211,8 +211,8 @@ class Tests(unittest.TestCase):
             c1 = self.db.cursor()
             c1.execute("SELECT * FROM t1")
 
-            # In PostgreSQL 8.4 we don't know the row count for a select
-            if not self.db._server_version.startswith("8.4"):
+            # Before PostgreSQL 9 we don't know the row count for a select
+            if self.db._server_version[0] > 8:
                 self.assertEqual(5, c1.rowcount)
 
             c1.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", ("Hello!",))

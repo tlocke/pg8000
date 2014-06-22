@@ -209,8 +209,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(isinstance(v, dbapi.BINARY))
 
     def testRowCount(self):
-        # In PostgreSQL 8.4 we don't know the row count for a select
-        if not self.db._server_version.startswith("8.4"):
+        # Before PostgreSQL 9 we don't know the row count for a select
+        if self.db._server_version[0] > 8:
             try:
                 c1 = self.db.cursor()
                 c1.execute("SELECT * FROM t1")
