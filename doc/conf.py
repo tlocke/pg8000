@@ -12,7 +12,6 @@
 # serve to show the default value.
 
 import sys, os
-
 # If your extensions are in another directory, add it here. If the directory
 # is relative to the documentation root, use os.path.abspath to make it
 # absolute, like shown here.
@@ -38,13 +37,15 @@ master_doc = 'index'
 project = 'pg8000'
 copyright = '2008, Mathieu Fenniak'
 
+# 'version' and 'release' are set in setup.py
+#
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.
 #
 # The short X.Y version.
-version = '1.9'
+#version = ''
 # The full version, including alpha/beta/rc tags.
-release = '1.9.10'
+#release = ''
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:

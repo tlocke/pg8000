@@ -4,7 +4,8 @@ pg8000 is a pure-[[http://www.python.org/|Python]]
 [[http://www.postgresql.org/|PostgreSQL]] driver that complies with
 [[http://www.python.org/dev/peps/pep-0249/|DB-API 2.0]]. The driver
 communicates with the database using the
-[[http://www.postgresql.org/docs/9.1/static/protocol.html|PostgreSQL Backend / Frontend Protocol]].
+[[http://www.postgresql.org/docs/9.1/static/protocol.html|PostgreSQL Backend
+ / Frontend Protocol]].
 
 For more information, please see the
 [[https://pypi.python.org/pypi/pg8000|documentation]].
@@ -17,7 +18,8 @@ To run the regression tests, install [[http://testrun.org/tox/latest/|tox]]:
 pip install tox
 }}}
 
-then add install all the supported Python versions, and add a line to pg_hba.conf requiring md5 for the database pg8000_md5, eg.
+then add install all the supported Python versions, and add a line to
+pg_hba.conf requiring md5 for the database pg8000_md5, eg.
 
 {{{
 host    pg8000_md5      all             127.0.0.1/32            md5
@@ -64,8 +66,19 @@ install sphinx:
 pip install sphinx
 }}}
 
-Then in the {{{doc}}} directory type:
+Then type:
 
 {{{
-make html
+python setup.py build_sphinx
+}}}
+
+and the docs will appear in {{{build/sphinx/html}}}.
+
+=Doing A Release Of pg8000
+
+Update {{{doc/release_notes.rst}} then do:
+
+{{{
+git tag -a x.y.z -m "Version x.y.z"
+python setup.py register sdist upload build_sphinx upload_docs
 }}}

@@ -5,6 +5,11 @@ API Reference for pg8000.
 
 Properties
 ----------
+.. attribute:: pg8000.__version__ 
+     
+    Version string for pg8000. 
+     
+    .. versionadded:: 1.9.11 
 
 .. attribute:: pg8000.apilevel
     
@@ -650,4 +655,3 @@ Type Classes
         The months value is constrained to fit into a signed 32-bit integer.
         Any attempt to set a value too large or too small will result in an
         OverflowError being raised.
-

@@ -241,3 +241,7 @@ __all__ = [
     InternalError, NotSupportedError, ArrayContentNotHomogenousError,
     ArrayContentEmptyError, ArrayDimensionsNotConsistentError,
     ArrayContentNotSupportedError, utc]
+
+from ._version import get_versions
+__version__ = get_versions()['version']
+del get_versions
