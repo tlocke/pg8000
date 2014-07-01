@@ -550,6 +550,9 @@ class Cursor(Iterator):
             self.execute(operation, parameters)
         self._row_count = -1
 
+    # All the copy_*() methods are deprecated. Use execute() with the 'stream'
+    # parameter instead.
+
     def copy_from(self, fileobj, table=None, sep='\t', null=None, query=None):
         if query is None:
             if table is None:

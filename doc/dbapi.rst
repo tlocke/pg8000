@@ -295,23 +295,6 @@ Exceptions that are subclassed from the standard DB-API 2.0 exceptions above.
     Raised when attempting to transmit an array that has inconsistent
     multi-dimension sizes.
 
-.. exception:: pg8000.CopyQueryOrTableRequiredError(ProgrammingError)
-
-    Raised when :meth:`CursorWrapper.copy_to` or
-    :meth:`Cursor.copy_from` are called without specifying
-    the ``table`` or ``query`` keyword parameters.
-
-    .. versionadded:: 1.07
-
-.. exception:: pg8000.CopyQueryWithoutStreamError(ProgrammingError)
-
-    Raised when :meth:`Cursor.execute` is used to execute
-    a ``COPY ...`` query, rather than
-    :meth:`Cursor.copy_to` or
-    :meth:`Cursor.copy_from`.
-
-    .. versionadded:: 1.07
-
 .. exception:: pg8000.QueryParameterIndexError(ProgrammingError)
 
     Raised when parameters in queries can't be matched with provided parameter
@@ -463,11 +446,11 @@ Classes
         This attribute is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
 
-    .. method:: execute(operation, args=())
+    .. method:: execute(operation, args=None, stream=None)
 
         Executes a database operation.  Parameters may be provided as a
         sequence, or as a mapping, depending upon the value of
-        :data:`pg8000.dbapi.paramstyle`.
+        :data:`pg8000.paramstyle`.
 
         This method is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
@@ -482,6 +465,14 @@ Classes
             be a dict mapping of parameters.  If the :data:`paramstyle` is
             ``pyformat``, the argument value may be either an array or a
             mapping.
+
+        :param stream: This is a pg8000 extension for use with the PostgreSQL 
+            `COPY
+            <http://www.postgresql.org/docs/current/static/sql-copy.html>`_
+            command. For a COPY FROM the parameter must be a readable file-like
+            object, and for COPY TO it must be writable.
+
+            .. versionadded:: 1.9.11
 
     .. method:: executemany(operation, parameter_sets)
     
@@ -538,50 +529,6 @@ Classes
 
             A sequence, each entry of which is a sequence of field values
             making up a row.
-
-    .. method:: copy_from(fileobj, table, sep='\t', null=None)
-                copy_from(fileobj, query=)
-                copy_to(fileobj, table, sep='\t', null=None)
-                copy_to(fileobj, query=)
-
-        Performs a PostgreSQL COPY query to stream data in or out of the
-        PostgreSQL server.
-
-        These methods are not part of the standard DBAPI, they are a pg8000
-        extension.   They are designed to be compatible with similar methods
-        provided by psycopg2.
-
-        :param fileobj:
-
-            A file-like object that data is read from or written to.  For
-            copy_from, the object have a ``read`` method; for copy_to, the
-            object must have a ``write`` method.
-
-        :param table:
-
-            When the table parameter is provided, a COPY query will be constructed
-            in the form of ``COPY table (TO/FROM) STDOUT``.
-
-        :param sep:
-
-            Used only when table is provided, this adds a ``DELIMITER AS``
-            clause to the COPY query.
-
-        :param null:
-            Used only when table is provided, this adds a ``NULL AS`` clause to
-            the COPY query.
-
-        :param query:
-            A complete COPY query to be used to generate or insert data.  This
-            permits the use of any COPY directives that are supported by the
-            server.
-
-        :raises: 
-
-            :exc:`~pg8000.CopyQueryOrTableRequiredError` when neither
-            *table* nor *query* parameters are provided.
-
-        .. versionadded:: 1.07
 
     .. method:: close()
 
