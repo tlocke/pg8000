@@ -82,4 +82,20 @@ turned on by using the autocommit property of the connection.
     >>> cur.execute("vacuum")
     >>> conn.autocommit = False
     >>> cursor.close()
+
+When communicating with the server, pg8000 uses the character set that the
+server asks it to use (the client encoding). By default the client encoding is
+the database's character set (chosen when the database is created), but the
+client encoding can be changed in a number of ways (eg. setting
+CLIENT_ENCODING in postgresql.conf). Another way of changing the client
+encoding is by using an SQL command. For example:
+
+.. code-block:: python
+
+    >>> cur = conn.cursor()
+    >>> cur.execute("SET CLIENT_ENCODING TO 'UTF8'")
+    >>> cur.execute("SHOW CLIENT_ENCODING")
+    >>> cur.fetchone()
+    ['UTF8']
+    >>> cur.close()
     >>> conn.close()
