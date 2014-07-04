@@ -7,8 +7,11 @@ communicates with the database using the
 [[http://www.postgresql.org/docs/9.1/static/protocol.html|PostgreSQL Backend
  / Frontend Protocol]].
 
-For more information, please see the
-[[https://pypi.python.org/pypi/pg8000|documentation]].
+Links:
+
+* [[https://pypi.python.org/pypi/pg8000|User Docs]].
+* [[https://groups.google.com/forum/#!forum/pg8000|Forum]]
+* [[https://github.com/mfenniak/pg8000|Code, bugs, feature requests etc.]]
 
 =Regression Tests
 

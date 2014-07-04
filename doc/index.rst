@@ -14,7 +14,7 @@ PostgreSQL interface for Python. pg8000 is distributed under the terms of the
 BSD 3-clause license.
 
 All bug reports, feature requests and contributions are welcome at
-http://github.com/mfenniak/pg8000/.
+http://github.com/mfenniak/pg8000/. There's also a forum at https://groups.google.com/forum/#!forum/pg8000.
 
 Contents
 --------
