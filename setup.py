@@ -6,7 +6,6 @@ versioneer.versionfile_source = 'pg8000/_version.py'
 versioneer.versionfile_build = 'pg8000/_version.py'
 versioneer.tag_prefix = ''
 versioneer.parentdir_prefix = 'pg8000-'
-from sphinx.setup_command import BuildDoc
 from distutils.core import setup
 
 long_description = """\
@@ -25,7 +24,13 @@ pg8000's name comes from the belief that it is probably about the 8000th \
 PostgreSQL interface for Python."""
 
 cmdclass = dict(versioneer.get_cmdclass())
-cmdclass['build_sphinx'] = BuildDoc
+
+try:
+    from sphinx.setup_command import BuildDoc
+    cmdclass['build_sphinx'] = BuildDoc
+except ImportError:
+    pass
+
 version=versioneer.get_version()
 
 setup(

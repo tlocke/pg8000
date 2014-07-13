@@ -1174,7 +1174,6 @@ class Connection(object):
             self.close()
             raise exc_info()[1]
 
-        self._cursor = self.cursor()
         self.in_transaction = False
         self.notifies = []
         self.notifies_lock = threading.Lock()
@@ -1805,6 +1804,84 @@ class Connection(object):
                 return u(str(ar)).translate(arr_trans).encode('ascii')
         return (array_oid, fc, send_array)
 
+    def xid(self, format_id, global_transaction_id, branch_qualifier):
+        """Create a Transaction IDs (only global_transaction_id is used in pg)
+        format_id and branch_qualifier are not used in postgres
+        global_transaction_id may be any string identifier supported by
+        postgres returns a tuple
+        (format_id, global_transaction_id, branch_qualifier)"""
+        return (format_id, global_transaction_id, branch_qualifier)
+
+    def tpc_begin(self, xid):
+        "Begin a two-phase transaction"
+
+        self._xid = xid
+        if self.autocommit:
+            self.execute(self._cursor, "begin transaction", None)
+
+    def tpc_prepare(self):
+        "Prepare a two-phase transaction"
+        q = "PREPARE TRANSACTION '%s';" % (self._xid[1],)
+        print(q)
+        self.execute(
+            self._cursor, q, None)
+
+    def tpc_commit(self, xid=None):
+        "Commit a prepared two-phase transaction"
+
+        if xid is None:
+            xid = self._xid
+
+        if xid is None:
+            raise ProgrammingError(
+                "Cannot tpc_commit() without a TPC transaction!")
+
+        try:
+            previous_autocommit_mode = self.autocommit
+            self.autocommit = True
+            if xid in self.tpc_recover():
+                self.execute(
+                    self._cursor, "COMMIT PREPARED '%s';" % (xid[1], ),
+                    None)
+            else:
+                # a single-phase commit
+                self.conn.commit()
+        finally:
+            self.autocommit = previous_autocommit_mode
+        self._xid = None
+
+    def tpc_rollback(self, xid=None):
+        "Roll back a prepared two-phase transaction"
+
+        if xid is None:
+            xid = self._xid
+
+        if xid is None:
+            raise ProgrammingError(
+                "Cannot tpc_rollback() without a TPC prepared transaction!")
+
+        try:
+            previous_autocommit_mode = self.autocommit
+            self.autocommit = True
+            if xid in self.tpc_recover():
+                # a two-phase rollback
+                self.execute(
+                    self._cursor, "ROLLBACK PREPARED '%s';" % (xid[1],),
+                    None)
+            else:
+                # a single-phase rollback
+                self.rollback()
+        finally:
+            self.autocommit = previous_autocommit_mode
+        self._xid = None
+
+    def tpc_recover(self):
+
+        "Returns a list of pending transaction IDs"
+
+        curs = self.cursor()
+        curs.execute("select gid FROM pg_prepared_xacts")
+        return [self.xid(0, row[0], '') for row in curs]
 
 # pg element oid -> pg array typeoid
 pg_array_types = {
