@@ -1,6 +1,33 @@
 Release Notes
 =============
 
+Version 1.9.11, 2014-07-20
+--------------------------
+
+- Add support for two-phase commit DBAPI extension. Thanks to Mariano Reingart's
+  TPC code on the Google Code version:
+
+  https://code.google.com/p/pg8000/source/detail?r=c8609701b348b1812c418e2c7
+
+  on which the code for this commit is based.
+
+- Deprecate ``copy_from()`` and ``copy_to()`` The methods ``copy_from()`` and
+  ``copy_to()`` of the ``Cursor`` object are deprecated because it's simpler and
+  more flexible to use the ``execute()`` method with a ``fileobj`` parameter.
+
+- Fixed bug in reporting unsupported authentication codes. Thanks to
+  https://github.com/hackgnar for reporting this and providing the fix.
+
+- Have a default for the ``user`` paramater of the ``connect()`` function. If
+  the ``user`` parameter of the ``connect()`` function isn't provided, look
+  first for the ``PGUSER`` then the ``USER`` environment variables. Thanks to
+  Alex Gaynor https://github.com/alex for this suggestion.
+
+- Before PostgreSQL 8.2, ``COPY`` didn't give row count. Until PostgreSQL 8.2
+  (which includes Amazon Redshift which forked at 8.0) the ``COPY`` command
+  didn't return a row count, but pg8000 thought it did. That's fixed now.
+
+
 Version 1.9.10, 2014-06-08
 --------------------------
 - Remember prepared statements. Now prepared statements are never closed, and

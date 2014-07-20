@@ -39,7 +39,7 @@ and are kept to make sure we retain backward compatibility with it. It will
 probably be removed in a 2.0 release.
 
 Unfortunately, {{{tox}}} doesn't support Python 2.5, so to test CPython 2.5 and
-Jython 2.5, run the {{{run_25}} script.
+Jython 2.5, run the {{{run_25}}} script.
 
 ==Performance Tests
 
@@ -79,9 +79,12 @@ and the docs will appear in {{{build/sphinx/html}}}.
 
 =Doing A Release Of pg8000
 
-Update {{{doc/release_notes.rst}} then do:
+Run {{{tox}}} and {{{run_25}}} to make sure all tests pass, then update
+{{{doc/release_notes.rst}} then do:
 
 {{{
 git tag -a x.y.z -m "Version x.y.z"
 python setup.py register sdist upload build_sphinx upload_docs
 }}}
+
+Then post a message to the forum.
