@@ -332,5 +332,14 @@ class Tests(unittest.TestCase):
         finally:
             cursor.close()
 
+    def test_no_previous_tpc(self):
+        try:
+            self.db.tpc_begin('Stacey')
+            cursor = self.db.cursor()
+            cursor.execute("SELECT * FROM pg_type")
+            self.db.tpc_commit()
+        finally:
+            cursor.close()
+
 if __name__ == "__main__":
     unittest.main()

@@ -823,6 +823,7 @@ class Connection(object):
 
         self.password = password
         self.autocommit = False
+        self._xid = None
 
         self._caches = defaultdict(lambda: defaultdict(dict))
         self.statement_number = 0
@@ -1822,7 +1823,6 @@ class Connection(object):
     def tpc_prepare(self):
         "Prepare a two-phase transaction"
         q = "PREPARE TRANSACTION '%s';" % (self._xid[1],)
-        print(q)
         self.execute(
             self._cursor, q, None)
 
@@ -1845,7 +1845,7 @@ class Connection(object):
                     None)
             else:
                 # a single-phase commit
-                self.conn.commit()
+                self.commit()
         finally:
             self.autocommit = previous_autocommit_mode
         self._xid = None
