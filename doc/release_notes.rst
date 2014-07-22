@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+Version 1.9.12, 2014-07-22
+--------------------------
+
+- Fixed bug in ``tpc_commit()`` where a single phase commit failed.
+
+
 Version 1.9.11, 2014-07-20
 --------------------------
 
