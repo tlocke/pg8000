@@ -346,6 +346,74 @@ Classes
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
 
+    .. method:: tpc_begin(xid)
+
+        Begins a TPC transaction with the given transaction ID xid.
+
+        This method should be called outside of a transaction (i.e. nothing may
+        have executed since the last .commit() or .rollback()).
+
+        Furthermore, it is an error to call .commit() or .rollback() within the
+        TPC transaction. A ProgrammingError is raised, if the application calls
+        .commit() or .rollback() during an active TPC transaction.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    .. method:: tpc_prepare()
+
+        Performs the first phase of a transaction started with .tpc_begin(). A
+        ProgrammingError is be raised if this method is called outside of a TPC
+        transaction.
+
+        After calling .tpc_prepare(), no statements can be executed until
+        .tpc_commit() or .tpc_rollback() have been called.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    .. method:: tpc_commit([ xid ])
+
+        When called with no arguments, .tpc_commit() commits a TPC transaction
+        previously prepared with .tpc_prepare().
+
+        If .tpc_commit() is called prior to .tpc_prepare(), a single phase
+        commit is performed. A transaction manager may choose to do this if
+        only a single resource is participating in the global transaction.
+
+        When called with a transaction ID xid, the database commits the given
+        transaction. If an invalid transaction ID is provided, a
+        ProgrammingError will be raised. This form should be called outside of
+        a transaction, and is intended for use in recovery.
+
+        On return, the TPC transaction is ended.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    .. method:: tpc_rollback([ xid ])
+
+        When called with no arguments, .tpc_rollback() rolls back a TPC
+        transaction. It may be called before or after .tpc_prepare().
+
+        When called with a transaction ID xid, it rolls back the given
+        transaction. If an invalid transaction ID is provided, a
+        ProgrammingError is raised. This form should be called outside of a
+        transaction, and is intended for use in recovery.
+
+        On return, the TPC transaction is ended.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    .. method:: tpc_recover()
+
+        Returns a list of pending transaction IDs suitable for use with
+        .tpc_commit(xid) or .tpc_rollback(xid).
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
     .. attribute:: notifies
 
         A list of server-side notifications received by this database
