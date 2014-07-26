@@ -534,7 +534,7 @@ class Cursor(Iterator):
             if self._c is None:
                 raise InterfaceError("Cursor closed")
             elif self._c._sock is None:
-                raise InterfaceError("Connection closed")
+                raise InterfaceError("connection is closed")
             else:
                 raise exc_info()[1]
         finally:
@@ -1329,9 +1329,9 @@ class Connection(object):
             self._usock.close()
             self._sock = None
         except AttributeError:
-            raise pg8000.InterfaceError("Connection is closed.")
+            raise pg8000.InterfaceError("connection is closed")
         except ValueError:
-            raise pg8000.InterfaceError("Connection is closed.")
+            raise pg8000.InterfaceError("connection is closed")
         finally:
             self._lock.release()
 
@@ -1496,7 +1496,7 @@ class Connection(object):
                 self._flush()
             except AttributeError:
                 if self._sock is None:
-                    raise InterfaceError("Connection closed")
+                    raise InterfaceError("connection is closed")
                 else:
                     raise exc_info()[1]
 
@@ -1583,11 +1583,11 @@ class Connection(object):
             self._write(FLUSH_MSG)
         except ValueError:
             if str(exc_info()[1]) == "write to closed file":
-                raise pg8000.InterfaceError("Connection is closed.")
+                raise pg8000.InterfaceError("connection is closed")
             else:
                 raise exc_info()[1]
         except AttributeError:
-            raise pg8000.InterfaceError("Connection is closed.")
+            raise pg8000.InterfaceError("connection is closed")
 
     def send_EXECUTE(self, cursor):
         # Byte1('E') - Identifies the message as an execute message.

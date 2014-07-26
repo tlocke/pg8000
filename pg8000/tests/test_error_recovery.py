@@ -68,8 +68,14 @@ class Tests(unittest.TestCase):
         my_db = pg8000.connect(**db_connect)
         cursor = my_db.cursor()
         my_db.close()
-        self.assertRaises(
-            self.db.InterfaceError, cursor.execute, "VALUES ('hw1'::text)")
+        try:
+            cursor.execute("VALUES ('hw1'::text)")
+            self.fail("Should have raised an exception")
+        except:
+            e = exc_info()[1]
+            self.assertTrue(isinstance(e, self.db.InterfaceError))
+            self.assertEqual(str(e), 'connection is closed')
+
         warnings.resetwarnings()
 
 if __name__ == "__main__":
