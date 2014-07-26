@@ -341,5 +341,17 @@ class Tests(unittest.TestCase):
         finally:
             cursor.close()
 
+    # Check that tpc_recover() doesn't start a transaction
+    def test_tpc_recover(self):
+        try:
+            self.db.tpc_recover()
+            cursor = self.db.cursor()
+            self.db.autocommit = True
+
+            # If tpc_recover() has started a transaction, this will fail
+            cursor.execute("VACUUM")
+        finally:
+            cursor.close()
+
 if __name__ == "__main__":
     unittest.main()

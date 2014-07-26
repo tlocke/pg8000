@@ -1879,9 +1879,14 @@ class Connection(object):
 
         "Returns a list of pending transaction IDs"
 
-        curs = self.cursor()
-        curs.execute("select gid FROM pg_prepared_xacts")
-        return [self.xid(0, row[0], '') for row in curs]
+        try:
+            previous_autocommit_mode = self.autocommit
+            self.autocommit = True
+            curs = self.cursor()
+            curs.execute("select gid FROM pg_prepared_xacts")
+            return [self.xid(0, row[0], '') for row in curs]
+        finally:
+            self.autocommit = previous_autocommit_mode
 
 # pg element oid -> pg array typeoid
 pg_array_types = {
