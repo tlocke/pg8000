@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+Version 1.9.13, 2014-07-27
+--------------------------
+
+- Reverted to using the string ``connection is closed`` as the message of the
+  exception that's thrown if a connection is closed. For a few versions we were
+  using a slightly different one with capitalization and punctuation, but we've
+  reverted to the original because it's easier for users of the library to
+  consume.
+
+- Previously, ``tpc_recover()`` would start a transaction if one was not already
+  in progress. Now it won't.
+
+
 Version 1.9.12, 2014-07-22
 --------------------------
 
