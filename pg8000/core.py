@@ -1354,6 +1354,14 @@ class Connection(object):
         auth_code = i_unpack(data)[0]
         if auth_code == 0:
             pass
+        elif auth_code == 3:
+            if self.password is None:
+                raise InterfaceError(
+                    "server requesting password authentication, but no "
+                    "password was provided")
+            self._send_message(
+                PASSWORD, self.password.encode("ascii") + NULL_BYTE)
+            self._flush()
         elif auth_code == 5:
             ##
             # A message representing the backend requesting an MD5 hashed
@@ -1378,7 +1386,7 @@ class Connection(object):
             self._send_message(PASSWORD, pwd + NULL_BYTE)
             self._flush()
 
-        elif auth_code in (2, 3, 4, 6, 7, 8, 9):
+        elif auth_code in (2, 4, 6, 7, 8, 9):
             raise InterfaceError(
                 "Authentication method " + str(auth_code) +
                 " not supported by pg8000.")

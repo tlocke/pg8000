@@ -76,5 +76,20 @@ class Tests(unittest.TestCase):
             db = pg8000.connect(**data)
             db.close()
 
+    # This requires a line in pg_hba.conf that requires 'password' for the
+    # database pg8000_password
+
+    def testPassword(self):
+        data = db_connect.copy()
+        data["database"] = "pg8000_password"
+
+        # Should only raise an exception saying db doesn't exist
+        if PY2:
+            self.assertRaises(
+                pg8000.ProgrammingError, pg8000.connect, **data)
+        else:
+            self.assertRaisesRegex(
+                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+
 if __name__ == "__main__":
     unittest.main()
