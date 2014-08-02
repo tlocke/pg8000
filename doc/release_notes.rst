@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+Version 1.9.14, 2014-08-02
+--------------------------
+
+- Make ``executemany()`` set ``rowcount``. Previously, ``executemany()`` would
+  always set ``rowcount`` to -1. Now we set it to a meaningful value if
+  possible. If any of the statements have a -1 ``rowcount`` then then the
+  ``rowcount`` for the ``executemany()`` is -1, otherwise the ``executemany()``
+  ``rowcount`` is the sum of the rowcounts of the individual statements.
+
+- Support for password authentication. pg8000 didn't support plain text
+  authentication, now it does.
+
+
 Version 1.9.13, 2014-07-27
 --------------------------
 
