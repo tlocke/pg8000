@@ -546,9 +546,12 @@ class Cursor(Iterator):
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
     def executemany(self, operation, param_sets):
+        rowcounts = []
         for parameters in param_sets:
             self.execute(operation, parameters)
-        self._row_count = -1
+            rowcounts.append(self._row_count)
+
+        self._row_count = -1 if -1 in rowcounts else sum(rowcounts)
 
     # All the copy_*() methods are deprecated. Use execute() with the 'stream'
     # parameter instead.

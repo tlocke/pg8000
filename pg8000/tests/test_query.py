@@ -206,6 +206,9 @@ class Tests(unittest.TestCase):
                 cursor.executemany(
                     "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
                     tuple((i, i, None) for i in range(expected_count)))
+
+                # Check rowcount after executemany
+                self.assertEqual(expected_count, cursor.rowcount)
                 self.db.commit()
 
                 cursor.execute("SELECT * FROM t1")

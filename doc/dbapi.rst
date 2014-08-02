@@ -494,11 +494,17 @@ Classes
     .. attribute:: rowcount
 
         This read-only attribute contains the number of rows that the last
-        execute method produced (for query statements like ``SELECT``) or
-        affected (for modification statements like ``UPDATE``).
+        ``execute()`` or ``executemany()`` method produced (for query
+        statements like ``SELECT``) or affected (for modification statements
+        like ``UPDATE``).
 
-        The value is -1 in case no execute method has been performed on the
-        cursor, or there was no rowcount associated with the last operation.
+        The value is -1 if:
+        
+        - No ``execute()`` or ``executemany()`` method has been performed yet
+          on the cursor.
+        - There was no rowcount associated with the last ``execute()``.
+        - At least one of the statements executed as part of an
+          ``executemany()`` had no row count associated with it.
 
         This attribute is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
