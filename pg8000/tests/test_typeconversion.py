@@ -624,5 +624,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(
             retval[0][0], "'a' 'and' 'ate' 'cat' 'fat' 'mat' 'on' 'rat' 'sat'")
 
+    def testHstoreRoundtrip(self):
+        val = '"a"=>"1"'
+        self.cursor.execute("SELECT cast(%s as hstore)", (val,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], val)
+
 if __name__ == "__main__":
     unittest.main()
