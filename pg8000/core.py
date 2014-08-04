@@ -55,8 +55,7 @@ from pg8000 import (
 from collections import deque, defaultdict
 from itertools import count, islice
 from pg8000.six.moves import map
-from pg8000.six import (
-    b, Iterator, PY2, integer_types, next, PRE_26, text_type, u)
+from pg8000.six import b, PY2, integer_types, next, PRE_26, text_type, u
 from sys import exc_info
 from uuid import UUID
 from copy import deepcopy
@@ -460,7 +459,7 @@ def int_in(data, offset, length):
 # Stability: Added in v1.00, stability guaranteed for v1.xx.
 #
 # @param connection     An instance of {@link Connection Connection}.
-class Cursor(Iterator):
+class Cursor():
     def __init__(self, connection):
         self._c = connection
         self.arraysize = 1
@@ -657,6 +656,9 @@ class Cursor(Iterator):
                     raise StopIteration()
         finally:
             self._c._lock.release()
+
+if PY2:
+    Cursor.next = Cursor.__next__
 
 # Message codes
 NOTICE_RESPONSE = b("N")
