@@ -265,5 +265,18 @@ class Tests(unittest.TestCase):
         finally:
             cursor.close()
 
+    # If autocommit is on and we do an operation that returns more rows than
+    # the cache holds, make sure exception raised.
+    def testAutocommitMaxRows(self):
+        self.db.autocommit = True
+        try:
+            cursor = self.db.cursor()
+            self.assertRaises(
+                pg8000.InterfaceError, cursor.execute,
+                "select generate_series(1, " +
+                str(pg8000.core.Connection._row_cache_size + 1) + ")")
+        finally:
+            cursor.close()
+
 if __name__ == "__main__":
     unittest.main()

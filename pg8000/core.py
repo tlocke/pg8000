@@ -1585,7 +1585,14 @@ class Connection(object):
         self._write(SYNC_MSG)
         self._flush()
         self.handle_messages(cursor)
-        if not cursor.portal_suspended:
+        if cursor.portal_suspended:
+            if self.autocommit:
+                raise InterfaceError(
+                    "With autocommit on, it's not possible to retrieve more "
+                    "rows than the pg8000 cache size, as the portal is closed "
+                    "when the transaction is closed.")
+
+        else:
             self.close_portal(cursor)
 
     def _send_message(self, code, data):
@@ -1624,6 +1631,7 @@ class Connection(object):
                 cursor._row_count = row_count
             else:
                 cursor._row_count += row_count
+
         if command in DDL_COMMANDS:
             for k in self._caches:
                 self._caches[k]['ps'].clear()
