@@ -5,7 +5,7 @@ from .connection_settings import db_connect
 from pg8000.six import u, b
 from sys import exc_info
 import datetime
-
+from distutils.version import LooseVersion
 
 from warnings import filterwarnings
 
@@ -159,7 +159,7 @@ class Tests(unittest.TestCase):
             self.assertEqual("test1", cursor.fetchone()[0])
 
             # Before PostgreSQL 9 we don't know the row count for a select
-            if self.db._server_version[0] > 8:
+            if self.db._server_version > LooseVersion('8.0.0'):
                 self.assertEqual(cursor.rowcount, 1)
 
             # Test with multiple rows...
@@ -199,7 +199,7 @@ class Tests(unittest.TestCase):
 
     def testRowCount(self):
         # Before PostgreSQL 9 we don't know the row count for a select
-        if self.db._server_version[0] > 8:
+        if self.db._server_version > LooseVersion('8.0.0'):
             try:
                 cursor = self.db.cursor()
                 expected_count = 57
@@ -319,7 +319,7 @@ class Tests(unittest.TestCase):
             cursor.execute("select * from t1")
 
             # Before PostgreSQL 9 we don't know the row count for a select
-            if self.db._server_version[0] > 8:
+            if self.db._server_version > LooseVersion('8.0.0'):
                 self.assertEqual(cursor.rowcount, 0)
         finally:
             cursor.close()

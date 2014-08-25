@@ -61,6 +61,7 @@ from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
 import os
+from distutils.version import LooseVersion
 
 ZERO = timedelta(0)
 
@@ -1720,17 +1721,15 @@ class Connection(object):
                 self.pg_types[1186] = (FC_BINARY, interval_recv_float)
 
         elif key == b("server_version"):
-            self._server_version = tuple(
-                map(int, value.decode("ascii").split('.')[:2]))
-            if self._server_version[0] == 8:
-                if self._server_version[1] > 1:
-                    self._commands_with_count = (
-                        b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
-                        b("FETCH"), b("COPY"))
-                else:
-                    self._commands_with_count = (
-                        b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
-                        b("FETCH"))
+            self._server_version = LooseVersion(value.decode('ascii'))
+            if self._server_version < LooseVersion('8.2.0'):
+                self._commands_with_count = (
+                    b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
+                    b("FETCH"))
+            elif self._server_version < LooseVersion('9.0.0'):
+                self._commands_with_count = (
+                    b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
+                    b("FETCH"), b("COPY"))
 
     def array_inspect(self, value):
         # Check if array has any values.  If not, we can't determine the proper

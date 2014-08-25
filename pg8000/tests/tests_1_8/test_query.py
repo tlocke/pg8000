@@ -4,7 +4,7 @@ from pg8000 import dbapi
 from .connection_settings import db_connect
 from pg8000.six import u, b
 from sys import exc_info
-
+from distutils.version import LooseVersion
 
 from warnings import filterwarnings
 
@@ -97,7 +97,7 @@ class Tests(unittest.TestCase):
             self.assertEqual("test1", cursor.fetchone()[0])
 
             # Before PostgreSQL 9 we don't know the row count for a select
-            if self.db._server_version[0] > 8:
+            if self.db._server_version > LooseVersion('8.0.0'):
                 self.assertEqual(cursor.rowcount, 1)
 
             # Test with multiple rows...
@@ -106,7 +106,7 @@ class Tests(unittest.TestCase):
                 "RETURNING id", ("test2", "test3", "test4"))
 
             # Before PostgreSQL 9 we don't know the row count for a select
-            if self.db._server_version[0] > 8:
+            if self.db._server_version > LooseVersion('8.0.0'):
                 self.assertEqual(cursor.rowcount, 3)
 
             ids = tuple([x[0] for x in cursor])
@@ -141,7 +141,7 @@ class Tests(unittest.TestCase):
 
     def testRowCount(self):
         # Before PostgreSQL 9 we don't know the row count for a select
-        if self.db._server_version[0] > 8:
+        if self.db._server_version > LooseVersion('8.0.0'):
             try:
                 cursor = self.db.cursor()
                 expected_count = 57

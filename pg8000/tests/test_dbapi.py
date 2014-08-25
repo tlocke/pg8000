@@ -6,6 +6,7 @@ import datetime
 from .connection_settings import db_connect
 from sys import exc_info
 from pg8000.six import b, IS_JYTHON
+from distutils.version import LooseVersion
 
 
 # DBAPI compatible interface tests
@@ -212,7 +213,7 @@ class Tests(unittest.TestCase):
             c1.execute("SELECT * FROM t1")
 
             # Before PostgreSQL 9 we don't know the row count for a select
-            if self.db._server_version[0] > 8:
+            if self.db._server_version > LooseVersion('8.0.0'):
                 self.assertEqual(5, c1.rowcount)
 
             c1.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", ("Hello!",))
