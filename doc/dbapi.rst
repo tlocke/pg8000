@@ -505,6 +505,10 @@ Classes
         - There was no rowcount associated with the last ``execute()``.
         - At least one of the statements executed as part of an
           ``executemany()`` had no row count associated with it.
+        - Using a ``SELECT`` query statement on PostgreSQL server older than
+          version 9.
+        - Using a ``COPY`` query statement on PostgreSQL server version 8.1 or
+          older.
 
         This attribute is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
