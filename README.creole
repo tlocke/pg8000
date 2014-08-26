@@ -21,14 +21,29 @@ To run the regression tests, install [[http://testrun.org/tox/latest/|tox]]:
 pip install tox
 }}}
 
-then add install all the supported Python versions, and add a line to
-pg_hba.conf requiring md5 for the database pg8000_md5, eg.
+then install all the supported Python versions, and add a line to pg_hba.conf
+for the various authentication options, eg.
 
 {{{
 host    pg8000_md5      all             127.0.0.1/32            md5
+host    pg8000_krb5     all             127.0.0.1/32            krb5
+host    pg8000_password all             127.0.0.1/32            password
+host    all             all             127.0.0.1/32            trust
 }}}
 
-and run {{{tox}}} from the {{{pg8000}}} directory:
+Install all the currently supported versions of PostgreSQL (including the
+hstore extension), and set the following environment variables for the
+databases, for example:
+
+{{{
+export PG8000_TEST_NAME="PG8000_TEST_9_3"
+export PG8000_TEST_9_0="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
+export PG8000_TEST_9_1="{'user': 'postgres', 'password': 'pw', 'port': 5433}"
+export PG8000_TEST_9_2="{'user': 'postgres', 'password': 'pw', 'port': 5434}"
+export PG8000_TEST_9_3="{'user': 'postgres', 'password': 'pw', 'port': 5435}"
+}}}
+
+then run {{{tox}}} from the {{{pg8000}}} directory:
 
 {{{
 tox

@@ -1,6 +1,6 @@
 import os
 
-
+'''
 db_stewart_connect = {
     "host": "127.0.0.1",
     "user": "pg8000-test",
@@ -24,14 +24,15 @@ db_oracledev2_connect = {
     "user": "mfenniak",
     "password": "password",
     "database": "mfenniak"}
+'''
 
-db_connect = eval(os.environ["PG8000_TEST"])
+NAME_VAR = "PG8000_TEST_NAME"
 try:
-    from testconfig import config
-    try:
-        db_connect['use_cache'] = config['use_cache'] == 'true'
-    except KeyError:
-        pass
-except:
-    # This means we're using Python 2.5 which is a special case.
-    pass
+    TEST_NAME = os.environ[NAME_VAR]
+except KeyError:
+    raise Exception(
+        "The environment variable " + NAME_VAR + " needs to be set. It should "
+        "contain the name of the environment variable that contains the "
+        "kwargs for the connect() function.")
+
+db_connect = eval(os.environ[TEST_NAME])
