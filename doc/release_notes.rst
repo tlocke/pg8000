@@ -1,6 +1,23 @@
 Release Notes
 =============
 
+Version 1.10.0, 2014-08-30
+--------------------------
+- Remove the old ``pg8000.dbapi`` and ``pg8000.DBAPI`` namespaces. For example,
+  now only ``pg8000.connect()`` will work, and ``pg8000.dbapi.connect()``
+  won't work any more.
+
+- Parse server version string with LooseVersion. This should solve the problems
+  that people have been having when using versions of PostgreSQL such as
+  ``9.4beta2``.
+
+- Message if portal suspended in autocommit. Give a proper error message if the
+  portal is suspended while in autocommit mode. The error is that the portal is
+  closed when the transaction is closed, and so in autocommit mode the portal
+  will be immediately closed. The bottom line is, don't use autocommit mode if
+  there's a chance of retrieving more rows than the cache holds (currently 100).
+
+
 Version 1.9.14, 2014-08-02
 --------------------------
 

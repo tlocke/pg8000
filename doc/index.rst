@@ -16,6 +16,10 @@ BSD 3-clause license.
 All bug reports, feature requests and contributions are welcome at
 http://github.com/mfenniak/pg8000/. There's also a forum at https://groups.google.com/forum/#!forum/pg8000.
 
+If you're a user of pg8000 we'd love to hear who you are and what you or your
+organization is using pg8000 for. Just log an issue on GitHub or post a message
+to the forum. The idea is to put together a page of users.
+
 Contents
 --------
 
