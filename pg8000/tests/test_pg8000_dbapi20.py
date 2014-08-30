@@ -6,7 +6,7 @@ from .connection_settings import db_connect
 
 
 class Tests(dbapi20.DatabaseAPI20Test):
-    driver = pg8000.DBAPI
+    driver = pg8000
     connect_args = ()
     connect_kw_args = db_connect
 

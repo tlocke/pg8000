@@ -31,14 +31,14 @@ import datetime
 from datetime import timedelta
 from pg8000 import (
     Interval, min_int2, max_int2, min_int4, max_int4, min_int8, max_int8,
-    Bytea)
-from pg8000.errors import (
-    NotSupportedError, ProgrammingError, InternalError, IntegrityError,
+    Bytea, NotSupportedError, ProgrammingError, InternalError, IntegrityError,
     OperationalError, DatabaseError, InterfaceError, Error,
-    CopyQueryOrTableRequiredError, QueryParameterParseError,
     ArrayContentNotHomogenousError, ArrayContentEmptyError,
     ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError, Warning,
-    CopyQueryWithoutStreamError)
+    i_unpack, ii_unpack, iii_unpack, h_pack, d_unpack, q_unpack, d_pack,
+    f_unpack, q_pack, i_pack, h_unpack, dii_unpack, qii_unpack, ci_unpack,
+    bh_unpack, ihihih_unpack, cccc_unpack, ii_pack, iii_pack, dii_pack,
+    qii_pack)
 from warnings import warn
 import socket
 import threading
@@ -46,12 +46,6 @@ from struct import pack
 from hashlib import md5
 from decimal import Decimal
 import pg8000
-import pg8000.util
-from pg8000 import (
-    i_unpack, ii_unpack, iii_unpack, h_pack, d_unpack, q_unpack, d_pack,
-    f_unpack, q_pack, i_pack, h_unpack, dii_unpack, qii_unpack, ci_unpack,
-    bh_unpack, ihihih_unpack, cccc_unpack, ii_pack, iii_pack, dii_pack,
-    qii_pack)
 from collections import deque, defaultdict
 from itertools import count, islice
 from pg8000.six.moves import map
@@ -150,8 +144,8 @@ def convert_paramstyle(style, query):
                         state = INSIDE_PN
                         output_query.append(next(param_idx))
                     else:
-                        raise QueryParameterParseError(
-                            "Only %s and %% are supported")
+                        raise InterfaceError(
+                            "Only %s and %% are supported in the query.")
             else:
                 output_query.append(c)
 
@@ -174,8 +168,9 @@ def convert_paramstyle(style, query):
                     if next_c == "%":
                         in_param_escape = True
                     else:
-                        raise QueryParameterParseError(
-                            "'%" + next_c + "' not supported in quoted string")
+                        raise InterfaceError(
+                            "'%" + next_c + "' not supported in a quoted "
+                            "string within the query string")
             else:
                 output_query.append(c)
 
@@ -192,8 +187,9 @@ def convert_paramstyle(style, query):
                     if next_c == "%":
                         in_param_escape = True
                     else:
-                        raise QueryParameterParseError(
-                            "'%" + next_c + "' not supported in quoted string")
+                        raise InterfaceError(
+                            "'%" + next_c + "' not supported in a quoted "
+                            "string within the query string")
             else:
                 output_query.append(c)
 
@@ -211,8 +207,9 @@ def convert_paramstyle(style, query):
                     if next_c == "%":
                         in_param_escape = True
                     else:
-                        raise QueryParameterParseError(
-                            "'%" + next_c + "' not supported in quoted string")
+                        raise InterfaceError(
+                            "'%" + next_c + "' not supported in a quoted "
+                            "string within the query string.")
             else:
                 output_query.append(c)
 
@@ -445,22 +442,59 @@ def int_in(data, offset, length):
     return int(data[offset: offset + length])
 
 
-##
-# The class of object returned by the {@link #ConnectionWrapper.cursor cursor
-# method}.
-# The Cursor class allows multiple queries to be performed concurrently with a
-# single PostgreSQL connection.  The Cursor object is implemented internally by
-# using a {@link PreparedStatement PreparedStatement} object, so if you plan to
-# use a statement multiple times, you might as well create a PreparedStatement
-# and save a small amount of reparsing time.
-# <p>
-# As of v1.01, instances of this class are thread-safe.  See {@link
-# PreparedStatement PreparedStatement} for more information.
-# <p>
-# Stability: Added in v1.00, stability guaranteed for v1.xx.
-#
-# @param connection     An instance of {@link Connection Connection}.
 class Cursor():
+    """A cursor object is returned by the :meth:`~Connection.cursor` method of
+    a connection. It has the following attributes and methods:
+
+    .. attribute:: arraysize
+
+        This read/write attribute specifies the number of rows to fetch at a
+        time with :meth:`fetchmany`.  It defaults to 1.
+
+    .. attribute:: connection
+
+        This read-only attribute contains a reference to the connection object
+        (an instance of :class:`Connection`) on which the cursor was
+        created.
+
+        This attribute is part of a DBAPI 2.0 extension.  Accessing this
+        attribute will generate the following warning: ``DB-API extension
+        cursor.connection used``.
+
+    .. attribute:: rowcount
+
+        This read-only attribute contains the number of rows that the last
+        ``execute()`` or ``executemany()`` method produced (for query
+        statements like ``SELECT``) or affected (for modification statements
+        like ``UPDATE``).
+
+        The value is -1 if:
+
+        - No ``execute()`` or ``executemany()`` method has been performed yet
+          on the cursor.
+        - There was no rowcount associated with the last ``execute()``.
+        - At least one of the statements executed as part of an
+          ``executemany()`` had no row count associated with it.
+        - Using a ``SELECT`` query statement on PostgreSQL server older than
+          version 9.
+        - Using a ``COPY`` query statement on PostgreSQL server version 8.1 or
+          older.
+
+        This attribute is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    .. attribute:: description
+
+        This read-only attribute is a sequence of 7-item sequences.  Each value
+        contains information describing one result column.  The 7 items
+        returned for each column are (name, type_code, display_size,
+        internal_size, precision, scale, null_ok).  Only the first two values
+        are provided by the current implementation.
+
+        This attribute is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+
     def __init__(self, connection):
         self._c = connection
         self.arraysize = 1
@@ -470,39 +504,15 @@ class Cursor():
         self.portal_name = None
         self.portal_suspended = False
 
-    ##
-    # This read-only attribute returns a reference to the connection object on
-    # which the cursor was created.
-    # <p>
-    # Stability: Part of a DBAPI 2.0 extension.  A warning "DB-API extension
-    # cursor.connection used" will be fired.
     @property
     def connection(self):
         warn("DB-API extension cursor.connection used", stacklevel=3)
         return self._c
 
-    ##
-    # This read-only attribute specifies the number of rows that the last
-    # .execute*() produced (for DQL statements like 'select') or affected (for
-    # DML statements like 'update' or 'insert').
-    # <p>
-    # The attribute is -1 in case no .execute*() has been performed on the
-    # cursor or the rowcount of the last operation is cannot be determined by
-    # the interface.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     @property
     def rowcount(self):
         return self._row_count
 
-    ##
-    # This read-only attribute is a sequence of 7-item sequences.  Each value
-    # contains information describing one result column.  The 7 items returned
-    # for each column are (name, type_code, display_size, internal_size,
-    # precision, scale, null_ok).  Only the first two values are provided by
-    # this interface implementation.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     description = property(lambda self: self._getDescription())
 
     def _getDescription(self):
@@ -523,6 +533,32 @@ class Cursor():
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
     def execute(self, operation, args=None, stream=None):
+        """Executes a database operation.  Parameters may be provided as a
+        sequence, or as a mapping, depending upon the value of
+        :data:`pg8000.paramstyle`.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :param operation:
+            The SQL statement to execute.
+
+        :param args:
+            If :data:`paramstyle` is ``qmark``, ``numeric``, or ``format``,
+            this argument should be an array of parameters to bind into the
+            statement.  If :data:`paramstyle` is ``named``, the argument should
+            be a dict mapping of parameters.  If the :data:`paramstyle` is
+            ``pyformat``, the argument value may be either an array or a
+            mapping.
+
+        :param stream: This is a pg8000 extension for use with the PostgreSQL
+            `COPY
+            <http://www.postgresql.org/docs/current/static/sql-copy.html>`_
+            command. For a COPY FROM the parameter must be a readable file-like
+            object, and for COPY TO it must be writable.
+
+            .. versionadded:: 1.9.11
+        """
         try:
             self._c._lock.acquire()
             self.stream = stream
@@ -540,12 +576,20 @@ class Cursor():
         finally:
             self._c._lock.release()
 
-    ##
-    # Prepare a database operation and then execute it against all parameter
-    # sequences or mappings provided.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     def executemany(self, operation, param_sets):
+        """Prepare a database operation, and then execute it against all
+        parameter sequences or mappings provided.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :param operation:
+            The SQL statement to execute
+        :param parameter_sets:
+            A sequence of parameters to execute the statement with. The values
+            in the sequence should be sequences or mappings of parameters, the
+            same as the args argument of the :meth:`execute` method.
+        """
         rowcounts = []
         for parameters in param_sets:
             self.execute(operation, parameters)
@@ -553,36 +597,16 @@ class Cursor():
 
         self._row_count = -1 if -1 in rowcounts else sum(rowcounts)
 
-    # All the copy_*() methods are deprecated. Use execute() with the 'stream'
-    # parameter instead.
-
-    def copy_from(self, fileobj, table=None, sep='\t', null=None, query=None):
-        if query is None:
-            if table is None:
-                raise CopyQueryOrTableRequiredError()
-            query = "COPY %s FROM stdout DELIMITER '%s'" % (table, sep)
-            if null is not None:
-                query += " NULL '%s'" % (null,)
-        self.copy_execute(fileobj, query)
-
-    def copy_to(self, fileobj, table=None, sep='\t', null=None, query=None):
-        if query is None:
-            if table is None:
-                raise CopyQueryOrTableRequiredError()
-            query = "COPY %s TO stdout DELIMITER '%s'" % (table, sep)
-            if null is not None:
-                query += " NULL '%s'" % (null,)
-        self.copy_execute(fileobj, query)
-
-    def copy_execute(self, fileobj, query):
-        self.execute(query, stream=fileobj)
-
-    ##
-    # Fetch the next row of a query result set, returning a single sequence, or
-    # None when no more data is available.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     def fetchone(self):
+        """Fetch the next row of a query result set.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :returns:
+            A row as a sequence of field values, or ``None`` if no more rows
+            are available.
+        """
         try:
             return next(self)
         except StopIteration:
@@ -592,46 +616,72 @@ class Cursor():
         except AttributeError:
             raise ProgrammingError("attempting to use unexecuted cursor")
 
-    ##
-    # Fetch the next set of rows of a query result, returning a sequence of
-    # sequences.  An empty sequence is returned when no more rows are
-    # available.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
-    # @param size   The number of rows to fetch when called.  If not provided,
-    #               the arraysize property value is used instead.
     def fetchmany(self, num=None):
+        """Fetches the next set of rows of a query result.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :param size:
+
+            The number of rows to fetch when called.  If not provided, the
+            :attr:`arraysize` attribute value is used instead.
+
+        :returns:
+
+            A sequence, each entry of which is a sequence of field values
+            making up a row.  If no more rows are available, an empty sequence
+            will be returned.
+        """
         try:
             return tuple(
                 islice(self, self.arraysize if num is None else num))
         except TypeError:
             raise ProgrammingError("attempting to use unexecuted cursor")
 
-    ##
-    # Fetch all remaining rows of a query result, returning them as a sequence
-    # of sequences.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     def fetchall(self):
+        """Fetches all remaining rows of a query result.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+
+        :returns:
+
+            A sequence, each entry of which is a sequence of field values
+            making up a row.
+        """
         try:
             return tuple(self)
         except TypeError:
             raise ProgrammingError("attempting to use unexecuted cursor")
 
-    ##
-    # Close the cursor.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     def close(self):
+        """Closes the cursor.
+
+        This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         self._c = None
 
     def __iter__(self):
+        """A cursor object is iterable to retrieve the rows from a query.
+
+        This is a DBAPI 2.0 extension.
+        """
         return self
 
     def setinputsizes(self, sizes):
+        """This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_, however, it is not
+        implemented by pg8000.
+        """
         pass
 
     def setoutputsize(self, size, column=None):
+        """This method is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_, however, it is not
+        implemented by pg8000.
+        """
         pass
 
     def __next__(self):
@@ -732,52 +782,88 @@ def data_into_dict(data):
 arr_trans = dict(zip(map(ord, u("[] 'u")), list(u('{}')) + [None] * 3))
 
 
-##
-# This class represents a connection to a PostgreSQL database.
-# <p>
-# The database connection is derived from the {@link #Cursor Cursor} class,
-# which provides a default cursor for running queries.  It also provides
-# transaction control via the 'commit', and 'rollback' methods.
-# <p>
-# As of v1.01, instances of this class are thread-safe.  See {@link
-# PreparedStatement PreparedStatement} for more information.
-# <p>
-# Stability: Added in v1.00, stability guaranteed for v1.xx.
-#
-# @param user   The username to connect to the PostgreSQL server with.  This
-# parameter is required.
-#
-# @keyparam host   The hostname of the PostgreSQL server to connect with.
-# Providing this parameter is necessary for TCP/IP connections.  One of either
-# host, or unix_sock, must be provided.
-#
-# @keyparam unix_sock   The path to the UNIX socket to access the database
-# through, for example, '/tmp/.s.PGSQL.5432'.  One of either unix_sock or host
-# must be provided.  The port parameter will have no affect if unix_sock is
-# provided.
-#
-# @keyparam port   The TCP/IP port of the PostgreSQL server instance.  This
-# parameter defaults to 5432, the registered and common port of PostgreSQL
-# TCP/IP servers.
-#
-# @keyparam database   The name of the database instance to connect with.  This
-# parameter is optional, if omitted the PostgreSQL server will assume the
-# database name is the same as the username.
-#
-# @keyparam password   The user password to connect to the server with.  This
-# parameter is optional.  If omitted, and the database server requests password
-# based authentication, the connection will fail.  On the other hand, if this
-# parameter is provided and the database does not request password
-# authentication, then the password will not be used.
-#
-# @keyparam socket_timeout  Socket connect timeout measured in seconds.
-# Defaults to 60 seconds.
-#
-# @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
+class MulticastDelegate(object):
+    def __init__(self):
+        self.delegates = []
 
-##
-# The class of object returned by the {@link #connect connect method}.
+    def __iadd__(self, delegate):
+        self.add(delegate)
+        return self
+
+    def add(self, delegate):
+        self.delegates.append(delegate)
+
+    def __isub__(self, delegate):
+        self.delegates.remove(delegate)
+        return self
+
+    def __call__(self, *args, **kwargs):
+        for d in self.delegates:
+            d(*args, **kwargs)
+
+
 class Connection(object):
+    """A connection object is returned by the :func:`pg8000.connect` function.
+    It represents a single physical connection to a PostgreSQL database.
+
+    .. attribute:: Connection.notifies
+
+        A list of server-side notifications received by this database
+        connection (via the LISTEN/NOTIFY PostgreSQL commands).  Each list
+        element is a two-element tuple containing the PostgreSQL backend PID
+        that issued the notify, and the notification name.
+
+        PostgreSQL will only send notifications to a client between
+        transactions.  The contents of this property are generally only
+        populated after a commit or rollback of the current transaction.
+
+        This list can be modified by a client application to clean out
+        notifications as they are handled.  However, inspecting or modifying
+        this collection should only be done while holding the
+        :attr:`notifies_lock` lock in order to guarantee thread-safety.
+
+        This attribute is not part of the DBAPI standard; it is a pg8000
+        extension.
+
+        .. versionadded:: 1.07
+
+    .. attribute:: Connection.notifies_lock
+
+        A :class:`threading.Lock` object that should be held to read or
+        modify the contents of the :attr:`notifies` list.
+
+        This attribute is not part of the DBAPI standard; it is a pg8000
+        extension.
+
+        .. versionadded:: 1.07
+
+    .. attribute:: Connection.autocommit
+
+        Following the DB-API specification, autocommit is off by default.
+        It can be turned on by setting this boolean pg8000-specific autocommit
+        property to True.
+
+        .. versionadded:: 1.9
+
+    .. exception:: Connection.Error
+                   Connection.Warning
+                   Connection.InterfaceError
+                   Connection.DatabaseError
+                   Connection.InternalError
+                   Connection.OperationalError
+                   Connection.ProgrammingError
+                   Connection.IntegrityError
+                   Connection.DataError
+                   Connection.NotSupportedError
+
+        All of the standard database exception types are accessible via
+        connection instances.
+
+        This is a DBAPI 2.0 extension.  Accessing any of these attributes will
+        generate the warning ``DB-API extension connection.DatabaseError
+        used``.
+    """
+
     # DBAPI Extension: supply exceptions as attributes on the connection
     Warning = property(lambda self: self._getError(Warning))
     Error = property(lambda self: self._getError(Error))
@@ -889,7 +975,7 @@ class Connection(object):
         ##
         # An event handler that is fired when the database server issues a
         # notice.
-        # The value of this property is a util.MulticastDelegate. A callback
+        # The value of this property is a MulticastDelegate. A callback
         # can be added by using connection.NotificationReceived += SomeMethod.
         # The method will be called with a single argument, an object that has
         # properties: severity, code, msg, and possibly others (detail, hint,
@@ -897,30 +983,30 @@ class Connection(object):
         # with the -= operator.
         # <p>
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
-        self.NoticeReceived = pg8000.util.MulticastDelegate()
+        self.NoticeReceived = MulticastDelegate()
 
         ##
         # An event handler that is fired when a runtime configuration option is
         # changed on the server.  The value of this property is a
-        # util.MulticastDelegate.  A callback can be added by using
+        # MulticastDelegate.  A callback can be added by using
         # connection.NotificationReceived += SomeMethod. Callbacks can be
         # removed with the -= operator. The method will be called with a single
         # argument, an object that has properties "key" and "value".
         # <p>
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
-        self.ParameterStatusReceived = pg8000.util.MulticastDelegate()
+        self.ParameterStatusReceived = MulticastDelegate()
 
         ##
         # An event handler that is fired when NOTIFY occurs for a notification
         # that has been LISTEN'd for.  The value of this property is a
-        # util.MulticastDelegate.  A callback can be added by using
+        # MulticastDelegate.  A callback can be added by using
         # connection.NotificationReceived += SomeMethod. The method will be
         # called with a single argument, an object that has properties:
         # backend_pid, condition, and additional_info. Callbacks can be
         # removed with the -= operator.
         # <p>
         # Stability: Added in v1.03, stability guaranteed for v1.xx.
-        self.NotificationReceived = pg8000.util.MulticastDelegate()
+        self.NotificationReceived = MulticastDelegate()
 
         self.ParameterStatusReceived += self.handle_PARAMETER_STATUS
 
@@ -1227,7 +1313,8 @@ class Connection(object):
         is_binary, num_cols = bh_unpack(data)
         # column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
         if ps.stream is None:
-            raise CopyQueryWithoutStreamError()
+            raise InterfaceError(
+                "An output stream is required for the COPY OUT response.")
 
     def handle_COPY_DATA(self, data, ps):
         ps.stream.write(data)
@@ -1239,7 +1326,8 @@ class Connection(object):
         # column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
         assert self._lock.locked()
         if ps.stream is None:
-            raise CopyQueryWithoutStreamError()
+            raise InterfaceError(
+                "An input stream is required for the COPY IN response.")
 
         if PY2:
             while True:
@@ -1290,41 +1378,45 @@ class Connection(object):
         finally:
             self.notifies_lock.release()
 
-    ##
-    # Creates a {@link #CursorWrapper CursorWrapper} object bound to this
-    # connection.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     def cursor(self):
+        """Creates a :class:`Cursor` object bound to this
+        connection.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         return Cursor(self)
 
-    ##
-    # Commits the current database transaction.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     def commit(self):
+        """Commits the current database transaction.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         try:
             self._lock.acquire()
             self.execute(self._cursor, "commit", None)
         finally:
             self._lock.release()
 
-    ##
-    # Rolls back the current database transaction.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     def rollback(self):
+        """Rolls back the current database transaction.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         try:
             self._lock.acquire()
             self.execute(self._cursor, "rollback", None)
         finally:
             self._lock.release()
 
-    ##
-    # Closes the database connection.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
     def close(self):
+        """Closes the database connection.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         try:
             self._lock.acquire()
             # Byte1('X') - Identifies the message as a terminate message.
@@ -1662,7 +1754,7 @@ class Connection(object):
             except KeyError:
                 raise InternalError(
                     "Unrecognised message code " + message_code)
-            except pg8000.errors.Error:
+            except pg8000.Error:
                 e = exc_info()[1]
                 if cursor is None:
                     raise e
@@ -1834,21 +1926,54 @@ class Connection(object):
         return (format_id, global_transaction_id, branch_qualifier)
 
     def tpc_begin(self, xid):
-        "Begin a two-phase transaction"
+        """Begins a TPC transaction with the given transaction ID xid.
 
+        This method should be called outside of a transaction (i.e. nothing may
+        have executed since the last .commit() or .rollback()).
+
+        Furthermore, it is an error to call .commit() or .rollback() within the
+        TPC transaction. A ProgrammingError is raised, if the application calls
+        .commit() or .rollback() during an active TPC transaction.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         self._xid = xid
         if self.autocommit:
             self.execute(self._cursor, "begin transaction", None)
 
     def tpc_prepare(self):
-        "Prepare a two-phase transaction"
+        """Performs the first phase of a transaction started with .tpc_begin().
+        A ProgrammingError is be raised if this method is called outside of a
+        TPC transaction.
+
+        After calling .tpc_prepare(), no statements can be executed until
+        .tpc_commit() or .tpc_rollback() have been called.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         q = "PREPARE TRANSACTION '%s';" % (self._xid[1],)
-        self.execute(
-            self._cursor, q, None)
+        self.execute(self._cursor, q, None)
 
     def tpc_commit(self, xid=None):
-        "Commit a prepared two-phase transaction"
+        """When called with no arguments, .tpc_commit() commits a TPC
+        transaction previously prepared with .tpc_prepare().
 
+        If .tpc_commit() is called prior to .tpc_prepare(), a single phase
+        commit is performed. A transaction manager may choose to do this if
+        only a single resource is participating in the global transaction.
+
+        When called with a transaction ID xid, the database commits the given
+        transaction. If an invalid transaction ID is provided, a
+        ProgrammingError will be raised. This form should be called outside of
+        a transaction, and is intended for use in recovery.
+
+        On return, the TPC transaction is ended.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         if xid is None:
             xid = self._xid
 
@@ -1871,8 +1996,19 @@ class Connection(object):
         self._xid = None
 
     def tpc_rollback(self, xid=None):
-        "Roll back a prepared two-phase transaction"
+        """When called with no arguments, .tpc_rollback() rolls back a TPC
+        transaction. It may be called before or after .tpc_prepare().
 
+        When called with a transaction ID xid, it rolls back the given
+        transaction. If an invalid transaction ID is provided, a
+        ProgrammingError is raised. This form should be called outside of a
+        transaction, and is intended for use in recovery.
+
+        On return, the TPC transaction is ended.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         if xid is None:
             xid = self._xid
 
@@ -1896,9 +2032,12 @@ class Connection(object):
         self._xid = None
 
     def tpc_recover(self):
+        """Returns a list of pending transaction IDs suitable for use with
+        .tpc_commit(xid) or .tpc_rollback(xid).
 
-        "Returns a list of pending transaction IDs"
-
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         try:
             previous_autocommit_mode = self.autocommit
             self.autocommit = True

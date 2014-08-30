@@ -1,5 +1,3 @@
-# vim: sw=4:expandtab:foldmethod=marker
-#
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # All rights reserved.
 #
@@ -47,11 +45,187 @@ min_int4, max_int4 = -2 ** 31, 2 ** 31
 min_int8, max_int8 = -2 ** 63, 2 ** 63
 
 
+class Warning(Exception):
+    """Generic exception raised for important database warnings like data
+    truncations.  This exception is not currently used by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class Error(Exception):
+    """Generic exception that is the base exception of all other error
+    exceptions.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class InterfaceError(Error):
+    """Generic exception raised for errors that are related to the database
+    interface rather than the database itself.  For example, if the interface
+    attempts to use an SSL connection but the server refuses, an InterfaceError
+    will be raised.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class DatabaseError(Error):
+    """Generic exception raised for errors that are related to the database.
+    This exception is currently never raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class DataError(DatabaseError):
+    """Generic exception raised for errors that are due to problems with the
+    processed data.  This exception is not currently raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class OperationalError(DatabaseError):
+    """
+    Generic exception raised for errors that are related to the database's
+    operation and not necessarily under the control of the programmer. This
+    exception is currently never raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class IntegrityError(DatabaseError):
+    """
+    Generic exception raised when the relational integrity of the database is
+    affected.  This exception is not currently raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class InternalError(DatabaseError):
+    """Generic exception raised when the database encounters an internal error.
+    This is currently only raised when unexpected state occurs in the pg8000
+    interface itself, and is typically the result of a interface bug.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class ProgrammingError(DatabaseError):
+    """Generic exception raised for programming errors.  For example, this
+    exception is raised if more parameter fields are in a query string than
+    there are available parameters.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class NotSupportedError(DatabaseError):
+    """Generic exception raised in case a method or database API was used which
+    is not supported by the database.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class ArrayContentNotSupportedError(NotSupportedError):
+    """
+    Raised when attempting to transmit an array where the base type is not
+    supported for binary data transfer by the interface.
+    """
+    pass
+
+
+class ArrayContentNotHomogenousError(ProgrammingError):
+    """
+    Raised when attempting to transmit an array that doesn't contain only a
+    single type of object.
+    """
+    pass
+
+
+class ArrayContentEmptyError(ProgrammingError):
+    """Raised when attempting to transmit an empty array. The type oid of an
+    empty array cannot be determined, and so sending them is not permitted.
+    """
+    pass
+
+
+class ArrayDimensionsNotConsistentError(ProgrammingError):
+    """
+    Raised when attempting to transmit an array that has inconsistent
+    multi-dimension sizes.
+    """
+    pass
+
+
 class Bytea(binary_type):
+    """Bytea is a str-derived class that is mapped to a PostgreSQL byte array.
+    This class is only used in Python 2, the built-in ``bytes`` type is used in
+    Python 3.
+    """
     pass
 
 
 class Interval(object):
+    """An Interval represents a measurement of time.  In PostgreSQL, an interval
+    is defined in the measure of months, days, and microseconds; as such, the
+    pg8000 interval type represents the same information.
+
+    Note that values of the :attr:`microseconds`, :attr:`days` and
+    :attr:`months` properties are independently measured and cannot be
+    converted to each other.  A month may be 28, 29, 30, or 31 days, and a day
+    may occasionally be lengthened slightly by a leap second.
+
+    .. attribute:: microseconds
+
+        Measure of microseconds in the interval.
+
+        The microseconds value is constrained to fit into a signed 64-bit
+        integer.  Any attempt to set a value too large or too small will result
+        in an OverflowError being raised.
+
+    .. attribute:: days
+
+        Measure of days in the interval.
+
+        The days value is constrained to fit into a signed 32-bit integer.
+        Any attempt to set a value too large or too small will result in an
+        OverflowError being raised.
+
+    .. attribute:: months
+
+        Measure of months in the interval.
+
+        The months value is constrained to fit into a signed 32-bit integer.
+        Any attempt to set a value too large or too small will result in an
+        OverflowError being raised.
+    """
+
     def __init__(self, microseconds=0, days=0, months=0):
         self.microseconds = microseconds
         self.days = days
@@ -103,70 +277,98 @@ class Interval(object):
 import pg8000.core
 
 
-##
-# Creates a DBAPI 2.0 compatible interface to a PostgreSQL database.
-# <p>
-# Stability: Part of the DBAPI 2.0 specification.
-#
-# @param user   The username to connect to the PostgreSQL server with.  This
-# parameter is required.
-#
-# @keyparam host   The hostname of the PostgreSQL server to connect with.
-# Providing this parameter is necessary for TCP/IP connections.  One of either
-# host, or unix_sock, must be provided.
-#
-# @keyparam unix_sock   The path to the UNIX socket to access the database
-# through, for example, '/tmp/.s.PGSQL.5432'.  One of either unix_sock or host
-# must be provided.  The port parameter will have no affect if unix_sock is
-# provided.
-#
-# @keyparam port   The TCP/IP port of the PostgreSQL server instance.  This
-# parameter defaults to 5432, the registered and common port of PostgreSQL
-# TCP/IP servers.
-#
-# @keyparam database   The name of the database instance to connect with.  This
-# parameter is optional, if omitted the PostgreSQL server will assume the
-# database name is the same as the username.
-#
-# @keyparam password   The user password to connect to the server with.  This
-# parameter is optional.  If omitted, and the database server requests password
-# based authentication, the connection will fail.  On the other hand, if this
-# parameter is provided and the database does not request password
-# authentication, then the password will not be used.
-#
-# @keyparam socket_timeout  Socket connect timeout measured in seconds.
-# Defaults to 60 seconds.
-#
-# @keyparam ssl     Use SSL encryption for TCP/IP socket.  Defaults to False.
-#
-# @return An instance of {@link #ConnectionWrapper ConnectionWrapper}.
 def connect(
         user=None, host='localhost', unix_sock=None, port=5432, database=None,
         password=None, socket_timeout=60, ssl=False, **kwargs):
+    """Creates a connection to a PostgreSQL database.
 
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_; however, the arguments of the
+    function are not defined by the specification.
+
+    :param user:
+        The username to connect to the PostgreSQL server with. If this is not
+        provided, pg8000 looks first for the PGUSER then the USER environment
+        variables.
+
+    :keyword host:
+        The hostname of the PostgreSQL server to connect with.  Providing this
+        parameter is necessary for TCP/IP connections.  One of either ``host``
+        or ``unix_sock`` must be provided. The default is ``localhost``.
+
+    :keyword unix_sock:
+        The path to the UNIX socket to access the database through, for
+        example, ``'/tmp/.s.PGSQL.5432'``.  One of either ``host`` or
+        ``unix_sock`` must be provided.
+
+    :keyword port:
+        The TCP/IP port of the PostgreSQL server instance.  This parameter
+        defaults to ``5432``, the registered common port of PostgreSQL TCP/IP
+        servers.
+
+    :keyword database:
+        The name of the database instance to connect with.  This parameter is
+        optional; if omitted, the PostgreSQL server will assume the database
+        name is the same as the username.
+
+    :keyword password:
+        The user password to connect to the server with.  This parameter is
+        optional; if omitted and the database server requests password-based
+        authentication, the connection will fail to open.  If this parameter
+        is provided but not requested by the server, no error will occur.
+
+    :keyword socket_timeout:
+        Socket connect timeout measured in seconds.  This parameter defaults to
+        60 seconds.
+
+    :keyword ssl:
+        Use SSL encryption for TCP/IP sockets if ``True``.  Defaults to
+        ``False``.
+
+    :rtype:
+        A :class:`Connection` object.
+    """
     return pg8000.core.Connection(
         user, host, unix_sock, port, database, password, socket_timeout, ssl)
 
-##
-# The DBAPI level supported.  Currently 2.0.  This property is part of the
-# DBAPI 2.0 specification.
 apilevel = "2.0"
+"""The DBAPI level supported, currently "2.0".
 
-##
-# Integer constant stating the level of thread safety the DBAPI interface
-# supports.  This DBAPI interface supports sharing of the module and
-# connections.  This property is part of the DBAPI 2.0 specification.
+This property is part of the `DBAPI 2.0 specification
+<http://www.python.org/dev/peps/pep-0249/>`_.
+"""
+
 threadsafety = 3
+"""Integer constant stating the level of thread safety the DBAPI interface
+supports.  This DBAPI module supports sharing the module, connections, and
+cursors, resulting in a threadsafety value of 3.
 
-##
-# String property stating the type of parameter marker formatting expected by
-# the interface.  This value defaults to "format".  This property is part of
-# the DBAPI 2.0 specification.
-# <p>
-# Unlike the DBAPI specification, this value is not constant.  It can be
-# changed to any standard paramstyle value (ie. qmark, numeric, named, format,
-# and pyformat).
-paramstyle = 'format'  # paramstyle can be changed to any DB-API paramstyle
+This property is part of the `DBAPI 2.0 specification
+<http://www.python.org/dev/peps/pep-0249/>`_.
+"""
+
+paramstyle = 'format'
+"""String property stating the type of parameter marker formatting expected by
+the interface.  This value defaults to "format", in which parameters are
+marked in this format: "WHERE name=%s".
+
+This property is part of the `DBAPI 2.0 specification
+<http://www.python.org/dev/peps/pep-0249/>`_.
+
+As an extension to the DBAPI specification, this value is not constant; it
+can be changed to any of the following values:
+
+    qmark
+        Question mark style, eg. ``WHERE name=?``
+    numeric
+        Numeric positional style, eg. ``WHERE name=:1``
+    named
+        Named style, eg. ``WHERE name=:paramname``
+    format
+        printf format codes, eg. ``WHERE name=%s``
+    pyformat
+        Python format codes, eg. ``WHERE name=%(paramname)s``
+"""
 
 # I have no idea what this would be used for by a client app.  Should it be
 # TEXT, VARCHAR, CHAR?  It will only compare against row_description's
@@ -174,74 +376,119 @@ paramstyle = 'format'  # paramstyle can be changed to any DB-API paramstyle
 # appears to match expectations in the DB API 2.0 compliance test suite.
 
 STRING = 1043
+"""String type oid."""
 
 if PY2:
     BINARY = Bytea
 else:
     BINARY = bytes
 
-# numeric type_oid
 NUMBER = 1700
+"""Numeric type oid"""
 
-# timestamp type_oid
 DATETIME = 1114
+"""Timestamp type oid"""
 
-# oid type_oid
 ROWID = 26
+"""ROWID type oid"""
 
 
 def Date(year, month, day):
+    """Constuct an object holding a date value.
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.date`
+    """
     return datetime.date(year, month, day)
 
 
 def Time(hour, minute, second):
+    """Construct an object holding a time value.
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.time`
+    """
     return datetime.time(hour, minute, second)
 
 
 def Timestamp(year, month, day, hour, minute, second):
+    """Construct an object holding a timestamp value.
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.datetime`
+    """
     return datetime.datetime(year, month, day, hour, minute, second)
 
 
 def DateFromTicks(ticks):
+    """Construct an object holding a date value from the given ticks value
+    (number of seconds since the epoch).
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.date`
+    """
     return Date(*time.localtime(ticks)[:3])
 
 
 def TimeFromTicks(ticks):
+    """Construct an objet holding a time value from the given ticks value
+    (number of seconds since the epoch).
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.time`
+    """
     return Time(*time.localtime(ticks)[3:6])
 
 
 def TimestampFromTicks(ticks):
+    """Construct an object holding a timestamp value from the given ticks value
+    (number of seconds since the epoch).
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.datetime`
+    """
     return Timestamp(*time.localtime(ticks)[:6])
 
 
-# Construct an object holding binary data.
 def Binary(value):
+    """Construct an object holding binary data.
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`pg8000.types.Bytea` for Python 2, otherwise :class:`bytes`
+    """
     if PY2:
         return Bytea(value)
     else:
         return value
 
 
-# For compatibility with 1.8
-import pg8000 as dbapi
-DBAPI = dbapi
-pg8000_dbapi = DBAPI
-from pg8000.core import utc
-
-from pg8000.errors import (
-    Warning, DatabaseError, InterfaceError,
-    ProgrammingError, CopyQueryOrTableRequiredError, Error, OperationalError,
-    IntegrityError, InternalError, NotSupportedError,
-    ArrayContentNotHomogenousError, ArrayContentEmptyError,
-    ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError)
+from pg8000.core import utc, Connection, Cursor
 
 __all__ = [
-    Warning, Bytea, DatabaseError, connect, InterfaceError, ProgrammingError,
-    CopyQueryOrTableRequiredError, Error, OperationalError, IntegrityError,
-    InternalError, NotSupportedError, ArrayContentNotHomogenousError,
-    ArrayContentEmptyError, ArrayDimensionsNotConsistentError,
-    ArrayContentNotSupportedError, utc]
+    Warning, Bytea, DataError, DatabaseError, connect, InterfaceError,
+    ProgrammingError, Error, OperationalError, IntegrityError, InternalError,
+    NotSupportedError, ArrayContentNotHomogenousError, ArrayContentEmptyError,
+    ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError, utc,
+    Connection, Cursor]
 
 from ._version import get_versions
 __version__ = get_versions()['version']
+"""Version string for pg8000.
+
+    .. versionadded:: 1.9.11
+"""
 del get_versions
