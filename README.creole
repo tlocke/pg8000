@@ -9,7 +9,7 @@ communicates with the database using the
 
 Links:
 
-* [[https://pypi.python.org/pypi/pg8000|User Docs]].
+* [[http://pythonhosted.org/pg8000/|User Docs]].
 * [[https://groups.google.com/forum/#!forum/pg8000|Forum]]
 * [[https://github.com/mfenniak/pg8000|Code, bugs, feature requests etc.]]
 
