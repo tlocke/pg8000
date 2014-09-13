@@ -1254,14 +1254,18 @@ class Connection(object):
 
         self._cursor = self.cursor()
         try:
-            try:
-                self._lock.acquire()
-                self.handle_messages(None)
-            finally:
-                self._lock.release()
+            self._lock.acquire()
+            code = self.error = None
+            while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
+                code, data_len = ci_unpack(self._read(5))
+                self.message_types[code](self._read(data_len - 4), None)
+            if self.error is not None:
+                raise self.error
         except:
-            self.close()
-            raise exc_info()[1]
+            self._close()
+            raise
+        finally:
+            self._lock.release()
 
         self.in_transaction = False
         self.notifies = []
@@ -1270,9 +1274,9 @@ class Connection(object):
     def handle_ERROR_RESPONSE(self, data, ps):
         msg_dict = data_into_dict(data)
         if msg_dict[RESPONSE_CODE] == "28000":
-            raise InterfaceError("md5 password authentication failed")
+            self.error = InterfaceError("md5 password authentication failed")
         else:
-            raise ProgrammingError(
+            self.error = ProgrammingError(
                 msg_dict[RESPONSE_SEVERITY], msg_dict[RESPONSE_CODE],
                 msg_dict[RESPONSE_MSG])
 
@@ -1407,14 +1411,8 @@ class Connection(object):
         finally:
             self._lock.release()
 
-    def close(self):
-        """Closes the database connection.
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
+    def _close(self):
         try:
-            self._lock.acquire()
             # Byte1('X') - Identifies the message as a terminate message.
             # Int32(4) - Message length, including self.
             self._write(TERMINATE_MSG)
@@ -1426,6 +1424,16 @@ class Connection(object):
             raise pg8000.InterfaceError("connection is closed")
         except ValueError:
             raise pg8000.InterfaceError("connection is closed")
+
+    def close(self):
+        """Closes the database connection.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
+        try:
+            self._lock.acquire()
+            self._close()
         finally:
             self._lock.release()
 
@@ -1739,26 +1747,18 @@ class Connection(object):
         cursor._cached_rows.append(row)
 
     def handle_messages(self, cursor):
-        message_code = None
-        error = None
+        code = self.error = None
 
-        while message_code != READY_FOR_QUERY:
-            message_code, data_len = ci_unpack(self._read(5))
-            try:
-                self.message_types[message_code](
-                    self._read(data_len - 4), cursor)
-            except KeyError:
-                raise InternalError(
-                    "Unrecognised message code " + message_code)
-            except pg8000.Error:
-                e = exc_info()[1]
-                if cursor is None:
-                    raise e
-                else:
-                    error = e
+        try:
+            while code != READY_FOR_QUERY:
+                code, data_len = ci_unpack(self._read(5))
+                self.message_types[code](self._read(data_len - 4), cursor)
+        except:
+            self._close()
+            raise
 
-        if error is not None:
-            raise error
+        if self.error is not None:
+            raise self.error
 
     # Byte1('C') - Identifies the message as a close command.
     # Int32 - Message length, including self.
