@@ -890,9 +890,7 @@ class Connection(object):
             error.__name__, stacklevel=3)
         return error
 
-    def __init__(
-            self, user, host, unix_sock, port, database, password,
-            socket_timeout, ssl):
+    def __init__(self, user, host, unix_sock, port, database, password, ssl):
         self._client_encoding = "ascii"
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
@@ -957,8 +955,6 @@ class Connection(object):
                 finally:
                     self._lock.release()
 
-            # settimeout causes ssl failure, on windows.  Python bug 1462352.
-            self._usock.settimeout(socket_timeout)
             self._sock = self._usock.makefile(mode="rwb")
         except socket.error:
             self._usock.close()

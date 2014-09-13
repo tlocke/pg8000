@@ -279,7 +279,7 @@ import pg8000.core
 
 def connect(
         user=None, host='localhost', unix_sock=None, port=5432, database=None,
-        password=None, socket_timeout=60, ssl=False, **kwargs):
+        password=None, ssl=False, **kwargs):
     """Creates a connection to a PostgreSQL database.
 
     This function is part of the `DBAPI 2.0 specification
@@ -317,10 +317,6 @@ def connect(
         authentication, the connection will fail to open.  If this parameter
         is provided but not requested by the server, no error will occur.
 
-    :keyword socket_timeout:
-        Socket connect timeout measured in seconds.  This parameter defaults to
-        60 seconds.
-
     :keyword ssl:
         Use SSL encryption for TCP/IP sockets if ``True``.  Defaults to
         ``False``.
@@ -329,7 +325,7 @@ def connect(
         A :class:`Connection` object.
     """
     return pg8000.core.Connection(
-        user, host, unix_sock, port, database, password, socket_timeout, ssl)
+        user, host, unix_sock, port, database, password, ssl)
 
 apilevel = "2.0"
 """The DBAPI level supported, currently "2.0".
