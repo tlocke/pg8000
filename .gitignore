@@ -3,6 +3,7 @@
 *.orig
 *.class
 build
+pg8000.egg-info
 tmp
 dist
 .tox

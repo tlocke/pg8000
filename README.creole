@@ -94,7 +94,7 @@ Run {{{tox}}} and {{{run_25}}} to make sure all tests pass, then update
 
 {{{
 git tag -a x.y.z -m "Version x.y.z"
-python setup.py register sdist upload build_sphinx upload_docs
+python setup.py register sdist bdist_wheel upload build_sphinx upload_docs
 }}}
 
 Then post a message to the forum.

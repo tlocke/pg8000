@@ -6,7 +6,7 @@ versioneer.versionfile_source = 'pg8000/_version.py'
 versioneer.versionfile_build = 'pg8000/_version.py'
 versioneer.tag_prefix = ''
 versioneer.parentdir_prefix = 'pg8000-'
-from distutils.core import setup
+from setuptools import setup
 
 long_description = """\
 
@@ -42,6 +42,7 @@ setup(
         author="Mathieu Fenniak",
         author_email="biziqe@mathieu.fenniak.net",
         url="https://github.com/mfenniak/pg8000",
+        license="https://github.com/mfenniak/pg8000",
         classifiers = [
             "Development Status :: 4 - Beta",
             "Intended Audience :: Developers",
