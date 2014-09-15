@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+Version 1.10.1, 2014-09-15
+--------------------------
+- Add support for the Wheel package format.
+
+- Remove option to set a connection timeout. For communicating with the server,
+  pg8000 uses a file-like object using socket.makefile() but you can't use this
+  if the underlying socket has a timeout.
+
+
 Version 1.10.0, 2014-08-30
 --------------------------
 - Remove the old ``pg8000.dbapi`` and ``pg8000.DBAPI`` namespaces. For example,
