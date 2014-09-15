@@ -42,7 +42,7 @@ setup(
         author="Mathieu Fenniak",
         author_email="biziqe@mathieu.fenniak.net",
         url="https://github.com/mfenniak/pg8000",
-        license="https://github.com/mfenniak/pg8000",
+        license="BSD",
         classifiers = [
             "Development Status :: 4 - Beta",
             "Intended Audience :: Developers",
