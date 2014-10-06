@@ -7,7 +7,7 @@ if [[ ! -e pgsql-9.4beta2/bin/postgres ]]; then
     wget http://ftp.postgresql.org/pub/source/v9.4beta2/postgresql-9.4beta2.tar.bz2
     tar -jxf postgresql-9.4beta2.tar.bz2
     cd ./postgresql-9.4beta2
-    ./configure --prefix=$BUILDROOT/pgsql-9.4beta2 --with-krb5
+    ./configure --prefix=$BUILDROOT/pgsql-9.4beta2 --with-krb5 --with-openssl --with-ossp-uuid --with-libxml
     make install
     cd $BUILDROOT
     ./pgsql-9.4beta2/bin/initdb -U postgres `pwd`/pgsql-9.4beta2/data
