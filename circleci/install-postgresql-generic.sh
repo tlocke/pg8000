@@ -14,33 +14,14 @@ if [[ ! -e pgsql-${PG_VERSION}/bin/postgres ]]; then
     sed -i -e "s/#port = 5432/port = ${PG_PORT}/" `pwd`/pgsql-${PG_VERSION}/data/postgresql.conf
     sed -i -e "s/#ssl = off/ssl = on/" `pwd`/pgsql-${PG_VERSION}/data/postgresql.conf
 
-cat > `pwd`/pgsql-${PG_VERSION}/data/pg_hba.conf <<END
+    cat > `pwd`/pgsql-${PG_VERSION}/data/pg_hba.conf <<END
 host    pg8000_md5      all             127.0.0.1/32            md5
 host    pg8000_krb5     all             127.0.0.1/32            krb5
 host    pg8000_password all             127.0.0.1/32            password
 host    all             all             127.0.0.1/32            trust
 END
 
-    ./pgsql-${PG_VERSION}/bin/postgres --single -j -D `pwd`/pgsql-${PG_VERSION}/data postgres <<END
-ALTER USER postgres PASSWORD 'pw';
-CREATE EXTENSION "uuid-ossp";
-CREATE EXTENSION hstore;
-END
-
-fi
-
-# Temporarily re-run these commands until I rebuild the cached installs
-./pgsql-${PG_VERSION}/bin/postgres --single -j -D `pwd`/pgsql-${PG_VERSION}/data postgres <<END
-ALTER USER postgres PASSWORD 'pw';
-END
-./pgsql-${PG_VERSION}/bin/postgres --single -j -D `pwd`/pgsql-${PG_VERSION}/data postgres <<END
-CREATE EXTENSION "uuid-ossp";
-END
-./pgsql-${PG_VERSION}/bin/postgres --single -j -D `pwd`/pgsql-${PG_VERSION}/data postgres <<END
-CREATE EXTENSION hstore;
-END
-
-cat > `pwd`/pgsql-${PG_VERSION}/data/server.crt <<END
+    cat > `pwd`/pgsql-${PG_VERSION}/data/server.crt <<END
 Certificate:
     Data:
         Version: 3 (0x2)
@@ -100,7 +81,7 @@ yz/sdcdYEJvz9Q596BM=
 -----END CERTIFICATE-----
 END
 
-cat > `pwd`/pgsql-${PG_VERSION}/data/server.key <<END
+    cat > `pwd`/pgsql-${PG_VERSION}/data/server.key <<END
 -----BEGIN RSA PRIVATE KEY-----
 MIICXgIBAAKBgQDBdTVi6KytK7sw8HMx7mqm5XeN3kIWcP29D/WwZuq8abz5mLLf
 oMYJ4dDvqPO3/VFZxMlwLaFGr+aaNYKvknHL1du8zwmFnoVtBmjCe2gAcdQkN9wt
@@ -117,5 +98,12 @@ SpxlZL2oQ8sQTu7G4uT5AkEA6z25XZBJ1EwWknP6QUe6ZRqDw5XGwTvJO4lGusfs
 u8/RrIJ/Nz2DmKedu0NBjxZsdBJLTwu017dXVbd3ST2O+Q==
 -----END RSA PRIVATE KEY-----
 END
+    chmod 600 `pwd`/pgsql-${PG_VERSION}/data/server.key
 
-chmod 600 `pwd`/pgsql-${PG_VERSION}/data/server.key
+    ./pgsql-${PG_VERSION}/bin/postgres --single -j -D `pwd`/pgsql-${PG_VERSION}/data postgres <<END
+ALTER USER postgres PASSWORD 'pw';
+CREATE EXTENSION "uuid-ossp";
+CREATE EXTENSION hstore;
+END
+
+fi
