@@ -46,4 +46,4 @@ dependencies:
 
 test:
   override:
-    - echo "Run tests!"
+    - tox
