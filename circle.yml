@@ -20,6 +20,7 @@ dependencies:
     - py-3.2.5
     - py-3.3.5
     - py-3.4.1
+    - pypy-2.4.0-linux64
   pre:
     - sudo apt-get install libossp-uuid-dev libssl-dev
     - bash ./circleci/install-postgresql-9.0.18.sh
@@ -33,6 +34,7 @@ dependencies:
     - bash ./circleci/install-python-3.2.5.sh
     - bash ./circleci/install-python-3.3.5.sh
     - bash ./circleci/install-python-3.4.1.sh
+    - bash ./circleci/install-pypy-2.4.0.sh
   post:
     - ./pgsql-9.0.18/bin/postgres -D `pwd`/pgsql-9.0.18/data -p 5490:
         background: true
