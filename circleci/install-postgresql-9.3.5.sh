@@ -7,7 +7,7 @@ if [[ ! -e pgsql-9.3.5/bin/postgres ]]; then
     wget http://ftp.postgresql.org/pub/source/v9.3.5/postgresql-9.3.5.tar.bz2
     tar -jxf postgresql-9.3.5.tar.bz2
     cd ./postgresql-9.3.5
-    ./configure --prefix=$BUILDROOT/pgsql-9.3.5
+    ./configure --prefix=$BUILDROOT/pgsql-9.3.5 --with-krb5
     make install
     cd $BUILDROOT
     ./pgsql-9.3.5/bin/initdb `pwd`/pgsql-9.3.5/data
