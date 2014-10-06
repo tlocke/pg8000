@@ -14,4 +14,4 @@ if [[ ! -e py-2.5.6/bin/python2.5 ]]; then
     cd $BUILDROOT
 fi
 
-ln -s $BUILDROOT/py-2.5.6/python2.5 ~/bin/
+ln -s $BUILDROOT/py-2.5.6/bin/python2.5 ~/bin/

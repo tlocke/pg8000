@@ -12,4 +12,4 @@ if [[ ! -e py-3.3.5/bin/python3.3 ]]; then
     cd $BUILDROOT
 fi
 
-ln -s $BUILDROOT/py-3.3.5/python3.3 ~/bin/
+ln -s $BUILDROOT/py-3.3.5/bin/python3.3 ~/bin/
