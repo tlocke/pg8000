@@ -546,6 +546,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.cursor.fetchone()[0], ["a", "b", "c"])
         self.cursor.execute("SELECT '{}'::text[];")
         self.assertEqual(self.cursor.fetchone()[0], [])
+        self.cursor.execute("SELECT '{NULL,\"NULL\",NULL,\"\"}'::text[];")
+        self.assertEqual(self.cursor.fetchone()[0], [None, 'NULL', None, ""])
 
     def testNumericArrayOut(self):
         self.cursor.execute("SELECT '{1.1,2.2,3.3}'::numeric[] AS f1")
@@ -561,9 +563,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], v)
 
     def testStringArrayRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", (["Hello!", "World!", None],))
+        v = ["Hello!", "World!", "abcdefghijklmnopqrstuvwxyz", "", "A bunch of random characters: ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t", None]
+        self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
-        self.assertEqual(retval[0][0], ["Hello!", "World!", None])
+        self.assertEqual(retval[0][0], v)
 
     def testUnicodeArrayRoundtrip(self):
         if PY2:
