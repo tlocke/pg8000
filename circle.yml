@@ -7,18 +7,6 @@ machine:
     PG8000_TEST_9_3: "{'user': 'postgres', 'password': 'pw', 'port': 5493}"
     PG8000_TEST_9_4: "{'user': 'postgres', 'password': 'pw', 'port': 5494}"
 
-  post:
-    - ./pgsql-9.0.18/bin/postgres -D `pwd`/pgsql-9.0.18/data -p 5490:
-        background: true
-    - ./pgsql-9.1.14/bin/postgres -D `pwd`/pgsql-9.1.14/data -p 5491:
-        background: true
-    - ./pgsql-9.2.9/bin/postgres -D `pwd`/pgsql-9.2.9/data -p 5492:
-        background: true
-    - ./pgsql-9.3.5/bin/postgres -D `pwd`/pgsql-9.3.5/data -p 5493:
-        background: true
-    - ./pgsql-9.4beta2/bin/postgres -D `pwd`/pgsql-9.4beta2/data -p 5494:
-        background: true
-
 dependencies:
   cache_directories:
     - pgsql-9.0.18
@@ -44,6 +32,17 @@ dependencies:
     - bash ./circleci/install-python-3.2.5.sh
     - bash ./circleci/install-python-3.3.5.sh
     - bash ./circleci/install-python-3.4.1.sh
+  post:
+    - ./pgsql-9.0.18/bin/postgres -D `pwd`/pgsql-9.0.18/data -p 5490:
+        background: true
+    - ./pgsql-9.1.14/bin/postgres -D `pwd`/pgsql-9.1.14/data -p 5491:
+        background: true
+    - ./pgsql-9.2.9/bin/postgres -D `pwd`/pgsql-9.2.9/data -p 5492:
+        background: true
+    - ./pgsql-9.3.5/bin/postgres -D `pwd`/pgsql-9.3.5/data -p 5493:
+        background: true
+    - ./pgsql-9.4beta2/bin/postgres -D `pwd`/pgsql-9.4beta2/data -p 5494:
+        background: true
 
 test:
   override:
