@@ -9,7 +9,7 @@ if [[ ! -e pgsql-${PG_VERSION}/bin/postgres ]]; then
     wget http://ftp.postgresql.org/pub/source/v${PG_VERSION}/postgresql-${PG_VERSION}.tar.bz2
     tar -jxf postgresql-${PG_VERSION}.tar.bz2
     cd postgresql-${PG_VERSION}
-    ./configure --prefix=$BUILDROOT/pgsql-${PG_VERSION} --with-krb5 --with-openssl --with-ossp-uuid --with-libxml
+    ./configure --prefix=$BUILDROOT/pgsql-${PG_VERSION} --with-gssapi --with-openssl --with-ossp-uuid --with-libxml
     make world
     make install-world
     cd $BUILDROOT
@@ -20,7 +20,7 @@ if [[ ! -e pgsql-${PG_VERSION}/bin/postgres ]]; then
 
     cat > `pwd`/pgsql-${PG_VERSION}/data/pg_hba.conf <<END
 host    pg8000_md5      all             127.0.0.1/32            md5
-host    pg8000_krb5     all             127.0.0.1/32            krb5
+host    pg8000_gss      all             127.0.0.1/32            gss
 host    pg8000_password all             127.0.0.1/32            password
 host    all             all             127.0.0.1/32            trust
 END
