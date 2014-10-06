@@ -1,0 +1,22 @@
+machine:
+  environment:
+    PG8000_TEST_NAME: PG8000_TEST_9_3
+    PG8000_TEST_9_0: {'user': 'postgres', 'password': 'pw', 'port': 5490}
+    PG8000_TEST_9_1: {'user': 'postgres', 'password': 'pw', 'port': 5491}
+    PG8000_TEST_9_2: {'user': 'postgres', 'password': 'pw', 'port': 5492}
+    PG8000_TEST_9_3: {'user': 'postgres', 'password': 'pw', 'port': 5493}
+    PG8000_TEST_9_4: {'user': 'postgres', 'password': 'pw', 'port': 5494}
+
+dependencies:
+  cache_directories:
+    - pgsql-9.0.18
+    - pgsql-9.1.14
+    - pgsql-9.2.9
+    - pgsql-9.3.5
+    - pgsql-9.4beta2
+  pre:
+    - bash ./circleci/install-postgresql-9.0.18.sh
+    - bash ./circleci/install-postgresql-9.1.14.sh
+    - bash ./circleci/install-postgresql-9.2.9.sh
+    - bash ./circleci/install-postgresql-9.3.5.sh
+    - bash ./circleci/install-postgresql-9.4beta2.sh
