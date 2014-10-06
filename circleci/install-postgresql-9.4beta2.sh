@@ -3,7 +3,7 @@ set -e
 
 if [[ ! -e pgsql-9.4beta2/bin/postgres ]]; then
     wget http://ftp.postgresql.org/pub/source/v9.4beta2/postgresql-9.4beta2.tar.bz2 
-    tar xzf postgresql-9.4beta2.tar.bz2 
+    tar -jxf postgresql-9.4beta2.tar.bz2
     ./postgresql-9.4beta2/configure --prefix=`pwd`/pgsql-9.4beta2 
     make install
     ./pgsql-9.4beta2/bin/initdb `pwd`/pgsql-9.4beta2/data
