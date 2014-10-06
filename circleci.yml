@@ -20,3 +20,4 @@ dependencies:
     - bash ./circleci/install-postgresql-9.2.9.sh
     - bash ./circleci/install-postgresql-9.3.5.sh
     - bash ./circleci/install-postgresql-9.4beta2.sh
+
