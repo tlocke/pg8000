@@ -10,7 +10,7 @@ if [[ ! -e pgsql-9.1.14/bin/postgres ]]; then
     ./configure --prefix=$BUILDROOT/pgsql-9.1.14 --with-krb5
     make install
     cd $BUILDROOT
-    ./pgsql-9.1.14/bin/initdb `pwd`/pgsql-9.1.14/data
+    ./pgsql-9.1.14/bin/initdb -U postgres `pwd`/pgsql-9.1.14/data
     sed -i -e 's/#port = 5432/port = 5491/' `pwd`/pgsql-9.1.14/data/postgresql.conf
 fi
 
