@@ -15,7 +15,7 @@ if [[ ! -e pgsql-${PG_VERSION}/bin/postgres ]]; then
     cd $BUILDROOT
     ./pgsql-${PG_VERSION}/bin/initdb -U postgres `pwd`/pgsql-${PG_VERSION}/data
 
-    sed -i -e 's/#port = 5432/port = ${PG_PORT}/' `pwd`/pgsql-${PG_VERSION}/data/postgresql.conf
+    sed -i -e "s/#port = 5432/port = ${PG_PORT}/" `pwd`/pgsql-${PG_VERSION}/data/postgresql.conf
 cat > `pwd`/pgsql-${PG_VERSION}/data/pg_hba.conf <<END
 host    pg8000_md5      all             127.0.0.1/32            md5
 host    pg8000_krb5     all             127.0.0.1/32            krb5
