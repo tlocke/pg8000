@@ -11,3 +11,5 @@ if [[ ! -e py-3.4.1/bin/python ]]; then
     make install
     cd $BUILDROOT
 fi
+
+ln -s $BUILDROOT/py-3.4.1/python3.4 ~/bin/

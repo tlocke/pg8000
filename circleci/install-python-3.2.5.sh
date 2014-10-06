@@ -11,3 +11,5 @@ if [[ ! -e py-3.2.5/bin/python ]]; then
     make install
     cd $BUILDROOT
 fi
+
+ln -s $BUILDROOT/py-3.2.5/python3.2 ~/bin/

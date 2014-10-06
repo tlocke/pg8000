@@ -11,3 +11,5 @@ if [[ ! -e py-2.6.9/bin/python ]]; then
     make install
     cd $BUILDROOT
 fi
+
+ln -s $BUILDROOT/py-2.6.9/python2.6 ~/bin/
