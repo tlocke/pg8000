@@ -3,7 +3,7 @@ set -e
 
 BUILDROOT=$HOME/pg8000
 
-if [[ ! -e py-3.4.1/bin/python ]]; then
+if [[ ! -e py-3.4.1/bin/python3.4 ]]; then
     wget https://www.python.org/ftp/python/3.4.1/Python-3.4.1.tgz
     tar -zxf Python-3.4.1.tgz
     cd ./Python-3.4.1
