@@ -21,7 +21,7 @@ dependencies:
     - py-3.3.5
     - py-3.4.1
   pre:
-    - sudo apt-get install uuid-dev
+    - sudo apt-get install libossp-uuid-dev
     - bash ./circleci/install-postgresql-9.0.18.sh
     - bash ./circleci/install-postgresql-9.1.14.sh
     - bash ./circleci/install-postgresql-9.2.9.sh

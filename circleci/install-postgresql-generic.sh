@@ -1,10 +1,6 @@
 set -x
 set -e
 
-BUILDROOT=$HOME/pg8000
-PG_VERSION=9.0.18
-PG_PORT=5490
-
 if [[ ! -e pgsql-${PG_VERSION}/bin/postgres ]]; then
     wget http://ftp.postgresql.org/pub/source/v${PG_VERSION}/postgresql-${PG_VERSION}.tar.bz2
     tar -jxf postgresql-${PG_VERSION}.tar.bz2
@@ -25,8 +21,8 @@ END
 
     ./pgsql-${PG_VERSION}/bin/postgres --single -j -D `pwd`/pgsql-${PG_VERSION}/data postgres <<END
 ALTER USER postgres PASSWORD 'pw';
+CREATE EXTENSION \"uuid-ossp\";
+CREATE EXTENSION hstore;
 END
-    ./pgsql-${PG_VERSION}/bin/postgres --single -j -D `pwd`/pgsql-${PG_VERSION}/data postgres < ./pgsql-${PG_VERSION}/share/contrib/uuid-ossp.sql
-    ./pgsql-${PG_VERSION}/bin/postgres --single -j -D `pwd`/pgsql-${PG_VERSION}/data postgres < ./pgsql-${PG_VERSION}/share/contrib/hstore.sql
 
 fi
