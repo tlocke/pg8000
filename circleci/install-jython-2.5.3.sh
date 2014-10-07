@@ -9,6 +9,9 @@ if [[ ! -e jython-2.5.3/bin/jython ]]; then
     cd $BUILDROOT/jython-2.5.3
     unzip $BUILDROOT/jython-installer-2.5.3.jar
     chmod +x ./bin/jython
+    wget https://bitbucket.org/pypa/setuptools/raw/bootstrap-py24/ez_setup.py
+    ./bin/jython ez_setup.py
+    ./bin/easy_install nose pytz nose-testconfig
     cd $BUILDROOT
 fi
 

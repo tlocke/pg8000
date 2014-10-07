@@ -11,6 +11,10 @@ if [[ ! -e py-2.5.6/bin/python2.5 ]]; then
     LDFLAGS="-L/usr/lib/x86_64-linux-gnu" ./configure --prefix=$BUILDROOT/py-2.5.6
     make
     make install
+    cd $BUILDROOT/py-2.5.6
+    wget https://bitbucket.org/pypa/setuptools/raw/bootstrap-py24/ez_setup.py
+    ./bin/python ez_setup.py
+    ./bin/easy_install nose pytz nose-testconfig
     cd $BUILDROOT
 fi
 
