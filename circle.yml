@@ -52,4 +52,4 @@ dependencies:
 test:
   override:
     - tox
-    - run_25
+    - ./run_25
