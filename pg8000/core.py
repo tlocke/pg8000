@@ -1864,7 +1864,8 @@ class Connection(object):
                 # If unknown, assume it's a string array
                 if oid == 705:
                     oid = 25
-                    # Use binary ARRAY format to avoid having to properly escape text in the array literals
+                    # Use binary ARRAY format to avoid having to properly
+                    # escape text in the array literals
                     fc = FC_BINARY
                 array_oid = pg_array_types[oid]
             except KeyError:

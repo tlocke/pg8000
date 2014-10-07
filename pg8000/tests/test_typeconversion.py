@@ -563,7 +563,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], v)
 
     def testStringArrayRoundtrip(self):
-        v = ["Hello!", "World!", "abcdefghijklmnopqrstuvwxyz", "", "A bunch of random characters: ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t", None]
+        v = ["Hello!", "World!", "abcdefghijklmnopqrstuvwxyz", "",
+            "A bunch of random characters:",
+            " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t",
+            None]
         self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
