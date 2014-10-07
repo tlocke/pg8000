@@ -51,20 +51,20 @@ class Tests(unittest.TestCase):
             self.assertRaisesRegex(
                 pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
-    # This requires a line in pg_hba.conf that requires krb5 for the database
-    # pg8000_krb5
+    # This requires a line in pg_hba.conf that requires gss for the database
+    # pg8000_gss
 
-    def testKrb5(self):
+    def testGss(self):
         data = db_connect.copy()
-        data["database"] = "pg8000_krb5"
+        data["database"] = "pg8000_gss"
 
-        # Should raise an exception saying krb5 isn't supported
+        # Should raise an exception saying gss isn't supported
         if PY2:
             self.assertRaises(pg8000.InterfaceError, pg8000.connect, **data)
         else:
             self.assertRaisesRegex(
                 pg8000.InterfaceError,
-                "Authentication method 2 not supported by pg8000.",
+                "Authentication method 7 not supported by pg8000.",
                 pg8000.connect, **data)
 
     def testSsl(self):

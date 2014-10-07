@@ -6,6 +6,8 @@ pg8000 is a pure-[[http://www.python.org/|Python]]
 communicates with the database using the
 [[http://www.postgresql.org/docs/9.3/static/protocol.html|PostgreSQL Backend / Frontend Protocol]].
 
+CircleCI [[https://circleci.com/gh/mfenniak/pg8000|Build Status]]: {{https://circleci.com/gh/mfenniak/pg8000.png?style=badge|CircleCI}}
+
 Links:
 
 * [[http://pythonhosted.org/pg8000/|User Docs]].
@@ -25,7 +27,7 @@ for the various authentication options, eg.
 
 {{{
 host    pg8000_md5      all             127.0.0.1/32            md5
-host    pg8000_krb5     all             127.0.0.1/32            krb5
+host    pg8000_gss      all             127.0.0.1/32            gss
 host    pg8000_password all             127.0.0.1/32            password
 host    all             all             127.0.0.1/32            trust
 }}}
