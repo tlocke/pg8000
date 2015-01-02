@@ -22,8 +22,18 @@ To run the regression tests, install [[http://testrun.org/tox/latest/|tox]]:
 pip install tox
 }}}
 
-then install all the supported Python versions, and add a line to pg_hba.conf
-for the various authentication options, eg.
+then install all the supported Python versions (using the
+[[https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes|APT Repository]] if
+you're using Ubuntu. Install all the currently supported versions of PostgreSQL
+(using the [[http://wiki.postgresql.org/wiki/Apt|APT Repository]] if you're
+using Ubuntu. Then for each of them, enable the hstore extension by running the
+SQL command:
+
+{{{
+create extension hstore;
+}}}
+
+and add a line to pg_hba.conf for the various authentication options, eg.
 
 {{{
 host    pg8000_md5      all             127.0.0.1/32            md5
@@ -32,9 +42,7 @@ host    pg8000_password all             127.0.0.1/32            password
 host    all             all             127.0.0.1/32            trust
 }}}
 
-Install all the currently supported versions of PostgreSQL (including the
-hstore extension), and set the following environment variables for the
-databases, for example:
+Set the following environment variables for the databases, for example:
 
 {{{
 export PG8000_TEST_NAME="PG8000_TEST_9_3"
