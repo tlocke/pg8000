@@ -98,4 +98,17 @@ encoding is by using an SQL command. For example:
     >>> cur.fetchone()
     ['UTF8']
     >>> cur.close()
+
+JSON is sent to the server serialized, and returned de-serialized. Here's an
+example:
+
+.. code-block:: python
+
+    >>> import json
+    >>> cur = conn.cursor()
+    >>> val = ['Apollo 11 Cave', True, 26.003]
+    >>> cur.execute("SELECT cast(%s as json)", (json.dumps(val),))
+    >>> cur.fetchone()
+    [['Apollo 11 Cave', True, 26.003]]
+    >>> cur.close()
     >>> conn.close()

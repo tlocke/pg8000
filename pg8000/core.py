@@ -57,6 +57,12 @@ from calendar import timegm
 import os
 from distutils.version import LooseVersion
 
+try:
+    from json import loads
+except ImportError:
+    pass  # Can only use JSON with Python 2.6 and above
+
+
 ZERO = timedelta(0)
 
 
@@ -1085,6 +1091,10 @@ class Connection(object):
             def bool_recv(d, o, l):
                 return d[o] == "\x01"
 
+            def json_in(data, offset, length):
+                return loads(unicode(  # noqa
+                    data[offset: offset + length], self._client_encoding))
+
         else:
             def text_recv(data, offset, length):
                 return str(
@@ -1092,6 +1102,10 @@ class Connection(object):
 
             def bool_recv(data, offset, length):
                 return data[offset] == 1
+
+            def json_in(data, offset, length):
+                return loads(
+                    str(data[offset: offset + length], self._client_encoding))
 
         def time_in(data, offset, length):
             hour = int(data[offset:offset + 2])
@@ -1131,6 +1145,7 @@ class Connection(object):
                 25: (FC_BINARY, text_recv),  # TEXT type
                 26: (FC_TEXT, int_in),  # oid
                 28: (FC_TEXT, int_in),  # xid
+                114: (FC_TEXT, json_in),  # json
                 700: (FC_BINARY, float4_recv),  # float4
                 701: (FC_BINARY, float8_recv),  # float8
                 705: (FC_BINARY, text_recv),  # unknown
