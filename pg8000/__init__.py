@@ -481,10 +481,11 @@ __all__ = [
     ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError, utc,
     Connection, Cursor]
 
-from ._version import get_versions
-__version__ = get_versions()['version']
 """Version string for pg8000.
 
     .. versionadded:: 1.9.11
 """
+
+from ._version import get_versions
+__version__ = get_versions()['version']
 del get_versions
