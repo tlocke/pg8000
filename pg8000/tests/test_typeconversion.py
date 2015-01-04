@@ -648,5 +648,15 @@ class Tests(unittest.TestCase):
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], val)
 
+    def testJsonbRoundtrip(self):
+        if sys.version_info >= (2, 6) and \
+                self.db._server_version >= LooseVersion('9.4'):
+            import json
+            val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
+            self.cursor.execute(
+                "SELECT cast(%s as jsonb)", (json.dumps(val),))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], val)
+
 if __name__ == "__main__":
     unittest.main()

@@ -1172,6 +1172,7 @@ class Connection(object):
                 1700: (FC_TEXT, numeric_in),  # NUMERIC
                 2275: (FC_BINARY, text_recv),  # cstring
                 2950: (FC_BINARY, uuid_recv),  # uuid
+                3802: (FC_TEXT, json_in),  # jsonb
             })
 
         self.py_types = {
@@ -1544,21 +1545,17 @@ class Connection(object):
         count = h_unpack(data)[0]
         idx = 2
         for i in range(count):
-            field = {'name': data[idx:data.find(NULL_BYTE, idx)]}
-            idx += len(field['name']) + 1
-            field.update(
-                dict(zip((
-                    "table_oid", "column_attrnum", "type_oid",
-                    "type_size", "type_modifier", "format"),
-                    ihihih_unpack(data, idx))))
+            name = data[idx:data.find(NULL_BYTE, idx)]
+            idx += len(name) + 1
+            field = dict(
+                zip((
+                    "table_oid", "column_attrnum", "type_oid", "type_size",
+                    "type_modifier", "format"), ihihih_unpack(data, idx)))
+            field['name'] = name
             idx += 18
             cursor.ps['row_desc'].append(field)
-            try:
-                field['pg8000_fc'], field['func'] = self.pg_types[
-                    field['type_oid']]
-            except KeyError:
-                raise NotSupportedError(
-                    "type oid " + exc_info()[1] + " not supported")
+            field['pg8000_fc'], field['func'] = \
+                self.pg_types[field['type_oid']]
 
     def execute(self, cursor, operation, vals):
         if vals is None:

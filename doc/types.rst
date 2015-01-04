@@ -81,8 +81,8 @@ XML types.
 | list of :class:`int`           | int2vector      | Only from PostgreSQL to   |
 |                                |                 | Python                    |
 +--------------------------------+-----------------+---------------------------+
-| JSON                           | json            | JSON string as an SQL     |
+| JSON                           | json, jsonb     | JSON string as an SQL     |
 |                                |                 | parameter. Results        |
 |                                |                 | returned as de-serialized |
-|                                |                 | JSON.
+|                                |                 | JSON.                     |
 +--------------------------------+-----------------+---------------------------+
