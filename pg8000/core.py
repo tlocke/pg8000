@@ -1262,7 +1262,8 @@ class Connection(object):
         val.extend(user.encode("ascii") + NULL_BYTE)
         if database is not None:
             val.extend(
-                b("database\x00") + database.encode("ascii") + NULL_BYTE)
+                b("database\x00") + database.encode(self._client_encoding) +
+                NULL_BYTE)
         val.append(0)
         self._write(i_pack(len(val) + 4))
         self._write(val)
