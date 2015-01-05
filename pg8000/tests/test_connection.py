@@ -91,5 +91,30 @@ class Tests(unittest.TestCase):
             self.assertRaisesRegex(
                 pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
+    def testUnicodeDatabaseName(self):
+        data = db_connect.copy()
+        data["database"] = "pg8000_sn\uFF6Fw"
+
+        # Should only raise an exception saying db doesn't exist
+        if PY2:
+            self.assertRaises(
+                pg8000.ProgrammingError, pg8000.connect, **data)
+        else:
+            self.assertRaisesRegex(
+                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+
+    def testBytesDatabaseName(self):
+        data = db_connect.copy()
+
+        # Should only raise an exception saying db doesn't exist
+        if PY2:
+            data["database"] = "pg8000_sn\uFF6Fw"
+            self.assertRaises(
+                pg8000.ProgrammingError, pg8000.connect, **data)
+        else:
+            data["database"] = bytes("pg8000_sn\uFF6Fw", 'utf8')
+            self.assertRaisesRegex(
+                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+
 if __name__ == "__main__":
     unittest.main()

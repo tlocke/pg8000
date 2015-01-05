@@ -897,7 +897,7 @@ class Connection(object):
         return error
 
     def __init__(self, user, host, unix_sock, port, database, password, ssl):
-        self._client_encoding = "ascii"
+        self._client_encoding = "utf8"
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
             b("FETCH"), b("COPY"), b("SELECT"))
@@ -916,6 +916,9 @@ class Connection(object):
                         "were set.")
         else:
             self.user = user
+
+        if isinstance(self.user, text_type):
+            self.user = self.user.encode('utf8')
 
         self.password = password
         self.autocommit = False
@@ -1258,12 +1261,12 @@ class Connection(object):
         #   String - A parameter name (user, database, or options)
         #   String - Parameter value
         protocol = 196608
-        val = bytearray(i_pack(protocol) + b("user\x00"))
-        val.extend(user.encode("ascii") + NULL_BYTE)
+        val = bytearray(
+            i_pack(protocol) + b("user\x00") + self.user + NULL_BYTE)
         if database is not None:
-            val.extend(
-                b("database\x00") + database.encode(self._client_encoding) +
-                NULL_BYTE)
+            if isinstance(database, text_type):
+                database = database.encode('utf8')
+            val.extend(b("database\x00") + database + NULL_BYTE)
         val.append(0)
         self._write(i_pack(len(val) + 4))
         self._write(val)
@@ -1495,10 +1498,8 @@ class Connection(object):
                     "server requesting MD5 password authentication, but no "
                     "password was provided")
             pwd = b("md5") + md5(
-                md5(
-                    self.password.encode("ascii") +
-                    self.user.encode("ascii")).hexdigest().encode("ascii") +
-                salt).hexdigest().encode("ascii")
+                md5(self.password.encode("ascii") + self.user).
+                hexdigest().encode("ascii") + salt).hexdigest().encode("ascii")
             # Byte1('p') - Identifies the message as a password message.
             # Int32 - Message length including self.
             # String - The password.  Password may be encrypted.

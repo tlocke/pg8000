@@ -291,6 +291,10 @@ def connect(
         provided, pg8000 looks first for the PGUSER then the USER environment
         variables.
 
+        If your server character encoding is not ``ascii`` or ``utf8``, then
+        you need to provide ``user`` as bytes, eg.
+        ``"my_name".encode('EUC-JP')``.
+
     :keyword host:
         The hostname of the PostgreSQL server to connect with.  Providing this
         parameter is necessary for TCP/IP connections.  One of either ``host``
@@ -310,6 +314,10 @@ def connect(
         The name of the database instance to connect with.  This parameter is
         optional; if omitted, the PostgreSQL server will assume the database
         name is the same as the username.
+
+        If your server character encoding is not ``ascii`` or ``utf8``, then
+        you need to provide ``database`` as bytes, eg.
+        ``"my_db".encode('EUC-JP')``.
 
     :keyword password:
         The user password to connect to the server with.  This parameter is
