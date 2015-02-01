@@ -38,7 +38,7 @@ for fmt in (
 
 import datetime
 import time
-from pg8000.six import binary_type, integer_types, PY2
+from .six import binary_type, integer_types, PY2
 
 min_int2, max_int2 = -2 ** 15, 2 ** 15
 min_int4, max_int4 = -2 ** 31, 2 ** 31
@@ -274,7 +274,8 @@ class Interval(object):
     def __neq__(self, other):
         return not self.__eq__(other)
 
-import pg8000.core
+#import pg8000.core
+from .core import Connection
 
 
 def connect(
@@ -332,7 +333,7 @@ def connect(
     :rtype:
         A :class:`Connection` object.
     """
-    return pg8000.core.Connection(
+    return Connection(
         user, host, unix_sock, port, database, password, ssl)
 
 apilevel = "2.0"
@@ -480,7 +481,7 @@ def Binary(value):
         return value
 
 
-from pg8000.core import utc, Connection, Cursor
+from .core import utc, Cursor
 
 __all__ = [
     Warning, Bytea, DataError, DatabaseError, connect, InterfaceError,

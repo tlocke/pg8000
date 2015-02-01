@@ -29,7 +29,7 @@ __author__ = "Mathieu Fenniak"
 
 import datetime
 from datetime import timedelta
-from pg8000 import (
+from . import (
     Interval, min_int2, max_int2, min_int4, max_int4, min_int8, max_int8,
     Bytea, NotSupportedError, ProgrammingError, InternalError, IntegrityError,
     OperationalError, DatabaseError, InterfaceError, Error,
@@ -45,11 +45,11 @@ import threading
 from struct import pack
 from hashlib import md5
 from decimal import Decimal
-import pg8000
+#import pg8000
 from collections import deque, defaultdict
 from itertools import count, islice
-from pg8000.six.moves import map
-from pg8000.six import b, PY2, integer_types, next, PRE_26, text_type, u
+from .six.moves import map
+from .six import b, PY2, integer_types, next, PRE_26, text_type, u
 from sys import exc_info
 from uuid import UUID
 from copy import deepcopy
@@ -1202,7 +1202,7 @@ class Connection(object):
         }
 
         if PY2:
-            self.py_types[pg8000.Bytea] = (17, FC_BINARY, bytea_send)  # bytea
+            self.py_types[Bytea] = (17, FC_BINARY, bytea_send)  # bytea
             self.py_types[text_type] = (705, FC_TEXT, text_out)  # unknown
 
             self.py_types[long] = (705, FC_TEXT, unknown_out)  # noqa
@@ -1441,9 +1441,9 @@ class Connection(object):
             self._usock.close()
             self._sock = None
         except AttributeError:
-            raise pg8000.InterfaceError("connection is closed")
+            raise InterfaceError("connection is closed")
         except ValueError:
-            raise pg8000.InterfaceError("connection is closed")
+            raise InterfaceError("connection is closed")
 
     def close(self):
         """Closes the database connection.
@@ -1562,7 +1562,7 @@ class Connection(object):
     def execute(self, cursor, operation, vals):
         if vals is None:
             vals = ()
-        paramstyle = pg8000.paramstyle
+        from . import paramstyle
         cache = self._caches[paramstyle]
 
         try:
@@ -1714,11 +1714,11 @@ class Connection(object):
             self._write(FLUSH_MSG)
         except ValueError:
             if str(exc_info()[1]) == "write to closed file":
-                raise pg8000.InterfaceError("connection is closed")
+                raise InterfaceError("connection is closed")
             else:
                 raise exc_info()[1]
         except AttributeError:
-            raise pg8000.InterfaceError("connection is closed")
+            raise InterfaceError("connection is closed")
 
     def send_EXECUTE(self, cursor):
         # Byte1('E') - Identifies the message as an execute message.
