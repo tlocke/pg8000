@@ -274,7 +274,6 @@ class Interval(object):
     def __neq__(self, other):
         return not self.__eq__(other)
 
-#import pg8000.core
 from .core import Connection
 
 

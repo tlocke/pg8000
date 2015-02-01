@@ -45,7 +45,6 @@ import threading
 from struct import pack
 from hashlib import md5
 from decimal import Decimal
-#import pg8000
 from collections import deque, defaultdict
 from itertools import count, islice
 from .six.moves import map
