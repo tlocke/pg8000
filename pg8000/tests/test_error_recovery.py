@@ -4,7 +4,6 @@ from .connection_settings import db_connect
 import warnings
 import datetime
 from sys import exc_info
-from pg8000.six import b
 
 
 class TestException(Exception):
@@ -60,7 +59,7 @@ class Tests(unittest.TestCase):
             except pg8000.DatabaseError:
                 e = exc_info()[1]
                 # the only acceptable error is:
-                self.assertEqual(e.args[1], b('42P01'))  # table does not exist
+                self.assertEqual(e.args[1], '42P01')  # table does not exist
                 self.db.rollback()
 
     def testClosedConnection(self):

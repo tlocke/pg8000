@@ -26,7 +26,7 @@ class Tests(unittest.TestCase):
             except pg8000.DatabaseError:
                 e = exc_info()[1]
                 # the only acceptable error is:
-                self.assertEqual(e.args[1], b('42P01'))  # table does not exist
+                self.assertEqual(e.args[1], '42P01')  # table does not exist
                 self.db.rollback()
             c.execute(
                 "CREATE TEMPORARY TABLE t1 "

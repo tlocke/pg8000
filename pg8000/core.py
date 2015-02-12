@@ -776,14 +776,6 @@ IDLE_IN_TRANSACTION = b("T")
 IDLE_IN_FAILED_TRANSACTION = b("E")
 
 
-# Byte1('N') - Identifier
-# Int32 - Message length
-# Any number of these, followed by a zero byte:
-#   Byte1 - code identifying the field type (see responseKeys)
-#   String - field value
-def data_into_dict(data):
-    return dict((s[0:1], s[1:]) for s in data.split(NULL_BYTE))
-
 arr_trans = dict(zip(map(ord, u("[] 'u")), list(u('{}')) + [None] * 3))
 
 
@@ -1291,13 +1283,14 @@ class Connection(object):
         self.notifies_lock = threading.Lock()
 
     def handle_ERROR_RESPONSE(self, data, ps):
-        msg_dict = data_into_dict(data)
+        responses = tuple(
+            (s[0:1], s[1:].decode(self._client_encoding)) for s in
+            data.split(NULL_BYTE))
+        msg_dict = dict(responses)
         if msg_dict[RESPONSE_CODE] == "28000":
             self.error = InterfaceError("md5 password authentication failed")
         else:
-            self.error = ProgrammingError(
-                msg_dict[RESPONSE_SEVERITY], msg_dict[RESPONSE_CODE],
-                msg_dict[RESPONSE_MSG])
+            self.error = ProgrammingError(*tuple(v for k, v in responses))
 
     def handle_CLOSE_COMPLETE(self, data, ps):
         pass
@@ -1783,8 +1776,13 @@ class Connection(object):
         self._flush()
         self.handle_messages(cursor)
 
+    # Byte1('N') - Identifier
+    # Int32 - Message length
+    # Any number of these, followed by a zero byte:
+    #   Byte1 - code identifying the field type (see responseKeys)
+    #   String - field value
     def handle_NOTICE_RESPONSE(self, data, ps):
-        resp = data_into_dict(data)
+        resp = dict((s[0:1], s[1:]) for s in data.split(NULL_BYTE))
         self.NoticeReceived(resp)
 
     def handle_PARAMETER_STATUS(self, data, ps):

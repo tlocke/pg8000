@@ -2,7 +2,7 @@ import unittest
 import threading
 import pg8000
 from .connection_settings import db_connect
-from pg8000.six import u, b
+from pg8000.six import u
 from sys import exc_info
 import datetime
 from distutils.version import LooseVersion
@@ -25,7 +25,7 @@ class Tests(unittest.TestCase):
             except pg8000.DatabaseError:
                 e = exc_info()[1]
                 # the only acceptable error is:
-                self.assertEqual(e.args[1], b('42P01'))  # table does not exist
+                self.assertEqual(e.args[1], '42P01')  # table does not exist
                 self.db.rollback()
             cursor.execute(
                 "CREATE TEMPORARY TABLE t1 (f1 int primary key, "

@@ -1,7 +1,7 @@
 import unittest
 import pg8000
 from .connection_settings import db_connect
-from pg8000.six import b, BytesIO
+from pg8000.six import b, BytesIO, u, iteritems
 from sys import exc_info
 
 
@@ -17,7 +17,7 @@ class Tests(unittest.TestCase):
                 e = exc_info()[1]
                 # the only acceptable error is:
                 self.assertEqual(
-                    e.args[1], b('42P01'),  # table does not exist
+                    e.args[1], '42P01',  # table does not exist
                     "incorrect error for drop table")
                 self.db.rollback()
             cursor.execute(
@@ -88,6 +88,30 @@ class Tests(unittest.TestCase):
             retval = cursor.fetchall()
             self.assertEqual(retval, ([1, 1, None],))
             self.db.commit()
+        finally:
+            cursor.close()
+
+    def testCopyFromWithError(self):
+        try:
+            cursor = self.db.cursor()
+            stream = BytesIO(b("f1Xf2\n\n1XY1Y\n"))
+            cursor.execute(
+                "COPY t1 (f1, f2) FROM STDIN WITH DELIMITER 'X' CSV HEADER "
+                "QUOTE AS 'Y' FORCE NOT NULL f1", stream=stream)
+            self.assertTrue(False, "Should have raised an exception")
+        except:
+            args_dict = {
+                0: u('ERROR'),
+                1: u('22P02'),
+                2: u('invalid input syntax for integer: ""'),
+                3: u('COPY t1, line 2, column f1: ""'),
+                4: u('numutils.c'),
+                6: u('pg_atoi'),
+                7: u(''),
+                8: u('')}
+            args = exc_info()[1].args
+            for k, v in iteritems(args_dict):
+                self.assertEqual(args[k], v)
         finally:
             cursor.close()
 
