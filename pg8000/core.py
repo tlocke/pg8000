@@ -1,3 +1,24 @@
+import datetime
+from datetime import timedelta
+from warnings import warn
+import socket
+import threading
+from struct import pack
+from hashlib import md5
+from decimal import Decimal
+from collections import deque, defaultdict
+from itertools import count, islice
+from .six.moves import map
+from .six import b, PY2, integer_types, next, PRE_26, text_type, u, binary_type
+from sys import exc_info
+from uuid import UUID
+from copy import deepcopy
+from calendar import timegm
+import os
+from distutils.version import LooseVersion
+from struct import Struct
+import time
+
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # All rights reserved.
 #
@@ -27,34 +48,6 @@
 
 __author__ = "Mathieu Fenniak"
 
-import datetime
-from datetime import timedelta
-from . import (
-    Interval, min_int2, max_int2, min_int4, max_int4, min_int8, max_int8,
-    Bytea, NotSupportedError, ProgrammingError, InternalError, IntegrityError,
-    OperationalError, DatabaseError, InterfaceError, Error,
-    ArrayContentNotHomogenousError, ArrayContentEmptyError,
-    ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError, Warning,
-    i_unpack, ii_unpack, iii_unpack, h_pack, d_unpack, q_unpack, d_pack,
-    f_unpack, q_pack, i_pack, h_unpack, dii_unpack, qii_unpack, ci_unpack,
-    bh_unpack, ihihih_unpack, cccc_unpack, ii_pack, iii_pack, dii_pack,
-    qii_pack)
-from warnings import warn
-import socket
-import threading
-from struct import pack
-from hashlib import md5
-from decimal import Decimal
-from collections import deque, defaultdict
-from itertools import count, islice
-from .six.moves import map
-from .six import b, PY2, integer_types, next, PRE_26, text_type, u
-from sys import exc_info
-from uuid import UUID
-from copy import deepcopy
-from calendar import timegm
-import os
-from distutils.version import LooseVersion
 
 try:
     from json import loads
@@ -78,9 +71,353 @@ class UTC(datetime.tzinfo):
 
 utc = UTC()
 
+
+class Interval(object):
+    """An Interval represents a measurement of time.  In PostgreSQL, an interval
+    is defined in the measure of months, days, and microseconds; as such, the
+    pg8000 interval type represents the same information.
+
+    Note that values of the :attr:`microseconds`, :attr:`days` and
+    :attr:`months` properties are independently measured and cannot be
+    converted to each other.  A month may be 28, 29, 30, or 31 days, and a day
+    may occasionally be lengthened slightly by a leap second.
+
+    .. attribute:: microseconds
+
+        Measure of microseconds in the interval.
+
+        The microseconds value is constrained to fit into a signed 64-bit
+        integer.  Any attempt to set a value too large or too small will result
+        in an OverflowError being raised.
+
+    .. attribute:: days
+
+        Measure of days in the interval.
+
+        The days value is constrained to fit into a signed 32-bit integer.
+        Any attempt to set a value too large or too small will result in an
+        OverflowError being raised.
+
+    .. attribute:: months
+
+        Measure of months in the interval.
+
+        The months value is constrained to fit into a signed 32-bit integer.
+        Any attempt to set a value too large or too small will result in an
+        OverflowError being raised.
+    """
+
+    def __init__(self, microseconds=0, days=0, months=0):
+        self.microseconds = microseconds
+        self.days = days
+        self.months = months
+
+    def _setMicroseconds(self, value):
+        if not isinstance(value, integer_types):
+            raise TypeError("microseconds must be an integer type")
+        elif not (min_int8 < value < max_int8):
+            raise OverflowError(
+                "microseconds must be representable as a 64-bit integer")
+        else:
+            self._microseconds = value
+
+    def _setDays(self, value):
+        if not isinstance(value, integer_types):
+            raise TypeError("days must be an integer type")
+        elif not (min_int4 < value < max_int4):
+            raise OverflowError(
+                "days must be representable as a 32-bit integer")
+        else:
+            self._days = value
+
+    def _setMonths(self, value):
+        if not isinstance(value, integer_types):
+            raise TypeError("months must be an integer type")
+        elif not (min_int4 < value < max_int4):
+            raise OverflowError(
+                "months must be representable as a 32-bit integer")
+        else:
+            self._months = value
+
+    microseconds = property(lambda self: self._microseconds, _setMicroseconds)
+    days = property(lambda self: self._days, _setDays)
+    months = property(lambda self: self._months, _setMonths)
+
+    def __repr__(self):
+        return "<Interval %s months %s days %s microseconds>" % (
+            self.months, self.days, self.microseconds)
+
+    def __eq__(self, other):
+        return other is not None and isinstance(other, Interval) and \
+            self.months == other.months and self.days == other.days and \
+            self.microseconds == other.microseconds
+
+    def __neq__(self, other):
+        return not self.__eq__(other)
+
+
+def pack_funcs(fmt):
+    struc = Struct('!' + fmt)
+    return struc.pack, struc.unpack_from
+
+i_pack, i_unpack = pack_funcs('i')
+h_pack, h_unpack = pack_funcs('h')
+q_pack, q_unpack = pack_funcs('q')
+d_pack, d_unpack = pack_funcs('d')
+f_pack, f_unpack = pack_funcs('f')
+iii_pack, iii_unpack = pack_funcs('iii')
+ii_pack, ii_unpack = pack_funcs('ii')
+qii_pack, qii_unpack = pack_funcs('qii')
+dii_pack, dii_unpack = pack_funcs('dii')
+ihihih_pack, ihihih_unpack = pack_funcs('ihihih')
+ci_pack, ci_unpack = pack_funcs('ci')
+bh_pack, bh_unpack = pack_funcs('bh')
+cccc_pack, cccc_unpack = pack_funcs('cccc')
+
+
+Struct('!i')
+
+
+min_int2, max_int2 = -2 ** 15, 2 ** 15
+min_int4, max_int4 = -2 ** 31, 2 ** 31
+min_int8, max_int8 = -2 ** 63, 2 ** 63
+
+
+class Warning(Exception):
+    """Generic exception raised for important database warnings like data
+    truncations.  This exception is not currently used by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class Error(Exception):
+    """Generic exception that is the base exception of all other error
+    exceptions.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class InterfaceError(Error):
+    """Generic exception raised for errors that are related to the database
+    interface rather than the database itself.  For example, if the interface
+    attempts to use an SSL connection but the server refuses, an InterfaceError
+    will be raised.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class DatabaseError(Error):
+    """Generic exception raised for errors that are related to the database.
+    This exception is currently never raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class DataError(DatabaseError):
+    """Generic exception raised for errors that are due to problems with the
+    processed data.  This exception is not currently raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class OperationalError(DatabaseError):
+    """
+    Generic exception raised for errors that are related to the database's
+    operation and not necessarily under the control of the programmer. This
+    exception is currently never raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class IntegrityError(DatabaseError):
+    """
+    Generic exception raised when the relational integrity of the database is
+    affected.  This exception is not currently raised by pg8000.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class InternalError(DatabaseError):
+    """Generic exception raised when the database encounters an internal error.
+    This is currently only raised when unexpected state occurs in the pg8000
+    interface itself, and is typically the result of a interface bug.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class ProgrammingError(DatabaseError):
+    """Generic exception raised for programming errors.  For example, this
+    exception is raised if more parameter fields are in a query string than
+    there are available parameters.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class NotSupportedError(DatabaseError):
+    """Generic exception raised in case a method or database API was used which
+    is not supported by the database.
+
+    This exception is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+    """
+    pass
+
+
+class ArrayContentNotSupportedError(NotSupportedError):
+    """
+    Raised when attempting to transmit an array where the base type is not
+    supported for binary data transfer by the interface.
+    """
+    pass
+
+
+class ArrayContentNotHomogenousError(ProgrammingError):
+    """
+    Raised when attempting to transmit an array that doesn't contain only a
+    single type of object.
+    """
+    pass
+
+
+class ArrayContentEmptyError(ProgrammingError):
+    """Raised when attempting to transmit an empty array. The type oid of an
+    empty array cannot be determined, and so sending them is not permitted.
+    """
+    pass
+
+
+class ArrayDimensionsNotConsistentError(ProgrammingError):
+    """
+    Raised when attempting to transmit an array that has inconsistent
+    multi-dimension sizes.
+    """
+    pass
+
+
+class Bytea(binary_type):
+    """Bytea is a str-derived class that is mapped to a PostgreSQL byte array.
+    This class is only used in Python 2, the built-in ``bytes`` type is used in
+    Python 3.
+    """
+    pass
+
+
+def Date(year, month, day):
+    """Constuct an object holding a date value.
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.date`
+    """
+    return datetime.date(year, month, day)
+
+
+def Time(hour, minute, second):
+    """Construct an object holding a time value.
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.time`
+    """
+    return datetime.time(hour, minute, second)
+
+
+def Timestamp(year, month, day, hour, minute, second):
+    """Construct an object holding a timestamp value.
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.datetime`
+    """
+    return datetime.datetime(year, month, day, hour, minute, second)
+
+
+def DateFromTicks(ticks):
+    """Construct an object holding a date value from the given ticks value
+    (number of seconds since the epoch).
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.date`
+    """
+    return Date(*time.localtime(ticks)[:3])
+
+
+def TimeFromTicks(ticks):
+    """Construct an objet holding a time value from the given ticks value
+    (number of seconds since the epoch).
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.time`
+    """
+    return Time(*time.localtime(ticks)[3:6])
+
+
+def TimestampFromTicks(ticks):
+    """Construct an object holding a timestamp value from the given ticks value
+    (number of seconds since the epoch).
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`datetime.datetime`
+    """
+    return Timestamp(*time.localtime(ticks)[:6])
+
+
+def Binary(value):
+    """Construct an object holding binary data.
+
+    This function is part of the `DBAPI 2.0 specification
+    <http://www.python.org/dev/peps/pep-0249/>`_.
+
+    :rtype: :class:`pg8000.types.Bytea` for Python 2, otherwise :class:`bytes`
+    """
+    if PY2:
+        return Bytea(value)
+    else:
+        return value
+
 if PRE_26:
     bytearray = list
 
+if PY2:
+    BINARY = Bytea
+else:
+    BINARY = bytes
 
 FC_TEXT = 0
 FC_BINARY = 1
@@ -887,7 +1224,9 @@ class Connection(object):
             error.__name__, stacklevel=3)
         return error
 
-    def __init__(self, user, host, unix_sock, port, database, password, ssl):
+    def __init__(
+            self, user, host, unix_sock, port, database, password, ssl,
+            timeout):
         self._client_encoding = "utf8"
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
@@ -931,6 +1270,9 @@ class Connection(object):
             else:
                 raise ProgrammingError(
                     "one of host or unix_sock must be provided")
+            if not PY2 and timeout is not None:
+                self._usock.settimeout(timeout)
+
             if unix_sock is None and host is not None:
                 self._usock.connect((host, port))
             elif unix_sock is not None:
