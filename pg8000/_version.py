@@ -1,3 +1,8 @@
+import os
+import sys
+import re
+import subprocess
+import errno
 
 # This file helps to compute a version number in source trees obtained from
 # git-archive tarball (such as those provided by githubs download-from-tag
@@ -16,12 +21,6 @@ git_full = "$Format:%H$"
 tag_prefix = ""
 parentdir_prefix = "pg8000-"
 versionfile_source = "pg8000/_version.py"
-
-import os
-import sys
-import re
-import subprocess
-import errno
 
 
 def run_command(commands, args, cwd=None, verbose=False, hide_stderr=False):
@@ -190,6 +189,6 @@ def get_versions(default={"version": "unknown", "full": ""}, verbose=False):
     except NameError:
         return default
 
-    return (git_versions_from_vcs(tag_prefix, root, verbose)
-            or versions_from_parentdir(parentdir_prefix, root, verbose)
-            or default)
+    return (git_versions_from_vcs(tag_prefix, root, verbose) or
+            versions_from_parentdir(parentdir_prefix, root, verbose) or
+            default)

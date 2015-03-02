@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+import unittest
+import time
+import warnings
+from pg8000.six import b
 ''' Python DB API 2.0 driver compliance unit test suite.
 
     This software is Public Domain and may be used without restrictions.
@@ -15,10 +19,6 @@ __rcs_id__ = '$Id: dbapi20.py,v 1.10 2003/10/09 03:14:14 zenzen Exp $'
 __version__ = '$Revision: 1.10 $'[11:-2]
 __author__ = 'Stuart Bishop <zen@shangri-la.dropbear.id.au>'
 
-import unittest
-import time
-import warnings
-from pg8000.six import b
 
 # $Log: dbapi20.py,v $
 # Revision 1.10  2003/10/09 03:14:14  zenzen
