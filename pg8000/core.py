@@ -1074,6 +1074,7 @@ COPY_DONE = b("c")
 COPY_DATA = b("d")
 COPY_IN_RESPONSE = b("G")
 COPY_OUT_RESPONSE = b("H")
+EMPTY_QUERY_RESPONSE = b("I")
 
 BIND = b("B")
 PARSE = b("P")
@@ -1574,6 +1575,7 @@ class Connection(object):
             READY_FOR_QUERY: self.handle_READY_FOR_QUERY,
             ROW_DESCRIPTION: self.handle_ROW_DESCRIPTION,
             ERROR_RESPONSE: self.handle_ERROR_RESPONSE,
+            EMPTY_QUERY_RESPONSE: self.handle_EMPTY_QUERY_RESPONSE,
             DATA_ROW: self.handle_DATA_ROW,
             COMMAND_COMPLETE: self.handle_COMMAND_COMPLETE,
             PARSE_COMPLETE: self.handle_PARSE_COMPLETE,
@@ -1633,6 +1635,9 @@ class Connection(object):
             self.error = InterfaceError("md5 password authentication failed")
         else:
             self.error = ProgrammingError(*tuple(v for k, v in responses))
+
+    def handle_EMPTY_QUERY_RESPONSE(self, data, ps):
+        self.error = ProgrammingError("query was empty")
 
     def handle_CLOSE_COMPLETE(self, data, ps):
         pass

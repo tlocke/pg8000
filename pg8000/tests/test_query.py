@@ -356,5 +356,13 @@ class Tests(unittest.TestCase):
         finally:
             cursor.close()
 
+    # An empty query should raise a ProgrammingError
+    def test_empty_query(self):
+        try:
+            cursor = self.db.cursor()
+            self.assertRaises(pg8000.ProgrammingError, cursor.execute, "")
+        finally:
+            cursor.close()
+
 if __name__ == "__main__":
     unittest.main()
