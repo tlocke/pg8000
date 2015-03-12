@@ -116,5 +116,20 @@ class Tests(unittest.TestCase):
             self.assertRaisesRegex(
                 pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
+    def testBrokenPipe(self):
+        db1 = pg8000.connect(**db_connect)
+        db2 = pg8000.connect(**db_connect)
+
+        cur1 = db1.cursor()
+        cur2 = db2.cursor()
+
+        cur1.execute("select pg_backend_pid()")
+        pid1 = cur1.fetchone()[0]
+
+        cur2.execute("select pg_terminate_backend(%s)", (pid1,))
+        self.assertRaises(pg8000.OperationalError, cur1.execute, "select 1")
+        cur2.close()
+        db2.close()
+
 if __name__ == "__main__":
     unittest.main()

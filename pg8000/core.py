@@ -1777,12 +1777,15 @@ class Connection(object):
             self._write(TERMINATE_MSG)
             self._flush()
             self._sock.close()
-            self._usock.close()
-            self._sock = None
         except AttributeError:
             raise InterfaceError("connection is closed")
         except ValueError:
             raise InterfaceError("connection is closed")
+        except socket.error:
+            raise OperationalError(str(exc_info()[1]))
+        finally:
+            self._usock.close()
+            self._sock = None
 
     def close(self):
         """Closes the database connection.
