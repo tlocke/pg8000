@@ -1,6 +1,38 @@
 Release Notes
 =============
 
+Version 1.10.2, 2015-03-17
+--------------------------
+- If there's a socket exception thrown when communicating with the database,
+  it is now wrapped in an OperationalError exception, to conform to the DB-API
+  spec.
+
+- Previously, pg8000 didn't recognize the EmptyQueryResponse (that the server
+  sends back if the SQL query is an empty string) now we raise a
+  ProgrammingError exception.
+
+- Added socket timeout option for Python 3.
+
+- If the server returns an error, we used to initialize the ProgramerException
+  with just the first three fields of the error. Now we initialize the
+  ProgrammerException with all the fields.
+
+- Use relative imports inside package.
+
+- User and database names given as bytes. The user and database parameters of
+  the connect() function are now passed directly as bytes to the server. If the
+  type of the parameter is unicode, pg8000 converts it to bytes using the uft8
+  encoding.
+
+- Added support for JSON and JSONB Postgres types. We take the approach of
+  taking serialized JSON (str) as an SQL parameter, but returning results as
+  de-serialized JSON (Python objects). See the example in the Quickstart.
+
+- Added CircleCI continuous integration.
+
+- String support in arrays now allow letters like "u", braces and whitespace.
+
+
 Version 1.10.1, 2014-09-15
 --------------------------
 - Add support for the Wheel package format.

@@ -77,7 +77,7 @@ There's a stress test that is run by doing:
 python ./multi
 }}}
 
-The idea is to set {{{shared_buffers}} in postgresql.conf to 128kB, and then
+The idea is to set {{{shared_buffers}}} in postgresql.conf to 128kB, and then
 run the stress test, and you should get {{{no unpinned buffers}}} errors.
 
 =Building The Documentation
@@ -100,7 +100,7 @@ and the docs will appear in {{{build/sphinx/html}}}.
 =Doing A Release Of pg8000
 
 Run {{{tox}}} and {{{run_25}}} to make sure all tests pass, then update
-{{{doc/release_notes.rst}} then do:
+{{{doc/release_notes.rst}}} then do:
 
 {{{
 git tag -a x.y.z -m "Version x.y.z"
