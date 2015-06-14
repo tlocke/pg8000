@@ -1,11 +1,6 @@
 #!/usr/bin/env python
 
 import versioneer
-versioneer.VCS = 'git'
-versioneer.versionfile_source = 'pg8000/_version.py'
-versioneer.versionfile_build = 'pg8000/_version.py'
-versioneer.tag_prefix = ''
-versioneer.parentdir_prefix = 'pg8000-'
 from setuptools import setup
 
 long_description = """\
@@ -24,6 +19,7 @@ pg8000's name comes from the belief that it is probably about the 8000th \
 PostgreSQL interface for Python."""
 
 cmdclass = dict(versioneer.get_cmdclass())
+version = versioneer.get_version()
 
 try:
     from sphinx.setup_command import BuildDoc
@@ -31,43 +27,41 @@ try:
 except ImportError:
     pass
 
-version=versioneer.get_version()
-
 setup(
-        name="pg8000",
-        version=version,
-        cmdclass=cmdclass,
-        description="PostgreSQL interface library",
-        long_description=long_description,
-        author="Mathieu Fenniak",
-        author_email="biziqe@mathieu.fenniak.net",
-        url="https://github.com/mfenniak/pg8000",
-        license="BSD",
-        classifiers = [
-            "Development Status :: 4 - Beta",
-            "Intended Audience :: Developers",
-            "License :: OSI Approved :: BSD License",
-            "Programming Language :: Python",
-            "Programming Language :: Python :: 2",
-            "Programming Language :: Python :: 2.5",
-            "Programming Language :: Python :: 2.6",
-            "Programming Language :: Python :: 2.7",
-            "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.2",
-            "Programming Language :: Python :: 3.3",
-            "Programming Language :: Python :: 3.4",
-            "Programming Language :: Python :: Implementation",
-            "Programming Language :: Python :: Implementation :: CPython",
-            "Programming Language :: Python :: Implementation :: Jython",
-            "Programming Language :: Python :: Implementation :: PyPy",
-            "Operating System :: OS Independent",
-            "Topic :: Database :: Front-Ends",
-            "Topic :: Software Development :: Libraries :: Python Modules",
-        ],
-        keywords="postgresql dbapi",
-        packages = ("pg8000",),
-        command_options={
-            'build_sphinx': {
-                'version': ('setup.py', version),
-                'release': ('setup.py', version)}},
-    )
+    name="pg8000",
+    version=version,
+    cmdclass=cmdclass,
+    description="PostgreSQL interface library",
+    long_description=long_description,
+    author="Mathieu Fenniak",
+    author_email="biziqe@mathieu.fenniak.net",
+    url="https://github.com/mfenniak/pg8000",
+    license="BSD",
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: BSD License",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 2",
+        "Programming Language :: Python :: 2.5",
+        "Programming Language :: Python :: 2.6",
+        "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.2",
+        "Programming Language :: Python :: 3.3",
+        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: Implementation",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Programming Language :: Python :: Implementation :: Jython",
+        "Programming Language :: Python :: Implementation :: PyPy",
+        "Operating System :: OS Independent",
+        "Topic :: Database :: Front-Ends",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+    ],
+    keywords="postgresql dbapi",
+    packages=("pg8000",),
+    command_options={
+        'build_sphinx': {
+            'version': ('setup.py', version),
+            'release': ('setup.py', version)}},
+)
