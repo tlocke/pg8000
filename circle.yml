@@ -1,6 +1,6 @@
 machine:
   environment:
-    PG8000_TEST_NAME: PG8000_TEST_9_3
+    PG8000_TEST_NAME: PG8000_TEST_9_4
     PG8000_TEST_9_0: "{\"user\": \"postgres\", \"password\": \"pw\", \"port\": 5490}"
     PG8000_TEST_9_1: "{\"user\": \"postgres\", \"password\": \"pw\", \"port\": 5491}"
     PG8000_TEST_9_2: "{\"user\": \"postgres\", \"password\": \"pw\", \"port\": 5492}"
