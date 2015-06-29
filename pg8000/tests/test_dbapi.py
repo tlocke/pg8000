@@ -5,7 +5,7 @@ import pg8000
 import datetime
 from .connection_settings import db_connect
 from sys import exc_info
-from pg8000.six import b, IS_JYTHON
+from pg8000.six import b
 from distutils.version import LooseVersion
 
 
@@ -13,10 +13,14 @@ from distutils.version import LooseVersion
 class Tests(unittest.TestCase):
     def setUp(self):
         self.db = pg8000.connect(**db_connect)
-        # Jython 2.5.3 doesn't have a time.tzset() so skip
-        if not IS_JYTHON:
+
+        # Neither Windows nor Jython 2.5.3 have a time.tzset() so skip
+        if hasattr(time, 'tzset'):
             os.environ['TZ'] = "UTC"
             time.tzset()
+            self.HAS_TZSET = True
+        else:
+            self.HAS_TZSET = False
 
         try:
             c = self.db.cursor()
@@ -182,25 +186,19 @@ class Tests(unittest.TestCase):
         self.assertEqual(val, datetime.datetime(2001, 2, 3, 4, 5, 6))
 
     def testDateFromTicks(self):
-        if IS_JYTHON:
-            return
-
-        val = pg8000.DateFromTicks(1173804319)
-        self.assertEqual(val, datetime.date(2007, 3, 13))
+        if self.HAS_TZSET:
+            val = pg8000.DateFromTicks(1173804319)
+            self.assertEqual(val, datetime.date(2007, 3, 13))
 
     def testTimeFromTicks(self):
-        if IS_JYTHON:
-            return
-
-        val = pg8000.TimeFromTicks(1173804319)
-        self.assertEqual(val, datetime.time(16, 45, 19))
+        if self.HAS_TZSET:
+            val = pg8000.TimeFromTicks(1173804319)
+            self.assertEqual(val, datetime.time(16, 45, 19))
 
     def testTimestampFromTicks(self):
-        if IS_JYTHON:
-            return
-
-        val = pg8000.TimestampFromTicks(1173804319)
-        self.assertEqual(val, datetime.datetime(2007, 3, 13, 16, 45, 19))
+        if self.HAS_TZSET:
+            val = pg8000.TimestampFromTicks(1173804319)
+            self.assertEqual(val, datetime.datetime(2007, 3, 13, 16, 45, 19))
 
     def testBinary(self):
         v = pg8000.Binary(b("\x00\x01\x02\x03\x02\x01\x00"))
