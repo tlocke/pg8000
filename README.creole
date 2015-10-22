@@ -46,11 +46,10 @@ Set the following environment variables for the databases, for example:
 
 {{{
 export PG8000_TEST_NAME="PG8000_TEST_9_4"
-export PG8000_TEST_9_0="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
-export PG8000_TEST_9_1="{'user': 'postgres', 'password': 'pw', 'port': 5433}"
+export PG8000_TEST_9_1="{'user': 'postgres', 'password': 'pw', 'port': 5435}"
 export PG8000_TEST_9_2="{'user': 'postgres', 'password': 'pw', 'port': 5434}"
-export PG8000_TEST_9_3="{'user': 'postgres', 'password': 'pw', 'port': 5435}"
-export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5436}"
+export PG8000_TEST_9_3="{'user': 'postgres', 'password': 'pw', 'port': 5433}"
+export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
 }}}
 
 then run {{{tox}}} from the {{{pg8000}}} directory:
