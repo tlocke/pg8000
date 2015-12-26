@@ -636,7 +636,7 @@ def timestamp_send_integer(v):
 
 # data is double-precision float representing seconds since 2000-01-01
 def timestamp_send_float(v):
-    return d_pack(timegm(v.timetuple) + v.microsecond / 1e6 - EPOCH_SECONDS)
+    return d_pack(timegm(v.timetuple()) + v.microsecond / 1e6 - EPOCH_SECONDS)
 
 
 def timestamptz_send_integer(v):
