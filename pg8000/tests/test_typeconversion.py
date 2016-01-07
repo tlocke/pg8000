@@ -659,7 +659,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(retval[0][0], val)
 
     def test_timestamp_send_float(self):
-        assert b'A\xbe\x19\xcf\x80\x00\x00\x00' == \
+        assert b('A\xbe\x19\xcf\x80\x00\x00\x00') == \
             pg8000.core.timestamp_send_float(
                 datetime.datetime(2016, 1, 2, 0, 0))
 
