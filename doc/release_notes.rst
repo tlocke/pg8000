@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+Version 1.10.3, 2016-01-07
+--------------------------
+- Removed testing for PostgreSQL 9.0 as it's not longer supported by the
+  PostgreSQL Global Development Group.
+- Fixed bug where pg8000 would fail with datetimes if PostgreSQL was compiled
+  with the integer_datetimes option set to 'off'. The bug was in the
+  timestamp_send_float function.
+
+
 Version 1.10.2, 2015-03-17
 --------------------------
 - If there's a socket exception thrown when communicating with the database,
