@@ -18,7 +18,6 @@ dependencies:
     - pgsql-9.4.0
     - pgsql-9.5.1
     - py-2.7.9
-    - py-3.2.5
     - py-3.3.5
     - py-3.4.2
     - py-3.5.1
@@ -33,8 +32,6 @@ dependencies:
     - bash ./circleci/install-postgresql-9.4.0.sh
     - bash ./circleci/install-postgresql-9.5.1.sh
     - bash ./circleci/install-python-2.7.9.sh
-    - bash ./circleci/install-python-3.2.5.sh
-    - bash ./circleci/install-python-3.3.5.sh
     - bash ./circleci/install-python-3.4.2.sh
     - bash ./circleci/install-python-3.5.1.sh
     - bash ./circleci/install-pypy-2.4.0.sh

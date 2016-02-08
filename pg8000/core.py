@@ -8,8 +8,8 @@ from hashlib import md5
 from decimal import Decimal
 from collections import deque, defaultdict
 from itertools import count, islice
-from .six.moves import map
-from .six import b, PY2, integer_types, next, text_type, u, binary_type
+from six.moves import map
+from six import b, PY2, integer_types, next, text_type, u, binary_type
 from sys import exc_info
 from uuid import UUID
 from copy import deepcopy

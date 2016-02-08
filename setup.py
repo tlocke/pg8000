@@ -37,6 +37,9 @@ setup(
     author_email="biziqe@mathieu.fenniak.net",
     url="https://github.com/mfenniak/pg8000",
     license="BSD",
+    install_requires = [
+        "six",
+    ],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
