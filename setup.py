@@ -38,7 +38,7 @@ setup(
     url="https://github.com/mfenniak/pg8000",
     license="BSD",
     install_requires = [
-        "six",
+        "six>=1.10.0",
     ],
     classifiers=[
         "Development Status :: 4 - Beta",
