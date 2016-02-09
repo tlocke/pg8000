@@ -1,7 +1,7 @@
 import unittest
 import pg8000
 from pg8000.tests.connection_settings import db_connect
-from pg8000.six import PY2
+from six import PY2
 import sys
 
 
