@@ -2,7 +2,7 @@ import unittest
 import threading
 import pg8000
 from .connection_settings import db_connect
-from pg8000.six import u
+from six import u
 from sys import exc_info
 import datetime
 from distutils.version import LooseVersion
