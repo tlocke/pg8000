@@ -4,7 +4,7 @@ Quick Start
 Key Points
 ----------
 
-- Runs on Python version 2.5, 2.6, 2.7, 3.2, 3.3, 3.4 and 3.5
+- Runs on Python version 2.6, 2.7, 3.2, 3.3, 3.4 and 3.5
 - Runs on CPython, Jython and PyPy
 - Although it's possible for threads to share cursors and connections, for
   performance reasons it's best to use one thread per connection.
