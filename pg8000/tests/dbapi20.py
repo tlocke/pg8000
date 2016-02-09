@@ -2,7 +2,7 @@
 import unittest
 import time
 import warnings
-from pg8000.six import b
+from six import b
 ''' Python DB API 2.0 driver compliance unit test suite.
 
     This software is Public Domain and may be used without restrictions.
