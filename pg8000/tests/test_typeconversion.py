@@ -4,7 +4,7 @@ import datetime
 import decimal
 import struct
 from .connection_settings import db_connect
-from pg8000.six import b, IS_JYTHON, text_type, PY2
+from six import b, IS_JYTHON, text_type, PY2
 import uuid
 import os
 import time
