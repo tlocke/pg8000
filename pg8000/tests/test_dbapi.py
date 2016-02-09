@@ -5,7 +5,7 @@ import pg8000
 import datetime
 from .connection_settings import db_connect
 from sys import exc_info
-from pg8000.six import b
+from six import b
 from distutils.version import LooseVersion
 
 
