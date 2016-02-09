@@ -4,13 +4,14 @@ import datetime
 import decimal
 import struct
 from .connection_settings import db_connect
-from six import b, IS_JYTHON, text_type, PY2
+from six import b, text_type, PY2
 import uuid
 import os
 import time
 from distutils.version import LooseVersion
 import sys
 
+IS_JYTHON = sys.platform.lower().count('java') > 0
 
 if not IS_JYTHON:
     import pytz
