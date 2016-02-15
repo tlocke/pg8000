@@ -9,7 +9,7 @@ from decimal import Decimal
 from collections import deque, defaultdict
 from itertools import count, islice
 from .six.moves import map
-from .six import b, PY2, integer_types, next, PRE_26, text_type, u, binary_type
+from .six import b, PY2, integer_types, next, text_type, u, binary_type
 from sys import exc_info
 from uuid import UUID
 from copy import deepcopy
@@ -73,9 +73,9 @@ utc = UTC()
 
 
 class Interval(object):
-    """An Interval represents a measurement of time.  In PostgreSQL, an interval
-    is defined in the measure of months, days, and microseconds; as such, the
-    pg8000 interval type represents the same information.
+    """An Interval represents a measurement of time.  In PostgreSQL, an
+    interval is defined in the measure of months, days, and microseconds; as
+    such, the pg8000 interval type represents the same information.
 
     Note that values of the :attr:`microseconds`, :attr:`days` and
     :attr:`months` properties are independently measured and cannot be
@@ -410,9 +410,6 @@ def Binary(value):
         return Bytea(value)
     else:
         return value
-
-if PRE_26:
-    bytearray = list
 
 if PY2:
     BINARY = Bytea
@@ -1304,11 +1301,7 @@ class Connection(object):
             raise InterfaceError("communication error", exc_info()[1])
         self._flush = self._sock.flush
         self._read = self._sock.read
-
-        if PRE_26:
-            self._write = self._sock.writelines
-        else:
-            self._write = self._sock.write
+        self._write = self._sock.write
         self._backend_key_data = None
 
         ##
@@ -1617,8 +1610,12 @@ class Connection(object):
             if self.error is not None:
                 raise self.error
         except:
-            self._close()
-            raise
+            e = exc_info()[1]
+            try:
+                self._close()
+            except Exception:
+                pass
+            raise e
         finally:
             self._lock.release()
 
@@ -1781,8 +1778,8 @@ class Connection(object):
             raise InterfaceError("connection is closed")
         except ValueError:
             raise InterfaceError("connection is closed")
-        except socket.error:
-            raise OperationalError(str(exc_info()[1]))
+        except socket.error as e:
+            raise OperationalError(str(e))
         finally:
             self._usock.close()
             self._sock = None
@@ -1965,6 +1962,8 @@ class Connection(object):
                     raise InterfaceError("connection is closed")
                 else:
                     raise exc_info()[1]
+            except socket.error as e:
+                raise OperationalError(str(e))
 
             self.handle_messages(cursor)
 

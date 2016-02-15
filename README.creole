@@ -45,10 +45,11 @@ host    all             all             127.0.0.1/32            trust
 Set the following environment variables for the databases, for example:
 
 {{{
-export PG8000_TEST_NAME="PG8000_TEST_9_4"
+export PG8000_TEST_NAME="PG8000_TEST_9_5"
 export PG8000_TEST_9_1="{'user': 'postgres', 'password': 'pw', 'port': 5435}"
 export PG8000_TEST_9_2="{'user': 'postgres', 'password': 'pw', 'port': 5434}"
 export PG8000_TEST_9_3="{'user': 'postgres', 'password': 'pw', 'port': 5433}"
+export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
 export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
 }}}
 
@@ -58,8 +59,6 @@ then run {{{tox}}} from the {{{pg8000}}} directory:
 tox
 }}}
 
-Unfortunately, {{{tox}}} doesn't support Python 2.5, so to test CPython 2.5 and
-Jython 2.5, run the {{{run_25}}} script.
 
 ==Performance Tests
 

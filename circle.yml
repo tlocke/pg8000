@@ -1,47 +1,46 @@
 machine:
   environment:
-    PG8000_TEST_NAME: PG8000_TEST_9_4
-    PG8000_TEST_9_0: "{\"user\": \"postgres\", \"password\": \"pw\", \"port\": 5490}"
+    PG8000_TEST_NAME: PG8000_TEST_9_5
     PG8000_TEST_9_1: "{\"user\": \"postgres\", \"password\": \"pw\", \"port\": 5491}"
     PG8000_TEST_9_2: "{\"user\": \"postgres\", \"password\": \"pw\", \"port\": 5492}"
     PG8000_TEST_9_3: "{\"user\": \"postgres\", \"password\": \"pw\", \"port\": 5493}"
     PG8000_TEST_9_4: "{\"user\": \"postgres\", \"password\": \"pw\", \"port\": 5494}"
+    PG8000_TEST_9_5: "{\"user\": \"postgres\", \"password\": \"pw\", \"port\": 5495}"
+
+  java:
+    version: openjdk7
 
 dependencies:
   cache_directories:
-    - pgsql-9.0.18
     - pgsql-9.1.14
     - pgsql-9.2.9
     - pgsql-9.3.5
     - pgsql-9.4.0
-    - py-2.5.6
-    - py-2.6.9
+    - pgsql-9.5.1
     - py-2.7.9
     - py-3.2.5
     - py-3.3.5
     - py-3.4.2
+    - py-3.5.1
     - pypy-2.4.0-linux64
     - pypy3-2.3.1-linux64
-    - jython-2.5.3
+    - jython-2.7.0
   pre:
     - sudo apt-get install libossp-uuid-dev libssl-dev
-    - bash ./circleci/install-postgresql-9.0.18.sh
     - bash ./circleci/install-postgresql-9.1.14.sh
     - bash ./circleci/install-postgresql-9.2.9.sh
     - bash ./circleci/install-postgresql-9.3.5.sh
     - bash ./circleci/install-postgresql-9.4.0.sh
-    - bash ./circleci/install-python-2.5.6.sh
-    - bash ./circleci/install-python-2.6.9.sh
+    - bash ./circleci/install-postgresql-9.5.1.sh
     - bash ./circleci/install-python-2.7.9.sh
     - bash ./circleci/install-python-3.2.5.sh
     - bash ./circleci/install-python-3.3.5.sh
     - bash ./circleci/install-python-3.4.2.sh
+    - bash ./circleci/install-python-3.5.1.sh
     - bash ./circleci/install-pypy-2.4.0.sh
     - bash ./circleci/install-pypy3-2.3.1.sh
-    - bash ./circleci/install-jython-2.5.3.sh
+    - bash ./circleci/install-jython-2.7.0.sh
   post:
-    - ./pgsql-9.0.18/bin/postgres -D `pwd`/pgsql-9.0.18/data -p 5490:
-        background: true
     - ./pgsql-9.1.14/bin/postgres -D `pwd`/pgsql-9.1.14/data -p 5491:
         background: true
     - ./pgsql-9.2.9/bin/postgres -D `pwd`/pgsql-9.2.9/data -p 5492:
@@ -50,8 +49,9 @@ dependencies:
         background: true
     - ./pgsql-9.4.0/bin/postgres -D `pwd`/pgsql-9.4.0/data -p 5494:
         background: true
+    - ./pgsql-9.5.1/bin/postgres -D `pwd`/pgsql-9.5.1/data -p 5495:
+        background: true
 
 test:
   override:
     - tox
-    - ./run_25

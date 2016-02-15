@@ -1,7 +1,54 @@
 import unittest
 import pg8000
 from pg8000.tests.connection_settings import db_connect
-from pg8000.six import PY2, PRE_26
+from pg8000.six import PY2
+import sys
+
+
+# Check if running in Jython
+if 'java' in sys.platform:
+    from javax.net.ssl import TrustManager, X509TrustManager
+    from jarray import array
+    from javax.net.ssl import SSLContext
+
+    class TrustAllX509TrustManager(X509TrustManager):
+        '''Define a custom TrustManager which will blindly accept all
+        certificates'''
+
+        def checkClientTrusted(self, chain, auth):
+            pass
+
+        def checkServerTrusted(self, chain, auth):
+            pass
+
+        def getAcceptedIssuers(self):
+            return None
+    # Create a static reference to an SSLContext which will use
+    # our custom TrustManager
+    trust_managers = array([TrustAllX509TrustManager()], TrustManager)
+    TRUST_ALL_CONTEXT = SSLContext.getInstance("SSL")
+    TRUST_ALL_CONTEXT.init(None, trust_managers, None)
+    # Keep a static reference to the JVM's default SSLContext for restoring
+    # at a later time
+    DEFAULT_CONTEXT = SSLContext.getDefault()
+
+
+def trust_all_certificates(f):
+    '''Decorator function that will make it so the context of the decorated
+    method will run with our TrustManager that accepts all certificates'''
+    def wrapped(*args, **kwargs):
+        # Only do this if running under Jython
+        if 'java' in sys.platform:
+            from javax.net.ssl import SSLContext
+            SSLContext.setDefault(TRUST_ALL_CONTEXT)
+            try:
+                res = f(*args, **kwargs)
+                return res
+            finally:
+                SSLContext.setDefault(DEFAULT_CONTEXT)
+        else:
+            return f(*args, **kwargs)
+    return wrapped
 
 
 # Tests related to connecting to a database.
@@ -10,8 +57,6 @@ class Tests(unittest.TestCase):
         conn_params = {
             'unix_sock': "/file-does-not-exist",
             'user': "doesn't-matter"}
-        if 'use_cache' in db_connect:
-            conn_params['use_cache'] = db_connect['use_cache']
         self.assertRaises(pg8000.InterfaceError, pg8000.connect, **conn_params)
 
     def testDatabaseMissing(self):
@@ -67,14 +112,12 @@ class Tests(unittest.TestCase):
                 "Authentication method 7 not supported by pg8000.",
                 pg8000.connect, **data)
 
+    @trust_all_certificates
     def testSsl(self):
         data = db_connect.copy()
         data["ssl"] = True
-        if PRE_26:
-            self.assertRaises(pg8000.InterfaceError, pg8000.connect, **data)
-        else:
-            db = pg8000.connect(**data)
-            db.close()
+        db = pg8000.connect(**data)
+        db.close()
 
     # This requires a line in pg_hba.conf that requires 'password' for the
     # database pg8000_password
