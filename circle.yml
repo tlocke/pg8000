@@ -27,10 +27,10 @@ dependencies:
     - jython-2.7.0
   pre:
     - sudo apt-get install libossp-uuid-dev libssl-dev
-    - bash ./circleci/install-postgresql-9.1.14.sh
-    - bash ./circleci/install-postgresql-9.2.9.sh
-    - bash ./circleci/install-postgresql-9.3.5.sh
-    - bash ./circleci/install-postgresql-9.4.0.sh
+    - bash ./circleci/install-postgresql-9.1.20.sh
+    - bash ./circleci/install-postgresql-9.2.15.sh
+    - bash ./circleci/install-postgresql-9.3.11.sh
+    - bash ./circleci/install-postgresql-9.4.6.sh
     - bash ./circleci/install-postgresql-9.5.1.sh
     - bash ./circleci/install-python-2.7.9.sh
     - bash ./circleci/install-python-3.3.5.sh
@@ -40,13 +40,13 @@ dependencies:
     - bash ./circleci/install-pypy3-2.3.1.sh
     - bash ./circleci/install-jython-2.7.0.sh
   post:
-    - ./pgsql-9.1.14/bin/postgres -D `pwd`/pgsql-9.1.14/data -p 5491:
+    - ./pgsql-9.1.20/bin/postgres -D `pwd`/pgsql-9.1.20/data -p 5491:
         background: true
-    - ./pgsql-9.2.9/bin/postgres -D `pwd`/pgsql-9.2.9/data -p 5492:
+    - ./pgsql-9.2.15/bin/postgres -D `pwd`/pgsql-9.2.15/data -p 5492:
         background: true
-    - ./pgsql-9.3.5/bin/postgres -D `pwd`/pgsql-9.3.5/data -p 5493:
+    - ./pgsql-9.3.11/bin/postgres -D `pwd`/pgsql-9.3.11/data -p 5493:
         background: true
-    - ./pgsql-9.4.0/bin/postgres -D `pwd`/pgsql-9.4.0/data -p 5494:
+    - ./pgsql-9.4.6/bin/postgres -D `pwd`/pgsql-9.4.6/data -p 5494:
         background: true
     - ./pgsql-9.5.1/bin/postgres -D `pwd`/pgsql-9.5.1/data -p 5495:
         background: true
