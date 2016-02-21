@@ -1510,7 +1510,6 @@ class Connection(object):
             bool: (16, FC_BINARY, bool_send),
             int: (705, FC_TEXT, unknown_out),
             float: (701, FC_BINARY, d_pack),  # float8
-            str: (705, FC_TEXT, text_out),  # unknown
             datetime.date: (1082, FC_TEXT, date_out),  # date
             datetime.time: (1083, FC_TEXT, time_out),  # time
             1114: (1114, FC_BINARY, timestamp_send_integer),  # timestamp
@@ -1531,10 +1530,12 @@ class Connection(object):
         if PY2:
             self.py_types[Bytea] = (17, FC_BINARY, bytea_send)  # bytea
             self.py_types[text_type] = (705, FC_TEXT, text_out)  # unknown
+            self.py_types[str] = (705, FC_TEXT, bytea_send)  # unknown
 
             self.py_types[long] = (705, FC_TEXT, unknown_out)  # noqa
         else:
             self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
+            self.py_types[str] = (705, FC_TEXT, text_out)  # unknown
 
         try:
             from ipaddress import (

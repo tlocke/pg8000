@@ -4,12 +4,14 @@ import datetime
 import decimal
 import struct
 from .connection_settings import db_connect
-from six import b, text_type, PY2
+from six import b, PY2, u
 import uuid
 import os
 import time
 from distutils.version import LooseVersion
 import sys
+import json
+
 
 IS_JYTHON = sys.platform.lower().count('java') > 0
 
@@ -95,13 +97,14 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 
-    def testUnicodeRoundtrip(self):
-        self.cursor.execute(
-            "SELECT cast(%s as varchar) as f1", ("hello \u0173 world",))
-        retval = self.cursor.fetchall()
-        self.assertEqual(retval[0][0], "hello \u0173 world")
+        if PY2:
+            v = "hello \xce\x94 world"
+            self.cursor.execute("SELECT cast(%s as varchar) as f1", (v,))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], v.decode('utf8'))
 
-        v = text_type("hello \u0173 world")
+    def testUnicodeRoundtrip(self):
+        v = u("hello \u0173 world")
         self.cursor.execute("SELECT cast(%s as varchar) as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
@@ -640,9 +643,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], val)
 
     def testJsonRoundtrip(self):
-        if sys.version_info >= (2, 6) and \
-                self.db._server_version >= LooseVersion('9.2'):
-            import json
+        if self.db._server_version >= LooseVersion('9.2'):
             val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
             self.cursor.execute(
                 "SELECT cast(%s as json)", (json.dumps(val),))
@@ -650,9 +651,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(retval[0][0], val)
 
     def testJsonbRoundtrip(self):
-        if sys.version_info >= (2, 6) and \
-                self.db._server_version >= LooseVersion('9.4'):
-            import json
+        if self.db._server_version >= LooseVersion('9.4'):
             val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
             self.cursor.execute(
                 "SELECT cast(%s as jsonb)", (json.dumps(val),))
