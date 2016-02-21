@@ -18,6 +18,7 @@ import os
 from distutils.version import LooseVersion
 from struct import Struct
 import time
+import pg8000
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # All rights reserved.
@@ -1881,7 +1882,7 @@ class Connection(object):
                     raise NotSupportedError(
                         "type " + str(exc_info()[1]) +
                         "not mapped to pg type")
-        return params
+        return tuple(params)
 
     def handle_ROW_DESCRIPTION(self, data, cursor):
         count = h_unpack(data)[0]
@@ -1902,7 +1903,7 @@ class Connection(object):
     def execute(self, cursor, operation, vals):
         if vals is None:
             vals = ()
-        from . import paramstyle
+        paramstyle = pg8000.paramstyle
         cache = self._caches[paramstyle]
 
         try:
@@ -1913,8 +1914,7 @@ class Connection(object):
 
         args = make_args(vals)
         params = self.make_params(args)
-
-        key = tuple(oid for oid, x, y in params), operation
+        key = operation, params
 
         try:
             ps = cache['ps'][key]

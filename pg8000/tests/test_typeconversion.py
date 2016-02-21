@@ -103,6 +103,17 @@ class Tests(unittest.TestCase):
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], v.decode('utf8'))
 
+    def test_str_then_int(self):
+        v1 = "hello world"
+        self.cursor.execute("SELECT cast(%s as varchar) as f1", (v1,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v1)
+
+        v2 = 1
+        self.cursor.execute("SELECT cast(%s as varchar) as f1", (v2,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], str(v2))
+
     def testUnicodeRoundtrip(self):
         v = u("hello \u0173 world")
         self.cursor.execute("SELECT cast(%s as varchar) as f1", (v,))
