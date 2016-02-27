@@ -1,6 +1,28 @@
 Release Notes
 =============
 
+Version 1.10.4, 2016-02-27
+--------------------------
+- Fixed bug where if a str is sent as a query parameter, and then with the same
+  cursor an int is sent instead of a string, for the same query, then it fails.
+
+- Under Python 2, a str type is now sent 'as is', ie. as a byte string rather
+  than trying to decode and send according to the client encoding. Under Python
+  2 it's recommended to send text as unicode() objects.
+
+- Dropped and added support for Python versions. Now pg8000 supports
+  Python 2.7+ and Python 3.3+. 
+
+- Dropped and added support for PostgreSQL versions. Now pg8000 supports
+  PostgreSQL 9.1+.
+
+- pg8000 uses the 'six' library for making the same code run on both Python 2
+  and Python 3. We used to include it as a file in the pg8000 source code. Now
+  we have it as a separate dependency that's installed with 'pip install'. The
+  reason for doing this is that package maintainers for OS distributions
+  prefer unbundled libaries.
+
+
 Version 1.10.3, 2016-01-07
 --------------------------
 - Removed testing for PostgreSQL 9.0 as it's not longer supported by the
