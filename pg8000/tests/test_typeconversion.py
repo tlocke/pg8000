@@ -11,12 +11,9 @@ import time
 from distutils.version import LooseVersion
 import sys
 import json
-
+import pytz
 
 IS_JYTHON = sys.platform.lower().count('java') > 0
-
-if not IS_JYTHON:
-    import pytz
 
 
 # Type conversion tests
