@@ -1,3 +1,4 @@
 include README.creole
 include versioneer.py
 include pg8000/_version.py
+include doc/*
