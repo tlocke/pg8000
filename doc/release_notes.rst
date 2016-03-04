@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+Version 1.10.5, 2016-03-04
+--------------------------
+- Include LICENCE text and sources for docs in the source distribution (the
+  tarball).
+
+
 Version 1.10.4, 2016-02-27
 --------------------------
 - Fixed bug where if a str is sent as a query parameter, and then with the same
