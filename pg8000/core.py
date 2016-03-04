@@ -10,7 +10,6 @@ from collections import deque, defaultdict
 from itertools import count, islice
 from six.moves import map
 from six import b, PY2, integer_types, next, text_type, u, binary_type
-from sys import exc_info
 from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
@@ -606,13 +605,13 @@ def timestamp_recv_integer(data, offset, length):
     micros = q_unpack(data, offset)[0]
     try:
         return EPOCH + timedelta(microseconds=micros)
-    except OverflowError:
+    except OverflowError as e:
         if micros == INFINITY_MICROSECONDS:
             return datetime.datetime.max
         elif micros == MINUS_INFINITY_MICROSECONDS:
             return datetime.datetime.min
         else:
-            raise exc_info()[1]
+            raise e
 
 
 # data is double-precision float representing seconds since 2000-01-01
@@ -660,13 +659,13 @@ def timestamptz_recv_integer(data, offset, length):
     micros = q_unpack(data, offset)[0]
     try:
         return EPOCH_TZ + timedelta(microseconds=micros)
-    except OverflowError:
+    except OverflowError as e:
         if micros == INFINITY_MICROSECONDS:
             return DATETIME_MAX_TZ
         elif micros == MINUS_INFINITY_MICROSECONDS:
             return DATETIME_MIN_TZ
         else:
-            raise exc_info()[1]
+            raise e
 
 
 def timestamptz_recv_float(data, offset, length):
@@ -900,21 +899,19 @@ class Cursor():
             .. versionadded:: 1.9.11
         """
         try:
-            self._c._lock.acquire()
-            self.stream = stream
+            with self._c._lock:
+                self.stream = stream
 
-            if not self._c.in_transaction and not self._c.autocommit:
-                self._c.execute(self, "begin transaction", None)
-            self._c.execute(self, operation, args)
-        except AttributeError:
+                if not self._c.in_transaction and not self._c.autocommit:
+                    self._c.execute(self, "begin transaction", None)
+                self._c.execute(self, operation, args)
+        except AttributeError as e:
             if self._c is None:
                 raise InterfaceError("Cursor closed")
             elif self._c._sock is None:
                 raise InterfaceError("connection is closed")
             else:
-                raise exc_info()[1]
-        finally:
-            self._c._lock.release()
+                raise e
 
     def executemany(self, operation, param_sets):
         """Prepare a database operation, and then execute it against all
@@ -1025,28 +1022,26 @@ class Cursor():
         pass
 
     def __next__(self):
-        try:
-            self._c._lock.acquire()
-            return self._cached_rows.popleft()
-        except IndexError:
-            if self.portal_suspended:
-                self._c.send_EXECUTE(self)
-                self._c._write(SYNC_MSG)
-                self._c._flush()
-                self._c.handle_messages(self)
-                if not self.portal_suspended:
-                    self._c.close_portal(self)
+        with self._c._lock:
             try:
                 return self._cached_rows.popleft()
             except IndexError:
-                if self.ps is None:
-                    raise ProgrammingError("A query hasn't been issued.")
-                elif len(self.ps['row_desc']) == 0:
-                    raise ProgrammingError("no result set")
-                else:
-                    raise StopIteration()
-        finally:
-            self._c._lock.release()
+                if self.portal_suspended:
+                    self._c.send_EXECUTE(self)
+                    self._c._write(SYNC_MSG)
+                    self._c._flush()
+                    self._c.handle_messages(self)
+                    if not self.portal_suspended:
+                        self._c.close_portal(self)
+                try:
+                    return self._cached_rows.popleft()
+                except IndexError:
+                    if self.ps is None:
+                        raise ProgrammingError("A query hasn't been issued.")
+                    elif len(self.ps['row_desc']) == 0:
+                        raise ProgrammingError("no result set")
+                    else:
+                        raise StopIteration()
 
 if PY2:
     Cursor.next = Cursor.__next__
@@ -1278,28 +1273,26 @@ class Connection(object):
                 self._usock.connect(unix_sock)
 
             if ssl:
-                try:
-                    self._lock.acquire()
-                    import ssl as sslmodule
-                    # Int32(8) - Message length, including self.
-                    # Int32(80877103) - The SSL request code.
-                    self._usock.sendall(ii_pack(8, 80877103))
-                    resp = self._usock.recv(1)
-                    if resp == b('S'):
-                        self._usock = sslmodule.wrap_socket(self._usock)
-                    else:
-                        raise InterfaceError("Server refuses SSL")
-                except ImportError:
-                    raise InterfaceError(
-                        "SSL required but ssl module not available in "
-                        "this python installation")
-                finally:
-                    self._lock.release()
+                with self._lock:
+                    try:
+                        import ssl as sslmodule
+                        # Int32(8) - Message length, including self.
+                        # Int32(80877103) - The SSL request code.
+                        self._usock.sendall(ii_pack(8, 80877103))
+                        resp = self._usock.recv(1)
+                        if resp == b('S'):
+                            self._usock = sslmodule.wrap_socket(self._usock)
+                        else:
+                            raise InterfaceError("Server refuses SSL")
+                    except ImportError:
+                        raise InterfaceError(
+                            "SSL required but ssl module not available in "
+                            "this python installation")
 
             self._sock = self._usock.makefile(mode="rwb")
-        except socket.error:
+        except socket.error as e:
             self._usock.close()
-            raise InterfaceError("communication error", exc_info()[1])
+            raise InterfaceError("communication error", e)
         self._flush = self._sock.flush
         self._read = self._sock.read
         self._write = self._sock.write
@@ -1603,23 +1596,20 @@ class Connection(object):
         self._flush()
 
         self._cursor = self.cursor()
-        try:
-            self._lock.acquire()
-            code = self.error = None
-            while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
-                code, data_len = ci_unpack(self._read(5))
-                self.message_types[code](self._read(data_len - 4), None)
-            if self.error is not None:
-                raise self.error
-        except:
-            e = exc_info()[1]
+        with self._lock:
             try:
-                self._close()
-            except Exception:
-                pass
-            raise e
-        finally:
-            self._lock.release()
+                code = self.error = None
+                while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
+                    code, data_len = ci_unpack(self._read(5))
+                    self.message_types[code](self._read(data_len - 4), None)
+                if self.error is not None:
+                    raise self.error
+            except Exception as e:
+                try:
+                    self._close()
+                except Exception:
+                    pass
+                raise e
 
         self.in_transaction = False
         self.notifies = []
@@ -1730,11 +1720,8 @@ class Connection(object):
         # additional_info = data[idx:idx + null]
 
         # psycopg2 compatible notification interface
-        try:
-            self.notifies_lock.acquire()
+        with self.notifies_lock:
             self.notifies.append((backend_pid, condition))
-        finally:
-            self.notifies_lock.release()
 
     def cursor(self):
         """Creates a :class:`Cursor` object bound to this
@@ -1751,11 +1738,8 @@ class Connection(object):
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
-        try:
-            self._lock.acquire()
+        with self._lock:
             self.execute(self._cursor, "commit", None)
-        finally:
-            self._lock.release()
 
     def rollback(self):
         """Rolls back the current database transaction.
@@ -1763,11 +1747,8 @@ class Connection(object):
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
-        try:
-            self._lock.acquire()
+        with self._lock:
             self.execute(self._cursor, "rollback", None)
-        finally:
-            self._lock.release()
 
     def _close(self):
         try:
@@ -1792,11 +1773,8 @@ class Connection(object):
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
-        try:
-            self._lock.acquire()
+        with self._lock:
             self._close()
-        finally:
-            self._lock.release()
 
     def handle_AUTHENTICATION_REQUEST(self, data, cursor):
         assert self._lock.locked()
@@ -1878,10 +1856,9 @@ class Connection(object):
             except KeyError:
                 try:
                     params.append(self.inspect_funcs[typ](value))
-                except KeyError:
+                except KeyError as e:
                     raise NotSupportedError(
-                        "type " + str(exc_info()[1]) +
-                        "not mapped to pg type")
+                        "type " + str(e) + "not mapped to pg type")
         return tuple(params)
 
     def handle_ROW_DESCRIPTION(self, data, cursor):
@@ -1958,11 +1935,11 @@ class Connection(object):
 
             try:
                 self._flush()
-            except AttributeError:
+            except AttributeError as e:
                 if self._sock is None:
                     raise InterfaceError("connection is closed")
                 else:
-                    raise exc_info()[1]
+                    raise e
             except socket.error as e:
                 raise OperationalError(str(e))
 
@@ -2054,11 +2031,11 @@ class Connection(object):
             self._write(i_pack(len(data) + 4))
             self._write(data)
             self._write(FLUSH_MSG)
-        except ValueError:
-            if str(exc_info()[1]) == "write to closed file":
+        except ValueError as e:
+            if str(e) == "write to closed file":
                 raise InterfaceError("connection is closed")
             else:
-                raise exc_info()[1]
+                raise e
         except AttributeError:
             raise InterfaceError("connection is closed")
 
