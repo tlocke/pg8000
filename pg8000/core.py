@@ -1220,7 +1220,7 @@ class Connection(object):
 
     def __init__(
             self, user, host, unix_sock, port, database, password, ssl,
-            timeout):
+            timeout, application_name):
         self._client_encoding = "utf8"
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
@@ -1590,6 +1590,10 @@ class Connection(object):
             if isinstance(database, text_type):
                 database = database.encode('utf8')
             val.extend(b("database\x00") + database + NULL_BYTE)
+        if application_name is not None:
+            if isinstance(application_name, text_type):
+                application_name = application_name.encode('utf8')
+            val.extend(b("application_name\x00") + application_name + NULL_BYTE)
         val.append(0)
         self._write(i_pack(len(val) + 4))
         self._write(val)
