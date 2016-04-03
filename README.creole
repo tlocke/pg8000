@@ -11,7 +11,7 @@ CircleCI [[https://circleci.com/gh/mfenniak/pg8000|Build Status]]:
 
 Links:
 
-* [[http://pythonhosted.org/pg8000/|User Docs]].
+* [[http://pythonhosted.org/pg8000/|User Docs]]
 * [[https://groups.google.com/forum/#!forum/pg8000|Forum]]
 * [[https://github.com/mfenniak/pg8000|Code, bugs, feature requests etc.]]
 
@@ -25,9 +25,9 @@ pip install tox
 
 then install all the supported Python versions (using the
 [[https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes|APT Repository]] if
-you're using Ubuntu. Install all the currently supported versions of PostgreSQL
+you're using Ubuntu). Install all the currently supported versions of PostgreSQL
 (using the [[http://wiki.postgresql.org/wiki/Apt|APT Repository]] if you're
-using Ubuntu. Then for each of them, enable the hstore extension by running the
+using Ubuntu). Then for each of them, enable the hstore extension by running the
 SQL command:
 
 {{{
@@ -103,6 +103,6 @@ Run {{{tox}}} to make sure all tests pass, then update
 {{{doc/release_notes.rst}}} then do:
 
 {{{
-git tag -a x.y.z -m "Version x.y.z"
+git tag -a x.y.z -m "version x.y.z"
 python setup.py register sdist bdist_wheel upload build_sphinx upload_docs
 }}}
