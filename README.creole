@@ -4,8 +4,7 @@ pg8000 is a pure-[[http://www.python.org/|Python]]
 [[http://www.postgresql.org/|PostgreSQL]] driver that complies with
 [[http://www.python.org/dev/peps/pep-0249/|DB-API 2.0]]. The driver
 communicates with the database using the
-[[http://www.postgresql.org/docs/current/static/protocol.html|PostgreSQL
-Backend / Frontend Protocol]].
+[[http://www.postgresql.org/docs/current/static/protocol.html|PostgreSQL Frontend/Backend Protocol]].
 
 CircleCI [[https://circleci.com/gh/mfenniak/pg8000|Build Status]]:
  {{https://circleci.com/gh/mfenniak/pg8000.png?style=badge|CircleCI}}
