@@ -51,7 +51,7 @@ export PG8000_TEST_9_1="{'user': 'postgres', 'password': 'pw', 'port': 5435}"
 export PG8000_TEST_9_2="{'user': 'postgres', 'password': 'pw', 'port': 5434}"
 export PG8000_TEST_9_3="{'user': 'postgres', 'password': 'pw', 'port': 5433}"
 export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
-export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
+export PG8000_TEST_9_5="{'user': 'postgres', 'password': 'pw', 'port': 5431}"
 }}}
 
 then run {{{tox}}} from the {{{pg8000}}} directory:
