@@ -1244,7 +1244,11 @@ class Connection(object):
         if isinstance(self.user, text_type):
             self.user = self.user.encode('utf8')
 
-        self.password = password
+        if isinstance(password, text_type):
+            self.password = password.encode('utf8')
+        else:
+            self.password = password
+
         self.autocommit = False
         self._xid = None
 
@@ -1783,7 +1787,7 @@ class Connection(object):
         #               0 = AuthenticationOk
         #               5 = MD5 pwd
         #               2 = Kerberos v5 (not supported by pg8000)
-        #               3 = Cleartext pwd (not supported by pg8000)
+        #               3 = Cleartext pwd
         #               4 = crypt() pwd (not supported by pg8000)
         #               6 = SCM credential (not supported by pg8000)
         #               7 = GSSAPI (not supported by pg8000)
@@ -1801,7 +1805,7 @@ class Connection(object):
                     "server requesting password authentication, but no "
                     "password was provided")
             self._send_message(
-                PASSWORD, self.password.encode("ascii") + NULL_BYTE)
+                PASSWORD, self.password + NULL_BYTE)
             self._flush()
         elif auth_code == 5:
             ##
@@ -1817,8 +1821,8 @@ class Connection(object):
                     "server requesting MD5 password authentication, but no "
                     "password was provided")
             pwd = b("md5") + md5(
-                md5(self.password.encode("ascii") + self.user).
-                hexdigest().encode("ascii") + salt).hexdigest().encode("ascii")
+                md5(self.password + self.user).hexdigest().encode("ascii") +
+                salt).hexdigest().encode("ascii")
             # Byte1('p') - Identifies the message as a password message.
             # Int32 - Message length including self.
             # String - The password.  Password may be encrypted.

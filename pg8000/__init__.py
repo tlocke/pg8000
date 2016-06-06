@@ -87,6 +87,10 @@ def connect(
         authentication, the connection will fail to open.  If this parameter
         is provided but not requested by the server, no error will occur.
 
+        If your server character encoding is not ``ascii`` or ``utf8``, then
+        you need to provide ``user`` as bytes, eg.
+        ``"my_name".encode('EUC-JP')``.
+
     :keyword ssl:
         Use SSL encryption for TCP/IP sockets if ``True``.  Defaults to
         ``False``.
