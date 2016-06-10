@@ -13,7 +13,6 @@ from six import b, PY2, integer_types, next, text_type, u, binary_type
 from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
-import os
 from distutils.version import LooseVersion
 from struct import Struct
 import time
@@ -1228,21 +1227,13 @@ class Connection(object):
         self._lock = threading.Lock()
 
         if user is None:
-            try:
-                self.user = os.environ['PGUSER']
-            except KeyError:
-                try:
-                    self.user = os.environ['USER']
-                except KeyError:
-                    raise InterfaceError(
-                        "The 'user' connection parameter was omitted, and "
-                        "neither the PGUSER or USER environment variables "
-                        "were set.")
+            raise InterfaceError(
+                "The 'user' connection parameter cannot be None")
+
+        if isinstance(user, text_type):
+            self.user = user.encode('utf8')
         else:
             self.user = user
-
-        if isinstance(self.user, text_type):
-            self.user = self.user.encode('utf8')
 
         if isinstance(password, text_type):
             self.password = password.encode('utf8')
@@ -1804,8 +1795,7 @@ class Connection(object):
                 raise InterfaceError(
                     "server requesting password authentication, but no "
                     "password was provided")
-            self._send_message(
-                PASSWORD, self.password + NULL_BYTE)
+            self._send_message(PASSWORD, self.password + NULL_BYTE)
             self._flush()
         elif auth_code == 5:
             ##

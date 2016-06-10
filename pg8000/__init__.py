@@ -49,9 +49,7 @@ def connect(
     function are not defined by the specification.
 
     :param user:
-        The username to connect to the PostgreSQL server with. If this is not
-        provided, pg8000 looks first for the PGUSER then the USER environment
-        variables.
+        The username to connect to the PostgreSQL server with.
 
         If your server character encoding is not ``ascii`` or ``utf8``, then
         you need to provide ``user`` as bytes, eg.
@@ -89,7 +87,7 @@ def connect(
 
         If your server character encoding is not ``ascii`` or ``utf8``, then
         you need to provide ``user`` as bytes, eg.
-        ``"my_name".encode('EUC-JP')``.
+        ``"my_password".encode('EUC-JP')``.
 
     :keyword ssl:
         Use SSL encryption for TCP/IP sockets if ``True``.  Defaults to
