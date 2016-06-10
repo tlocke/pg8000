@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+Version 1.10.6, 2016-06-10
+--------------------------
+- Fixed a problem where we weren't handling the password connection parameter
+  correctly. Now it's handled in the same way as the 'user' and 'database'
+  parameters, ie. if the password is bytes, then pass it straight through to the
+  database, if it's a string then encode it with utf8.
+
+- It used to be that if the 'user' parameter to the connection function was
+  'None', then pg8000 would try and look at environment variables to find a
+  username. Now we just go by the 'user' parameter only, and give an error if
+  it's None.
+
+
 Version 1.10.5, 2016-03-04
 --------------------------
 - Include LICENCE text and sources for docs in the source distribution (the
