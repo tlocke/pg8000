@@ -6,10 +6,11 @@ import threading
 from struct import pack
 from hashlib import md5
 from decimal import Decimal
-from collections import deque, defaultdict
+from collections import deque, defaultdict, OrderedDict
 from itertools import count, islice
 from six.moves import map
-from six import b, PY2, integer_types, next, text_type, u, binary_type
+from six import (
+    b, PY2, integer_types, next, text_type, u, binary_type, itervalues)
 from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
@@ -1606,14 +1607,14 @@ class Connection(object):
         self.notifies_lock = threading.Lock()
 
     def handle_ERROR_RESPONSE(self, data, ps):
-        responses = tuple(
-            (s[0:1], s[1:].decode(self._client_encoding)) for s in
-            data.split(NULL_BYTE))
-        msg_dict = dict(responses)
-        if msg_dict[RESPONSE_CODE] == "28000":
-            self.error = InterfaceError("md5 password authentication failed")
+        msg = OrderedDict(
+            (s[:1], s[1:].decode(self._client_encoding)) for s in
+            data.split(NULL_BYTE) if s != b(''))
+        exc_args = itervalues(msg)
+        if msg[RESPONSE_CODE] == "28000":
+            self.error = InterfaceError(*exc_args)
         else:
-            self.error = ProgrammingError(*tuple(v for k, v in responses))
+            self.error = ProgrammingError(*exc_args)
 
     def handle_EMPTY_QUERY_RESPONSE(self, data, ps):
         self.error = ProgrammingError("query was empty")

@@ -165,6 +165,13 @@ class Tests(unittest.TestCase):
         username = 'boltzmann'
         password = u('cha\uFF6Fs')
         cur = db.cursor()
+
+        # Delete user if left over from previous run
+        try:
+            cur.execute("drop role " + username)
+        except pg8000.ProgrammingError:
+            cur.execute("rollback")
+
         cur.execute(
             "create user " + username + " with password '" + password + "';")
         cur.execute('commit;')
@@ -186,19 +193,6 @@ class Tests(unittest.TestCase):
         cur.execute("drop role " + username)
         cur.execute("commit;")
         db.close()
-        '''
-        data = db_connect.copy()
-
-        # Should only raise an exception saying db doesn't exist
-        if PY2:
-            data["database"] = "pg8000_sn\uFF6Fw"
-            self.assertRaises(
-                pg8000.ProgrammingError, pg8000.connect, **data)
-        else:
-            data["database"] = bytes("pg8000_sn\uFF6Fw", 'utf8')
-            self.assertRaisesRegex(
-                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
-        '''
 
     def testBrokenPipe(self):
         db1 = pg8000.connect(**db_connect)
