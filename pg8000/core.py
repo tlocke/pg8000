@@ -17,6 +17,7 @@ from distutils.version import LooseVersion
 from struct import Struct
 import time
 import pg8000
+from json import loads
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # All rights reserved.
@@ -46,12 +47,6 @@ import pg8000
 # POSSIBILITY OF SUCH DAMAGE.
 
 __author__ = "Mathieu Fenniak"
-
-
-try:
-    from json import loads
-except ImportError:
-    pass  # Can only use JSON with Python 2.6 and above
 
 
 ZERO = timedelta(0)
