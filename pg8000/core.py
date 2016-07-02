@@ -1739,6 +1739,8 @@ class Connection(object):
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
         with self._lock:
+            if not self.in_transaction:
+                return
             self.execute(self._cursor, "rollback", None)
 
     def _close(self):
