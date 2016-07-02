@@ -106,9 +106,7 @@ class Tests(unittest.TestCase):
                 2: u('invalid input syntax for integer: ""'),
                 3: u('COPY t1, line 2, column f1: ""'),
                 4: u('numutils.c'),
-                6: u('pg_atoi'),
-                7: u(''),
-                8: u('')}
+                6: u('pg_atoi')}
             args = exc_info()[1].args
             for k, v in iteritems(args_dict):
                 self.assertEqual(args[k], v)

@@ -6,18 +6,19 @@ import threading
 from struct import pack
 from hashlib import md5
 from decimal import Decimal
-from collections import deque, defaultdict
+from collections import deque, defaultdict, OrderedDict
 from itertools import count, islice
 from six.moves import map
-from six import b, PY2, integer_types, next, text_type, u, binary_type
+from six import (
+    b, PY2, integer_types, next, text_type, u, binary_type, itervalues)
 from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
-import os
 from distutils.version import LooseVersion
 from struct import Struct
 import time
 import pg8000
+from json import loads
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # All rights reserved.
@@ -47,12 +48,6 @@ import pg8000
 # POSSIBILITY OF SUCH DAMAGE.
 
 __author__ = "Mathieu Fenniak"
-
-
-try:
-    from json import loads
-except ImportError:
-    pass  # Can only use JSON with Python 2.6 and above
 
 
 ZERO = timedelta(0)
@@ -1228,23 +1223,19 @@ class Connection(object):
         self._lock = threading.Lock()
 
         if user is None:
-            try:
-                self.user = os.environ['PGUSER']
-            except KeyError:
-                try:
-                    self.user = os.environ['USER']
-                except KeyError:
-                    raise InterfaceError(
-                        "The 'user' connection parameter was omitted, and "
-                        "neither the PGUSER or USER environment variables "
-                        "were set.")
+            raise InterfaceError(
+                "The 'user' connection parameter cannot be None")
+
+        if isinstance(user, text_type):
+            self.user = user.encode('utf8')
         else:
             self.user = user
 
-        if isinstance(self.user, text_type):
-            self.user = self.user.encode('utf8')
+        if isinstance(password, text_type):
+            self.password = password.encode('utf8')
+        else:
+            self.password = password
 
-        self.password = password
         self.autocommit = False
         self._xid = None
 
@@ -1620,14 +1611,14 @@ class Connection(object):
         self.notifies_lock = threading.Lock()
 
     def handle_ERROR_RESPONSE(self, data, ps):
-        responses = tuple(
-            (s[0:1], s[1:].decode(self._client_encoding)) for s in
-            data.split(NULL_BYTE))
-        msg_dict = dict(responses)
-        if msg_dict[RESPONSE_CODE] == "28000":
-            self.error = InterfaceError("md5 password authentication failed")
+        msg = OrderedDict(
+            (s[:1], s[1:].decode(self._client_encoding)) for s in
+            data.split(NULL_BYTE) if s != b(''))
+        exc_args = itervalues(msg)
+        if msg[RESPONSE_CODE] == "28000":
+            self.error = InterfaceError(*exc_args)
         else:
-            self.error = ProgrammingError(*tuple(v for k, v in responses))
+            self.error = ProgrammingError(*exc_args)
 
     def handle_EMPTY_QUERY_RESPONSE(self, data, ps):
         self.error = ProgrammingError("query was empty")
@@ -1787,7 +1778,7 @@ class Connection(object):
         #               0 = AuthenticationOk
         #               5 = MD5 pwd
         #               2 = Kerberos v5 (not supported by pg8000)
-        #               3 = Cleartext pwd (not supported by pg8000)
+        #               3 = Cleartext pwd
         #               4 = crypt() pwd (not supported by pg8000)
         #               6 = SCM credential (not supported by pg8000)
         #               7 = GSSAPI (not supported by pg8000)
@@ -1804,8 +1795,7 @@ class Connection(object):
                 raise InterfaceError(
                     "server requesting password authentication, but no "
                     "password was provided")
-            self._send_message(
-                PASSWORD, self.password.encode("ascii") + NULL_BYTE)
+            self._send_message(PASSWORD, self.password + NULL_BYTE)
             self._flush()
         elif auth_code == 5:
             ##
@@ -1821,8 +1811,8 @@ class Connection(object):
                     "server requesting MD5 password authentication, but no "
                     "password was provided")
             pwd = b("md5") + md5(
-                md5(self.password.encode("ascii") + self.user).
-                hexdigest().encode("ascii") + salt).hexdigest().encode("ascii")
+                md5(self.password + self.user).hexdigest().encode("ascii") +
+                salt).hexdigest().encode("ascii")
             # Byte1('p') - Identifies the message as a password message.
             # Int32 - Message length including self.
             # String - The password.  Password may be encrypted.

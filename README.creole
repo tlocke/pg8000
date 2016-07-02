@@ -4,15 +4,14 @@ pg8000 is a pure-[[http://www.python.org/|Python]]
 [[http://www.postgresql.org/|PostgreSQL]] driver that complies with
 [[http://www.python.org/dev/peps/pep-0249/|DB-API 2.0]]. The driver
 communicates with the database using the
-[[http://www.postgresql.org/docs/current/static/protocol.html|PostgreSQL
-Backend / Frontend Protocol]].
+[[http://www.postgresql.org/docs/current/static/protocol.html|PostgreSQL Frontend/Backend Protocol]].
 
 CircleCI [[https://circleci.com/gh/mfenniak/pg8000|Build Status]]:
  {{https://circleci.com/gh/mfenniak/pg8000.png?style=badge|CircleCI}}
 
 Links:
 
-* [[http://pythonhosted.org/pg8000/|User Docs]].
+* [[http://pythonhosted.org/pg8000/|User Docs]]
 * [[https://groups.google.com/forum/#!forum/pg8000|Forum]]
 * [[https://github.com/mfenniak/pg8000|Code, bugs, feature requests etc.]]
 
@@ -26,9 +25,9 @@ pip install tox
 
 then install all the supported Python versions (using the
 [[https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes|APT Repository]] if
-you're using Ubuntu. Install all the currently supported versions of PostgreSQL
+you're using Ubuntu). Install all the currently supported versions of PostgreSQL
 (using the [[http://wiki.postgresql.org/wiki/Apt|APT Repository]] if you're
-using Ubuntu. Then for each of them, enable the hstore extension by running the
+using Ubuntu). Then for each of them, enable the hstore extension by running the
 SQL command:
 
 {{{
@@ -52,7 +51,7 @@ export PG8000_TEST_9_1="{'user': 'postgres', 'password': 'pw', 'port': 5435}"
 export PG8000_TEST_9_2="{'user': 'postgres', 'password': 'pw', 'port': 5434}"
 export PG8000_TEST_9_3="{'user': 'postgres', 'password': 'pw', 'port': 5433}"
 export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
-export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
+export PG8000_TEST_9_5="{'user': 'postgres', 'password': 'pw', 'port': 5431}"
 }}}
 
 then run {{{tox}}} from the {{{pg8000}}} directory:
@@ -104,6 +103,6 @@ Run {{{tox}}} to make sure all tests pass, then update
 {{{doc/release_notes.rst}}} then do:
 
 {{{
-git tag -a x.y.z -m "Version x.y.z"
+git tag -a x.y.z -m "version x.y.z"
 python setup.py register sdist bdist_wheel upload build_sphinx upload_docs
 }}}

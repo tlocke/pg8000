@@ -13,11 +13,11 @@ machine:
 
 dependencies:
   cache_directories:
-    - pgsql-9.1.14
-    - pgsql-9.2.9
-    - pgsql-9.3.5
-    - pgsql-9.4.0
-    - pgsql-9.5.1
+    - pgsql-9.1.22
+    - pgsql-9.2.17
+    - pgsql-9.3.13
+    - pgsql-9.4.8
+    - pgsql-9.5.3
     - py-2.7.9
     - py-3.3.5
     - py-3.4.2
@@ -26,12 +26,13 @@ dependencies:
     - pypy3-2.3.1-linux64
     - jython-2.7.0
   pre:
+    - sudo apt-get update
     - sudo apt-get install libossp-uuid-dev libssl-dev
-    - bash ./circleci/install-postgresql-9.1.20.sh
-    - bash ./circleci/install-postgresql-9.2.15.sh
-    - bash ./circleci/install-postgresql-9.3.11.sh
-    - bash ./circleci/install-postgresql-9.4.6.sh
-    - bash ./circleci/install-postgresql-9.5.1.sh
+    - bash ./circleci/install-postgresql-9.1.22.sh
+    - bash ./circleci/install-postgresql-9.2.17.sh
+    - bash ./circleci/install-postgresql-9.3.13.sh
+    - bash ./circleci/install-postgresql-9.4.8.sh
+    - bash ./circleci/install-postgresql-9.5.3.sh
     - bash ./circleci/install-python-2.7.9.sh
     - bash ./circleci/install-python-3.3.5.sh
     - bash ./circleci/install-python-3.4.2.sh
@@ -40,15 +41,15 @@ dependencies:
     - bash ./circleci/install-pypy3-2.3.1.sh
     - bash ./circleci/install-jython-2.7.0.sh
   post:
-    - ./pgsql-9.1.20/bin/postgres -D `pwd`/pgsql-9.1.20/data -p 5491:
+    - ./pgsql-9.1.22/bin/postgres -D `pwd`/pgsql-9.1.22/data -p 5491:
         background: true
-    - ./pgsql-9.2.15/bin/postgres -D `pwd`/pgsql-9.2.15/data -p 5492:
+    - ./pgsql-9.2.17/bin/postgres -D `pwd`/pgsql-9.2.17/data -p 5492:
         background: true
-    - ./pgsql-9.3.11/bin/postgres -D `pwd`/pgsql-9.3.11/data -p 5493:
+    - ./pgsql-9.3.13/bin/postgres -D `pwd`/pgsql-9.3.13/data -p 5493:
         background: true
-    - ./pgsql-9.4.6/bin/postgres -D `pwd`/pgsql-9.4.6/data -p 5494:
+    - ./pgsql-9.4.8/bin/postgres -D `pwd`/pgsql-9.4.8/data -p 5494:
         background: true
-    - ./pgsql-9.5.1/bin/postgres -D `pwd`/pgsql-9.5.1/data -p 5495:
+    - ./pgsql-9.5.3/bin/postgres -D `pwd`/pgsql-9.5.3/data -p 5495:
         background: true
 
 test:
