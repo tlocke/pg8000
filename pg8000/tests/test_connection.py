@@ -3,6 +3,7 @@ import pg8000
 from pg8000.tests.connection_settings import db_connect
 from six import PY2, u
 import sys
+from distutils.version import LooseVersion
 
 
 # Check if running in Jython
@@ -214,8 +215,15 @@ class Tests(unittest.TestCase):
         params['application_name'] = 'my test application name'
         db = pg8000.connect(**params)
         cur = db.cursor()
-        cur.execute('select application_name from pg_stat_activity '
-                    ' where pid = pg_backend_pid()')
+
+        if db._server_version >= LooseVersion('9.2'):
+            cur.execute('select application_name from pg_stat_activity '
+                        ' where pid = pg_backend_pid()')
+        else:
+            # for pg9.1 and earlier, procpod field rather than pid
+            cur.execute('select application_name from pg_stat_activity '
+                        ' where procpid = pg_backend_pid()')
+
         application_name = cur.fetchone()[0]
         self.assertEqual(application_name, 'my test application name')
 
