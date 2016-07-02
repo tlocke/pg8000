@@ -209,5 +209,16 @@ class Tests(unittest.TestCase):
         cur2.close()
         db2.close()
 
+    def testApplicatioName(self):
+        params = db_connect.copy()
+        params['application_name'] = 'my test application name'
+        db = pg8000.connect(**params)
+        cur = db.cursor()
+        cur.execute('select application_name from pg_stat_activity '
+                    ' where pid = pg_backend_pid()')
+        application_name = cur.fetchone()[0]
+        self.assertEqual(application_name, 'my test application name')
+
+
 if __name__ == "__main__":
     unittest.main()
