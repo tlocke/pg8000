@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+Unreleased, yyyy-mm-dd
+----------------------
+
+- Fix warnings from PostgreSQL "not in a transaction", when calling ``.rollback()``
+  while not in a transaction.  `#113 <https://github.com/mfenniak/pg8000/issues/113>`_.
+  Thanks to `@jamadden <https://github.com/jamadden>`_ for the contribution.
+  
+- Add support for ``application_name`` parameter when connecting to database.
+  `#106 <https://github.com/mfenniak/pg8000/pull/106>`_.  Thanks to `@vadv 
+  <https://github.com/vadv>`_ for the contribution.
+
 Version 1.10.6, 2016-06-10
 --------------------------
 - Fixed a problem where we weren't handling the password connection parameter
