@@ -376,9 +376,9 @@ class Tests(unittest.TestCase):
             self.db.execute(cursor, "rollback", None)
 
             self.assertEqual(1, len(notices))
-            # 25P01 is the code for no_active_sql_tronsaction. It has a message
-            # and severity name, but those might be localized/depend on the server
-            # version.
+            # 25P01 is the code for no_active_sql_tronsaction. It has
+            # a message and severity name, but those might be
+            # localized/depend on the server version.
             self.assertEqual(notices[0].get(b'C'), b'25P01')
 
             notices.pop()
