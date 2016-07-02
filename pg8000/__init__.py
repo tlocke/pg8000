@@ -41,7 +41,8 @@ __author__ = "Mathieu Fenniak"
 
 def connect(
         user=None, host='localhost', unix_sock=None, port=5432, database=None,
-        password=None, ssl=False, timeout=None, **kwargs):
+        password=None, ssl=False, timeout=None,
+        application_name=None, **kwargs):
     """Creates a connection to a PostgreSQL database.
 
     This function is part of the `DBAPI 2.0 specification
@@ -89,6 +90,10 @@ def connect(
         you need to provide ``user`` as bytes, eg.
         ``"my_password".encode('EUC-JP')``.
 
+    :keyword application_name:
+        The name will be displayed in the pg_stat_activity view.
+        This parameter is optional.
+
     :keyword ssl:
         Use SSL encryption for TCP/IP sockets if ``True``.  Defaults to
         ``False``.
@@ -102,7 +107,8 @@ def connect(
         A :class:`Connection` object.
     """
     return Connection(
-        user, host, unix_sock, port, database, password, ssl, timeout)
+        user, host, unix_sock, port, database, password, ssl,
+        timeout, application_name)
 
 apilevel = "2.0"
 """The DBAPI level supported, currently "2.0".
