@@ -364,5 +364,34 @@ class Tests(unittest.TestCase):
         finally:
             cursor.close()
 
+    # rolling back when not in a transaction doesn't generate a warning
+    def test_rollback_no_transaction(self):
+        try:
+            cursor = self.db.cursor()
+
+            notices = []
+            self.db.NoticeReceived += notices.append
+
+            # First, verify that a raw rollback does produce a notice
+            self.db.execute(cursor, "rollback", None)
+
+            self.assertEqual(1, len(notices))
+            # 25P01 is the code for no_active_sql_tronsaction. It has
+            # a message and severity name, but those might be
+            # localized/depend on the server version.
+            self.assertEqual(notices[0].get(b'C'), b'25P01')
+
+            notices.pop()
+
+            # Now going through the rollback method doesn't produce
+            # any notices because it knows we're not in a transaction.
+            self.db.rollback()
+
+            self.assertEqual(0, len(notices))
+
+        finally:
+            cursor.close()
+
+
 if __name__ == "__main__":
     unittest.main()

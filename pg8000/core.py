@@ -1293,7 +1293,7 @@ class Connection(object):
         # An event handler that is fired when the database server issues a
         # notice.
         # The value of this property is a MulticastDelegate. A callback
-        # can be added by using connection.NotificationReceived += SomeMethod.
+        # can be added by using connection.NoticeReceived += SomeMethod.
         # The method will be called with a single argument, an object that has
         # properties: severity, code, msg, and possibly others (detail, hint,
         # position, where, file, line, and routine). Callbacks can be removed
@@ -1739,6 +1739,8 @@ class Connection(object):
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
         with self._lock:
+            if not self.in_transaction:
+                return
             self.execute(self._cursor, "rollback", None)
 
     def _close(self):
