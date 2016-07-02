@@ -1584,7 +1584,8 @@ class Connection(object):
         if application_name is not None:
             if isinstance(application_name, text_type):
                 application_name = application_name.encode('utf8')
-            val.extend(b("application_name\x00") + application_name + NULL_BYTE)
+            val.extend(b("application_name\x00") + application_name +
+                       NULL_BYTE)
         val.append(0)
         self._write(i_pack(len(val) + 4))
         self._write(val)
