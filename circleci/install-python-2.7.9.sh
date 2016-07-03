@@ -10,6 +10,7 @@ if [[ ! -e py-2.7.9/bin/python2.7 ]]; then
     ./configure --prefix=$BUILDROOT/py-2.7.9
     make install
     cd $BUILDROOT
+    rm -rf ./Python-2.7.9.tgz ./Python-2.7.9
 fi
 
 ln -s $BUILDROOT/py-2.7.9/bin/python2.7 ~/bin/
