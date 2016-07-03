@@ -10,7 +10,7 @@ if [[ ! -e pgsql-${PG_VERSION}/bin/postgres ]]; then
     make install-world
     cd $BUILDROOT
     rm -rf postgresql-${PG_VERSION}.tar.bz2 postgresql-${PG_VERSION} # remove source tarball & build dir
-    ./pgsql-${PG_VERSION}/bin/initdb -U postgres `pwd`/pgsql-${PG_VERSION}/data
+    ./pgsql-${PG_VERSION}/bin/initdb -U postgres -E UTF8 `pwd`/pgsql-${PG_VERSION}/data
 
     sed -i -e "s/#port = 5432/port = ${PG_PORT}/" `pwd`/pgsql-${PG_VERSION}/data/postgresql.conf
     sed -i -e "s/#ssl = off/ssl = on/" `pwd`/pgsql-${PG_VERSION}/data/postgresql.conf
