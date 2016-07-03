@@ -10,6 +10,7 @@ if [[ ! -e py-3.5.1/bin/python3.5 ]]; then
     ./configure --prefix=$BUILDROOT/py-3.5.1
     make install
     cd $BUILDROOT
+    rm -rf ./Python-3.5.1.tgz ./Python-3.5.1
 fi
 
 ln -s $BUILDROOT/py-3.5.1/bin/python3.5 ~/bin/

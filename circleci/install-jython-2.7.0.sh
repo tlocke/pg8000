@@ -10,6 +10,7 @@ if [[ ! -e jython-2.7.0/bin/jython ]]; then
     unzip $BUILDROOT/jython-installer-2.7.0.jar
     chmod +x ./bin/jython
     cd $BUILDROOT
+    rm -f jython-installer-2.7.0.jar
 fi
 
 ln -s $BUILDROOT/jython-2.7.0/bin/jython ~/bin/

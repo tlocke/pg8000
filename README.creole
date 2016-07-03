@@ -17,7 +17,19 @@ Links:
 
 =Regression Tests
 
-To run the regression tests, install [[http://testrun.org/tox/latest/|tox]]:
+The easiest way to run the regression tests is using a prebuilt Docker image
+that contains all of the supported versions of Python, Jython, PyPy, and
+PostgreSQL, ready-to-run.  To use this, just mount your source directory
+(where you checked out pg8000 to) onto the image in /home/postgres/pg8000-src,
+and then run the mfenniak/pg8000-test-env image.  Here's a simple
+command-line:
+
+{{{
+docker run -v `pwd`:/home/postgres/pg8000-src mfenniak/pg8000-test-env
+}}}
+
+If you don't have Docker, or want to run the tests in a different environment,
+install [[http://testrun.org/tox/latest/|tox]]:
 
 {{{
 pip install tox
