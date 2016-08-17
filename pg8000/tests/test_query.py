@@ -392,6 +392,13 @@ class Tests(unittest.TestCase):
         finally:
             cursor.close()
 
+    def test_context_manager_class(self):
+        self.assertTrue('__enter__' in pg8000.core.Cursor.__dict__)
+        self.assertTrue('__exit__' in pg8000.core.Cursor.__dict__)
+
+        with self.db.cursor() as cursor:
+            cursor.execute('select 1')
+
 
 if __name__ == "__main__":
     unittest.main()
