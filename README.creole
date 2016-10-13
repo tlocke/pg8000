@@ -116,5 +116,5 @@ Run {{{tox}}} to make sure all tests pass, then update
 
 {{{
 git tag -a x.y.z -m "version x.y.z"
-python setup.py register sdist bdist_wheel upload build_sphinx upload_docs
+python setup.py register sdist bdist_wheel upload build_sphinx upload_docs --sign
 }}}
