@@ -60,5 +60,6 @@ class Tests(unittest.TestCase):
             "SELECT $1, $2, \"f1_%\", E'txt_%' FROM t WHERE a=$3 AND b='75%'")
         self.assertEqual(make_args((1, 2, 3)), (1, 2, 3))
 
+
 if __name__ == "__main__":
     unittest.main()

@@ -64,6 +64,7 @@ class UTC(datetime.tzinfo):
     def dst(self, dt):
         return ZERO
 
+
 utc = UTC()
 
 
@@ -154,6 +155,7 @@ class Interval(object):
 def pack_funcs(fmt):
     struc = Struct('!' + fmt)
     return struc.pack, struc.unpack_from
+
 
 i_pack, i_unpack = pack_funcs('i')
 h_pack, h_unpack = pack_funcs('h')
@@ -406,6 +408,7 @@ def Binary(value):
     else:
         return value
 
+
 if PY2:
     BINARY = Bytea
 else:
@@ -642,6 +645,7 @@ def timestamptz_send_float(v):
     # convert them.
     return timestamp_send_float(v.astimezone(utc).replace(tzinfo=None))
 
+
 DATETIME_MAX_TZ = datetime.datetime.max.replace(tzinfo=utc)
 DATETIME_MIN_TZ = datetime.datetime.min.replace(tzinfo=utc)
 
@@ -737,6 +741,7 @@ def float8_recv(data, offset, length):
 
 def bytea_send(v):
     return v
+
 
 # bytea
 if PY2:
@@ -1043,6 +1048,7 @@ class Cursor():
                         raise ProgrammingError("no result set")
                     else:
                         raise StopIteration()
+
 
 if PY2:
     Cursor.next = Cursor.__next__
@@ -2386,6 +2392,7 @@ class Connection(object):
             return [self.xid(0, row[0], '') for row in curs]
         finally:
             self.autocommit = previous_autocommit_mode
+
 
 # pg element oid -> pg array typeoid
 pg_array_types = {

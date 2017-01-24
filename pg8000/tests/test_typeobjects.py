@@ -44,5 +44,6 @@ class Tests(unittest.TestCase):
         self.intervalRangeTest(
             "microseconds", in_range_microseconds, out_of_range_microseconds)
 
+
 if __name__ == "__main__":
     unittest.main()

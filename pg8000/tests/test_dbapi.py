@@ -277,5 +277,6 @@ class Tests(unittest.TestCase):
         finally:
             cursor.close()
 
+
 if __name__ == "__main__":
     unittest.main()

@@ -18,5 +18,6 @@ class Tests(dbapi20.DatabaseAPI20Test):
     def test_setoutputsize(self):
         pass
 
+
 if __name__ == '__main__':
     unittest.main()

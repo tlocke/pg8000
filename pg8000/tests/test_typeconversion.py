@@ -671,5 +671,6 @@ class Tests(unittest.TestCase):
             pg8000.core.timestamp_send_float(
                 datetime.datetime(2016, 1, 2, 0, 0))
 
+
 if __name__ == "__main__":
     unittest.main()

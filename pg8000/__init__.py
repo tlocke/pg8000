@@ -110,6 +110,7 @@ def connect(
         user, host, unix_sock, port, database, password, ssl,
         timeout, application_name)
 
+
 apilevel = "2.0"
 """The DBAPI level supported, currently "2.0".
 
