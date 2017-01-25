@@ -10,6 +10,10 @@ machine:
   java:
     version: openjdk7
 
+  post:
+    - pyenv global 2.7.12 3.3.6 3.4.4 3.5.2 pypy-4.0.1
+
+
 
 dependencies:
   cache_directories:
@@ -18,12 +22,7 @@ dependencies:
     - pgsql-9.3.13
     - pgsql-9.4.8
     - pgsql-9.5.3
-    - py-2.7.9
-    - py-3.3.5
-    - py-3.4.2
-    - py-3.5.1
-    - pypy-2.4.0-linux64
-    - pypy3-2.3.1-linux64
+    - pypy3.3-5.5-alpha-20161013-linux_x86_64-portable
     - jython-2.7.0
   pre:
     - sudo apt-get update
@@ -33,12 +32,7 @@ dependencies:
     - bash ./circleci/install-postgresql-9.3.13.sh
     - bash ./circleci/install-postgresql-9.4.8.sh
     - bash ./circleci/install-postgresql-9.5.3.sh
-    - bash ./circleci/install-python-2.7.9.sh
-    - bash ./circleci/install-python-3.3.5.sh
-    - bash ./circleci/install-python-3.4.2.sh
-    - bash ./circleci/install-python-3.5.1.sh
-    - bash ./circleci/install-pypy-2.4.0.sh
-    - bash ./circleci/install-pypy3-2.3.1.sh
+    - bash ./circleci/install-pypy3.3-5.5.sh
     - bash ./circleci/install-jython-2.7.0.sh
   post:
     - ./pgsql-9.1.22/bin/postgres -D `pwd`/pgsql-9.1.22/data -p 5491:
