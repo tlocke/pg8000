@@ -277,6 +277,12 @@ class Tests(unittest.TestCase):
         finally:
             cursor.close()
 
+    def testPreparedStatement(self):
+        cursor = self.db.cursor()
+        cursor.execute(
+            'PREPARE gen_series AS SELECT generate_series(1, 10);')
+        cursor.execute('EXECUTE gen_series')
+
 
 if __name__ == "__main__":
     unittest.main()
