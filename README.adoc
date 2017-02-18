@@ -1,0 +1,136 @@
+== pg8000
+
+pg8000 is a pure-link:http://www.python.org/[Python]
+http://www.postgresql.org/[PostgreSQL] driver that complies with
+http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. The driver
+communicates with the database using the
+http://www.postgresql.org/docs/current/static/protocol.html[PostgreSQL
+Frontend/Backend Protocol].
+
+CircleCI https://circleci.com/gh/mfenniak/pg8000[Build Status]:
+ image:https://circleci.com/gh/mfenniak/pg8000.png?style=badge[CircleCI]
+
+See the http://pythonhosted.org/pg8000/[User Docs].
+
+
+=== Theory Of Operation
+
+
+Every query made with pg8000 uses prepared statements. It uses the Extended
+Query feature of the Front End / Back End Protocol (FEBE). So the steps are:
+
+. Query comes in.
+. If pg8000 hasn't seen it before, send a PARSE message to the server to create
+  a prepared statement.
+. Send a BIND message to run the query using the prepared statement, resulting
+  in a portal on the server.
+. Send an EXECUTE message to read a batch of results from the portal.
+. When the batch of results have been used, send another EXECUTE to read the
+  next batch from the portal. Repeat until all results have been read (or until
+  the user closes the cursor).
+. Close the portal.
+
+There are a lot of PostgreSQL data types, but few primative data types in
+Python. During the BIND step, a PostgreSQL data type has to be assigned to each query parameter. This is impossible to work out because, say, a Python
+`int` could be any of the PostgreSQL integer types. pg8000's solution to this
+problem is to send every parameter with the PostgreSQL type `unknown`. This
+forces the server to make a guess about the type. It's fairly good at doing
+this, so most queries '`just work`'. However, sometimes you may need to do an
+explicit cast in the SQL query to get things to work.
+
+Since pg8000 uses prepared statements implicitly, there's nothing to be gained
+by using them explicitly with the SQL PREPARE, EXECUTE and DEALLOCATE keywords.
+In fact pg8000 won't work for parameterized EXECUTE statements, because the
+server is unable to infer the types of the parameters for an EXECUTE statement.
+
+
+=== Regression Tests
+
+The easiest way to run the regression tests is using a prebuilt Docker image
+that contains all of the supported versions of Python, Jython, PyPy, and
+PostgreSQL, ready-to-run.  To use this, just mount your source directory
+(where you checked out pg8000 to) onto the image in
+`/home/postgres/pg8000-src`, and then run the `mfenniak/pg8000-test-env` image.
+Here's a simple command-line:
+
+ docker run -v `pwd`:/home/postgres/pg8000-src mfenniak/pg8000-test-env
+
+If you don't have Docker, or want to run the tests in a different environment,
+install http://testrun.org/tox/latest/[tox]:
+
+ pip install tox
+
+then install all the supported Python versions (using the
+https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes[APT Repository] if
+you're using Ubuntu). Install all the currently supported versions of PostgreSQL
+(using the http://wiki.postgresql.org/wiki/Apt[APT Repository] if you're
+using Ubuntu). Then for each of them, enable the hstore extension by running the
+SQL command:
+
+ create extension hstore;
+
+and add a line to pg_hba.conf for the various authentication options, eg.
+
+....
+host    pg8000_md5      all             127.0.0.1/32            md5
+host    pg8000_gss      all             127.0.0.1/32            gss
+host    pg8000_password all             127.0.0.1/32            password
+host    all             all             127.0.0.1/32            trust
+....
+
+Set the following environment variables for the databases, for example:
+
+....
+export PG8000_TEST_NAME="PG8000_TEST_9_5"
+export PG8000_TEST_9_1="{'user': 'postgres', 'password': 'pw', 'port': 5435}"
+export PG8000_TEST_9_2="{'user': 'postgres', 'password': 'pw', 'port': 5434}"
+export PG8000_TEST_9_3="{'user': 'postgres', 'password': 'pw', 'port': 5433}"
+export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
+export PG8000_TEST_9_5="{'user': 'postgres', 'password': 'pw', 'port': 5431}"
+....
+
+then run `tox` from the `pg8000` directory:
+
+`tox`
+
+
+=== Performance Tests
+
+To run the performance tests from the `pg8000` directory:
+
+ python -m pg8000.tests.performance
+
+
+=== Stress Test
+
+There's a stress test that is run by doing:
+
+ python ./multi
+
+The idea is to set `shared_buffers` in `postgresql.conf` to 128kB, and then
+run the stress test, and you should get `no unpinned buffers` errors.
+
+
+=== Building The Documentation
+
+The docs are written using http://sphinx-doc.org/[Sphinx]. To build them,
+install sphinx:
+
+ pip install sphinx
+
+Then type:
+
+ python setup.py build_sphinx
+
+and the docs will appear in `build/sphinx/html`.
+
+
+=== Doing A Release Of pg8000
+
+Run `tox` to make sure all tests pass, then update `doc/release_notes.rst` then
+do:
+
+....
+git tag -a x.y.z -m "version x.y.z"
+python setup.py register sdist bdist_wheel upload build_sphinx upload_docs --sign
+....
