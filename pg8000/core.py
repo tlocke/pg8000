@@ -1304,7 +1304,9 @@ class Connection(object):
         self.py_types = {
             type(None): (-1, FC_BINARY, null_send),  # null
             bool: (16, FC_BINARY, bool_send),
-            int: (705, FC_TEXT, unknown_out),
+            20: (20, FC_BINARY, q_pack),  # int8
+            21: (21, FC_BINARY, h_pack),  # int2
+            23: (23, FC_BINARY, i_pack),  # int4
             float: (701, FC_BINARY, d_pack),  # float8
             date: (1082, FC_TEXT, date_out),  # date
             time: (1083, FC_TEXT, time_out),  # time
@@ -1314,21 +1316,20 @@ class Connection(object):
             Timedelta: (1186, FC_BINARY, interval_send_integer),
             Interval: (1186, FC_BINARY, interval_send_integer),
             Decimal: (1700, FC_TEXT, numeric_out),  # Decimal
-            UUID: (2950, FC_BINARY, uuid_send),  # uuid
-        }
+            UUID: (2950, FC_BINARY, uuid_send)}  # uuid
 
         self.inspect_funcs = {
             Datetime: self.inspect_datetime,
             list: self.array_inspect,
             tuple: self.array_inspect,
-        }
+            int: self.inspect_int}
 
         if PY2:
             self.py_types[Bytea] = (17, FC_BINARY, bytea_send)  # bytea
             self.py_types[text_type] = (705, FC_TEXT, text_out)  # unknown
             self.py_types[str] = (705, FC_TEXT, bytea_send)  # unknown
 
-            self.py_types[long] = (705, FC_TEXT, unknown_out)  # noqa
+            self.inspect_funcs[long] = self.inspect_int  # noqa
         else:
             self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
             self.py_types[str] = (705, FC_TEXT, text_out)  # unknown
@@ -1633,6 +1634,14 @@ class Connection(object):
             return self.py_types[1114]  # timestamp
         else:
             return self.py_types[1184]  # send as timestamptz
+
+    def inspect_int(self, value):
+        if min_int2 < value < max_int2:
+            return self.py_types[21]
+        if min_int4 < value < max_int4:
+            return self.py_types[23]
+        if min_int8 < value < max_int8:
+            return self.py_types[20]
 
     def make_params(self, values):
         params = []

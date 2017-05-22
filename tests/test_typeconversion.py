@@ -126,12 +126,12 @@ class Tests(unittest.TestCase):
 
     def testLongRoundtrip(self):
         self.cursor.execute(
-            "SELECT cast(%s as bigint)", (50000000000000,))
+            "SELECT %s", (50000000000000,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], 50000000000000)
 
     def testIntExecuteMany(self):
-        self.cursor.executemany("SELECT cast(%s as integer)", ((1,), (40000,)))
+        self.cursor.executemany("SELECT %s", ((1,), (40000,)))
         self.cursor.fetchall()
 
         v = ([None], [4])
@@ -148,20 +148,20 @@ class Tests(unittest.TestCase):
         int8 = 20
 
         test_values = [
-            (0, int2, 'smallint'),
-            (-32767, int2, 'smallint'),
-            (-32768, int4, 'integer'),
-            (+32767, int2, 'smallint'),
-            (+32768, int4, 'integer'),
-            (-2147483647, int4, 'integer'),
-            (-2147483648, int8, 'bigint'),
-            (+2147483647, int4, 'integer'),
-            (+2147483648, int8, 'bigint'),
-            (-9223372036854775807, int8, 'bigint'),
-            (+9223372036854775807, int8, 'bigint'), ]
+            (0, int2),
+            (-32767, int2),
+            (-32768, int4),
+            (+32767, int2),
+            (+32768, int4),
+            (-2147483647, int4),
+            (-2147483648, int8),
+            (+2147483647, int4),
+            (+2147483648, int8),
+            (-9223372036854775807, int8),
+            (+9223372036854775807, int8)]
 
-        for value, typoid, tp in test_values:
-            self.cursor.execute("SELECT cast(%s as " + tp + ")", (value,))
+        for value, typoid in test_values:
+            self.cursor.execute("SELECT %s", (value,))
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], value)
             column_name, column_typeoid = self.cursor.description[0][0:2]
@@ -672,6 +672,38 @@ class Tests(unittest.TestCase):
                 "SELECT cast(%s as jsonb)", (json.dumps(val),))
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], val)
+
+    def test_json_access_object(self):
+        if self.db._server_version >= LooseVersion('9.4'):
+            val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
+            self.cursor.execute(
+                "SELECT cast(%s as json) -> %s", (json.dumps(val), 'name'))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], 'Apollo 11 Cave')
+
+    def test_jsonb_access_object(self):
+        if self.db._server_version >= LooseVersion('9.4'):
+            val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
+            self.cursor.execute(
+                "SELECT cast(%s as jsonb) -> %s", (json.dumps(val), 'name'))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], 'Apollo 11 Cave')
+
+    def test_json_access_array(self):
+        if self.db._server_version >= LooseVersion('9.4'):
+            val = [-1, -2, -3, -4, -5]
+            self.cursor.execute(
+                "SELECT cast(%s as json) -> %s", (json.dumps(val), 2))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], -3)
+
+    def testJsonbAccessArray(self):
+        if self.db._server_version >= LooseVersion('9.4'):
+            val = [-1, -2, -3, -4, -5]
+            self.cursor.execute(
+                "SELECT cast(%s as jsonb) -> %s", (json.dumps(val), 2))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], -3)
 
     def test_timestamp_send_float(self):
         assert b('A\xbe\x19\xcf\x80\x00\x00\x00') == \
