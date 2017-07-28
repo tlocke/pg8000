@@ -592,11 +592,11 @@ class Tests(unittest.TestCase):
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], v)
 
-    def testArrayHasValue(self):
-        self.assertRaises(
-            pg8000.ArrayContentEmptyError,
-            self.db.array_inspect, [[None], [None], [None]])
-        self.db.rollback()
+    def testEmptyArray(self):
+        v = []
+        self.cursor.execute("SELECT %s as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
 
     def testArrayContentNotSupported(self):
         class Kajigger(object):

@@ -87,8 +87,6 @@ Exceptions that are subclassed from the standard DB-API 2.0 exceptions above.
 
 .. autoexception:: ArrayContentNotHomogenousError
 
-.. autoexception:: ArrayContentEmptyError
-
 .. autoexception:: ArrayDimensionsNotConsistentError
 
 

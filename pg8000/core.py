@@ -21,6 +21,7 @@ import pg8000
 from json import loads
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
+# Copyright (c) The Contributors
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -299,13 +300,6 @@ class ArrayContentNotHomogenousError(ProgrammingError):
     """
     Raised when attempting to transmit an array that doesn't contain only a
     single type of object.
-    """
-    pass
-
-
-class ArrayContentEmptyError(ProgrammingError):
-    """Raised when attempting to transmit an empty array. The type oid of an
-    empty array cannot be determined, and so sending them is not permitted.
     """
     pass
 
@@ -2167,69 +2161,69 @@ class Connection(object):
                     b("FETCH"), b("COPY"))
 
     def array_inspect(self, value):
-        # Check if array has any values.  If not, we can't determine the proper
-        # array oid.
+        # Check if array has any values. If empty, we can just assume it's an
+        # array of strings
         first_element = array_find_first_element(value)
         if first_element is None:
-            raise ArrayContentEmptyError("array has no values")
-
-        # supported array output
-        typ = type(first_element)
-
-        if issubclass(typ, integer_types):
-            # special int array support -- send as smallest possible array type
-            typ = integer_types
-            int2_ok, int4_ok, int8_ok = True, True, True
-            for v in array_flatten(value):
-                if v is None:
-                    continue
-                if min_int2 < v < max_int2:
-                    continue
-                int2_ok = False
-                if min_int4 < v < max_int4:
-                    continue
-                int4_ok = False
-                if min_int8 < v < max_int8:
-                    continue
-                int8_ok = False
-            if int2_ok:
-                array_oid = 1005  # INT2[]
-                oid, fc, send_func = (21, FC_BINARY, h_pack)
-            elif int4_ok:
-                array_oid = 1007  # INT4[]
-                oid, fc, send_func = (23, FC_BINARY, i_pack)
-            elif int8_ok:
-                array_oid = 1016  # INT8[]
-                oid, fc, send_func = (20, FC_BINARY, q_pack)
-            else:
-                raise ArrayContentNotSupportedError(
-                    "numeric not supported as array contents")
+            oid = 25
+            # Use binary ARRAY format to avoid having to properly
+            # escape text in the array literals
+            fc = FC_BINARY
+            array_oid = pg_array_types[oid]
         else:
-            try:
-                oid, fc, send_func = self.make_params((first_element,))[0]
+            # supported array output
+            typ = type(first_element)
 
-                # If unknown, assume it's a string array
-                if oid == 705:
-                    oid = 25
-                    # Use binary ARRAY format to avoid having to properly
-                    # escape text in the array literals
-                    fc = FC_BINARY
-                array_oid = pg_array_types[oid]
-            except KeyError:
-                raise ArrayContentNotSupportedError(
-                    "oid " + str(oid) + " not supported as array contents")
-            except NotSupportedError:
-                raise ArrayContentNotSupportedError(
-                    "type " + str(typ) + " not supported as array contents")
+            if issubclass(typ, integer_types):
+                # special int array support -- send as smallest possible array
+                # type
+                typ = integer_types
+                int2_ok, int4_ok, int8_ok = True, True, True
+                for v in array_flatten(value):
+                    if v is None:
+                        continue
+                    if min_int2 < v < max_int2:
+                        continue
+                    int2_ok = False
+                    if min_int4 < v < max_int4:
+                        continue
+                    int4_ok = False
+                    if min_int8 < v < max_int8:
+                        continue
+                    int8_ok = False
+                if int2_ok:
+                    array_oid = 1005  # INT2[]
+                    oid, fc, send_func = (21, FC_BINARY, h_pack)
+                elif int4_ok:
+                    array_oid = 1007  # INT4[]
+                    oid, fc, send_func = (23, FC_BINARY, i_pack)
+                elif int8_ok:
+                    array_oid = 1016  # INT8[]
+                    oid, fc, send_func = (20, FC_BINARY, q_pack)
+                else:
+                    raise ArrayContentNotSupportedError(
+                        "numeric not supported as array contents")
+            else:
+                try:
+                    oid, fc, send_func = self.make_params((first_element,))[0]
+
+                    # If unknown, assume it's a string array
+                    if oid == 705:
+                        oid = 25
+                        # Use binary ARRAY format to avoid having to properly
+                        # escape text in the array literals
+                        fc = FC_BINARY
+                    array_oid = pg_array_types[oid]
+                except KeyError:
+                    raise ArrayContentNotSupportedError(
+                        "oid " + str(oid) + " not supported as array contents")
+                except NotSupportedError:
+                    raise ArrayContentNotSupportedError(
+                        "type " + str(typ) +
+                        " not supported as array contents")
 
         if fc == FC_BINARY:
             def send_array(arr):
-                # check for homogenous array
-                for a, i, v in walk_array(arr):
-                    if not isinstance(v, (typ, type(None))):
-                        raise ArrayContentNotHomogenousError(
-                            "not all array elements are of type " + str(typ))
-
                 # check that all array dimensions are consistent
                 array_check_dimensions(arr)
 
@@ -2241,24 +2235,26 @@ class Connection(object):
                 for v in array_flatten(arr):
                     if v is None:
                         data += i_pack(-1)
-                    else:
+                    elif isinstance(v, typ):
                         inner_data = send_func(v)
                         data += i_pack(len(inner_data))
                         data += inner_data
+                    else:
+                        raise ArrayContentNotHomogenousError(
+                            "not all array elements are of type " + str(typ))
                 return data
         else:
             def send_array(arr):
-                for a, i, v in walk_array(arr):
-                    if not isinstance(v, (typ, type(None))):
-                        raise ArrayContentNotHomogenousError(
-                            "not all array elements are of type " + str(typ))
                 array_check_dimensions(arr)
                 ar = deepcopy(arr)
                 for a, i, v in walk_array(ar):
                     if v is None:
                         a[i] = 'NULL'
-                    else:
+                    elif isinstance(v, typ):
                         a[i] = send_func(v).decode('ascii')
+                    else:
+                        raise ArrayContentNotHomogenousError(
+                            "not all array elements are of type " + str(typ))
 
                 return u(str(ar)).translate(arr_trans).encode('ascii')
         return (array_oid, fc, send_array)
@@ -2485,25 +2481,26 @@ def array_flatten(arr):
 
 
 def array_check_dimensions(arr):
-    v0 = arr[0]
-    if isinstance(v0, list):
-        req_len = len(v0)
-        req_inner_lengths = array_check_dimensions(v0)
-        for v in arr:
-            inner_lengths = array_check_dimensions(v)
-            if len(v) != req_len or inner_lengths != req_inner_lengths:
-                raise ArrayDimensionsNotConsistentError(
-                    "array dimensions not consistent")
-        retval = [req_len]
-        retval.extend(req_inner_lengths)
-        return retval
-    else:
-        # make sure nothing else at this level is a list
-        for v in arr:
-            if isinstance(v, list):
-                raise ArrayDimensionsNotConsistentError(
-                    "array dimensions not consistent")
-        return []
+    if len(arr) > 0:
+        v0 = arr[0]
+        if isinstance(v0, list):
+            req_len = len(v0)
+            req_inner_lengths = array_check_dimensions(v0)
+            for v in arr:
+                inner_lengths = array_check_dimensions(v)
+                if len(v) != req_len or inner_lengths != req_inner_lengths:
+                    raise ArrayDimensionsNotConsistentError(
+                        "array dimensions not consistent")
+            retval = [req_len]
+            retval.extend(req_inner_lengths)
+            return retval
+        else:
+            # make sure nothing else at this level is a list
+            for v in arr:
+                if isinstance(v, list):
+                    raise ArrayDimensionsNotConsistentError(
+                        "array dimensions not consistent")
+    return []
 
 
 def array_has_null(arr):
@@ -2514,10 +2511,11 @@ def array_has_null(arr):
 
 
 def array_dim_lengths(arr):
-    v0 = arr[0]
-    if isinstance(v0, list):
-        retval = [len(v0)]
-        retval.extend(array_dim_lengths(v0))
-    else:
-        return [len(arr)]
-    return retval
+    len_arr = len(arr)
+    if len_arr > 0:
+        v0 = arr[0]
+        if isinstance(v0, list):
+            retval = [len(v0)]
+            retval.extend(array_dim_lengths(v0))
+            return retval
+    return [len_arr]
