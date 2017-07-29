@@ -1,6 +1,6 @@
 import unittest
 import pg8000
-from pg8000.tests.connection_settings import db_connect
+from connection_settings import db_connect
 from six import PY2, u
 import sys
 from distutils.version import LooseVersion

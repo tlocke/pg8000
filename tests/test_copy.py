@@ -1,6 +1,6 @@
 import unittest
 import pg8000
-from .connection_settings import db_connect
+from connection_settings import db_connect
 from six import b, BytesIO, u, iteritems
 from sys import exc_info
 

@@ -3,7 +3,7 @@ import os
 import time
 import pg8000
 import datetime
-from .connection_settings import db_connect
+from connection_settings import db_connect
 from sys import exc_info
 from six import b
 from distutils.version import LooseVersion

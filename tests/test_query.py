@@ -1,7 +1,7 @@
 import unittest
 import threading
 import pg8000
-from .connection_settings import db_connect
+from connection_settings import db_connect
 from six import u
 from sys import exc_info
 import datetime

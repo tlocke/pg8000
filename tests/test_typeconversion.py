@@ -3,7 +3,7 @@ import pg8000
 import datetime
 import decimal
 import struct
-from .connection_settings import db_connect
+from connection_settings import db_connect
 from six import b, PY2, u
 import uuid
 import os
