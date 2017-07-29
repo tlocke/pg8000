@@ -1,11 +1,10 @@
-== pg8000
+= pg8000
+:toc: preamble
 
 pg8000 is a pure-link:http://www.python.org/[Python]
 http://www.postgresql.org/[PostgreSQL] driver that complies with
-http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. The driver
-communicates with the database using the
-http://www.postgresql.org/docs/current/static/protocol.html[PostgreSQL
-Frontend/Backend Protocol].
+http://www.python.org/dev/peps/pep-0249/[DB-API 2.0].
+
 
 CircleCI https://circleci.com/gh/mfenniak/pg8000[Build Status]:
  image:https://circleci.com/gh/mfenniak/pg8000.png?style=badge[CircleCI]
@@ -13,11 +12,13 @@ CircleCI https://circleci.com/gh/mfenniak/pg8000[Build Status]:
 See the http://pythonhosted.org/pg8000/[User Docs].
 
 
-=== Theory Of Operation
+== Theory Of Operation
 
 
-Every query made with pg8000 uses prepared statements. It uses the Extended
-Query feature of the Front End / Back End Protocol (FEBE). So the steps are:
+Pg8000 communicates with the database using the
+http://www.postgresql.org/docs/current/static/protocol.html[PostgreSQL
+Frontend/Backend Protocol] (FEBE). Every query made with pg8000 uses prepared
+statements. It uses the Extended Query feature of the FEBE. So the steps are:
 
 . Query comes in.
 . If pg8000 hasn't seen it before, send a PARSE message to the server to create
@@ -31,12 +32,34 @@ Query feature of the Front End / Back End Protocol (FEBE). So the steps are:
 . Close the portal.
 
 There are a lot of PostgreSQL data types, but few primative data types in
-Python. During the BIND step, a PostgreSQL data type has to be assigned to each query parameter. This is impossible to work out because, say, a Python
+Python. A PostgreSQL data type has to be assigned to each query parameter,
+which is impossible to work out in all cases because, say, a Python
 `int` could be any of the PostgreSQL integer types. pg8000's solution to this
 problem is to send every parameter with the PostgreSQL type `unknown`. This
 forces the server to make a guess about the type. It's fairly good at doing
 this, so most queries '`just work`'. However, sometimes you may need to do an
 explicit cast in the SQL query to get things to work.
+
+In the FEBE protocol, each query parameter can be sent to the server either as
+binary or text according to the format code (FC). In pg8000 the FC depends
+on the type of the value. Here is a table of some common types and their FC:
+
+.Python Type to FC Mapping
+|===
+| Python Type                       | FC
+
+| None                              | binary
+| bool                              | binary
+| int                               | text
+| float                             | binary
+| datetime.date                     | text
+| datetime.time                     | text
+| datetime.datetime (naive)         | binary
+| datetime.datetime (with timezone) | binary
+| datetime.timedelta                | binary
+| decimal.Decimal                   | text
+| uuid                              | binary
+|===
 
 Since pg8000 uses prepared statements implicitly, there's nothing to be gained
 by using them explicitly with the SQL PREPARE, EXECUTE and DEALLOCATE keywords.
@@ -44,7 +67,7 @@ In fact pg8000 won't work for parameterized EXECUTE statements, because the
 server is unable to infer the types of the parameters for an EXECUTE statement.
 
 
-=== Regression Tests
+== Regression Tests
 
 The easiest way to run the regression tests is using a prebuilt Docker image
 that contains all of the supported versions of Python, Jython, PyPy, and
@@ -94,14 +117,14 @@ then run `tox` from the `pg8000` directory:
 `tox`
 
 
-=== Performance Tests
+== Performance Tests
 
 To run the performance tests from the `pg8000` directory:
 
  python -m pg8000.tests.performance
 
 
-=== Stress Test
+== Stress Test
 
 There's a stress test that is run by doing:
 
@@ -111,7 +134,7 @@ The idea is to set `shared_buffers` in `postgresql.conf` to 128kB, and then
 run the stress test, and you should get `no unpinned buffers` errors.
 
 
-=== Building The Documentation
+== Building The Documentation
 
 The docs are written using http://sphinx-doc.org/[Sphinx]. To build them,
 install sphinx:
@@ -125,7 +148,7 @@ Then type:
 and the docs will appear in `build/sphinx/html`.
 
 
-=== Doing A Release Of pg8000
+== Doing A Release Of pg8000
 
 Run `tox` to make sure all tests pass, then update `doc/release_notes.rst` then
 do:
