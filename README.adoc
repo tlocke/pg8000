@@ -5,9 +5,7 @@ pg8000 is a pure-link:http://www.python.org/[Python]
 http://www.postgresql.org/[PostgreSQL] driver that complies with
 http://www.python.org/dev/peps/pep-0249/[DB-API 2.0].
 
-
-CircleCI https://circleci.com/gh/mfenniak/pg8000[Build Status]:
- image:https://circleci.com/gh/mfenniak/pg8000.png?style=badge[CircleCI]
+image::https://circleci.com/gh/mfenniak/pg8000.svg?style=shield&circle-token=2737fb9ccf95410c088deb53f1212a7bc2314482[Build Status]
 
 See the http://pythonhosted.org/pg8000/[User Docs].
 
