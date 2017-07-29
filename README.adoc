@@ -10,6 +10,7 @@ image::https://circleci.com/gh/mfenniak/pg8000.svg?style=shield&circle-token=273
 See the http://pythonhosted.org/pg8000/[User Docs].
 
 
+[[_theory_of_operation]]
 == Theory Of Operation
 
 
@@ -63,6 +64,20 @@ Since pg8000 uses prepared statements implicitly, there's nothing to be gained
 by using them explicitly with the SQL PREPARE, EXECUTE and DEALLOCATE keywords.
 In fact pg8000 won't work for parameterized EXECUTE statements, because the
 server is unable to infer the types of the parameters for an EXECUTE statement.
+
+
+== FAQ
+
+
+=== I'm getting a '`portal "pg8000_portal_1" does not exist`' error.
+
+Pg8000 fetches rows from the server in batches. To be more precise it fetches
+the rows from a portal, which is opened at the `BIND` stage (see
+<<_theory_of_operation>>), and closed when all the batches of rows have been
+read. The server will close a portal if the transaction it's involved in is
+closed. So the '`portal does not exist`' message occurs if a transaction is
+closed before all the rows have been read from it, and then an attempt is made
+to read the remaining rows.
 
 
 == Regression Tests
