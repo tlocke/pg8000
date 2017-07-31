@@ -10,6 +10,7 @@ __version__ = get_versions()['version']
 del get_versions
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
+# Copyright (c) The Contributors
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -41,8 +42,7 @@ __author__ = "Mathieu Fenniak"
 
 def connect(
         user=None, host='localhost', unix_sock=None, port=5432, database=None,
-        password=None, ssl=False, timeout=None,
-        application_name=None, **kwargs):
+        password=None, ssl=False, timeout=None, application_name=None):
     """Creates a connection to a PostgreSQL database.
 
     This function is part of the `DBAPI 2.0 specification
@@ -107,8 +107,8 @@ def connect(
         A :class:`Connection` object.
     """
     return Connection(
-        user, host, unix_sock, port, database, password, ssl,
-        timeout, application_name)
+        user, host, unix_sock, port, database, password, ssl, timeout,
+        application_name)
 
 
 apilevel = "2.0"

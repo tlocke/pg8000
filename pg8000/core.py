@@ -1,5 +1,5 @@
-import datetime
-from datetime import timedelta
+from datetime import (
+    timedelta as Timedelta, datetime as Datetime, tzinfo, date, time)
 from warnings import warn
 import socket
 import threading
@@ -16,7 +16,7 @@ from copy import deepcopy
 from calendar import timegm
 from distutils.version import LooseVersion
 from struct import Struct
-import time
+from time import localtime
 import pg8000
 from json import loads
 
@@ -51,10 +51,10 @@ from json import loads
 __author__ = "Mathieu Fenniak"
 
 
-ZERO = timedelta(0)
+ZERO = Timedelta(0)
 
 
-class UTC(datetime.tzinfo):
+class UTC(tzinfo):
 
     def utcoffset(self, dt):
         return ZERO
@@ -328,7 +328,7 @@ def Date(year, month, day):
 
     :rtype: :class:`datetime.date`
     """
-    return datetime.date(year, month, day)
+    return date(year, month, day)
 
 
 def Time(hour, minute, second):
@@ -339,7 +339,7 @@ def Time(hour, minute, second):
 
     :rtype: :class:`datetime.time`
     """
-    return datetime.time(hour, minute, second)
+    return time(hour, minute, second)
 
 
 def Timestamp(year, month, day, hour, minute, second):
@@ -350,7 +350,7 @@ def Timestamp(year, month, day, hour, minute, second):
 
     :rtype: :class:`datetime.datetime`
     """
-    return datetime.datetime(year, month, day, hour, minute, second)
+    return Datetime(year, month, day, hour, minute, second)
 
 
 def DateFromTicks(ticks):
@@ -362,7 +362,7 @@ def DateFromTicks(ticks):
 
     :rtype: :class:`datetime.date`
     """
-    return Date(*time.localtime(ticks)[:3])
+    return Date(*localtime(ticks)[:3])
 
 
 def TimeFromTicks(ticks):
@@ -374,7 +374,7 @@ def TimeFromTicks(ticks):
 
     :rtype: :class:`datetime.time`
     """
-    return Time(*time.localtime(ticks)[3:6])
+    return Time(*localtime(ticks)[3:6])
 
 
 def TimestampFromTicks(ticks):
@@ -386,7 +386,7 @@ def TimestampFromTicks(ticks):
 
     :rtype: :class:`datetime.datetime`
     """
-    return Timestamp(*time.localtime(ticks)[:6])
+    return Timestamp(*localtime(ticks)[:6])
 
 
 def Binary(value):
@@ -583,11 +583,9 @@ def convert_paramstyle(style, query):
     return ''.join(output_query), make_args
 
 
-EPOCH = datetime.datetime(2000, 1, 1)
+EPOCH = Datetime(2000, 1, 1)
 EPOCH_TZ = EPOCH.replace(tzinfo=utc)
 EPOCH_SECONDS = timegm(EPOCH.timetuple())
-utcfromtimestamp = datetime.datetime.utcfromtimestamp
-
 INFINITY_MICROSECONDS = 2 ** 63 - 1
 MINUS_INFINITY_MICROSECONDS = -1 * INFINITY_MICROSECONDS - 1
 
@@ -596,31 +594,25 @@ MINUS_INFINITY_MICROSECONDS = -1 * INFINITY_MICROSECONDS - 1
 def timestamp_recv_integer(data, offset, length):
     micros = q_unpack(data, offset)[0]
     try:
-        return EPOCH + timedelta(microseconds=micros)
-    except OverflowError as e:
+        return EPOCH + Timedelta(microseconds=micros)
+    except OverflowError:
         if micros == INFINITY_MICROSECONDS:
-            return datetime.datetime.max
+            return 'infinity'
         elif micros == MINUS_INFINITY_MICROSECONDS:
-            return datetime.datetime.min
+            return '-infinity'
         else:
-            raise e
+            return micros
 
 
 # data is double-precision float representing seconds since 2000-01-01
 def timestamp_recv_float(data, offset, length):
-    return utcfromtimestamp(EPOCH_SECONDS + d_unpack(data, offset)[0])
+    return Datetime.utcfromtimestamp(EPOCH_SECONDS + d_unpack(data, offset)[0])
 
 
 # data is 64-bit integer representing microseconds since 2000-01-01
 def timestamp_send_integer(v):
-    if v == datetime.datetime.max:
-        micros = INFINITY_MICROSECONDS
-    elif v == datetime.datetime.min:
-        micros = MINUS_INFINITY_MICROSECONDS
-    else:
-        micros = int(
-            (timegm(v.timetuple()) - EPOCH_SECONDS) * 1e6) + v.microsecond
-    return q_pack(micros)
+    return q_pack(
+        int((timegm(v.timetuple()) - EPOCH_SECONDS) * 1e6) + v.microsecond)
 
 
 # data is double-precision float representing seconds since 2000-01-01
@@ -640,10 +632,6 @@ def timestamptz_send_float(v):
     return timestamp_send_float(v.astimezone(utc).replace(tzinfo=None))
 
 
-DATETIME_MAX_TZ = datetime.datetime.max.replace(tzinfo=utc)
-DATETIME_MIN_TZ = datetime.datetime.min.replace(tzinfo=utc)
-
-
 # return a timezone-aware datetime instance if we're reading from a
 # "timestamp with timezone" type.  The timezone returned will always be
 # UTC, but providing that additional information can permit conversion
@@ -651,14 +639,14 @@ DATETIME_MIN_TZ = datetime.datetime.min.replace(tzinfo=utc)
 def timestamptz_recv_integer(data, offset, length):
     micros = q_unpack(data, offset)[0]
     try:
-        return EPOCH_TZ + timedelta(microseconds=micros)
-    except OverflowError as e:
+        return EPOCH_TZ + Timedelta(microseconds=micros)
+    except OverflowError:
         if micros == INFINITY_MICROSECONDS:
-            return DATETIME_MAX_TZ
+            return 'infinity'
         elif micros == MINUS_INFINITY_MICROSECONDS:
-            return DATETIME_MIN_TZ
+            return '-infinity'
         else:
-            raise e
+            return micros
 
 
 def timestamptz_recv_float(data, offset, length):
@@ -699,7 +687,7 @@ def interval_recv_integer(data, offset, length):
     microseconds, days, months = qii_unpack(data, offset)
     if months == 0:
         seconds, micros = divmod(microseconds, 1e6)
-        return datetime.timedelta(days, seconds, micros)
+        return Timedelta(days, seconds, micros)
     else:
         return Interval(microseconds, days, months)
 
@@ -708,7 +696,7 @@ def interval_recv_float(data, offset, length):
     seconds, days, months = dii_unpack(data, offset)
     if months == 0:
         secs, microseconds = divmod(seconds, 1e6)
-        return datetime.timedelta(days, secs, microseconds)
+        return Timedelta(days, secs, microseconds)
     else:
         return Interval(int(seconds * 1000 * 1000), days, months)
 
@@ -1340,12 +1328,7 @@ class Connection(object):
             return v.isoformat().encode(self._client_encoding)
 
         def date_out(v):
-            if v == datetime.date.max:
-                return 'infinity'.encode(self._client_encoding)
-            elif v == datetime.date.min:
-                return '-infinity'.encode(self._client_encoding)
-            else:
-                return v.isoformat().encode(self._client_encoding)
+            return v.isoformat().encode(self._client_encoding)
 
         def unknown_out(v):
             return str(v).encode(self._client_encoding)
@@ -1433,19 +1416,15 @@ class Connection(object):
             minute = int(data[offset + 3:offset + 5])
             sec = Decimal(
                 data[offset + 6:offset + length].decode(self._client_encoding))
-            return datetime.time(
+            return time(
                 hour, minute, int(sec), int((sec - int(sec)) * 1000000))
 
         def date_in(data, offset, length):
-            year_str = data[offset:offset + 4].decode(self._client_encoding)
-            if year_str == 'infi':
-                return datetime.date.max
-            elif year_str == '-inf':
-                return datetime.date.min
-            else:
-                return datetime.date(
-                    int(year_str), int(data[offset + 5:offset + 7]),
-                    int(data[offset + 8:offset + 10]))
+            d = data[offset:offset+length].decode(self._client_encoding)
+            try:
+                return date(int(d[:4]), int(d[5:7]), int(d[8:10]))
+            except ValueError:
+                return d
 
         def numeric_in(data, offset, length):
             return Decimal(
@@ -1501,19 +1480,19 @@ class Connection(object):
             bool: (16, FC_BINARY, bool_send),
             int: (705, FC_TEXT, unknown_out),
             float: (701, FC_BINARY, d_pack),  # float8
-            datetime.date: (1082, FC_TEXT, date_out),  # date
-            datetime.time: (1083, FC_TEXT, time_out),  # time
+            date: (1082, FC_TEXT, date_out),  # date
+            time: (1083, FC_TEXT, time_out),  # time
             1114: (1114, FC_BINARY, timestamp_send_integer),  # timestamp
             # timestamp w/ tz
             1184: (1184, FC_BINARY, timestamptz_send_integer),
-            datetime.timedelta: (1186, FC_BINARY, interval_send_integer),
+            Timedelta: (1186, FC_BINARY, interval_send_integer),
             Interval: (1186, FC_BINARY, interval_send_integer),
             Decimal: (1700, FC_TEXT, numeric_out),  # Decimal
             UUID: (2950, FC_BINARY, uuid_send),  # uuid
         }
 
         self.inspect_funcs = {
-            datetime.datetime: self.inspect_datetime,
+            Datetime: self.inspect_datetime,
             list: self.array_inspect,
             tuple: self.array_inspect,
         }
@@ -1590,8 +1569,8 @@ class Connection(object):
         if application_name is not None:
             if isinstance(application_name, text_type):
                 application_name = application_name.encode('utf8')
-            val.extend(b("application_name\x00") + application_name +
-                       NULL_BYTE)
+            val.extend(
+                b("application_name\x00") + application_name + NULL_BYTE)
         val.append(0)
         self._write(i_pack(len(val) + 4))
         self._write(val)
@@ -2134,7 +2113,7 @@ class Connection(object):
 
                 self.py_types[Interval] = (
                     1186, FC_BINARY, interval_send_integer)
-                self.py_types[datetime.timedelta] = (
+                self.py_types[Timedelta] = (
                     1186, FC_BINARY, interval_send_integer)
                 self.pg_types[1186] = (FC_BINARY, interval_recv_integer)
             else:
@@ -2145,7 +2124,7 @@ class Connection(object):
 
                 self.py_types[Interval] = (
                     1186, FC_BINARY, interval_send_float)
-                self.py_types[datetime.timedelta] = (
+                self.py_types[Timedelta] = (
                     1186, FC_BINARY, interval_send_float)
                 self.pg_types[1186] = (FC_BINARY, interval_recv_float)
 

@@ -33,9 +33,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], datetime.time(4, 5, 6))
 
     def testDateRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", (datetime.date(2001, 2, 3),))
+        v = datetime.date(2001, 2, 3)
+        self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
-        self.assertEqual(retval[0][0], datetime.date(2001, 2, 3))
+        self.assertEqual(retval[0][0], v)
 
     def testBoolRoundtrip(self):
         self.cursor.execute("SELECT %s as f1", (True,))
@@ -670,6 +671,12 @@ class Tests(unittest.TestCase):
         assert b('A\xbe\x19\xcf\x80\x00\x00\x00') == \
             pg8000.core.timestamp_send_float(
                 datetime.datetime(2016, 1, 2, 0, 0))
+
+    def test_infinity_timestamp_roundtrip(self):
+        v = 'infinity'
+        self.cursor.execute("SELECT cast(%s as timestamp) as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
 
 
 if __name__ == "__main__":

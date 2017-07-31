@@ -3,11 +3,280 @@
 
 pg8000 is a pure-link:http://www.python.org/[Python]
 http://www.postgresql.org/[PostgreSQL] driver that complies with
-http://www.python.org/dev/peps/pep-0249/[DB-API 2.0].
+http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. It runs on Python versions 2.7+ and 3.3+, on CPython, Jython and PyPy. Pg8000's name comes from
+the belief that it is probably about the 8000th PostgreSQL interface for
+Python. pg8000 is distributed under the terms of the BSD 3-clause license.
+
+All bug reports, feature requests and contributions are welcome at
+http://github.com/mfenniak/pg8000/.
+
+If you're a user of pg8000 we'd love to hear who you are and what you or your
+organization is using pg8000 for. Just log an issue on GitHub. The idea is to
+put together a list of users.
 
 image::https://circleci.com/gh/mfenniak/pg8000.svg?style=shield&circle-token=2737fb9ccf95410c088deb53f1212a7bc2314482[Build Status]
 
-See the http://pythonhosted.org/pg8000/[User Docs].
+
+== Key Points
+
+* Although it's possible for threads to share cursors and connections, for
+  performance reasons it's best to use one thread per connection.
+* Internally, all queries use prepared statements. pg8000 remembers that a
+  prepared statement has been created, and uses it on subsequent queries.
+
+
+== Installation
+
+To install pg8000 using `pip` type:
+
+`pip install pg8000`
+
+
+== Interactive Example
+
+Import pg8000, connect to the database, create a table, add some rows and then
+query the table:
+
+[source,python]
+----
+>>> import pg8000
+>>> conn = pg8000.connect(user="postgres", password="C.P.Snow")
+>>> cursor = conn.cursor()
+>>> cursor.execute("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
+>>> cursor.execute(
+...     "INSERT INTO book (title) VALUES (%s), (%s) RETURNING id, title",
+...     ("Ender's Game", "Speaker for the Dead"))
+>>> results = cursor.fetchall()
+>>> for row in results:
+...     id, title = row
+...     print("id = %s, title = %s" % (id, title))
+id = 1, title = Ender's Game
+id = 2, title = Speaker for the Dead
+>>> conn.commit()
+
+----
+
+Another query, using some PostgreSQL functions:
+
+[source,python]
+----
+>>> cursor.execute("SELECT extract(millennium from now())")
+>>> cursor.fetchone()
+[3.0]
+
+----
+
+A query that returns the PostgreSQL interval type:
+
+[source,python]
+----
+>>> import datetime
+>>> cursor.execute("SELECT timestamp '2013-12-01 16:06' - %s",
+... (datetime.date(1980, 4, 27),))
+>>> cursor.fetchone()
+[datetime.timedelta(12271, 57960)]
+
+----
+
+pg8000 supports all the DB-API parameter styles. Here's an example of using
+the 'numeric' parameter style:
+
+[source,python]
+----
+>>> pg8000.paramstyle = "numeric"
+>>> cursor.execute("SELECT array_prepend(:1, :2)", ( 500, [1, 2, 3, 4], ))
+>>> cursor.fetchone()
+[[500, 1, 2, 3, 4]]
+>>> pg8000.paramstyle = "format"
+>>> conn.rollback()
+
+----
+
+Following the DB-API specification, autocommit is off by default. It can be
+turned on by using the autocommit property of the connection.
+
+[source,python]
+----
+>>> conn.autocommit = True
+>>> cur = conn.cursor()
+>>> cur.execute("vacuum")
+>>> conn.autocommit = False
+>>> cursor.close()
+
+----
+
+When communicating with the server, pg8000 uses the character set that the
+server asks it to use (the client encoding). By default the client encoding is
+the database's character set (chosen when the database is created), but the
+client encoding can be changed in a number of ways (eg. setting
+CLIENT_ENCODING in postgresql.conf). Another way of changing the client
+encoding is by using an SQL command. For example:
+
+[source,python]
+----
+>>> cur = conn.cursor()
+>>> cur.execute("SET CLIENT_ENCODING TO 'UTF8'")
+>>> cur.execute("SHOW CLIENT_ENCODING")
+>>> cur.fetchone()
+['UTF8']
+>>> cur.close()
+
+----
+
+JSON is sent to the server serialized, and returned de-serialized. Here's an
+example:
+
+[source,python]
+----
+>>> import json
+>>> cur = conn.cursor()
+>>> val = ['Apollo 11 Cave', True, 26.003]
+>>> cur.execute("SELECT cast(%s as json)", (json.dumps(val),))
+>>> cur.fetchone()
+[['Apollo 11 Cave', True, 26.003]]
+>>> cur.close()
+>>> conn.close()
+
+----
+
+== Type Mapping
+
+The following table shows the mapping between Python types and PostgreSQL
+types, and vice versa.
+
+If pg8000 doesn't recognize a type that it receives from PostgreSQL, it will
+return it as a `str` type. This is how pg8000 handles PostgreSQL `enum` and
+XML types.
+
+.Python to PostgreSQL Type Mapping
+|===
+| Python Type | PostgreSQL Type | Notes
+
+| bool
+| bool
+|
+
+| int
+| int4
+|
+
+| long
+| numeric
+| Python 2 only.
+
+| str
+| text (Python 3), bytea (Python 2)
+|
+
+| unicode
+| text
+| Python 2 only.
+
+| float
+| float8
+|
+
+| decimal.Decimal
+| numeric
+|
+
+| pg8000.Bytea
+| bytea
+| Python 2 only.
+
+| bytes
+| bytea
+| Python 3 only.
+
+| datetime.datetime (without tzinfo)
+| timestamp without timezone
+| See note below.
+
+| datetime.datetime (with tzinfo)
+| timestamp with timezone
+| See note below.
+
+| datetime.date
+| date
+| See note below.
+
+| datetime.time
+| time without time zone
+|
+
+| datetime.timedelta
+| interval
+| datetime.timedelta is used unless the interval has months, in which case
+  pg8000.Interval is used
+
+| None
+| NULL
+|
+
+| uuid.UUID
+| uuid
+|
+
+| ipaddress.IPv4Address
+| inet
+| Python 3.3 onwards
+
+| ipaddress.IPv6Address
+| inet
+| Python 3.3 onwards
+
+| ipaddress.IPv4Network
+| inet
+| Python 3.3 onwards
+
+| ipaddress.IPv6Network
+| inet
+| Python 3.3 onwards
+
+| int
+| xid
+|
+
+| list of int
+| INT4[]
+|
+
+| list of float
+| FLOAT8[]
+|
+
+| list of bool
+| BOOL[]
+|
+
+| list of str
+| TEXT[]
+|
+
+| list of unicode
+| TEXT[]
+| Python 2 only.
+
+| int
+| int2vector
+| Only from PostgreSQL to Python
+
+| JSON
+| json, jsonb
+| JSON string as an SQL parameter. Results returned as de-serialized JSON.
+|===
+
+
+=== Notes
+
+* PostgreSQL has +/-infinity values for dates and timestamps, but Python does
+  not. Pg8000 handles this by returning +/-infinity strings in results, and in
+  parameters the strings +/- infinity can be used.
+
+* PostgreSQL dates/timestamps can have values outside the range of Python
+  datetimes. These are handled using the underlying PostgreSQL storage method.
+  I don't know of any users of pg8000 that use this feature, so get in touch if
+  it affects you.
 
 
 [[_theory_of_operation]]
@@ -80,6 +349,676 @@ closed before all the rows have been read from it, and then an attempt is made
 to read the remaining rows.
 
 
+== API Docs
+
+
+=== Properties
+
+
+==== pg8000.apilevel
+
+The DBAPI level supported, currently "2.0".
+
+This property is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+==== pg8000.threadsafety
+
+Integer constant stating the level of thread safety the DBAPI interface
+supports. This DBAPI module supports sharing the module, connections, and
+cursors, resulting in a threadsafety value of 3.
+
+This property is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+==== pg8000.paramstyle
+
+String property stating the type of parameter marker formatting expected by
+the interface.  This value defaults to "format", in which parameters are
+marked in this format: "WHERE name=%s".
+
+This property is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+As an extension to the DBAPI specification, this value is not constant; it
+can be changed to any of the following values:
+
+qmark::
+  Question mark style, eg. `WHERE name=?`
+
+numeric::
+  Numeric positional style, eg. `WHERE name=:1`
+
+named::
+  Named style, eg. `WHERE name=:paramname`
+
+format::
+  printf format codes, eg. `WHERE name=%s`
+
+pyformat::
+  Python format codes, eg. `WHERE name=%(paramname)s`
+
+
+==== pg8000.STRING
+
+String type oid.
+
+==== pg8000.BINARY
+
+
+==== pg8000.NUMBER
+
+Numeric type oid.
+
+
+==== pg8000.DATETIME
+
+Timestamp type oid
+
+
+==== pg8000.ROWID
+
+ROWID type oid
+
+
+=== Functions
+
+
+==== pg8000.connect(user=None, host='localhost', unix_sock=None, port=5432, database=None, password=None, ssl=False, timeout=None, application_name=None)
+
+Creates a connection to a PostgreSQL database.
+
+This property is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+user::
+  The username to connect to the PostgreSQL server with. If your server
+  character encoding is not '`ascii`' or '`utf8`', then you need to provide
+  `user` as bytes, eg. `'my_name'.encode(\'EUC-JP\')`.
+
+host::
+  The hostname of the PostgreSQL server to connect with. Providing this
+  parameter is necessary for TCP/IP connections. One of either `host` or
+  `unix_sock` must be provided. The default is `localhost`.
+
+unix_sock::
+  The path to the UNIX socket to access the database through, for example,
+  `'/tmp/.s.PGSQL.5432'`. One of either `host` or `unix_sock` must be provided.
+
+port::
+  The TCP/IP port of the PostgreSQL server instance.  This parameter defaults
+  to `5432`, the registered common port of PostgreSQL TCP/IP servers.
+
+database::
+  The name of the database instance to connect with.  This parameter is
+  optional; if omitted, the PostgreSQL server will assume the database name is
+  the same as the username. +
+  +
+  If your server character encoding is not '`ascii`' or '`utf8`', then
+  you need to provide `database` as bytes, eg.
+  `'my_db'.encode('EUC-JP')`.
+
+password::
+  The user password to connect to the server with. This parameter is optional;
+  if omitted and the database server requests password-based authentication,
+  the connection will fail to open. If this parameter is provided but not
+  requested by the server, no error will occur. +
+  +
+  If your server character encoding is not '`ascii`' or '`utf8`', then
+  you need to provide `password` as bytes, eg.
+  `'my_password'.encode('EUC-JP')`.
+
+ssl::
+  Use SSL encryption for TCP/IP sockets if `True`.  Defaults to `False`.
+
+timeout::
+  Only used with Python 3, this is the time in seconds before the connection to
+  the database will time out. The default is `None` which means no timeout.
+
+
+==== pg8000.Date(year, month, day)
+
+Constuct an object holding a date value.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+Returns: `datetime.date`
+
+
+==== pg8000.Time(hour, minute, second)
+
+Construct an object holding a time value.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+Returns: `datetime.time`
+
+
+==== pg8000.Timestamp(year, month, day, hour, minute, second)
+
+Construct an object holding a timestamp value.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+Returns: `datetime.datetime`
+
+
+==== pg8000.DateFromTicks(ticks)
+
+Construct an object holding a date value from the given ticks value (number of
+seconds since the epoch).
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+Returns: `datetime.datetime`
+
+
+==== pg8000.TimeFromTicks(ticks)
+
+Construct an objet holding a time value from the given ticks value (number of
+seconds since the epoch).
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+Returns: `datetime.time`
+
+
+==== pg8000.TimestampFromTicks(ticks)
+
+Construct an object holding a timestamp value from the given ticks value
+(number of seconds since the epoch).
+
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+Returns: `datetime.datetime`
+
+
+==== pg8000.Binary(value)
+
+Construct an object holding binary data.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+Returns: `pg8000.types.Bytea` for Python 2, otherwise `bytes`.
+
+
+=== Generic Exceptions
+
+Pg8000 uses the standard DBAPI 2.0 exception tree as "generic" exceptions.
+Generally, more specific exception types are raised; these specific exception
+types are derived from the generic exceptions.
+
+==== pg8000.Warning
+
+Generic exception raised for important database warnings like data truncations.
+This exception is not currently used by pg8000.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+==== pg8000.Error
+
+Generic exception that is the base exception of all other error exceptions.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+==== pg8000.InterfaceError
+
+Generic exception raised for errors that are related to the database interface
+rather than the database itself. For example, if the interface attempts to use
+an SSL connection but the server refuses, an InterfaceError will be raised.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+==== pg8000.DatabaseError
+
+Generic exception raised for errors that are related to the database. This
+exception is currently never raised by pg8000.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+==== pg8000.DataError
+
+Generic exception raised for errors that are due to problems with the processed
+data. This exception is not currently raised by pg8000.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+==== pg8000.OperationalError
+
+Generic exception raised for errors that are related to the database's
+operation and not necessarily under the control of the programmer. This
+exception is currently never raised by pg8000.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+==== pg8000.IntegrityError
+
+Generic exception raised when the relational integrity of the database is
+affected. This exception is not currently raised by pg8000.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+==== pg8000.InternalError
+
+Generic exception raised when the database encounters an internal error. This
+is currently only raised when unexpected state occurs in the pg8000 interface
+itself, and is typically the result of a interface bug.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+==== pg8000.ProgrammingError
+
+Generic exception raised for programming errors.  For example, this exception
+is raised if more parameter fields are in a query string than there are
+available parameters.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+==== pg8000.NotSupportedError
+
+Generic exception raised in case a method or database API was used which is not
+supported by the database.
+
+This exception is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+=== Specific Exceptions
+
+Exceptions that are subclassed from the standard DB-API 2.0 exceptions above.
+
+
+==== pg8000.ArrayContentNotSupportedError
+
+Raised when attempting to transmit an array where the base type is not
+supported for binary data transfer by the interface.
+
+
+==== pg8000.ArrayContentNotHomogenousError
+
+Raised when attempting to transmit an array that doesn’t contain only a single
+type of object.
+
+
+==== pg8000.ArrayDimensionsNotConsistentError
+
+Raised when attempting to transmit an array that has inconsistent
+multi-dimension sizes.
+
+
+=== Classes
+
+
+==== pg8000.Connection
+
+A connection object is returned by the `pg8000.connect()` function. It
+represents a single physical connection to a PostgreSQL database.
+
+===== pg8000.Connection.notifies
+
+A list of server-side notifications received by this database connection (via
+the LISTEN/NOTIFY PostgreSQL commands).  Each list element is a two-element
+tuple containing the PostgreSQL backend PID that issued the notify, and the
+notification name.
+
+PostgreSQL will only send notifications to a client between transactions. The
+contents of this property are generally only populated after a commit or
+rollback of the current transaction.
+
+This list can be modified by a client application to clean out notifications as
+they are handled.  However, inspecting or modifying this collection should only
+be done while holding the `pg8000.Connection.notifies_lock` in order to
+guarantee thread-safety.
+
+This attribute is not part of the DBAPI standard; it is a pg8000 extension.
+
+New in version 1.07.
+
+===== pg8000.Connection.notifies_lock
+
+A `threading.Lock` object that should be held to read or modify the contents of
+the `pg8000.Connection.notifies` list.
+
+This attribute is not part of the DBAPI standard; it is a pg8000 extension.
+
+New in version 1.07.
+
+
+===== pg8000.Connection.autocommit
+
+Following the DB-API specification, autocommit is off by default. It can be
+turned on by setting this boolean pg8000-specific autocommit property to True.
+
+New in version 1.9.
+
+
+===== pg8000.Connection.close()
+
+Closes the database connection.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Connection.cursor()
+
+Creates a `pg8000.Cursor` object bound to this connection.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Connection.rollback()
+
+Rolls back the current database transaction.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Connection.tpc_begin(xid)
+
+Begins a TPC transaction with the given transaction ID xid. This method should
+be called outside of a transaction (i.e. nothing may have executed since the
+last `commit()`  or `rollback()`. Furthermore, it is an error to call
+`commit()` or `rollback()` within the TPC transaction. A `ProgrammingError` is
+raised, if the application calls `commit()` or `rollback()` during an active
+TPC transaction.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Connection.tpc_commit(xid=None)
+
+When called with no arguments, `tpc_commit()` commits a TPC transaction
+previously prepared with `tpc_prepare()`. If `tpc_commit()` is called prior to
+`tpc_prepare()`, a single phase commit is performed. A transaction manager may
+choose to do this if only a single resource is participating in the global
+transaction.
+
+When called with a transaction ID `xid`, the database commits the given
+transaction. If an invalid transaction ID is provided, a
+ProgrammingError will be raised. This form should be called outside of
+a transaction, and is intended for use in recovery.
+
+On return, the TPC transaction is ended.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Connection.tpc_prepare()
+
+Performs the first phase of a transaction started with .tpc_begin(). A
+ProgrammingError is be raised if this method is called outside of a TPC
+transaction.
+
+After calling `tpc_prepare()`, no statements can be executed until
+`tpc_commit()` or `tpc_rollback()` have been called.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Connection.tpc_recover()
+
+Returns a list of pending transaction IDs suitable for use with
+`tpc_commit(xid)` or `tpc_rollback(xid)`
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Connection.tpc_rollback(xid=None)
+
+When called with no arguments, `tpc_rollback()` rolls back a TPC transaction.
+It may be called before or after `tpc_prepare()`.
+
+When called with a transaction ID xid, it rolls back the given transaction. If
+an invalid transaction ID is provided, a `ProgrammingError` is raised. This
+form should be called outside of a transaction, and is intended for use in
+recovery.
+
+On return, the TPC transaction is ended.
+
+This function is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+===== pg8000.Connection.xid(format_id, global_transaction_id, branch_qualifier)
+
+Create a Transaction IDs (only global_transaction_id is used in pg) format_id
+and branch_qualifier are not used in postgres global_transaction_id may be any
+string identifier supported by postgres returns a tuple (format_id,
+global_transaction_id, branch_qualifier)
+
+
+==== pg8000.Cursor
+
+A cursor object is returned by the `pg8000.Connection.cursor()` method of a
+connection. It has the following attributes and methods:
+
+===== pg8000.Cursor.arraysize
+
+This read/write attribute specifies the number of rows to fetch at a time with
+`pg8000.Cursor.fetchmany()`.  It defaults to 1.
+
+
+===== pg8000.Cursor.connection
+
+This read-only attribute contains a reference to the connection object
+(an instance of `pg8000.Connection`) on which the cursor was created.
+
+This attribute is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Cursor.rowcount
+
+This read-only attribute contains the number of rows that the last
+`execute()` or `executemany()` method produced (for query statements like
+`SELECT`) or affected (for modification statements like `UPDATE`.
+
+The value is -1 if:
+
+* No `execute()` or `executemany()` method has been performed yet on the
+  cursor.
+* There was no rowcount associated with the last `execute()`.
+* At least one of the statements executed as part of an `executemany()` had no
+  row count associated with it.
+* Using a `SELECT` query statement on a PostgreSQL server older than version
+  9.
+* Using a `COPY` query statement on PostgreSQL server version 8.1 or older.
+
+This attribute is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Cursor.description">
+
+This read-only attribute is a sequence of 7-item sequences. Each value contains
+information describing one result column. The 7 items returned for each column
+are (name, type_code, display_size, internal_size, precision, scale, null_ok).
+Only the first two values are provided by the current implementation.
+
+This attribute is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Cursor.close()
+
+Closes the cursor.
+
+This method is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Cursor.execute(operation, args=None, stream=None)
+
+Executes a database operation. Parameters may be provided as a sequence, or as
+a mapping, depending upon the value of `pg8000.paramstyle`.
+
+This method is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+operation::
+  The SQL statement to execute.
+
+args::
+  If `pg8000.paramstyle` is `qmark`, `numeric`, or `format`, this argument
+should be an array of parameters to bind into the statement. If
+`pg8000.paramstyle` is `named`, the argument should be a `dict` mapping of
+parameters. If `pg8000.paramstyle' is `pyformat`, the argument value may be
+either an array or a mapping.
+
+stream::
+  This is a pg8000 extension for use with the PostgreSQL
+http://www.postgresql.org/docs/current/static/sql-copy.html[COPY] command. For
+a `COPY FROM` the parameter must be a readable file-like object, and for
+`COPY TO` it must be writable.
+
+New in version 1.9.11.
+
+
+===== pg8000.Cursor.executemany(operation, param_sets)
+
+Prepare a database operation, and then execute it against all parameter
+sequences or mappings provided.
+
+This method is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+operation::
+  The SQL statement to execute.
+parameter_sets::
+  A sequence of parameters to execute the statement with. The values in the
+  sequence should be sequences or mappings of parameters, the same as the args
+  argument of the `pg8000.Cursor.execute()` method.
+
+
+===== pg8000.Cursor.fetchall()
+
+Fetches all remaining rows of a query result.
+
+This method is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+Returns: A sequence, each entry of which is a sequence of field values making
+up a row.
+
+
+===== pg8000.Cursor.fetchmany(size=None)
+
+Fetches the next set of rows of a query result.
+
+This method is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+size::
+  The number of rows to fetch when called.  If not provided, the
+  `pg8000.Cursor.arraysize` attribute value is used instead.
+
+Returns: A sequence, each entry of which is a sequence of field values making
+up a row.  If no more rows are available, an empty sequence will be returned.
+
+
+===== pg8000.Cursor.fetchone()
+
+Fetch the next row of a query result set.
+
+This method is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+Returns: A row as a sequence of field values, or `None` if no more rows are
+available.
+
+
+===== pg8000.Cursor.setinputsizes
+
+This method is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification], however, it
+is not implemented by pg8000.
+
+
+===== pg8000.Cursor.setoutputsize(size, column=None)
+
+This method is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification], however, it
+is not implemented by pg8000.
+
+
+==== pg8000.Bytea
+
+Bytea is a str-derived class that is mapped to a PostgreSQL byte array. This
+class is only used in Python 2, the built-in `bytes` type is used in Python 3.
+
+
+==== pg8000.Interval
+
+An Interval represents a measurement of time.  In PostgreSQL, an interval is
+defined in the measure of months, days, and microseconds; as such, the pg8000
+interval type represents the same information.
+
+Note that values of the `pg8000.Interval.microseconds`, `pg8000.Interval.days`,
+and `pg8000.Interval.months` properties are independently measured and cannot
+be converted to each other. A month may be 28, 29, 30, or 31 days, and a day
+may occasionally be lengthened slightly by a leap second.
+
+
+===== pg8000.Interval.microseconds
+
+Measure of microseconds in the interval.
+
+The microseconds value is constrained to fit into a signed 64-bit integer. Any
+attempt to set a value too large or too small will result in an OverflowError
+being raised.
+
+
+===== pg8000.Interval.days
+
+Measure of days in the interval.
+
+The days value is constrained to fit into a signed 32-bit integer. Any attempt
+to set a value too large or too small will result in an OverflowError being
+raised.
+
+
+===== pg8000.Interval.months
+
+Measure of months in the interval.
+
+The months value is constrained to fit into a signed 32-bit integer. Any
+attempt to set a value too large or too small will result in an OverflowError
+being raised.
+
+
 == Regression Tests
 
 The easiest way to run the regression tests is using a prebuilt Docker image
@@ -147,20 +1086,6 @@ The idea is to set `shared_buffers` in `postgresql.conf` to 128kB, and then
 run the stress test, and you should get `no unpinned buffers` errors.
 
 
-== Building The Documentation
-
-The docs are written using http://sphinx-doc.org/[Sphinx]. To build them,
-install sphinx:
-
- pip install sphinx
-
-Then type:
-
- python setup.py build_sphinx
-
-and the docs will appear in `build/sphinx/html`.
-
-
 == Doing A Release Of pg8000
 
 Run `tox` to make sure all tests pass, then update `doc/release_notes.rst` then
@@ -168,5 +1093,585 @@ do:
 
 ....
 git tag -a x.y.z -m "version x.y.z"
-python setup.py register sdist bdist_wheel upload build_sphinx upload_docs --sign
+python setup.py register sdist bdist_wheel upload --sign
 ....
+
+
+== Release Notes
+
+
+=== Unreleased, yyyy-mm-dd
+
+* Fix warnings from PostgreSQL "not in a transaction", when calling ``.rollback()``
+  while not in a transaction.  `#113 <https://github.com/mfenniak/pg8000/issues/113>`_.
+  Thanks to `@jamadden <https://github.com/jamadden>`_ for the contribution.
+  
+* Add support for ``application_name`` parameter when connecting to database.
+  `#106 <https://github.com/mfenniak/pg8000/pull/106>`_.  Thanks to `@vadv 
+  <https://github.com/vadv>`_ for the contribution.
+
+
+=== Version 1.10.6, 2016-06-10
+
+* Fixed a problem where we weren't handling the password connection parameter
+  correctly. Now it's handled in the same way as the 'user' and 'database'
+  parameters, ie. if the password is bytes, then pass it straight through to the
+  database, if it's a string then encode it with utf8.
+
+* It used to be that if the 'user' parameter to the connection function was
+  'None', then pg8000 would try and look at environment variables to find a
+  username. Now we just go by the 'user' parameter only, and give an error if
+  it's None.
+
+
+=== Version 1.10.5, 2016-03-04
+
+- Include LICENCE text and sources for docs in the source distribution (the
+  tarball).
+
+
+=== Version 1.10.4, 2016-02-27
+
+* Fixed bug where if a str is sent as a query parameter, and then with the same
+  cursor an int is sent instead of a string, for the same query, then it fails.
+
+* Under Python 2, a str type is now sent 'as is', ie. as a byte string rather
+  than trying to decode and send according to the client encoding. Under Python
+  2 it's recommended to send text as unicode() objects.
+
+* Dropped and added support for Python versions. Now pg8000 supports
+  Python 2.7+ and Python 3.3+. 
+
+* Dropped and added support for PostgreSQL versions. Now pg8000 supports
+  PostgreSQL 9.1+.
+
+* pg8000 uses the 'six' library for making the same code run on both Python 2
+  and Python 3. We used to include it as a file in the pg8000 source code. Now
+  we have it as a separate dependency that's installed with 'pip install'. The
+  reason for doing this is that package maintainers for OS distributions
+  prefer unbundled libaries.
+
+
+=== Version 1.10.3, 2016-01-07
+
+* Removed testing for PostgreSQL 9.0 as it's not longer supported by the
+  PostgreSQL Global Development Group.
+* Fixed bug where pg8000 would fail with datetimes if PostgreSQL was compiled
+  with the integer_datetimes option set to 'off'. The bug was in the
+  timestamp_send_float function.
+
+
+=== Version 1.10.2, 2015-03-17
+
+* If there's a socket exception thrown when communicating with the database,
+  it is now wrapped in an OperationalError exception, to conform to the DB-API
+  spec.
+
+* Previously, pg8000 didn't recognize the EmptyQueryResponse (that the server
+  sends back if the SQL query is an empty string) now we raise a
+  ProgrammingError exception.
+
+* Added socket timeout option for Python 3.
+
+* If the server returns an error, we used to initialize the ProgramerException
+  with just the first three fields of the error. Now we initialize the
+  ProgrammerException with all the fields.
+
+* Use relative imports inside package.
+
+* User and database names given as bytes. The user and database parameters of
+  the connect() function are now passed directly as bytes to the server. If the
+  type of the parameter is unicode, pg8000 converts it to bytes using the uft8
+  encoding.
+
+* Added support for JSON and JSONB Postgres types. We take the approach of
+  taking serialized JSON (str) as an SQL parameter, but returning results as
+  de-serialized JSON (Python objects). See the example in the Quickstart.
+
+* Added CircleCI continuous integration.
+
+* String support in arrays now allow letters like "u", braces and whitespace.
+
+
+=== Version 1.10.1, 2014-09-15
+
+* Add support for the Wheel package format.
+
+* Remove option to set a connection timeout. For communicating with the server,
+  pg8000 uses a file-like object using socket.makefile() but you can't use this
+  if the underlying socket has a timeout.
+
+
+=== Version 1.10.0, 2014-08-30
+
+* Remove the old ``pg8000.dbapi`` and ``pg8000.DBAPI`` namespaces. For example,
+  now only ``pg8000.connect()`` will work, and ``pg8000.dbapi.connect()``
+  won't work any more.
+
+* Parse server version string with LooseVersion. This should solve the problems
+  that people have been having when using versions of PostgreSQL such as
+  ``9.4beta2``.
+
+* Message if portal suspended in autocommit. Give a proper error message if the
+  portal is suspended while in autocommit mode. The error is that the portal is
+  closed when the transaction is closed, and so in autocommit mode the portal
+  will be immediately closed. The bottom line is, don't use autocommit mode if
+  there's a chance of retrieving more rows than the cache holds (currently 100).
+
+
+=== Version 1.9.14, 2014-08-02
+
+* Make ``executemany()`` set ``rowcount``. Previously, ``executemany()`` would
+  always set ``rowcount`` to -1. Now we set it to a meaningful value if
+  possible. If any of the statements have a -1 ``rowcount`` then then the
+  ``rowcount`` for the ``executemany()`` is -1, otherwise the ``executemany()``
+  ``rowcount`` is the sum of the rowcounts of the individual statements.
+
+* Support for password authentication. pg8000 didn't support plain text
+  authentication, now it does.
+
+
+=== Version 1.9.13, 2014-07-27
+
+* Reverted to using the string ``connection is closed`` as the message of the
+  exception that's thrown if a connection is closed. For a few versions we were
+  using a slightly different one with capitalization and punctuation, but we've
+  reverted to the original because it's easier for users of the library to
+  consume.
+
+* Previously, ``tpc_recover()`` would start a transaction if one was not already
+  in progress. Now it won't.
+
+
+=== Version 1.9.12, 2014-07-22
+
+* Fixed bug in ``tpc_commit()`` where a single phase commit failed.
+
+
+=== Version 1.9.11, 2014-07-20
+
+* Add support for two-phase commit DBAPI extension. Thanks to Mariano Reingart's
+  TPC code on the Google Code version:
+
+  https://code.google.com/p/pg8000/source/detail?r=c8609701b348b1812c418e2c7
+
+  on which the code for this commit is based.
+
+* Deprecate ``copy_from()`` and ``copy_to()`` The methods ``copy_from()`` and
+  ``copy_to()`` of the ``Cursor`` object are deprecated because it's simpler and
+  more flexible to use the ``execute()`` method with a ``fileobj`` parameter.
+
+* Fixed bug in reporting unsupported authentication codes. Thanks to
+  https://github.com/hackgnar for reporting this and providing the fix.
+
+* Have a default for the ``user`` paramater of the ``connect()`` function. If
+  the ``user`` parameter of the ``connect()`` function isn't provided, look
+  first for the ``PGUSER`` then the ``USER`` environment variables. Thanks to
+  Alex Gaynor https://github.com/alex for this suggestion.
+
+* Before PostgreSQL 8.2, ``COPY`` didn't give row count. Until PostgreSQL 8.2
+  (which includes Amazon Redshift which forked at 8.0) the ``COPY`` command
+  didn't return a row count, but pg8000 thought it did. That's fixed now.
+
+
+=== Version 1.9.10, 2014-06-08
+
+* Remember prepared statements. Now prepared statements are never closed, and
+  pg8000 remembers which ones are on the server, and uses them when a query is
+  repeated. This gives an increase in performance, because on subsequent
+  queries the prepared statement doesn't need to be created each time.
+
+* For performance reasons, pg8000 never closed portals explicitly, it just
+  let the server close them at the end of the transaction. However, this can
+  cause memory problems for long running transactions, so now pg800 always
+  closes a portal after it's exhausted.
+
+* Fixed bug where unicode arrays failed under Python 2. Thanks to
+  https://github.com/jdkx for reporting this.
+
+* A FLUSH message is now sent after every message (except SYNC). This is in
+  accordance with the protocol docs, and ensures the server sends back its
+  responses straight away.
+
+
+=== Version 1.9.9, 2014-05-12
+
+* The PostgreSQL interval type is now mapped to datetime.timedelta where
+  possible. Previously the PostgreSQL interval type was always mapped to the
+  pg8000.Interval type. However, to support the datetime.timedelta type we
+  now use it whenever possible. Unfortunately it's not always possible because
+  timedelta doesn't support months. If months are needed then the fall-back
+  is the pg8000.Interval type. This approach means we handle timedelta in a
+  similar way to other Python PostgreSQL drivers, and it makes pg8000
+  compatible with popular ORMs like SQLAlchemy.
+
+* Fixed bug in executemany() where a new prepared statement should be created
+  for each variation in the oids of the parameter sets.
+
+
+=== Version 1.9.8, 2014-05-05
+
+* We used to ask the server for a description of the statement, and then ask
+  for a description of each subsequent portal. We now only ask for a
+  description of the statement. This results in a significant performance
+  improvement, especially for executemany() calls and when using the
+  'use_cache' option of the connect() function.
+
+* Fixed warning in Python 3.4 which was saying that a socket hadn't been
+  closed. It seems that closing a socket file doesn't close the underlying
+  socket.
+
+* Now should cope with PostgreSQL 8 versions before 8.4. This includes Amazon
+  Redshift.
+
+* Added 'unicode' alias for 'utf-8', which is needed for Amazon Redshift.
+
+* Various other bug fixes.
+
+
+=== Version 1.9.7, 2014-03-26
+
+* Caching of prepared statements. There's now a 'use_cache' boolean parameter
+  for the connect() function, which causes all prepared statements to be cached
+  by pg8000, keyed on the SQL query string. This should speed things up
+  significantly in most cases.
+
+* Added support for the PostgreSQL inet type. It maps to the Python types
+  IPv*Address and IPv*Network.
+
+* Added support for PostgreSQL +/- infinity date and timestamp values. Now the
+  Python value datetime.datetime.max maps to the PostgreSQL value 'infinity'
+  and datetime.datetime.min maps to '-infinity', and the same for
+  datetime.date.
+
+* Added support for the PostgreSQL types int2vector and xid, which are mostly
+  used internally by PostgreSQL.
+
+
+=== Version 1.9.6, 2014-02-26
+
+* Fixed a bug where 'portal does not exist' errors were being generated. Some
+  queries that should have been run in a transaction were run in autocommit
+  mode and so any that suspended a portal had the portal immediately closed,
+  because a portal can only exist within a transaction. This has been solved by
+  determining the transaction status from the READY_FOR_QUERY message.
+
+
+=== Version 1.9.5, 2014-02-15
+
+* Removed warn() calls for __next__() and __iter__(). Removing the warn() in
+  __next__() improves the performance tests by ~20%.
+
+* Increased performance of timestamp by ~20%. Should also improve timestamptz.
+
+* Moved statement_number and portal_number from module to Connection. This
+  should reduce lock contention for cases where there's a single module and
+  lots of connections.
+
+* Make decimal_out/in and time_in use client_encoding. These functions used to
+  assume ascii, and I can't think of a case where that wouldn't work.
+  Nonetheless, that theoretical bug is now fixed.
+
+* Fixed a bug in cursor.executemany(), where a non-None parameter in a sequence
+  of parameters, is None in a subsequent sequence of parameters.
+
+
+=== Version 1.9.4, 2014-01-18
+
+* Fixed a bug where with Python 2, a parameter with the value Decimal('12.44'),
+  (and probably other numbers) isn't sent correctly to PostgreSQL, and so the
+  command fails. This has been fixed by sending decimal types as text rather
+  than binary. I'd imagine it's slightly faster too.
+
+
+=== Version 1.9.3, 2014-01-16
+
+* Fixed bug where there were missing trailing zeros after the decimal point in
+  the NUMERIC type. For example, the NUMERIC value 1.0 was returned as 1 (with
+  no zero after the decimal point).
+
+  This is fixed this by making pg8000 use the text rather than binary
+  representation for the numeric type. This actually doubles the speed of
+  numeric queries.
+
+
+=== Version 1.9.2, 2013-12-17
+
+* Fixed incompatibility with PostgreSQL 8.4. In 8.4, the CommandComplete
+  message doesn't return a row count if the command is SELECT. We now look at
+  the server version and don't look for a row count for a SELECT with version
+  8.4.
+
+
+=== Version 1.9.1, 2013-12-15
+
+* Fixed bug where the Python 2 'unicode' type wasn't recognized in a query
+  parameter.
+
+
+=== Version 1.9.0, 2013-12-01
+
+* For Python 3, the :class:`bytes` type replaces the :class:`pg8000.Bytea`
+  type. For backward compatibility the :class:`pg8000.Bytea` still works under
+  Python 3, but its use is deprecated.
+
+* A single codebase for Python 2 and 3.
+
+* Everything (functions, properties, classes) is now available under the
+  ``pg8000`` namespace. So for example:
+
+  * pg8000.DBAPI.connect() -> pg8000.connect()
+  * pg8000.DBAPI.apilevel -> pg8000.apilevel
+  * pg8000.DBAPI.threadsafety -> pg8000.threadsafety
+  * pg8000.DBAPI.paramstyle -> pg8000.paramstyle
+  * pg8000.types.Bytea -> pg8000.Bytea
+  * pg8000.types.Interval -> pg8000.Interval
+  * pg8000.errors.Warning -> pg8000.Warning
+  * pg8000.errors.Error -> pg8000.Error
+  * pg8000.errors.InterfaceError -> pg8000.InterfaceError
+  * pg8000.errors.DatabaseError -> pg8000.DatabaseError
+
+  The old locations are deprecated, but still work for backward compatibility.
+
+* Lots of performance improvements.
+
+  * Faster receiving of ``numeric`` types.
+  * Query only parsed when PreparedStatement is created.
+  * PreparedStatement re-used in executemany()
+  * Use ``collections.deque`` rather than ``list`` for the row cache. We're
+    adding to one end and removing from the other. This is O(n) for a list but
+    O(1) for a deque.
+  * Find the conversion function and do the format code check in the
+    ROW_DESCRIPTION handler, rather than every time in the ROW_DATA handler.
+  * Use the 'unpack_from' form of struct, when unpacking the data row, so we
+    don't have to slice the data.
+  * Return row as a list for better performance. At the moment result rows are
+    turned into a tuple before being returned. Returning the rows directly as a
+    list speeds up the performance tests about 5%.
+  * Simplify the event loop. Now the main event loop just continues until a
+    READY_FOR_QUERY message is received. This follows the suggestion in the
+    Postgres protocol docs. There's not much of a difference in speed, but the
+    code is a bit simpler, and it should make things more robust.
+  * Re-arrange the code as a state machine to give > 30% speedup.
+  * Using pre-compiled struct objects. Pre-compiled struct objects are a bit
+    faster than using the struct functions directly. It also hopefully adds to
+    the readability of the code.
+  * Speeded up _send. Before calling the socket 'write' method, we were
+    checking that the 'data' type implements the 'buffer' interface (bytes or
+    bytearray), but the check isn't needed because 'write' raises an exception
+    if data is of the wrong type.
+
+
+* Add facility for turning auto-commit on. This follows the suggestion of
+  funkybob to fix the problem of not be able to execute a command such as
+  'create database' that must be executed outside a transaction. Now you can do
+  conn.autocommit = True and then execute 'create database'.
+
+* Add support for the PostgreSQL ``uid`` type. Thanks to Rad Cirskis.
+
+* Add support for the PostgreSQL XML type.
+
+* Add support for the PostgreSQL ``enum`` user defined types.
+
+* Fix a socket leak, where a problem opening a connection could leave a socket
+  open.
+
+* Fix empty array issue. https://github.com/mfenniak/pg8000/issues/10
+
+* Fix scale on ``numeric`` types. https://github.com/mfenniak/pg8000/pull/13
+
+* Fix numeric_send. Thanks to Christian Hofstaedtler.
+
+
+=== Version 1.08, 2010-06-08
+
+* Removed usage of deprecated :mod:`md5` module, replaced with :mod:`hashlib`.
+  Thanks to Gavin Sherry for the patch.
+
+* Start transactions on execute or executemany, rather than immediately at the
+  end of previous transaction.  Thanks to Ben Moran for the patch.
+
+* Add encoding lookups where needed, to address usage of SQL_ASCII encoding.
+  Thanks to Benjamin Schweizer for the patch.
+
+* Remove record type cache SQL query on every new pg8000 connection.
+
+* Fix and test SSL connections.
+
+* Handle out-of-band messages during authentication.
+
+
+=== Version 1.07, 2009-01-06
+
+* Added support for :meth:`~pg8000.dbapi.CursorWrapper.copy_to` and
+  :meth:`~pg8000.dbapi.CursorWrapper.copy_from` methods on cursor objects, to
+  allow the usage of the PostgreSQL COPY queries.  Thanks to Bob Ippolito for
+  the original patch.
+
+* Added the :attr:`~pg8000.dbapi.ConnectionWrapper.notifies` and
+  :attr:`~pg8000.dbapi.ConnectionWrapper.notifies_lock` attributes to DBAPI
+  connection objects to provide access to server-side event notifications.
+  Thanks again to Bob Ippolito for the original patch.
+
+* Improved performance using buffered socket I/O.
+
+* Added valid range checks for :class:`~pg8000.types.Interval` attributes.
+
+* Added binary transmission of :class:`~decimal.Decimal` values.  This permits
+  full support for NUMERIC[] types, both send and receive.
+
+* New `Sphinx <http://sphinx.pocoo.org/>`_-based website and documentation.
+
+
+=== Version 1.06, 2008-12-09
+
+* pg8000-py3: a branch of pg8000 fully supporting Python 3.0.
+
+* New Sphinx-based documentation.
+
+* Support for PostgreSQL array types -- INT2[], INT4[], INT8[], FLOAT[],
+  DOUBLE[], BOOL[], and TEXT[].  New support permits both sending and
+  receiving these values.
+
+* Limited support for receiving RECORD types.  If a record type is received,
+  it will be translated into a Python dict object.
+
+* Fixed potential threading bug where the socket lock could be lost during
+  error handling.
+
+
+=== Version 1.05, 2008-09-03
+
+* Proper support for timestamptz field type:
+
+  * Reading a timestamptz field results in a datetime.datetime instance that
+    has a valid tzinfo property.  tzinfo is always UTC.
+
+  * Sending a datetime.datetime instance with a tzinfo value will be
+    sent as a timestamptz type, with the appropriate tz conversions done.
+
+* Map postgres < -- > python text encodings correctly.
+
+* Fix bug where underscores were not permitted in pyformat names.
+
+* Support "%s" in a pyformat strin.
+
+* Add cursor.connection DB-API extension.
+
+* Add cursor.next and cursor.__iter__ DB-API extensions.
+
+* DBAPI documentation improvements.
+
+* Don't attempt rollback in cursor.execute if a ConnectionClosedError occurs.
+
+* Add warning for accessing exceptions as attributes on the connection object,
+  as per DB-API spec.
+
+* Fix up open connection when an unexpected connection occurs, rather than
+  leaving the connection in an unusable state.
+
+* Use setuptools/egg package format.
+
+
+=== Version 1.04, 2008-05-12
+
+* DBAPI 2.0 compatibility:
+
+  * rowcount returns rows affected when appropriate (eg. UPDATE, DELETE)
+
+  * Fix CursorWrapper.description to return a 7 element tuple, as per spec.
+
+  * Fix CursorWrapper.rowcount when using executemany.
+
+  * Fix CursorWrapper.fetchmany to return an empty sequence when no more
+    results are available.
+
+  * Add access to DBAPI exceptions through connection properties.
+
+  * Raise exception on closing a closed connection.
+
+  * Change DBAPI.STRING to varchar type.
+
+  * rowcount returns -1 when appropriate.
+
+  * DBAPI implementation now passes Stuart Bishop's Python DB API 2.0 Anal
+    Compliance Unit Test.
+
+* Make interface.Cursor class use unnamed prepared statement that binds to
+  parameter value types.  This change increases the accuracy of PG's query
+  plans by including parameter information, hence increasing performance in
+  some scenarios.
+
+* Raise exception when reading from a cursor without a result set.
+
+* Fix bug where a parse error may have rendered a connection unusable.
+
+
+=== Version 1.03, 2008-05-09
+
+* Separate pg8000.py into multiple python modules within the pg8000 package.
+  There should be no need for a client to change how pg8000 is imported.
+
+* Fix bug in row_description property when query has not been completed.
+
+* Fix bug in fetchmany dbapi method that did not properly deal with the end of
+  result sets.
+
+* Add close methods to DB connections.
+
+* Add callback event handlers for server notices, notifications, and runtime
+  configuration changes.
+
+* Add boolean type output.
+
+* Add date, time, and timestamp types in/out.
+
+* Add recognition of "SQL_ASCII" client encoding, which maps to Python's
+  "ascii" encoding.
+
+* Add types.Interval class to represent PostgreSQL's interval data type, and
+  appropriate wire send/receive methods.
+
+* Remove unused type conversion methods.
+
+
+=== Version 1.02, 2007-03-13
+
+* Add complete DB-API 2.0 interface.
+
+* Add basic SSL support via ssl connect bool.
+
+* Rewrite pg8000_test.py to use Python's unittest library.
+
+* Add bytea type support.
+
+* Add support for parameter output types: NULL value, timestamp value, python
+  long value.
+
+* Add support for input parameter type oid.
+
+
+=== Version 1.01, 2007-03-09
+
+* Add support for writing floats and decimal objs up to PG backend.
+
+* Add new error handling code and tests to make sure connection can recover
+  from a database error.
+
+* Fixed bug where timestamp types were not always returned in the same binary
+  format from the PG backend.  Text format is now being used to send
+  timestamps.
+
+* Fixed bug where large packets from the server were not being read fully, due
+  to socket.read not always returning full read size requested.  It was a
+  lazy-coding bug.
+
+* Added locks to make most of the library thread-safe.
+
+* Added UNIX socket support.
+
+
+=== Version 1.00, 2007-03-08
+
+* First public release.  Although fully functional, this release is mostly
+  lacking in production testing and in type support.
