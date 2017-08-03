@@ -86,6 +86,12 @@ class Tests(unittest.TestCase):
         bin_new = struct.pack("!d", retval[0][0])
         self.assertEqual(bin_new, bin_orig)
 
+    def test_float_plus_infinity_roundtrip(self):
+        v = float('inf')
+        self.cursor.execute("SELECT %s as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
+
     def testStrRoundtrip(self):
         v = "hello world"
         self.cursor.execute(
