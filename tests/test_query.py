@@ -1,5 +1,4 @@
 import unittest
-import threading
 import pg8000
 from connection_settings import db_connect
 from six import u
@@ -154,30 +153,6 @@ class Tests(unittest.TestCase):
             self.assertEqual(cursor.rowcount, 3)
             ids = tuple([x[0] for x in cursor])
             self.assertEqual(len(ids), 3)
-        finally:
-            cursor.close()
-            self.db.rollback()
-
-    def testMultithreadedCursor(self):
-        try:
-            cursor = self.db.cursor()
-            # Note: Multithreading with a cursor is not highly recommended due
-            # to low performance.
-
-            def test(left, right):
-                for i in range(left, right):
-                    cursor.execute(
-                        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-                        (i, id(threading.currentThread()), None))
-            t1 = threading.Thread(target=test, args=(1, 25))
-            t2 = threading.Thread(target=test, args=(25, 50))
-            t3 = threading.Thread(target=test, args=(50, 75))
-            t1.start()
-            t2.start()
-            t3.start()
-            t1.join()
-            t2.join()
-            t3.join()
         finally:
             cursor.close()
             self.db.rollback()

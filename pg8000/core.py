@@ -2,7 +2,6 @@ from datetime import (
     timedelta as Timedelta, datetime as Datetime, tzinfo, date, time)
 from warnings import warn
 import socket
-import threading
 from struct import pack
 from hashlib import md5
 from decimal import Decimal
@@ -885,12 +884,11 @@ class Cursor():
             .. versionadded:: 1.9.11
         """
         try:
-            with self._c._lock:
-                self.stream = stream
+            self.stream = stream
 
-                if not self._c.in_transaction and not self._c.autocommit:
-                    self._c.execute(self, "begin transaction", None)
-                self._c.execute(self, operation, args)
+            if not self._c.in_transaction and not self._c.autocommit:
+                self._c.execute(self, "begin transaction", None)
+            self._c.execute(self, operation, args)
         except AttributeError as e:
             if self._c is None:
                 raise InterfaceError("Cursor closed")
@@ -1008,16 +1006,15 @@ class Cursor():
         pass
 
     def __next__(self):
-        with self._c._lock:
-            try:
-                return self._cached_rows.popleft()
-            except IndexError:
-                if self.ps is None:
-                    raise ProgrammingError("A query hasn't been issued.")
-                elif len(self.ps['row_desc']) == 0:
-                    raise ProgrammingError("no result set")
-                else:
-                    raise StopIteration()
+        try:
+            return self._cached_rows.popleft()
+        except IndexError:
+            if self.ps is None:
+                raise ProgrammingError("A query hasn't been issued.")
+            elif len(self.ps['row_desc']) == 0:
+                raise ProgrammingError("no result set")
+            else:
+                raise StopIteration()
 
 
 if PY2:
@@ -1129,19 +1126,7 @@ class Connection(object):
         populated after a commit or rollback of the current transaction.
 
         This list can be modified by a client application to clean out
-        notifications as they are handled.  However, inspecting or modifying
-        this collection should only be done while holding the
-        :attr:`notifies_lock` lock in order to guarantee thread-safety.
-
-        This attribute is not part of the DBAPI standard; it is a pg8000
-        extension.
-
-        .. versionadded:: 1.07
-
-    .. attribute:: Connection.notifies_lock
-
-        A :class:`threading.Lock` object that should be held to read or
-        modify the contents of the :attr:`notifies` list.
+        notifications as they are handled.
 
         This attribute is not part of the DBAPI standard; it is a pg8000
         extension.
@@ -1200,7 +1185,6 @@ class Connection(object):
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
             b("FETCH"), b("COPY"), b("SELECT"))
-        self._lock = threading.Lock()
 
         if user is None:
             raise InterfaceError(
@@ -1243,21 +1227,20 @@ class Connection(object):
                 self._usock.connect(unix_sock)
 
             if ssl:
-                with self._lock:
-                    try:
-                        import ssl as sslmodule
-                        # Int32(8) - Message length, including self.
-                        # Int32(80877103) - The SSL request code.
-                        self._usock.sendall(ii_pack(8, 80877103))
-                        resp = self._usock.recv(1)
-                        if resp == b('S'):
-                            self._usock = sslmodule.wrap_socket(self._usock)
-                        else:
-                            raise InterfaceError("Server refuses SSL")
-                    except ImportError:
-                        raise InterfaceError(
-                            "SSL required but ssl module not available in "
-                            "this python installation")
+                try:
+                    import ssl as sslmodule
+                    # Int32(8) - Message length, including self.
+                    # Int32(80877103) - The SSL request code.
+                    self._usock.sendall(ii_pack(8, 80877103))
+                    resp = self._usock.recv(1)
+                    if resp == b('S'):
+                        self._usock = sslmodule.wrap_socket(self._usock)
+                    else:
+                        raise InterfaceError("Server refuses SSL")
+                except ImportError:
+                    raise InterfaceError(
+                        "SSL required but ssl module not available in "
+                        "this python installation")
 
             self._sock = self._usock.makefile(mode="rwb")
         except socket.error as e:
@@ -1562,24 +1545,22 @@ class Connection(object):
         self._flush()
 
         self._cursor = self.cursor()
-        with self._lock:
+        try:
+            code = self.error = None
+            while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
+                code, data_len = ci_unpack(self._read(5))
+                self.message_types[code](self._read(data_len - 4), None)
+            if self.error is not None:
+                raise self.error
+        except Exception as e:
             try:
-                code = self.error = None
-                while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
-                    code, data_len = ci_unpack(self._read(5))
-                    self.message_types[code](self._read(data_len - 4), None)
-                if self.error is not None:
-                    raise self.error
-            except Exception as e:
-                try:
-                    self._close()
-                except Exception:
-                    pass
-                raise e
+                self._close()
+            except Exception:
+                pass
+            raise e
 
         self.in_transaction = False
         self.notifies = []
-        self.notifies_lock = threading.Lock()
 
     def handle_ERROR_RESPONSE(self, data, ps):
         msg = OrderedDict(
@@ -1638,7 +1619,6 @@ class Connection(object):
         # Int16(N) - Format codes for each column (0 text, 1 binary)
         is_binary, num_cols = bh_unpack(data)
         # column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
-        assert self._lock.locked()
         if ps.stream is None:
             raise InterfaceError(
                 "An input stream is required for the COPY IN response.")
@@ -1686,8 +1666,7 @@ class Connection(object):
         # additional_info = data[idx:idx + null]
 
         # psycopg2 compatible notification interface
-        with self.notifies_lock:
-            self.notifies.append((backend_pid, condition))
+        self.notifies.append((backend_pid, condition))
 
     def cursor(self):
         """Creates a :class:`Cursor` object bound to this
@@ -1704,8 +1683,7 @@ class Connection(object):
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
-        with self._lock:
-            self.execute(self._cursor, "commit", None)
+        self.execute(self._cursor, "commit", None)
 
     def rollback(self):
         """Rolls back the current database transaction.
@@ -1713,10 +1691,9 @@ class Connection(object):
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
-        with self._lock:
-            if not self.in_transaction:
-                return
-            self.execute(self._cursor, "rollback", None)
+        if not self.in_transaction:
+            return
+        self.execute(self._cursor, "rollback", None)
 
     def _close(self):
         try:
@@ -1741,11 +1718,9 @@ class Connection(object):
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
-        with self._lock:
-            self._close()
+        self._close()
 
     def handle_AUTHENTICATION_REQUEST(self, data, cursor):
-        assert self._lock.locked()
         # Int32 -   An authentication code that represents different
         #           authentication messages:
         #               0 = AuthenticationOk

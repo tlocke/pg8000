@@ -118,10 +118,11 @@ This property is part of the `DBAPI 2.0 specification
 <http://www.python.org/dev/peps/pep-0249/>`_.
 """
 
-threadsafety = 3
+threadsafety = 1
 """Integer constant stating the level of thread safety the DBAPI interface
-supports.  This DBAPI module supports sharing the module, connections, and
-cursors, resulting in a threadsafety value of 3.
+supports. This DBAPI module supports sharing of the module only. Connections
+and cursors my not be shared between threads. This gives pg8000 a threadsafety
+value of 1.
 
 This property is part of the `DBAPI 2.0 specification
 <http://www.python.org/dev/peps/pep-0249/>`_.
