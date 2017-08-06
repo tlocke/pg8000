@@ -292,12 +292,8 @@ statements. It uses the Extended Query feature of the FEBE. So the steps are:
 . If pg8000 hasn't seen it before, send a PARSE message to the server to create
   a prepared statement.
 . Send a BIND message to run the query using the prepared statement, resulting
-  in a portal on the server.
-. Send an EXECUTE message to read a batch of results from the portal.
-. When the batch of results have been used, send another EXECUTE to read the
-  next batch from the portal. Repeat until all results have been read (or until
-  the user closes the cursor).
-. Close the portal.
+  in an unnamed portal on the server.
+. Send an EXECUTE message to read all the results from the portal.
 
 There are a lot of PostgreSQL data types, but few primative data types in
 Python. A PostgreSQL data type has to be assigned to each query parameter,
@@ -333,20 +329,6 @@ Since pg8000 uses prepared statements implicitly, there's nothing to be gained
 by using them explicitly with the SQL PREPARE, EXECUTE and DEALLOCATE keywords.
 In fact pg8000 won't work for parameterized EXECUTE statements, because the
 server is unable to infer the types of the parameters for an EXECUTE statement.
-
-
-== FAQ
-
-
-=== I'm getting a '`portal "pg8000_portal_1" does not exist`' error.
-
-Pg8000 fetches rows from the server in batches. To be more precise it fetches
-the rows from a portal, which is opened at the `BIND` stage (see
-<<_theory_of_operation>>), and closed when all the batches of rows have been
-read. The server will close a portal if the transaction it's involved in is
-closed. So the '`portal does not exist`' message occurs if a transaction is
-closed before all the rows have been read from it, and then an attempt is made
-to read the remaining rows.
 
 
 == API Docs
@@ -425,7 +407,7 @@ ROWID type oid
 === Functions
 
 
-==== pg8000.connect(user=None, host='localhost', unix_sock=None, port=5432, database=None, password=None, ssl=False, timeout=None, application_name=None)
+==== pg8000.connect(user, host='localhost', unix_sock=None, port=5432, database=None, password=None, ssl=False, timeout=None, application_name=None)
 
 Creates a connection to a PostgreSQL database.
 
@@ -1102,13 +1084,14 @@ python setup.py register sdist bdist_wheel upload --sign
 
 === Unreleased, yyyy-mm-dd
 
-* Fix warnings from PostgreSQL "not in a transaction", when calling ``.rollback()``
-  while not in a transaction.  `#113 <https://github.com/mfenniak/pg8000/issues/113>`_.
-  Thanks to `@jamadden <https://github.com/jamadden>`_ for the contribution.
-  
-* Add support for ``application_name`` parameter when connecting to database.
-  `#106 <https://github.com/mfenniak/pg8000/pull/106>`_.  Thanks to `@vadv 
-  <https://github.com/vadv>`_ for the contribution.
+* Fix warnings from PostgreSQL "not in a transaction", when calling
+  ``.rollback()`` while not in a transaction, issue
+  https://github.com/mfenniak/pg8000/issues/113[#113]. Thanks to
+  https://github.com/jamadden[@jamadden] for the contribution.
+
+* Add support for `application_name` parameter when connecting to database,
+  issue https://github.com/mfenniak/pg8000/pull/106[#106]. Thanks to
+  https://github.com/vadv[@vadv] for the contribution.
 
 
 === Version 1.10.6, 2016-06-10

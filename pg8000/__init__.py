@@ -41,7 +41,7 @@ __author__ = "Mathieu Fenniak"
 
 
 def connect(
-        user=None, host='localhost', unix_sock=None, port=5432, database=None,
+        user, host='localhost', unix_sock=None, port=5432, database=None,
         password=None, ssl=False, timeout=None, application_name=None):
     """Creates a connection to a PostgreSQL database.
 
