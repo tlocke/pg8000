@@ -822,8 +822,6 @@ class Cursor():
         self.ps = None
         self._row_count = -1
         self._cached_rows = deque()
-        self.portal_name = None
-        self.portal_suspended = False
 
     def __enter__(self):
         return self
@@ -1014,22 +1012,12 @@ class Cursor():
             try:
                 return self._cached_rows.popleft()
             except IndexError:
-                if self.portal_suspended:
-                    self._c.send_EXECUTE(self)
-                    self._c._write(SYNC_MSG)
-                    self._c._flush()
-                    self._c.handle_messages(self)
-                    if not self.portal_suspended:
-                        self._c.close_portal(self)
-                try:
-                    return self._cached_rows.popleft()
-                except IndexError:
-                    if self.ps is None:
-                        raise ProgrammingError("A query hasn't been issued.")
-                    elif len(self.ps['row_desc']) == 0:
-                        raise ProgrammingError("no result set")
-                    else:
-                        raise StopIteration()
+                if self.ps is None:
+                    raise ProgrammingError("A query hasn't been issued.")
+                elif len(self.ps['row_desc']) == 0:
+                    raise ProgrammingError("no result set")
+                else:
+                    raise StopIteration()
 
 
 if PY2:
@@ -1068,10 +1056,16 @@ DESCRIBE = b('D')
 TERMINATE = b('X')
 CLOSE = b('C')
 
-FLUSH_MSG = FLUSH + i_pack(4)
-SYNC_MSG = SYNC + i_pack(4)
-TERMINATE_MSG = TERMINATE + i_pack(4)
-COPY_DONE_MSG = COPY_DONE + i_pack(4)
+
+def create_message(code, data=b('')):
+    return code + i_pack(len(data) + 4) + data
+
+
+FLUSH_MSG = create_message(FLUSH)
+SYNC_MSG = create_message(SYNC)
+TERMINATE_MSG = create_message(TERMINATE)
+COPY_DONE_MSG = create_message(COPY_DONE)
+EXECUTE_MSG = create_message(EXECUTE, NULL_BYTE + i_pack(0))
 
 # DESCRIBE constants
 STATEMENT = b('S')
@@ -1193,14 +1187,6 @@ class Connection(object):
     NotSupportedError = property(
         lambda self: self._getError(NotSupportedError))
 
-    # Determines the number of rows to read from the database server at once.
-    # Reading more rows increases performance at the cost of memory.  The
-    # default value is 100 rows.  The effect of this parameter is transparent.
-    # That is, the library reads more rows when the cache is empty
-    # automatically.
-    _row_cache_size = 100
-    _row_cache_size_bin = i_pack(_row_cache_size)
-
     def _getError(self, error):
         warn(
             "DB-API extension connection.%s used" %
@@ -1235,7 +1221,6 @@ class Connection(object):
 
         self._caches = defaultdict(lambda: defaultdict(dict))
         self.statement_number = 0
-        self.portal_number = 0
 
         try:
             if unix_sock is None and host is not None:
@@ -1621,7 +1606,7 @@ class Connection(object):
         pass
 
     def handle_PORTAL_SUSPENDED(self, data, cursor):
-        cursor.portal_suspended = True
+        pass
 
     def handle_PARAMETER_DESCRIPTION(self, data, ps):
         # Well, we don't really care -- we're going to send whatever we
@@ -1949,7 +1934,8 @@ class Connection(object):
             # Int16 - The number of result-column format codes.
             # For each result-column format code:
             #   Int16 - The format code.
-            ps['bind_1'] = statement_name_bin + h_pack(len(params)) + \
+            ps['bind_1'] = NULL_BYTE + statement_name_bin + \
+                h_pack(len(params)) + \
                 pack("!" + "h" * len(param_fcs), *param_fcs) + \
                 h_pack(len(params))
 
@@ -1960,11 +1946,6 @@ class Connection(object):
 
         cursor._cached_rows.clear()
         cursor._row_count = -1
-        cursor.portal_name = "pg8000_portal_" + str(self.portal_number)
-        self.portal_number += 1
-        cursor.portal_name_bin = cursor.portal_name.encode('ascii') + NULL_BYTE
-        cursor.execute_msg = cursor.portal_name_bin + \
-            Connection._row_cache_size_bin
 
         # Byte1('B') - Identifies the Bind command.
         # Int32 - Message length, including self.
@@ -1982,7 +1963,7 @@ class Connection(object):
         # Int16 - The number of result-column format codes.
         # For each result-column format code:
         #   Int16 - The format code.
-        retval = bytearray(cursor.portal_name_bin + ps['bind_1'])
+        retval = bytearray(ps['bind_1'])
         for value, send_func in zip(args, ps['param_funcs']):
             if value is None:
                 val = NULL
@@ -1997,15 +1978,6 @@ class Connection(object):
         self._write(SYNC_MSG)
         self._flush()
         self.handle_messages(cursor)
-        if cursor.portal_suspended:
-            if self.autocommit:
-                raise InterfaceError(
-                    "With autocommit on, it's not possible to retrieve more "
-                    "rows than the pg8000 cache size, as the portal is closed "
-                    "when the transaction is closed.")
-
-        else:
-            self.close_portal(cursor)
 
     def _send_message(self, code, data):
         try:
@@ -2028,8 +2000,8 @@ class Connection(object):
         # Int32 -   Maximum number of rows to return, if portal
         #           contains a query # that returns rows.
         #           0 = no limit.
-        cursor.portal_suspended = False
-        self._send_message(EXECUTE, cursor.execute_msg)
+        self._write(EXECUTE_MSG)
+        self._write(FLUSH_MSG)
 
     def handle_NO_DATA(self, msg, ps):
         pass
@@ -2074,16 +2046,6 @@ class Connection(object):
 
         if self.error is not None:
             raise self.error
-
-    # Byte1('C') - Identifies the message as a close command.
-    # Int32 - Message length, including self.
-    # Byte1 - 'S' for prepared statement, 'P' for portal.
-    # String - The name of the item to close.
-    def close_portal(self, cursor):
-        self._send_message(CLOSE, PORTAL + cursor.portal_name_bin)
-        self._write(SYNC_MSG)
-        self._flush()
-        self.handle_messages(cursor)
 
     # Byte1('N') - Identifier
     # Int32 - Message length
