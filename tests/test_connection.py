@@ -4,6 +4,8 @@ from connection_settings import db_connect
 from six import PY2, u
 import sys
 from distutils.version import LooseVersion
+import socket
+import struct
 
 
 # Check if running in Jython
@@ -69,15 +71,15 @@ class Tests(unittest.TestCase):
 
         try:
             db = pg8000.connect(**db_connect)
-            self.assertEqual(db.notifies, [])
+            self.assertEqual(list(db.notifications), [])
             cursor = db.cursor()
             cursor.execute("LISTEN test")
             cursor.execute("NOTIFY test")
             db.commit()
 
             cursor.execute("VALUES (1, 2), (3, 4), (5, 6)")
-            self.assertEqual(len(db.notifies), 1)
-            self.assertEqual(db.notifies[0][1], "test")
+            self.assertEqual(len(db.notifications), 1)
+            self.assertEqual(db.notifications[0][1], "test")
         finally:
             cursor.close()
             db.close()
@@ -199,16 +201,23 @@ class Tests(unittest.TestCase):
         db1 = pg8000.connect(**db_connect)
         db2 = pg8000.connect(**db_connect)
 
-        cur1 = db1.cursor()
-        cur2 = db2.cursor()
+        try:
+            cur1 = db1.cursor()
+            cur2 = db2.cursor()
 
-        cur1.execute("select pg_backend_pid()")
-        pid1 = cur1.fetchone()[0]
+            cur1.execute("select pg_backend_pid()")
+            pid1 = cur1.fetchone()[0]
 
-        cur2.execute("select pg_terminate_backend(%s)", (pid1,))
-        self.assertRaises(pg8000.OperationalError, cur1.execute, "select 1")
-        cur2.close()
-        db2.close()
+            cur2.execute("select pg_terminate_backend(%s)", (pid1,))
+            try:
+                cur1.execute("select 1")
+            except Exception as e:
+                self.assertTrue(isinstance(e, (socket.error, struct.error)))
+
+            cur2.close()
+        finally:
+            db1.close()
+            db2.close()
 
     def testApplicatioName(self):
         params = db_connect.copy()

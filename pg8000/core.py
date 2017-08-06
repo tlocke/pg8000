@@ -1090,75 +1090,7 @@ IDLE_IN_FAILED_TRANSACTION = b("E")
 arr_trans = dict(zip(map(ord, u("[] 'u")), list(u('{}')) + [None] * 3))
 
 
-class MulticastDelegate(object):
-    def __init__(self):
-        self.delegates = []
-
-    def __iadd__(self, delegate):
-        self.add(delegate)
-        return self
-
-    def add(self, delegate):
-        self.delegates.append(delegate)
-
-    def __isub__(self, delegate):
-        self.delegates.remove(delegate)
-        return self
-
-    def __call__(self, *args, **kwargs):
-        for d in self.delegates:
-            d(*args, **kwargs)
-
-
 class Connection(object):
-    """A connection object is returned by the :func:`pg8000.connect` function.
-    It represents a single physical connection to a PostgreSQL database.
-
-    .. attribute:: Connection.notifies
-
-        A list of server-side notifications received by this database
-        connection (via the LISTEN/NOTIFY PostgreSQL commands).  Each list
-        element is a two-element tuple containing the PostgreSQL backend PID
-        that issued the notify, and the notification name.
-
-        PostgreSQL will only send notifications to a client between
-        transactions.  The contents of this property are generally only
-        populated after a commit or rollback of the current transaction.
-
-        This list can be modified by a client application to clean out
-        notifications as they are handled.
-
-        This attribute is not part of the DBAPI standard; it is a pg8000
-        extension.
-
-        .. versionadded:: 1.07
-
-    .. attribute:: Connection.autocommit
-
-        Following the DB-API specification, autocommit is off by default.
-        It can be turned on by setting this boolean pg8000-specific autocommit
-        property to True.
-
-        .. versionadded:: 1.9
-
-    .. exception:: Connection.Error
-                   Connection.Warning
-                   Connection.InterfaceError
-                   Connection.DatabaseError
-                   Connection.InternalError
-                   Connection.OperationalError
-                   Connection.ProgrammingError
-                   Connection.IntegrityError
-                   Connection.DataError
-                   Connection.NotSupportedError
-
-        All of the standard database exception types are accessible via
-        connection instances.
-
-        This is a DBAPI 2.0 extension.  Accessing any of these attributes will
-        generate the warning ``DB-API extension connection.DatabaseError
-        used``.
-    """
 
     # DBAPI Extension: supply exceptions as attributes on the connection
     Warning = property(lambda self: self._getError(Warning))
@@ -1185,6 +1117,9 @@ class Connection(object):
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
             b("FETCH"), b("COPY"), b("SELECT"))
+        self.notifications = deque(maxlen=100)
+        self.notices = deque(maxlen=100)
+        self.parameter_statuses = deque(maxlen=100)
 
         if user is None:
             raise InterfaceError(
@@ -1250,44 +1185,6 @@ class Connection(object):
         self._read = self._sock.read
         self._write = self._sock.write
         self._backend_key_data = None
-
-        ##
-        # An event handler that is fired when the database server issues a
-        # notice.
-        # The value of this property is a MulticastDelegate. A callback
-        # can be added by using connection.NoticeReceived += SomeMethod.
-        # The method will be called with a single argument, an object that has
-        # properties: severity, code, msg, and possibly others (detail, hint,
-        # position, where, file, line, and routine). Callbacks can be removed
-        # with the -= operator.
-        # <p>
-        # Stability: Added in v1.03, stability guaranteed for v1.xx.
-        self.NoticeReceived = MulticastDelegate()
-
-        ##
-        # An event handler that is fired when a runtime configuration option is
-        # changed on the server.  The value of this property is a
-        # MulticastDelegate.  A callback can be added by using
-        # connection.NotificationReceived += SomeMethod. Callbacks can be
-        # removed with the -= operator. The method will be called with a single
-        # argument, an object that has properties "key" and "value".
-        # <p>
-        # Stability: Added in v1.03, stability guaranteed for v1.xx.
-        self.ParameterStatusReceived = MulticastDelegate()
-
-        ##
-        # An event handler that is fired when NOTIFY occurs for a notification
-        # that has been LISTEN'd for.  The value of this property is a
-        # MulticastDelegate.  A callback can be added by using
-        # connection.NotificationReceived += SomeMethod. The method will be
-        # called with a single argument, an object that has properties:
-        # backend_pid, condition, and additional_info. Callbacks can be
-        # removed with the -= operator.
-        # <p>
-        # Stability: Added in v1.03, stability guaranteed for v1.xx.
-        self.NotificationReceived = MulticastDelegate()
-
-        self.ParameterStatusReceived += self.handle_PARAMETER_STATUS
 
         def text_out(v):
             return v.encode(self._client_encoding)
@@ -1545,22 +1442,14 @@ class Connection(object):
         self._flush()
 
         self._cursor = self.cursor()
-        try:
-            code = self.error = None
-            while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
-                code, data_len = ci_unpack(self._read(5))
-                self.message_types[code](self._read(data_len - 4), None)
-            if self.error is not None:
-                raise self.error
-        except Exception as e:
-            try:
-                self._close()
-            except Exception:
-                pass
-            raise e
+        code = self.error = None
+        while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
+            code, data_len = ci_unpack(self._read(5))
+            self.message_types[code](self._read(data_len - 4), None)
+        if self.error is not None:
+            raise self.error
 
         self.in_transaction = False
-        self.notifies = []
 
     def handle_ERROR_RESPONSE(self, data, ps):
         msg = OrderedDict(
@@ -1649,7 +1538,6 @@ class Connection(object):
         self._flush()
 
     def handle_NOTIFICATION_RESPONSE(self, data, ps):
-        self.NotificationReceived(data)
         ##
         # A message sent if this connection receives a NOTIFY that it was
         # LISTENing for.
@@ -1665,8 +1553,7 @@ class Connection(object):
         null = data.find(NULL_BYTE, idx) - idx
         # additional_info = data[idx:idx + null]
 
-        # psycopg2 compatible notification interface
-        self.notifies.append((backend_pid, condition))
+        self.notifications.append((backend_pid, condition))
 
     def cursor(self):
         """Creates a :class:`Cursor` object bound to this
@@ -1695,7 +1582,12 @@ class Connection(object):
             return
         self.execute(self._cursor, "rollback", None)
 
-    def _close(self):
+    def close(self):
+        """Closes the database connection.
+
+        This function is part of the `DBAPI 2.0 specification
+        <http://www.python.org/dev/peps/pep-0249/>`_.
+        """
         try:
             # Byte1('X') - Identifies the message as a terminate message.
             # Int32(4) - Message length, including self.
@@ -1706,19 +1598,11 @@ class Connection(object):
             raise InterfaceError("connection is closed")
         except ValueError:
             raise InterfaceError("connection is closed")
-        except socket.error as e:
-            raise OperationalError(str(e))
+        except socket.error:
+            pass
         finally:
             self._usock.close()
             self._sock = None
-
-    def close(self):
-        """Closes the database connection.
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        self._close()
 
     def handle_AUTHENTICATION_REQUEST(self, data, cursor):
         # Int32 -   An authentication code that represents different
@@ -1882,8 +1766,6 @@ class Connection(object):
                     raise InterfaceError("connection is closed")
                 else:
                     raise e
-            except socket.error as e:
-                raise OperationalError(str(e))
 
             self.handle_messages(cursor)
 
@@ -2011,13 +1893,9 @@ class Connection(object):
     def handle_messages(self, cursor):
         code = self.error = None
 
-        try:
-            while code != READY_FOR_QUERY:
-                code, data_len = ci_unpack(self._read(5))
-                self.message_types[code](self._read(data_len - 4), cursor)
-        except:
-            self._close()
-            raise
+        while code != READY_FOR_QUERY:
+            code, data_len = ci_unpack(self._read(5))
+            self.message_types[code](self._read(data_len - 4), cursor)
 
         if self.error is not None:
             raise self.error
@@ -2028,12 +1906,13 @@ class Connection(object):
     #   Byte1 - code identifying the field type (see responseKeys)
     #   String - field value
     def handle_NOTICE_RESPONSE(self, data, ps):
-        resp = dict((s[0:1], s[1:]) for s in data.split(NULL_BYTE))
-        self.NoticeReceived(resp)
+        self.notices.append(
+            dict((s[0:1], s[1:]) for s in data.split(NULL_BYTE)))
 
     def handle_PARAMETER_STATUS(self, data, ps):
         pos = data.find(NULL_BYTE)
         key, value = data[:pos], data[pos + 1:-1]
+        self.parameter_statuses.append((key, value))
         if key == b("client_encoding"):
             encoding = value.decode("ascii").lower()
             self._client_encoding = pg_to_py_encodings.get(encoding, encoding)

@@ -135,9 +135,28 @@ example:
 >>> cur.fetchone()
 [['Apollo 11 Cave', True, 26.003]]
 >>> cur.close()
->>> conn.close()
 
 ----
+
+
+PostgreSQL https://www.postgresql.org/docs/current/static/plpgsql-errors-and-messages.html[notices]
+are stored in a deque called `Connection.notices` and added using the
+`append()` method. Similarly there are `Connection.notifications` for
+https://www.postgresql.org/docs/current/static/sql-notify.html[notifications]
+and `Connection.parameter_statuses` for changes to the server configuration.
+Here's an example:
+
+[source,python]
+----
+>>> cur = conn.cursor()
+>>> cur.execute("LISTEN aliens_landed")
+>>> cur.execute("NOTIFY aliens_landed")
+>>> conn.commit()
+>>> conn.notifications[0][1]
+'aliens_landed'
+
+----
+
 
 == Type Mapping
 
@@ -662,34 +681,29 @@ multi-dimension sizes.
 A connection object is returned by the `pg8000.connect()` function. It
 represents a single physical connection to a PostgreSQL database.
 
-===== pg8000.Connection.notifies
+===== pg8000.Connection.notifications
 
-A list of server-side notifications received by this database connection (via
-the LISTEN/NOTIFY PostgreSQL commands).  Each list element is a two-element
+A deque of server-side notifications received by this database connection (via
+the LISTEN/NOTIFY PostgreSQL commands). Each list element is a two-element
 tuple containing the PostgreSQL backend PID that issued the notify, and the
 notification name.
 
-PostgreSQL will only send notifications to a client between transactions. The
-contents of this property are generally only populated after a commit or
-rollback of the current transaction.
-
-This list can be modified by a client application to clean out notifications as
-they are handled.  However, inspecting or modifying this collection should only
-be done while holding the `pg8000.Connection.notifies_lock` in order to
-guarantee thread-safety.
 
 This attribute is not part of the DBAPI standard; it is a pg8000 extension.
 
-New in version 1.07.
 
-===== pg8000.Connection.notifies_lock
+===== pg8000.Connection.notices
 
-A `threading.Lock` object that should be held to read or modify the contents of
-the `pg8000.Connection.notifies` list.
+A deque of server-side notices received by this database connection.
 
 This attribute is not part of the DBAPI standard; it is a pg8000 extension.
 
-New in version 1.07.
+
+===== pg8000.Connection.parameter_statuses
+
+A deque of server-side parameter statuses received by this database connection.
+
+This attribute is not part of the DBAPI standard; it is a pg8000 extension.
 
 
 ===== pg8000.Connection.autocommit
