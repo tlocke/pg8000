@@ -172,9 +172,6 @@ bh_pack, bh_unpack = pack_funcs('bh')
 cccc_pack, cccc_unpack = pack_funcs('cccc')
 
 
-Struct('!i')
-
-
 min_int2, max_int2 = -2 ** 15, 2 ** 15
 min_int4, max_int4 = -2 ** 31, 2 ** 31
 min_int8, max_int8 = -2 ** 63, 2 ** 63
