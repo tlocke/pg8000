@@ -1688,6 +1688,7 @@ class Connection(object):
             self.statement_number += 1
             statement_name_bin = statement_name.encode('ascii') + NULL_BYTE
             ps = {
+                'statement_name_bin': statement_name_bin,
                 'row_desc': [],
                 'param_funcs': tuple(x[2] for x in params),
             }
@@ -1835,8 +1836,10 @@ class Connection(object):
                 cursor._row_count += row_count
 
         if command in DDL_COMMANDS:
-            for k in self._caches:
-                self._caches[k]['ps'].clear()
+            for cache in itervalues(self._caches):
+                for ps in itervalues(cache['ps']):
+                    self.close_prepared_statement(ps['statement_name_bin'])
+                cache['ps'].clear()
 
     def handle_DATA_ROW(self, data, cursor):
         data_idx = 2
@@ -1860,6 +1863,16 @@ class Connection(object):
 
         if self.error is not None:
             raise self.error
+
+    # Byte1('C') - Identifies the message as a close command.
+    # Int32 - Message length, including self.
+    # Byte1 - 'S' for prepared statement, 'P' for portal.
+    # String - The name of the item to close.
+    def close_prepared_statement(self, statement_name_bin):
+        self._send_message(CLOSE, STATEMENT + statement_name_bin)
+        self._write(SYNC_MSG)
+        self._flush()
+        self.handle_messages(self._cursor)
 
     # Byte1('N') - Identifier
     # Int32 - Message length

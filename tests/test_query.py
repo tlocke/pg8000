@@ -357,6 +357,17 @@ class Tests(unittest.TestCase):
         with self.db.cursor() as cursor:
             cursor.execute('select 1')
 
+    def test_deallocate_prepared_statements(self):
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("select * from t1")
+            cursor.execute("alter table t1 drop column f3")
+            cursor.execute("select count(*) from pg_prepared_statements")
+            res = cursor.fetchall()
+            self.assertEqual(res[0][0], 1)
+        finally:
+            cursor.close()
+            self.db.rollback()
 
 if __name__ == "__main__":
     unittest.main()
