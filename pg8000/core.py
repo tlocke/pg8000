@@ -486,18 +486,6 @@ def convert_paramstyle(style, query):
                         in_quote_escape = True
                     else:
                         state = OUTSIDE
-            elif style in ("pyformat", "format") and c == "%":
-                # hm... we're only going to support an escaped percent sign
-                if in_param_escape:
-                    in_param_escape = False
-                    output_query.append(c)
-                else:
-                    if next_c == "%":
-                        in_param_escape = True
-                    else:
-                        raise InterfaceError(
-                            "'%" + next_c + "' not supported in a quoted "
-                            "string within the query string")
             else:
                 output_query.append(c)
 
@@ -505,18 +493,6 @@ def convert_paramstyle(style, query):
             if c == '"':
                 state = OUTSIDE
                 output_query.append(c)
-            elif style in ("pyformat", "format") and c == "%":
-                # hm... we're only going to support an escaped percent sign
-                if in_param_escape:
-                    in_param_escape = False
-                    output_query.append(c)
-                else:
-                    if next_c == "%":
-                        in_param_escape = True
-                    else:
-                        raise InterfaceError(
-                            "'%" + next_c + "' not supported in a quoted "
-                            "string within the query string")
             else:
                 output_query.append(c)
 
@@ -525,18 +501,6 @@ def convert_paramstyle(style, query):
                 # check for escaped single-quote
                 output_query.append(c)
                 state = OUTSIDE
-            elif style in ("pyformat", "format") and c == "%":
-                # hm... we're only going to support an escaped percent sign
-                if in_param_escape:
-                    in_param_escape = False
-                    output_query.append(c)
-                else:
-                    if next_c == "%":
-                        in_param_escape = True
-                    else:
-                        raise InterfaceError(
-                            "'%" + next_c + "' not supported in a quoted "
-                            "string within the query string.")
             else:
                 output_query.append(c)
 

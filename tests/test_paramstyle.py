@@ -39,7 +39,8 @@ class Tests(unittest.TestCase):
             "FROM t WHERE a=%s AND b='75%%'")
         self.assertEqual(
             new_query,
-            "SELECT $1, $2, \"f1_%\", E'txt_%' FROM t WHERE a=$3 AND b='75%'")
+            "SELECT $1, $2, \"f1_%%\", E'txt_%%' FROM t WHERE a=$3 AND "
+            "b='75%%'")
         self.assertEqual(make_args((1, 2, 3)), (1, 2, 3))
 
     def testPyformat(self):
@@ -48,7 +49,8 @@ class Tests(unittest.TestCase):
             "FROM t WHERE a=%(f2)s AND b='75%%'")
         self.assertEqual(
             new_query,
-            "SELECT $1, $2, \"f1_%\", E'txt_%' FROM t WHERE a=$1 AND b='75%'")
+            "SELECT $1, $2, \"f1_%%\", E'txt_%%' FROM t WHERE a=$1 AND "
+            "b='75%%'")
         self.assertEqual(make_args({"f2": 1, "f1": 2, "f3": 3}), (1, 2))
 
         # pyformat should support %s and an array, too:
@@ -57,7 +59,8 @@ class Tests(unittest.TestCase):
             "FROM t WHERE a=%s AND b='75%%'")
         self.assertEqual(
             new_query,
-            "SELECT $1, $2, \"f1_%\", E'txt_%' FROM t WHERE a=$3 AND b='75%'")
+            "SELECT $1, $2, \"f1_%%\", E'txt_%%' FROM t WHERE a=$3 AND "
+            "b='75%%'")
         self.assertEqual(make_args((1, 2, 3)), (1, 2, 3))
 
 
