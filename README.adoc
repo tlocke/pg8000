@@ -714,6 +714,12 @@ turned on by setting this boolean pg8000-specific autocommit property to True.
 New in version 1.9.
 
 
+===== pg8000.Connection.max_prepared_statements
+
+The maximum number of prepared statements that pg8000 keeps track of. If this
+number is exceeded, they'll all be closed. The default is 1000.
+
+
 ===== pg8000.Connection.close()
 
 Closes the database connection.

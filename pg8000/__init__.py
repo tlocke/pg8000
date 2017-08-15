@@ -129,27 +129,8 @@ This property is part of the `DBAPI 2.0 specification
 """
 
 paramstyle = 'format'
-"""String property stating the type of parameter marker formatting expected by
-the interface.  This value defaults to "format", in which parameters are
-marked in this format: "WHERE name=%s".
 
-This property is part of the `DBAPI 2.0 specification
-<http://www.python.org/dev/peps/pep-0249/>`_.
-
-As an extension to the DBAPI specification, this value is not constant; it
-can be changed to any of the following values:
-
-    qmark
-        Question mark style, eg. ``WHERE name=?``
-    numeric
-        Numeric positional style, eg. ``WHERE name=:1``
-    named
-        Named style, eg. ``WHERE name=:paramname``
-    format
-        printf format codes, eg. ``WHERE name=%s``
-    pyformat
-        Python format codes, eg. ``WHERE name=%(paramname)s``
-"""
+max_prepared_statements = 1000
 
 # I have no idea what this would be used for by a client app.  Should it be
 # TEXT, VARCHAR, CHAR?  It will only compare against row_description's

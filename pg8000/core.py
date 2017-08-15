@@ -1761,6 +1761,11 @@ class Connection(object):
             ps['bind_2'] = h_pack(len(output_fc)) + \
                 pack("!" + "h" * len(output_fc), *output_fc)
 
+            if len(cache['ps']) > pg8000.max_prepared_statements:
+                for p in itervalues(cache['ps']):
+                    self.close_prepared_statement(p['statement_name_bin'])
+                cache['ps'].clear()
+
             cache['ps'][key] = ps
 
         cursor._cached_rows.clear()
