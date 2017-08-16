@@ -21,12 +21,6 @@ PostgreSQL interface for Python."""
 cmdclass = dict(versioneer.get_cmdclass())
 version = versioneer.get_version()
 
-try:
-    from sphinx.setup_command import BuildDoc
-    cmdclass['build_sphinx'] = BuildDoc
-except ImportError:
-    pass
-
 setup(
     name="pg8000",
     version=version,
@@ -37,7 +31,7 @@ setup(
     author_email="biziqe@mathieu.fenniak.net",
     url="https://github.com/mfenniak/pg8000",
     license="BSD",
-    install_requires = [
+    install_requires=[
         "six>=1.10.0",
     ],
     classifiers=[
