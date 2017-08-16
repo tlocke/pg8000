@@ -1104,16 +1104,50 @@ python setup.py register sdist bdist_wheel upload --sign
 == Release Notes
 
 
-=== Unreleased, yyyy-mm-dd
+=== Version 1.11.0, 2017-08-16
+
+Note that this version is not backward compatible with previous versions.
+
+* The Python `int` type was sent as an `unknown` type, but now it's sent as the
+  nearest matching PostgreSQL type. Thanks to Patrick Hayes.
+
+* Prepared statements are now closed on the server when pg8000 clears them from
+  its cache.
+
+* Previously a `%` within an SQL literal had to be escaped, but this is no
+  longer the case.
+
+* Notifications, notices and parameter statuses are now handled by simple
+  `dequeue` buffers. See docs for more details.
+
+* Connections and cursors are no longer threadsafe. So to be clear, neither
+  connections or cursors should be shared between threads. One thread per
+  connection is mandatory now. This has been done for performance reasons, and
+  to simplify the code.
+
+* Rather than reading results from the server in batches, pg8000 now always
+  downloads them in one go. This avoids `portal closed` errors and makes things
+  a bit quicker, but now one has to avoid downloading too many rows in a single
+  query.
+
+* Attempts to return something informative if the returned PostgreSQL timestamp
+  value is outside the range of the Python datetime.
+
+* Allow empty arrays as parameters, assume they're of string type.
+
+* The cursor now has a context manager, so it can be used with the `with`
+  keyword. Thanks to Ildar Musin.
+
+* Add support for `application_name` parameter when connecting to database,
+  issue https://github.com/mfenniak/pg8000/pull/106[#106]. Thanks to
+  https://github.com/vadv[@vadv] for the contribution.
 
 * Fix warnings from PostgreSQL "not in a transaction", when calling
   ``.rollback()`` while not in a transaction, issue
   https://github.com/mfenniak/pg8000/issues/113[#113]. Thanks to
   https://github.com/jamadden[@jamadden] for the contribution.
 
-* Add support for `application_name` parameter when connecting to database,
-  issue https://github.com/mfenniak/pg8000/pull/106[#106]. Thanks to
-  https://github.com/vadv[@vadv] for the contribution.
+* Errors from the server are now always passed through in full.
 
 
 === Version 1.10.6, 2016-06-10
