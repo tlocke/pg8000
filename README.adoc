@@ -286,18 +286,6 @@ XML types.
 |===
 
 
-=== Notes
-
-* PostgreSQL has +/-infinity values for dates and timestamps, but Python does
-  not. Pg8000 handles this by returning +/-infinity strings in results, and in
-  parameters the strings +/- infinity can be used.
-
-* PostgreSQL dates/timestamps can have values outside the range of Python
-  datetimes. These are handled using the underlying PostgreSQL storage method.
-  I don't know of any users of pg8000 that use this feature, so get in touch if
-  it affects you.
-
-
 [[_theory_of_operation]]
 == Theory Of Operation
 
@@ -314,11 +302,10 @@ statements. It uses the Extended Query feature of the FEBE. So the steps are:
   in an unnamed portal on the server.
 . Send an EXECUTE message to read all the results from the portal.
 
-There are a lot of PostgreSQL data types, but few primative data types in
+There are a lot of PostgreSQL data types, but few primitive data types in
 Python. A PostgreSQL data type has to be assigned to each query parameter,
-which is impossible to work out in all cases because, say, a Python
-`int` could be any of the PostgreSQL integer types. pg8000's solution to this
-problem is to send every parameter with the PostgreSQL type `unknown`. This
+which is impossible to work out in all cases because. pg8000's solution to this
+problem is to send some parameters with the PostgreSQL type `unknown`. This
 forces the server to make a guess about the type. It's fairly good at doing
 this, so most queries '`just work`'. However, sometimes you may need to do an
 explicit cast in the SQL query to get things to work.
@@ -333,7 +320,7 @@ on the type of the value. Here is a table of some common types and their FC:
 
 | None                              | binary
 | bool                              | binary
-| int                               | text
+| int                               | binary
 | float                             | binary
 | datetime.date                     | text
 | datetime.time                     | text
@@ -344,10 +331,25 @@ on the type of the value. Here is a table of some common types and their FC:
 | uuid                              | binary
 |===
 
-Since pg8000 uses prepared statements implicitly, there's nothing to be gained
-by using them explicitly with the SQL PREPARE, EXECUTE and DEALLOCATE keywords.
-In fact pg8000 won't work for parameterized EXECUTE statements, because the
-server is unable to infer the types of the parameters for an EXECUTE statement.
+* Since pg8000 uses prepared statements implicitly, there's nothing to be
+  gained by using them explicitly with the SQL PREPARE, EXECUTE and DEALLOCATE
+  keywords. In fact in some cases pg8000 won't work for parameterized EXECUTE
+  statements, because the server is unable to infer the types of the
+  parameters for an EXECUTE statement.
+
+* PostgreSQL has +/-infinity values for dates and timestamps, but Python does
+  not. Pg8000 handles this by returning +/-infinity strings in results, and in
+  parameters the strings +/- infinity can be used.
+
+* PostgreSQL dates/timestamps can have values outside the range of Python
+  datetimes. These are handled using the underlying PostgreSQL storage method.
+  I don't know of any users of pg8000 that use this feature, so get in touch if
+  it affects you.
+
+* Pg8000 can't handle a change of `search_path`, so statements like `set schema
+  'value';` may cause subsequent statements to fail. This is because pg8000
+  will use a prepared statement for a previously executed query, and this
+  prepared statement won't be aware of any change in `search_path`.
 
 
 == API Docs
