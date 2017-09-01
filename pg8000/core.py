@@ -18,6 +18,7 @@ from struct import Struct
 from time import localtime
 import pg8000
 from json import loads
+from os import getpid
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # Copyright (c) The Contributors
@@ -1099,8 +1100,7 @@ class Connection(object):
         self.autocommit = False
         self._xid = None
 
-        self._caches = defaultdict(lambda: defaultdict(dict))
-        self.statement_number = 0
+        self._caches = {}
 
         try:
             if unix_sock is None and host is not None:
@@ -1674,16 +1674,33 @@ class Connection(object):
                 self.pg_types[field['type_oid']]
 
     def execute(self, cursor, operation, vals):
+        print('operation', operation)
+        print(
+            "id is", id(self),
+            'proc id', getpid())
         if vals is None:
             vals = ()
+
         paramstyle = pg8000.paramstyle
-        cache = self._caches[paramstyle]
+        pid = getpid()
+        try:
+            cache = self._caches[paramstyle][pid]
+        except KeyError:
+            try:
+                param_cache = self._caches[paramstyle]
+            except KeyError:
+                param_cache = self._caches[paramstyle] = {}
+
+            try:
+                cache = param_cache[pid]
+            except KeyError:
+                cache = param_cache[pid] = {'statement': {}, 'ps': {}}
 
         try:
             statement, make_args = cache['statement'][operation]
         except KeyError:
-            statement, make_args = convert_paramstyle(paramstyle, operation)
-            cache['statement'][operation] = statement, make_args
+            statement, make_args = cache['statement'][operation] = \
+                convert_paramstyle(paramstyle, operation)
 
         args = make_args(vals)
         params = self.make_params(args)
@@ -1693,14 +1710,25 @@ class Connection(object):
             ps = cache['ps'][key]
             cursor.ps = ps
         except KeyError:
-            statement_name = "pg8000_statement_" + str(self.statement_number)
-            self.statement_number += 1
+            statement_nums = [0]
+            for style_cache in itervalues(self._caches):
+                try:
+                    pid_cache = style_cache[pid]
+                    for csh in itervalues(pid_cache['ps']):
+                        statement_nums.append(csh['statement_num'])
+                except KeyError:
+                    pass
+
+            statement_num = sorted(statement_nums)[-1] + 1
+            statement_name = '_'.join(
+                ("pg8000", "statement", str(pid), str(statement_num)))
             statement_name_bin = statement_name.encode('ascii') + NULL_BYTE
             ps = {
                 'statement_name_bin': statement_name_bin,
+                'pid': pid,
+                'statement_num': statement_num,
                 'row_desc': [],
-                'param_funcs': tuple(x[2] for x in params),
-            }
+                'param_funcs': tuple(x[2] for x in params)}
             cursor.ps = ps
 
             param_fcs = tuple(x[1] for x in params)
@@ -1770,7 +1798,8 @@ class Connection(object):
             ps['bind_2'] = h_pack(len(output_fc)) + \
                 pack("!" + "h" * len(output_fc), *output_fc)
 
-            if len(cache['ps']) > pg8000.max_prepared_statements:
+            # if len(cache['ps']) > pg8000.max_prepared_statements:
+            if len(cache['ps']) > 200:
                 for p in itervalues(cache['ps']):
                     self.close_prepared_statement(p['statement_name_bin'])
                 cache['ps'].clear()
@@ -1850,10 +1879,11 @@ class Connection(object):
                 cursor._row_count += row_count
 
         if command in DDL_COMMANDS:
-            for cache in itervalues(self._caches):
-                for ps in itervalues(cache['ps']):
-                    self.close_prepared_statement(ps['statement_name_bin'])
-                cache['ps'].clear()
+            for scache in itervalues(self._caches):
+                for pcache in itervalues(scache):
+                    for ps in itervalues(pcache['ps']):
+                        self.close_prepared_statement(ps['statement_name_bin'])
+                    pcache['ps'].clear()
 
     def handle_DATA_ROW(self, data, cursor):
         data_idx = 2

@@ -8,3 +8,4 @@ tmp
 dist
 .tox
 MANIFEST
+venv
