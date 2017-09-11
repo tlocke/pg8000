@@ -416,16 +416,12 @@ def convert_paramstyle(style, query):
     # I don't see any way to avoid scanning the query string char by char,
     # so we might as well take that careful approach and create a
     # state-based scanner.  We'll use int variables for the state.
-    #  0 -- outside quoted string
-    #  1 -- inside single-quote string '...'
-    #  2 -- inside quoted identifier   "..."
-    #  3 -- inside escaped single-quote string, E'...'
-    #  4 -- inside parameter name eg. :name
-    OUTSIDE = 0
-    INSIDE_SQ = 1
-    INSIDE_QI = 2
-    INSIDE_ES = 3
-    INSIDE_PN = 4
+    OUTSIDE = 0    # outside quoted string
+    INSIDE_SQ = 1  # inside single-quote string '...'
+    INSIDE_QI = 2  # inside quoted identifier   "..."
+    INSIDE_ES = 3  # inside escaped single-quote string, E'...'
+    INSIDE_PN = 4  # inside parameter name eg. :name
+    INSIDE_CO = 5  # inside inline comment eg. --
 
     in_quote_escape = False
     in_param_escape = False
@@ -450,6 +446,10 @@ def convert_paramstyle(style, query):
             elif c == '"':
                 output_query.append(c)
                 state = INSIDE_QI
+            elif c == '-':
+                output_query.append(c)
+                if prev_c == '-':
+                    state = INSIDE_CO
             elif style == "qmark" and c == "?":
                 output_query.append(next(param_idx))
             elif style == "numeric" and c == ":":
@@ -531,6 +531,9 @@ def convert_paramstyle(style, query):
                     placeholders[-1] += c
             elif style == 'format':
                 state = OUTSIDE
+
+        elif state == INSIDE_CO:
+            output_query.append(c)
 
         prev_c = c
 
@@ -1074,7 +1077,7 @@ class Connection(object):
 
     def __init__(
             self, user, host, unix_sock, port, database, password, ssl,
-            timeout, application_name):
+            timeout, application_name, max_prepared_statements):
         self._client_encoding = "utf8"
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
@@ -1082,6 +1085,7 @@ class Connection(object):
         self.notifications = deque(maxlen=100)
         self.notices = deque(maxlen=100)
         self.parameter_statuses = deque(maxlen=100)
+        self.max_prepared_statements = int(max_prepared_statements)
 
         if user is None:
             raise InterfaceError(
@@ -1674,10 +1678,6 @@ class Connection(object):
                 self.pg_types[field['type_oid']]
 
     def execute(self, cursor, operation, vals):
-        print('operation', operation)
-        print(
-            "id is", id(self),
-            'proc id', getpid())
         if vals is None:
             vals = ()
 
@@ -1798,8 +1798,7 @@ class Connection(object):
             ps['bind_2'] = h_pack(len(output_fc)) + \
                 pack("!" + "h" * len(output_fc), *output_fc)
 
-            # if len(cache['ps']) > pg8000.max_prepared_statements:
-            if len(cache['ps']) > 200:
+            if len(cache['ps']) > self.max_prepared_statements:
                 for p in itervalues(cache['ps']):
                     self.close_prepared_statement(p['statement_name_bin'])
                 cache['ps'].clear()

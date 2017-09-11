@@ -36,11 +36,11 @@ class Tests(unittest.TestCase):
     def testFormat(self):
         new_query, make_args = pg8000.core.convert_paramstyle(
             "format", "SELECT %s, %s, \"f1_%%\", E'txt_%%' "
-            "FROM t WHERE a=%s AND b='75%%'")
+            "FROM t WHERE a=%s AND b='75%%' AND c = '%' -- Comment with %")
         self.assertEqual(
             new_query,
             "SELECT $1, $2, \"f1_%%\", E'txt_%%' FROM t WHERE a=$3 AND "
-            "b='75%%'")
+            "b='75%%' AND c = '%' -- Comment with %")
         self.assertEqual(make_args((1, 2, 3)), (1, 2, 3))
 
     def testPyformat(self):
