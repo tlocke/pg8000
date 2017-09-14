@@ -219,7 +219,8 @@ class Tests(unittest.TestCase):
         self.cursor.execute(
             "CREATE TEMPORARY TABLE testenum "
             "(f1 lepton)")
-        self.cursor.execute("INSERT INTO testenum VALUES (%s)", ('electron',))
+        self.cursor.execute(
+            "INSERT INTO testenum VALUES (cast(%s as lepton))", ('electron',))
         self.cursor.execute("drop table testenum")
         self.cursor.execute("drop type lepton")
         self.db.commit()

@@ -1326,13 +1326,13 @@ class Connection(object):
 
         if PY2:
             self.py_types[Bytea] = (17, FC_BINARY, bytea_send)  # bytea
-            self.py_types[text_type] = (705, FC_TEXT, text_out)  # unknown
+            self.py_types[text_type] = (1043, FC_TEXT, text_out)  # unknown
             self.py_types[str] = (705, FC_TEXT, bytea_send)  # unknown
 
             self.inspect_funcs[long] = self.inspect_int  # noqa
         else:
             self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
-            self.py_types[str] = (705, FC_TEXT, text_out)  # unknown
+            self.py_types[str] = (1043, FC_TEXT, text_out)  # unknown
 
         try:
             from ipaddress import (
@@ -2015,8 +2015,8 @@ class Connection(object):
                 try:
                     oid, fc, send_func = self.make_params((first_element,))[0]
 
-                    # If unknown, assume it's a string array
-                    if oid == 705:
+                    # If unknown or string, assume it's a string array
+                    if oid in (705, 1043):
                         oid = 25
                         # Use binary ARRAY format to avoid having to properly
                         # escape text in the array literals
@@ -2029,7 +2029,6 @@ class Connection(object):
                     raise ArrayContentNotSupportedError(
                         "type " + str(typ) +
                         " not supported as array contents")
-
         if fc == FC_BINARY:
             def send_array(arr):
                 # check that all array dimensions are consistent
@@ -2063,8 +2062,8 @@ class Connection(object):
                     else:
                         raise ArrayContentNotHomogenousError(
                             "not all array elements are of type " + str(typ))
-
                 return u(str(ar)).translate(arr_trans).encode('ascii')
+
         return (array_oid, fc, send_array)
 
     def xid(self, format_id, global_transaction_id, branch_qualifier):
@@ -2203,6 +2202,7 @@ pg_array_types = {
     16: 1000,
     25: 1009,    # TEXT[]
     701: 1022,
+    1043: 1009,
     1700: 1231,  # NUMERIC[]
 }
 
