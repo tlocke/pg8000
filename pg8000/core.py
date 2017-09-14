@@ -479,7 +479,6 @@ def convert_paramstyle(style, query):
 
         elif state == INSIDE_SQ:
             if c == "'":
-                output_query.append(c)
                 if in_quote_escape:
                     in_quote_escape = False
                 else:
@@ -487,23 +486,18 @@ def convert_paramstyle(style, query):
                         in_quote_escape = True
                     else:
                         state = OUTSIDE
-            else:
-                output_query.append(c)
+            output_query.append(c)
 
         elif state == INSIDE_QI:
             if c == '"':
                 state = OUTSIDE
-                output_query.append(c)
-            else:
-                output_query.append(c)
+            output_query.append(c)
 
         elif state == INSIDE_ES:
             if c == "'" and prev_c != "\\":
                 # check for escaped single-quote
-                output_query.append(c)
                 state = OUTSIDE
-            else:
-                output_query.append(c)
+            output_query.append(c)
 
         elif state == INSIDE_PN:
             if style == 'named':
