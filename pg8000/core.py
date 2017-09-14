@@ -534,6 +534,8 @@ def convert_paramstyle(style, query):
 
         elif state == INSIDE_CO:
             output_query.append(c)
+            if c == '\n':
+                state = OUTSIDE
 
         prev_c = c
 

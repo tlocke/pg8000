@@ -43,6 +43,13 @@ class Tests(unittest.TestCase):
             "b='75%%' AND c = '%' -- Comment with %")
         self.assertEqual(make_args((1, 2, 3)), (1, 2, 3))
 
+    def testFormatMultiline(self):
+        new_query, make_args = pg8000.core.convert_paramstyle(
+            "format", "SELECT -- Comment\n%s FROM t")
+        self.assertEqual(
+            new_query,
+            "SELECT -- Comment\n$1 FROM t")
+
     def testPyformat(self):
         new_query, make_args = pg8000.core.convert_paramstyle(
             "pyformat", "SELECT %(f2)s, %(f1)s, \"f1_%%\", E'txt_%%' "
