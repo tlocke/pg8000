@@ -815,6 +815,9 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 
+    def test_array_dim_lengths(self):
+        assert pg8000.core.array_dim_lengths([[4], [5]]) == [2, 1]
+
 
 if __name__ == "__main__":
     unittest.main()

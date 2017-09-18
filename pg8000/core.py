@@ -2437,10 +2437,9 @@ def array_has_null(arr):
 
 def array_dim_lengths(arr):
     len_arr = len(arr)
+    retval = [len_arr]
     if len_arr > 0:
         v0 = arr[0]
         if isinstance(v0, list):
-            retval = [len(v0)]
             retval.extend(array_dim_lengths(v0))
-            return retval
-    return [len_arr]
+    return retval
