@@ -1,5 +1,6 @@
 import unittest
 import pg8000
+from pg8000 import PGJsonb, PGEnum
 import datetime
 import decimal
 import struct
@@ -12,6 +13,8 @@ from distutils.version import LooseVersion
 import sys
 import json
 import pytz
+from collections import OrderedDict
+
 
 IS_JYTHON = sys.platform.lower().count('java') > 0
 
@@ -174,6 +177,20 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], b("\x00\x01\x02\x03\x02\x01\x00"))
 
+    def test_bytearray_round_trip(self):
+        binary = b'\x00\x01\x02\x03\x02\x01\x00'
+        self.cursor.execute("SELECT %s as f1", (bytearray(binary),))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], binary)
+
+    def test_bytearray_subclass_round_trip(self):
+        class BClass(bytearray):
+            pass
+        binary = b'\x00\x01\x02\x03\x02\x01\x00'
+        self.cursor.execute("SELECT %s as f1", (BClass(binary),))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], binary)
+
     def testTimestampRoundtrip(self):
         v = datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)
         self.cursor.execute("SELECT %s as f1", (v,))
@@ -183,7 +200,7 @@ class Tests(unittest.TestCase):
         # Test that time zone doesn't affect it
         # Jython 2.5.3 doesn't have a time.tzset() so skip
         if not IS_JYTHON:
-            orig_tz = os.environ['TZ']
+            orig_tz = os.environ.get('TZ')
             os.environ['TZ'] = "America/Edmonton"
             time.tzset()
 
@@ -191,7 +208,10 @@ class Tests(unittest.TestCase):
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], v)
 
-            os.environ['TZ'] = orig_tz
+            if orig_tz is None:
+                del os.environ['TZ']
+            else:
+                os.environ['TZ'] = orig_tz
             time.tzset()
 
     def testIntervalRoundtrip(self):
@@ -205,7 +225,7 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 
-    def testEnumRoundtrip(self):
+    def test_enum_str_round_trip(self):
         try:
             self.cursor.execute(
                 "create type lepton as enum ('electron', 'muon', 'tau')")
@@ -224,6 +244,66 @@ class Tests(unittest.TestCase):
         self.cursor.execute("drop table testenum")
         self.cursor.execute("drop type lepton")
         self.db.commit()
+
+    def test_enum_custom_round_trip(self):
+        class Lepton(object):
+            # Implements PEP 435 in the minimal fashion needed
+            __members__ = OrderedDict()
+
+            def __init__(self, name, value, alias=None):
+                self.name = name
+                self.value = value
+                self.__members__[name] = self
+                setattr(self.__class__, name, self)
+                if alias:
+                    self.__members__[alias] = self
+                    setattr(self.__class__, alias, self)
+
+        try:
+            self.cursor.execute(
+                "create type lepton as enum ('1', '2', '3')")
+        except pg8000.ProgrammingError:
+            self.db.rollback()
+
+        v = Lepton('muon', '2')
+        self.cursor.execute(
+            "SELECT cast(%s as lepton) as f1", (PGEnum(v),))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v.value)
+        self.cursor.execute("drop type lepton")
+        self.db.commit()
+
+    def test_enum_py_round_trip(self):
+        try:
+            from enum import Enum
+
+            class Lepton(Enum):
+                electron = '1'
+                muon = '2'
+                tau = '3'
+
+            try:
+                self.cursor.execute(
+                    "create type lepton as enum ('1', '2', '3')")
+            except pg8000.ProgrammingError:
+                self.db.rollback()
+
+            v = Lepton.muon
+            self.cursor.execute("SELECT cast(%s as lepton) as f1", (v,))
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], v.value)
+
+            self.cursor.execute(
+                "CREATE TEMPORARY TABLE testenum "
+                "(f1 lepton)")
+            self.cursor.execute(
+                "INSERT INTO testenum VALUES (cast(%s as lepton))",
+                (Lepton.electron,))
+            self.cursor.execute("drop table testenum")
+            self.cursor.execute("drop type lepton")
+            self.db.commit()
+        except ImportError:
+            pass
 
     def testXmlRoundtrip(self):
         v = '<genome>gatccgagtac</genome>'
@@ -585,10 +665,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], v)
 
     def testStringArrayRoundtrip(self):
-        v = ["Hello!", "World!", "abcdefghijklmnopqrstuvwxyz", "",
-             "A bunch of random characters:",
-             " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t",
-             None]
+        v = [
+            "Hello!", "World!", "abcdefghijklmnopqrstuvwxyz", "",
+            "A bunch of random characters:",
+            " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t", None]
         self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
@@ -662,7 +742,7 @@ class Tests(unittest.TestCase):
         if self.db._server_version >= LooseVersion('9.2'):
             val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
             self.cursor.execute(
-                "SELECT cast(%s as json)", (json.dumps(val),))
+                "SELECT %s", (pg8000.PGJson(val),))
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], val)
 
@@ -705,6 +785,18 @@ class Tests(unittest.TestCase):
                 "SELECT cast(%s as jsonb) -> %s", (json.dumps(val), 2))
             retval = self.cursor.fetchall()
             self.assertEqual(retval[0][0], -3)
+
+    def test_jsonb_access_path(self):
+        if self.db._server_version >= LooseVersion('9.4'):
+            j = {
+                "a": [1, 2, 3],
+                "b": [4, 5, 6]}
+
+            path = ['a', '2']
+
+            self.cursor.execute("SELECT %s #>> %s", [PGJsonb(j), path])
+            retval = self.cursor.fetchall()
+            self.assertEqual(retval[0][0], str(j[path[0]][int(path[1])]))
 
     def test_timestamp_send_float(self):
         assert b('A\xbe\x19\xcf\x80\x00\x00\x00') == \

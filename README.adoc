@@ -19,8 +19,7 @@ image::https://circleci.com/gh/mfenniak/pg8000.svg?style=shield&circle-token=273
 
 == Key Points
 
-* Although it's possible for threads to share cursors and connections, for
-  performance reasons it's best to use one thread per connection.
+* Use one thread per connection.
 * Internally, all queries use prepared statements. pg8000 remembers that a
   prepared statement has been created, and uses it on subsequent queries.
 
@@ -369,8 +368,8 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 ==== pg8000.threadsafety
 
 Integer constant stating the level of thread safety the DBAPI interface
-supports. This DBAPI module supports sharing the module, connections, and
-cursors, resulting in a threadsafety value of 3.
+supports. For pg8000, the threadsafety value is 1, meaning that threads may
+share the module but not connections.
 
 This property is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].

@@ -43,6 +43,11 @@ class Tests(unittest.TestCase):
             "b='75%%' AND c = '%' -- Comment with %")
         self.assertEqual(make_args((1, 2, 3)), (1, 2, 3))
 
+        sql = r"""COMMENT ON TABLE test_schema.comment_test """ \
+            r"""IS 'the test % '' " \ table comment'"""
+        new_query, make_args = pg8000.core.convert_paramstyle("format", sql)
+        self.assertEqual(new_query, sql)
+
     def testFormatMultiline(self):
         new_query, make_args = pg8000.core.convert_paramstyle(
             "format", "SELECT -- Comment\n%s FROM t")

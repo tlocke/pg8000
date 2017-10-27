@@ -9,7 +9,8 @@ from collections import deque, defaultdict, OrderedDict
 from itertools import count, islice
 from six.moves import map
 from six import (
-    b, PY2, integer_types, next, text_type, u, binary_type, itervalues)
+    b, PY2, integer_types, next, text_type, u, binary_type, itervalues,
+    iteritems)
 from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
@@ -17,8 +18,9 @@ from distutils.version import LooseVersion
 from struct import Struct
 from time import localtime
 import pg8000
-from json import loads
+from json import loads, dumps
 from os import getpid
+
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # Copyright (c) The Contributors
@@ -151,6 +153,36 @@ class Interval(object):
 
     def __neq__(self, other):
         return not self.__eq__(other)
+
+
+class PGType(object):
+    def __init__(self, value):
+        self.value = value
+
+    def encode(self, encoding):
+        return str(self.value).encode(encoding)
+
+
+class PGEnum(PGType):
+    def __init__(self, value):
+        if isinstance(value, str):
+            self.value = value
+        else:
+            self.value = value.value
+
+
+class PGJson(PGType):
+    def encode(self, encoding):
+        return dumps(self.value).encode(encoding)
+
+
+class PGJsonb(PGType):
+    def encode(self, encoding):
+        return dumps(self.value).encode(encoding)
+
+
+class PGTsvector(PGType):
+    pass
 
 
 def pack_funcs(fmt):
@@ -1150,6 +1182,9 @@ class Connection(object):
         def text_out(v):
             return v.encode(self._client_encoding)
 
+        def enum_out(v):
+            return str(v.value).encode(self._client_encoding)
+
         def time_out(v):
             return v.isoformat().encode(self._client_encoding)
 
@@ -1304,18 +1339,23 @@ class Connection(object):
         self.py_types = {
             type(None): (-1, FC_BINARY, null_send),  # null
             bool: (16, FC_BINARY, bool_send),
+            bytearray: (17, FC_BINARY, bytea_send),  # bytea
             20: (20, FC_BINARY, q_pack),  # int8
             21: (21, FC_BINARY, h_pack),  # int2
             23: (23, FC_BINARY, i_pack),  # int4
             float: (701, FC_BINARY, d_pack),  # float8
+            PGEnum: (705, FC_TEXT, enum_out),
             date: (1082, FC_TEXT, date_out),  # date
             time: (1083, FC_TEXT, time_out),  # time
             1114: (1114, FC_BINARY, timestamp_send_integer),  # timestamp
             # timestamp w/ tz
             1184: (1184, FC_BINARY, timestamptz_send_integer),
+            PGJson: (114, FC_TEXT, text_out),
+            PGJsonb: (3802, FC_TEXT, text_out),
             Timedelta: (1186, FC_BINARY, interval_send_integer),
             Interval: (1186, FC_BINARY, interval_send_integer),
             Decimal: (1700, FC_TEXT, numeric_out),  # Decimal
+            PGTsvector: (3614, FC_TEXT, text_out),
             UUID: (2950, FC_BINARY, uuid_send)}  # uuid
 
         self.inspect_funcs = {
@@ -1326,13 +1366,20 @@ class Connection(object):
 
         if PY2:
             self.py_types[Bytea] = (17, FC_BINARY, bytea_send)  # bytea
-            self.py_types[text_type] = (1043, FC_TEXT, text_out)  # unknown
+            self.py_types[text_type] = (705, FC_TEXT, text_out)  # unknown
             self.py_types[str] = (705, FC_TEXT, bytea_send)  # unknown
 
             self.inspect_funcs[long] = self.inspect_int  # noqa
         else:
             self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
-            self.py_types[str] = (1043, FC_TEXT, text_out)  # unknown
+            self.py_types[str] = (25, FC_TEXT, text_out)  # str
+
+        try:
+            import enum
+
+            self.py_types[enum.Enum] = (705, FC_TEXT, enum_out)
+        except ImportError:
+            pass
 
         try:
             from ipaddress import (
@@ -1417,11 +1464,14 @@ class Connection(object):
         msg = OrderedDict(
             (s[:1], s[1:].decode(self._client_encoding)) for s in
             data.split(NULL_BYTE) if s != b(''))
-        exc_args = itervalues(msg)
-        if msg[RESPONSE_CODE] == "28000":
-            self.error = InterfaceError(*exc_args)
+        response_code = msg[RESPONSE_CODE]
+        if response_code == '28000':
+            cls = InterfaceError
+        elif response_code == '23505':
+            cls = IntegrityError
         else:
-            self.error = ProgrammingError(*exc_args)
+            cls = ProgrammingError
+        self.error = cls(*itervalues(msg))
 
     def handle_EMPTY_QUERY_RESPONSE(self, data, ps):
         self.error = ProgrammingError("query was empty")
@@ -1653,8 +1703,32 @@ class Connection(object):
                 try:
                     params.append(self.inspect_funcs[typ](value))
                 except KeyError as e:
-                    raise NotSupportedError(
-                        "type " + str(e) + "not mapped to pg type")
+                    param = None
+                    for k, v in iteritems(self.py_types):
+                        try:
+                            if isinstance(value, k):
+                                param = v
+                                break
+                        except TypeError:
+                            pass
+
+                    if param is None:
+                        for k, v in iteritems(self.inspect_funcs):
+                            try:
+                                if isinstance(value, k):
+                                    param = v(value)
+                                    break
+                            except TypeError:
+                                pass
+                            except KeyError:
+                                pass
+
+                    if param is None:
+                        raise NotSupportedError(
+                            "type " + str(e) + " not mapped to pg type")
+                    else:
+                        params.append(param)
+
         return tuple(params)
 
     def handle_ROW_DESCRIPTION(self, data, cursor):
@@ -2016,7 +2090,7 @@ class Connection(object):
                     oid, fc, send_func = self.make_params((first_element,))[0]
 
                     # If unknown or string, assume it's a string array
-                    if oid in (705, 1043):
+                    if oid in (705, 1043, 25):
                         oid = 25
                         # Use binary ARRAY format to avoid having to properly
                         # escape text in the array literals
