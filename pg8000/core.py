@@ -492,9 +492,16 @@ def convert_paramstyle(style, query):
                     state = INSIDE_CO
             elif style == "qmark" and c == "?":
                 output_query.append(next(param_idx))
-            elif style == "numeric" and c == ":":
+            elif style == "numeric" and c == ":" and next_c != ':' \
+                    and prev_c != ':':
+                # Treat : as beginning of parameter name if and only
+                # if it's the only : around
+                # Needed to properly process type conversions
+                # i.e. sum(x)::float
                 output_query.append("$")
-            elif style == "named" and c == ":":
+            elif style == "named" and c == ":" and next_c != ':' \
+                    and prev_c != ':':
+                # Same logic for : as in numeric parameters
                 state = INSIDE_PN
                 placeholders.append('')
             elif style == "pyformat" and c == '%' and next_c == "(":

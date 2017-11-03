@@ -23,14 +23,14 @@ class Tests(unittest.TestCase):
 
     def testNumeric(self):
         new_query, make_args = pg8000.core.convert_paramstyle(
-            "numeric", "SELECT :2, :1, * FROM t WHERE a=:3")
-        self.assertEqual(new_query, "SELECT $2, $1, * FROM t WHERE a=$3")
+            "numeric", "SELECT sum(x)::decimal(5, 2) :2, :1, * FROM t WHERE a=:3")
+        self.assertEqual(new_query, "SELECT sum(x)::decimal(5, 2) $2, $1, * FROM t WHERE a=$3")
         self.assertEqual(make_args((1, 2, 3)), (1, 2, 3))
 
     def testNamed(self):
         new_query, make_args = pg8000.core.convert_paramstyle(
-            "named", "SELECT :f_2, :f1 FROM t WHERE a=:f_2")
-        self.assertEqual(new_query, "SELECT $1, $2 FROM t WHERE a=$1")
+            "named", "SELECT sum(x)::decimal(5, 2) :f_2, :f1 FROM t WHERE a=:f_2")
+        self.assertEqual(new_query, "SELECT sum(x)::decimal(5, 2) $1, $2 FROM t WHERE a=$1")
         self.assertEqual(make_args({"f_2": 1, "f1": 2}), (1, 2))
 
     def testFormat(self):
