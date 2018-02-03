@@ -429,7 +429,7 @@ ROWID type oid
 === Functions
 
 
-==== pg8000.connect(user, host='localhost', unix_sock=None, port=5432, database=None, password=None, ssl=None, timeout=None, application_name=None)
+==== pg8000.connect(user, host='localhost', unix_sock=None, port=5432, database=None, password=None, ssl=None, timeout=None, application_name=None, tcp_keepalive)
 
 Creates a connection to a PostgreSQL database.
 
@@ -485,6 +485,12 @@ ssl::
 timeout::
   Only used with Python 3, this is the time in seconds before the connection to
   the database will time out. The default is `None` which means no timeout.
+
+
+tcp_keepalive::
+  If `True` then use
+  https://en.wikipedia.org/wiki/Keepalive#TCP_keepalive[TCP keepalive]. The
+  default is `False`.
 
 
 ==== pg8000.Date(year, month, day)

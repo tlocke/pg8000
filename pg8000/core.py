@@ -1152,7 +1152,7 @@ class Connection(object):
 
     def __init__(
             self, user, host, unix_sock, port, database, password, ssl,
-            timeout, application_name, max_prepared_statements):
+            timeout, application_name, max_prepared_statements, tcp_keepalive):
         self._client_encoding = "utf8"
         self._commands_with_count = (
             b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
@@ -1205,6 +1205,9 @@ class Connection(object):
                 self._usock = _establish_ssl(self._usock, ssl)
 
             self._sock = self._usock.makefile(mode="rwb")
+            if tcp_keepalive:
+                self._usock.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         except socket.error as e:
             self._usock.close()
             raise InterfaceError("communication error", e)

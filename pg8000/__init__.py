@@ -43,61 +43,11 @@ __author__ = "Mathieu Fenniak"
 def connect(
         user, host='localhost', unix_sock=None, port=5432, database=None,
         password=None, ssl=None, timeout=None, application_name=None,
-        max_prepared_statements=1000):
-    """Creates a connection to a PostgreSQL database.
+        max_prepared_statements=1000, tcp_keepalive=True):
 
-    This function is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_; however, the arguments of the
-    function are not defined by the specification.
-
-    :param user:
-        The username to connect to the PostgreSQL server with.
-
-        If your server character encoding is not ``ascii`` or ``utf8``, then
-        you need to provide ``user`` as bytes, eg.
-        ``"my_name".encode('EUC-JP')``.
-
-    :keyword host:
-        The hostname of the PostgreSQL server to connect with.  Providing this
-        parameter is necessary for TCP/IP connections.  One of either ``host``
-        or ``unix_sock`` must be provided. The default is ``localhost``.
-
-    :keyword unix_sock:
-        The path to the UNIX socket to access the database through, for
-        example, ``'/tmp/.s.PGSQL.5432'``.  One of either ``host`` or
-        ``unix_sock`` must be provided.
-
-    :keyword port:
-        The TCP/IP port of the PostgreSQL server instance.  This parameter
-        defaults to ``5432``, the registered common port of PostgreSQL TCP/IP
-        servers.
-
-    :keyword database:
-        The name of the database instance to connect with.  This parameter is
-        optional; if omitted, the PostgreSQL server will assume the database
-        name is the same as the username.
-
-        If your server character encoding is not ``ascii`` or ``utf8``, then
-        you need to provide ``database`` as bytes, eg.
-        ``"my_db".encode('EUC-JP')``.
-
-    :keyword password:
-        The user password to connect to the server with.  This parameter is
-        optional; if omitted and the database server requests password-based
-        authentication, the connection will fail to open.  If this parameter
-        is provided but not requested by the server, no error will occur.
-
-        If your server character encoding is not ``ascii`` or ``utf8``, then
-        you need to provide ``user`` as bytes, eg.
-        ``"my_password".encode('EUC-JP')``.
-
-    :keyword application_name:
-        The name will be displayed in the pg_stat_activity view.
-        This parameter is optional.
-    """
     return Connection(
         user, host, unix_sock, port, database, password, ssl, timeout,
-        application_name, max_prepared_statements)
+        application_name, max_prepared_statements, tcp_keepalive)
 
 
 apilevel = "2.0"
