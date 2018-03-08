@@ -1062,6 +1062,37 @@ TERMINATE = b('X')
 CLOSE = b('C')
 
 
+def _establish_ssl(_socket, ssl_params):
+    if not isinstance(ssl_params, dict):
+        ssl_params = {}
+
+    try:
+        import ssl as sslmodule
+
+        keyfile = ssl_params.get('keyfile')
+        certfile = ssl_params.get('certfile')
+        ca_certs = ssl_params.get('ca_certs')
+        if ca_certs is None:
+            verify_mode = sslmodule.CERT_NONE
+        else:
+            verify_mode = sslmodule.CERT_REQUIRED
+
+        # Int32(8) - Message length, including self.
+        # Int32(80877103) - The SSL request code.
+        _socket.sendall(ii_pack(8, 80877103))
+        resp = _socket.recv(1)
+        if resp == b('S'):
+            return sslmodule.wrap_socket(
+                _socket, keyfile=keyfile, certfile=certfile,
+                cert_reqs=verify_mode, ca_certs=ca_certs)
+        else:
+            raise InterfaceError("Server refuses SSL")
+    except ImportError:
+        raise InterfaceError(
+            "SSL required but ssl module not available in "
+            "this python installation")
+
+
 def create_message(code, data=b('')):
     return code + i_pack(len(data) + 4) + data
 
@@ -1171,20 +1202,7 @@ class Connection(object):
                 self._usock.connect(unix_sock)
 
             if ssl:
-                try:
-                    import ssl as sslmodule
-                    # Int32(8) - Message length, including self.
-                    # Int32(80877103) - The SSL request code.
-                    self._usock.sendall(ii_pack(8, 80877103))
-                    resp = self._usock.recv(1)
-                    if resp == b('S'):
-                        self._usock = sslmodule.wrap_socket(self._usock)
-                    else:
-                        raise InterfaceError("Server refuses SSL")
-                except ImportError:
-                    raise InterfaceError(
-                        "SSL required but ssl module not available in "
-                        "this python installation")
+                self._usock = _establish_ssl(self._usock, ssl)
 
             self._sock = self._usock.makefile(mode="rwb")
         except socket.error as e:

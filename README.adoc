@@ -429,7 +429,7 @@ ROWID type oid
 === Functions
 
 
-==== pg8000.connect(user, host='localhost', unix_sock=None, port=5432, database=None, password=None, ssl=False, timeout=None, application_name=None)
+==== pg8000.connect(user, host='localhost', unix_sock=None, port=5432, database=None, password=None, ssl=None, timeout=None, application_name=None)
 
 Creates a connection to a PostgreSQL database.
 
@@ -474,7 +474,11 @@ password::
   `'my_password'.encode('EUC-JP')`.
 
 ssl::
-  Use SSL encryption for TCP/IP sockets if `True`.  Defaults to `False`.
+  Use SSL encryption for TCP/IP sockets if `ssl` is a dictionary of SSL
+  parameters, eg `{'keyfile': '...', 'certfile': '...', 'ca_certs': '...'}`.
+  The parameters have the same meaning as those in the
+  https://docs.python.org/3.7/library/ssl.html#ssl.wrap_socket[ssl.wrap_socket]
+  function. The default for `ssl` is `None`.
 
 timeout::
   Only used with Python 3, this is the time in seconds before the connection to

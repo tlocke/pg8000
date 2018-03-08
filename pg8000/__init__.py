@@ -42,7 +42,7 @@ __author__ = "Mathieu Fenniak"
 
 def connect(
         user, host='localhost', unix_sock=None, port=5432, database=None,
-        password=None, ssl=False, timeout=None, application_name=None,
+        password=None, ssl=None, timeout=None, application_name=None,
         max_prepared_statements=1000):
     """Creates a connection to a PostgreSQL database.
 
@@ -94,18 +94,6 @@ def connect(
     :keyword application_name:
         The name will be displayed in the pg_stat_activity view.
         This parameter is optional.
-
-    :keyword ssl:
-        Use SSL encryption for TCP/IP sockets if ``True``.  Defaults to
-        ``False``.
-
-    :keyword timeout:
-        Only used with Python 3, this is the time in seconds before the
-        connection to the database will time out. The default is ``None`` which
-        means no timeout.
-
-    :rtype:
-        A :class:`Connection` object.
     """
     return Connection(
         user, host, unix_sock, port, database, password, ssl, timeout,
