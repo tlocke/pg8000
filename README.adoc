@@ -281,7 +281,8 @@ XML types.
 
 | JSON
 | json, jsonb
-| JSON string as an SQL parameter. Results returned as de-serialized JSON.
+| Use the pg8000.PGJson and pg8000.PGJsonb wrappers. Results returned as
+  de-serialized JSON.
 |===
 
 
@@ -303,11 +304,9 @@ statements. It uses the Extended Query feature of the FEBE. So the steps are:
 
 There are a lot of PostgreSQL data types, but few primitive data types in
 Python. A PostgreSQL data type has to be assigned to each query parameter,
-which is impossible to work out in all cases because. pg8000's solution to this
-problem is to send some parameters with the PostgreSQL type `unknown`. This
-forces the server to make a guess about the type. It's fairly good at doing
-this, so most queries '`just work`'. However, sometimes you may need to do an
-explicit cast in the SQL query to get things to work.
+which is impossible to work out in all cases. In these cases a wrapper class
+can be used for the parameter to indicate its type, or an
+https://www.postgresql.org/docs/current/static/sql-expressions.html#SQL-SYNTAX-TYPE-CASTS[explicit cast] can be used in the SQL.
 
 In the FEBE protocol, each query parameter can be sent to the server either as
 binary or text according to the format code (FC). In pg8000 the FC depends
@@ -1091,16 +1090,32 @@ run the stress test, and you should get `no unpinned buffers` errors.
 
 == Doing A Release Of pg8000
 
-Run `tox` to make sure all tests pass, then update `doc/release_notes.rst` then
-do:
+Run `tox` to make sure all tests pass, then update the release notes, then do:
 
 ....
 git tag -a x.y.z -m "version x.y.z"
-python setup.py register sdist bdist_wheel upload --sign
+python setup.py sdist bdist_wheel upload --sign
 ....
 
 
 == Release Notes
+
+
+=== Version 1.12.0, 2018-06-12
+
+Note that this version is not backward compatible with previous versions.
+
+* The Python 3 `str` type was sent as an `unknown` type, but now it's sent as
+ the nearest PostgreSQL type `text`.
+
+* pg8000 now recognizes that inline SQL comments end with a newline.
+
+* Single `%` characters now allowed in SQL comments.
+
+* The wrappers `pg8000.PGJson`, `pg8000.PGJsonb` and `pg8000.PGTsvector` can
+  now be used to contain Python values to be used as parameters. The wrapper
+  `pg8000.PGEnum` can by used for Python 2, as it doesn't have a standard
+  `enum.Enum` type.
 
 
 === Version 1.11.0, 2017-08-16
