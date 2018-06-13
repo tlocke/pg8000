@@ -3,7 +3,7 @@
 
 pg8000 is a pure-link:http://www.python.org/[Python]
 http://www.postgresql.org/[PostgreSQL] driver that complies with
-http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. It runs on Python versions 2.7+ and 3.3+, on CPython, Jython and PyPy. Pg8000's name comes from
+http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. It runs on Python versions 2.7+ and 3.4+, on CPython and PyPy. Pg8000's name comes from
 the belief that it is probably about the 8000th PostgreSQL interface for
 Python. pg8000 is distributed under the terms of the BSD 3-clause license.
 
@@ -281,7 +281,8 @@ XML types.
 
 | JSON
 | json, jsonb
-| Use the pg8000.PGJson and pg8000.PGJsonb wrappers. Results returned as
+| The Python JSON can be provided as a Python serialized string, or wrapped in
+  pg8000.PGJson and pg8000.PGJsonb wrappers. Results returned as
   de-serialized JSON.
 |===
 
@@ -1099,6 +1100,17 @@ python setup.py sdist bdist_wheel upload --sign
 
 
 == Release Notes
+
+
+=== Version 1.12.1, 2018-06-12
+
+
+* Revert back to the Python 3 `str` type being sent as an `unknown` type,
+  rather than the `text` type as it was in the previous release. The reason is
+  that with the `unknown` type there's the convenience of using a plain Python
+  string for JSON, Enum etc. There's always the option of using the
+  `pg8000.PGJson` and `pg8000.PGEnum` wrappers if precise control over the
+  PostgreSQL type is needed.
 
 
 === Version 1.12.0, 2018-06-12

@@ -1372,7 +1372,7 @@ class Connection(object):
             self.inspect_funcs[long] = self.inspect_int  # noqa
         else:
             self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
-            self.py_types[str] = (25, FC_TEXT, text_out)  # str
+            self.py_types[str] = (705, FC_TEXT, text_out)  # unknown
 
         try:
             import enum
