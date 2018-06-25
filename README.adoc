@@ -1102,6 +1102,12 @@ python setup.py sdist bdist_wheel upload --sign
 == Release Notes
 
 
+=== Version 1.12.3, 2018-08-22
+
+* Make PGVarchar and PGText inherit from `str`. Simpler than inheriting from
+  a PGType.
+
+
 === Version 1.12.2, 2018-06-28
 
 * Add PGVarchar and PGText wrapper types. This allows fine control over the

@@ -185,11 +185,11 @@ class PGTsvector(PGType):
     pass
 
 
-class PGVarchar(PGType):
+class PGVarchar(str):
     pass
 
 
-class PGText(PGType):
+class PGText(str):
     pass
 
 
