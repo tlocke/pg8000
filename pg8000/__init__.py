@@ -4,7 +4,7 @@ from pg8000.core import (
     ArrayContentNotHomogenousError, ArrayDimensionsNotConsistentError,
     ArrayContentNotSupportedError, utc, Connection, Cursor, Binary, Date,
     DateFromTicks, Time, TimeFromTicks, Timestamp, TimestampFromTicks, BINARY,
-    Interval, PGEnum, PGJson, PGJsonb, PGTsvector)
+    Interval, PGEnum, PGJson, PGJsonb, PGTsvector, PGText, PGVarchar)
 from ._version import get_versions
 __version__ = get_versions()['version']
 del get_versions
@@ -158,7 +158,7 @@ __all__ = [
     ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError, utc,
     Connection, Cursor, Binary, Date, DateFromTicks, Time, TimeFromTicks,
     Timestamp, TimestampFromTicks, BINARY, Interval, PGEnum, PGJson, PGJsonb,
-    PGTsvector]
+    PGTsvector, PGText, PGVarchar]
 
 """Version string for pg8000.
 

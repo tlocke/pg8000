@@ -185,6 +185,14 @@ class PGTsvector(PGType):
     pass
 
 
+class PGVarchar(PGType):
+    pass
+
+
+class PGText(PGType):
+    pass
+
+
 def pack_funcs(fmt):
     struc = Struct('!' + fmt)
     return struc.pack, struc.unpack_from
@@ -1343,12 +1351,14 @@ class Connection(object):
             20: (20, FC_BINARY, q_pack),  # int8
             21: (21, FC_BINARY, h_pack),  # int2
             23: (23, FC_BINARY, i_pack),  # int4
+            PGText: (25, FC_TEXT, text_out),  # text
             float: (701, FC_BINARY, d_pack),  # float8
             PGEnum: (705, FC_TEXT, enum_out),
             date: (1082, FC_TEXT, date_out),  # date
             time: (1083, FC_TEXT, time_out),  # time
             1114: (1114, FC_BINARY, timestamp_send_integer),  # timestamp
             # timestamp w/ tz
+            PGVarchar: (1043, FC_TEXT, text_out),  # varchar
             1184: (1184, FC_BINARY, timestamptz_send_integer),
             PGJson: (114, FC_TEXT, text_out),
             PGJsonb: (3802, FC_TEXT, text_out),
