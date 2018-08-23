@@ -1,0 +1,42 @@
+sudo: required
+language: python
+python:
+  - "2.7"
+  - "3.5"
+  - "3.6"
+  - "pypy3.5"
+
+env:
+  - DB="9.5"
+  - DB="9.6"
+
+services:
+  - postgresql
+addons:
+  postgresql: "9.5"
+  postgresql: "9.6"
+
+before_install:
+  - sudo service postgresql stop
+  - cd /etc/postgresql/$DB/main
+  - sudo chmod ugo+rw pg_hba.conf
+  - sudo cp pg_hba.conf old_pg_hba.conf
+  - sudo echo "host pg8000_md5 all 127.0.0.1/32 md5" > pg_hba.conf
+  - sudo echo "host pg8000_gss all 127.0.0.1/32 gss" >> pg_hba.conf
+  - sudo echo "host pg8000_password all 127.0.0.1/32 password" >> pg_hba.conf
+  - cat old_pg_hba.conf >> pg_hba.conf
+  - sudo service postgresql start $DB
+  - psql -U postgres -tc 'create extension hstore;'
+  - psql -U postgres -tc 'show server_version;'
+  - psql -U postgres -tc "alter user postgres with password 'pw';"
+  - psql -U postgres -tc "alter system set client_min_messages = notice;"
+  - sudo service postgresql reload $DB
+  - psql -U postgres -tc 'show client_min_messages;'
+  - cd $TRAVIS_BUILD_DIR
+
+install:
+  - pip install nose
+  - pip install pytz
+
+script:
+  - nosetests

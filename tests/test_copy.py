@@ -16,9 +16,11 @@ class Tests(unittest.TestCase):
             except pg8000.DatabaseError:
                 e = exc_info()[1]
                 # the only acceptable error is:
+                msg = e.args[0]
+                code = msg['C']
                 self.assertEqual(
-                    e.args[1], '42P01',  # table does not exist
-                    "incorrect error for drop table")
+                    code, '42P01',  # table does not exist
+                    "incorrect error for drop table: " + str(msg))
                 self.db.rollback()
             cursor.execute(
                 "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
@@ -101,13 +103,14 @@ class Tests(unittest.TestCase):
             self.assertTrue(False, "Should have raised an exception")
         except:
             args_dict = {
-                0: u('ERROR'),
-                1: u('22P02'),
-                2: u('invalid input syntax for integer: ""'),
-                3: u('COPY t1, line 2, column f1: ""'),
-                4: u('numutils.c'),
-                6: u('pg_atoi')}
-            args = exc_info()[1].args
+                'S': u('ERROR'),
+                'C': u('22P02'),
+                'M': u('invalid input syntax for integer: ""'),
+                'W': u('COPY t1, line 2, column f1: ""'),
+                'F': u('numutils.c'),
+                'R': u('pg_atoi')
+            }
+            args = exc_info()[1].args[0]
             for k, v in iteritems(args_dict):
                 self.assertEqual(args[k], v)
         finally:

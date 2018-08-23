@@ -3,9 +3,11 @@
 
 pg8000 is a pure-link:http://www.python.org/[Python]
 http://www.postgresql.org/[PostgreSQL] driver that complies with
-http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. It runs on Python versions 2.7+ and 3.4+, on CPython and PyPy. Pg8000's name comes from
-the belief that it is probably about the 8000th PostgreSQL interface for
-Python. pg8000 is distributed under the terms of the BSD 3-clause license.
+http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. It is tested on Python
+versions 2.7+ and 3.5+, on CPython and PyPy, and PostgreSQL versions 9.5+.
+Pg8000's name comes from the belief that it is probably about the 8000th
+PostgreSQL interface for Python. pg8000 is distributed under the terms of the
+BSD 3-clause license.
 
 All bug reports, feature requests and contributions are welcome at
 http://github.com/mfenniak/pg8000/.
@@ -14,7 +16,7 @@ If you're a user of pg8000 we'd love to hear who you are and what you or your
 organization is using pg8000 for. Just log an issue on GitHub. The idea is to
 put together a list of users.
 
-image::https://circleci.com/gh/mfenniak/pg8000.svg?style=shield&circle-token=2737fb9ccf95410c088deb53f1212a7bc2314482[Build Status]
+image::https://travis-ci.org/tlocke/pg8000.svg?branch=master[Build Status]
 
 
 == Key Points
@@ -1024,30 +1026,15 @@ being raised.
 
 == Regression Tests
 
-The easiest way to run the regression tests is using a prebuilt Docker image
-that contains all of the supported versions of Python, Jython, PyPy, and
-PostgreSQL, ready-to-run.  To use this, just mount your source directory
-(where you checked out pg8000 to) onto the image in
-`/home/postgres/pg8000-src`, and then run the `mfenniak/pg8000-test-env` image.
-Here's a simple command-line:
-
- docker run -v `pwd`:/home/postgres/pg8000-src mfenniak/pg8000-test-env
-
-If you don't have Docker, or want to run the tests in a different environment,
-install http://testrun.org/tox/latest/[tox]:
+Install http://testrun.org/tox/latest/[tox]:
 
  pip install tox
 
-then install all the supported Python versions (using the
-https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes[APT Repository] if
-you're using Ubuntu). Install all the currently supported versions of PostgreSQL
-(using the http://wiki.postgresql.org/wiki/Apt[APT Repository] if you're
-using Ubuntu). Then for each of them, enable the hstore extension by running the
-SQL command:
+Enable the PostgreSQL hstore extension by running the SQL command:
 
  create extension hstore;
 
-and add a line to pg_hba.conf for the various authentication options, eg.
+and add a line to pg_hba.conf for the various authentication options:
 
 ....
 host    pg8000_md5      all             127.0.0.1/32            md5
@@ -1056,20 +1043,17 @@ host    pg8000_password all             127.0.0.1/32            password
 host    all             all             127.0.0.1/32            trust
 ....
 
-Set the following environment variables for the databases, for example:
-
-....
-export PG8000_TEST_NAME="PG8000_TEST_9_5"
-export PG8000_TEST_9_1="{'user': 'postgres', 'password': 'pw', 'port': 5435}"
-export PG8000_TEST_9_2="{'user': 'postgres', 'password': 'pw', 'port': 5434}"
-export PG8000_TEST_9_3="{'user': 'postgres', 'password': 'pw', 'port': 5433}"
-export PG8000_TEST_9_4="{'user': 'postgres', 'password': 'pw', 'port': 5432}"
-export PG8000_TEST_9_5="{'user': 'postgres', 'password': 'pw', 'port': 5431}"
-....
-
 then run `tox` from the `pg8000` directory:
 
 `tox`
+
+This will run the tests against all the installed Python versions, and the
+installed PostgreSQL version listening on port 5432.
+
+If you're using Ubuntu you can install old Python versions using the
+https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes[Dead
+Snakes APT Repository] and other versions of PostgreSQL using the
+http://wiki.postgresql.org/wiki/Apt[PostgreSQL APT Repository].
 
 
 == Performance Tests

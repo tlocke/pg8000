@@ -58,8 +58,8 @@ class Tests(unittest.TestCase):
                     cursor.close()
             except pg8000.DatabaseError:
                 e = exc_info()[1]
-                # the only acceptable error is:
-                self.assertEqual(e.args[1], '42P01')  # table does not exist
+                # the only acceptable error is 'table does not exist'
+                self.assertEqual(e.args[0]['C'], '42P01')
                 self.db.rollback()
 
     def testClosedConnection(self):

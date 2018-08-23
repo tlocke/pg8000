@@ -5,7 +5,7 @@ import socket
 from struct import pack
 from hashlib import md5
 from decimal import Decimal
-from collections import deque, defaultdict, OrderedDict
+from collections import deque, defaultdict
 from itertools import count, islice
 from six.moves import map
 from six import (
@@ -1070,18 +1070,19 @@ STATEMENT = b('S')
 PORTAL = b('P')
 
 # ErrorResponse codes
-RESPONSE_SEVERITY = b("S")  # always present
-RESPONSE_CODE = b("C")  # always present
-RESPONSE_MSG = b("M")  # always present
-RESPONSE_DETAIL = b("D")
-RESPONSE_HINT = b("H")
-RESPONSE_POSITION = b("P")
-RESPONSE__POSITION = b("p")
-RESPONSE__QUERY = b("q")
-RESPONSE_WHERE = b("W")
-RESPONSE_FILE = b("F")
-RESPONSE_LINE = b("L")
-RESPONSE_ROUTINE = b("R")
+RESPONSE_SEVERITY = "S"  # always present
+RESPONSE_SEVERITY = "V"  # always present
+RESPONSE_CODE = "C"  # always present
+RESPONSE_MSG = "M"  # always present
+RESPONSE_DETAIL = "D"
+RESPONSE_HINT = "H"
+RESPONSE_POSITION = "P"
+RESPONSE__POSITION = "p"
+RESPONSE__QUERY = "q"
+RESPONSE_WHERE = "W"
+RESPONSE_FILE = "F"
+RESPONSE_LINE = "L"
+RESPONSE_ROUTINE = "R"
 
 IDLE = b("I")
 IDLE_IN_TRANSACTION = b("T")
@@ -1471,9 +1472,12 @@ class Connection(object):
         self.in_transaction = False
 
     def handle_ERROR_RESPONSE(self, data, ps):
-        msg = OrderedDict(
-            (s[:1], s[1:].decode(self._client_encoding)) for s in
+        msg = dict(
+            (
+                s[:1].decode(self._client_encoding),
+                s[1:].decode(self._client_encoding)) for s in
             data.split(NULL_BYTE) if s != b(''))
+
         response_code = msg[RESPONSE_CODE]
         if response_code == '28000':
             cls = InterfaceError
@@ -1481,7 +1485,8 @@ class Connection(object):
             cls = IntegrityError
         else:
             cls = ProgrammingError
-        self.error = cls(*itervalues(msg))
+
+        self.error = cls(msg)
 
     def handle_EMPTY_QUERY_RESPONSE(self, data, ps):
         self.error = ProgrammingError("query was empty")
