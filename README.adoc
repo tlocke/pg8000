@@ -102,7 +102,7 @@ turned on by using the autocommit property of the connection.
 >>> cur = conn.cursor()
 >>> cur.execute("vacuum")
 >>> conn.autocommit = False
->>> cursor.close()
+>>> cur.close()
 
 ----
 
