@@ -69,20 +69,16 @@ class Tests(unittest.TestCase):
 
     def testNotify(self):
 
-        try:
-            db = pg8000.connect(**db_connect)
+        with pg8000.connect(**db_connect) as db:
             self.assertEqual(list(db.notifications), [])
-            cursor = db.cursor()
-            cursor.execute("LISTEN test")
-            cursor.execute("NOTIFY test")
-            db.commit()
+            with db.cursor() as cursor:
+                cursor.execute("LISTEN test")
+                cursor.execute("NOTIFY test")
+                db.commit()
 
-            cursor.execute("VALUES (1, 2), (3, 4), (5, 6)")
-            self.assertEqual(len(db.notifications), 1)
-            self.assertEqual(db.notifications[0][1], "test")
-        finally:
-            cursor.close()
-            db.close()
+                cursor.execute("VALUES (1, 2), (3, 4), (5, 6)")
+                self.assertEqual(len(db.notifications), 1)
+                self.assertEqual(db.notifications[0][1], "test")
 
     # This requires a line in pg_hba.conf that requires md5 for the database
     # pg8000_md5
@@ -163,61 +159,52 @@ class Tests(unittest.TestCase):
                 pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
     def testBytesPassword(self):
-        db = pg8000.connect(**db_connect)
-        # Create user
-        username = 'boltzmann'
-        password = u('cha\uFF6Fs')
-        cur = db.cursor()
+        with pg8000.connect(**db_connect) as db:
+            # Create user
+            username = 'boltzmann'
+            password = u('cha\uFF6Fs')
+            cur = db.cursor()
 
-        # Delete user if left over from previous run
-        try:
+            # Delete user if left over from previous run
+            try:
+                cur.execute("drop role " + username)
+            except pg8000.ProgrammingError:
+                cur.execute("rollback")
+
+            cur.execute(
+                "create user " + username + " with password '" + password + "';")
+            cur.execute('commit;')
+
+            data = db_connect.copy()
+            data['user'] = username
+            data['password'] = password.encode('utf8')
+            data['database'] = 'pg8000_md5'
+            if PY2:
+                self.assertRaises(
+                    pg8000.ProgrammingError, pg8000.connect, **data)
+            else:
+                self.assertRaisesRegex(
+                    pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+
+        with pg8000.connect(**db_connect) as db:
+            cur = db.cursor()
             cur.execute("drop role " + username)
-        except pg8000.ProgrammingError:
-            cur.execute("rollback")
-
-        cur.execute(
-            "create user " + username + " with password '" + password + "';")
-        cur.execute('commit;')
-        db.close()
-
-        data = db_connect.copy()
-        data['user'] = username
-        data['password'] = password.encode('utf8')
-        data['database'] = 'pg8000_md5'
-        if PY2:
-            self.assertRaises(
-                pg8000.ProgrammingError, pg8000.connect, **data)
-        else:
-            self.assertRaisesRegex(
-                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
-
-        db = pg8000.connect(**db_connect)
-        cur = db.cursor()
-        cur.execute("drop role " + username)
-        cur.execute("commit;")
-        db.close()
+            cur.execute("commit;")
 
     def testBrokenPipe(self):
-        db1 = pg8000.connect(**db_connect)
-        db2 = pg8000.connect(**db_connect)
+        with pg8000.connect(**db_connect) as db1:
+            with pg8000.connect(**db_connect) as db2:
+                with db1.cursor() as cur1:
+                    with db2.cursor() as cur2:
 
-        try:
-            cur1 = db1.cursor()
-            cur2 = db2.cursor()
+                        cur1.execute("select pg_backend_pid()")
+                        pid1 = cur1.fetchone()[0]
 
-            cur1.execute("select pg_backend_pid()")
-            pid1 = cur1.fetchone()[0]
-
-            cur2.execute("select pg_terminate_backend(%s)", (pid1,))
-            try:
-                cur1.execute("select 1")
-            except Exception as e:
-                self.assertTrue(isinstance(e, (socket.error, struct.error)))
-
-            cur2.close()
-        finally:
-            db1.close()
-            db2.close()
+                        cur2.execute("select pg_terminate_backend(%s)", (pid1,))
+                        try:
+                            cur1.execute("select 1")
+                        except Exception as e:
+                            self.assertTrue(isinstance(e, (socket.error, struct.error)))
 
     def testApplicatioName(self):
         params = db_connect.copy()

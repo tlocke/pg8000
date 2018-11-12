@@ -1149,7 +1149,7 @@ class Connection(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
-        
+
     def _getError(self, error):
         warn(
             "DB-API extension connection.%s used" %
