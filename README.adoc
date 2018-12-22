@@ -478,7 +478,9 @@ ssl::
   parameters, eg `{'keyfile': '...', 'certfile': '...', 'ca_certs': '...'}`.
   The parameters have the same meaning as those in the
   https://docs.python.org/3.7/library/ssl.html#ssl.wrap_socket[ssl.wrap_socket]
-  function. The default for `ssl` is `None`.
+  function. Omitting a key in the dictionary is equivalent to setting it to
+  `None`, so for a default SSL connection, set `ssl` to be the empty dictionary
+  `{}`. The default for `ssl` is `None`, meaning no SSL.
 
 timeout::
   Only used with Python 3, this is the time in seconds before the connection to
