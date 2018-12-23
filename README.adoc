@@ -352,6 +352,12 @@ on the type of the value. Here is a table of some common types and their FC:
   will use a prepared statement for a previously executed query, and this
   prepared statement won't be aware of any change in `search_path`.
 
+* Occasionally, the network connection between pg8000 and the server may go
+  down. If pg8000 encounters a problem writing to a socket it raises
+  `BrokenPipeError: [Errno 32] Broken pipe`. If pg8000 encounters a problem
+  reading from a socket it raises `struct.error: unpack_from requires a buffer
+  of at least 5 bytes`.
+
 
 == API Docs
 
