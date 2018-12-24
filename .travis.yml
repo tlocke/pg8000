@@ -1,23 +1,79 @@
+dist: xenial
 sudo: required
 language: python
-python:
-  - "2.7"
-  - "3.5"
-  - "3.6"
-  - "pypy3.5"
-
-env:
-  - DB="9.5"
-  - DB="9.6"
 
 services:
   - postgresql
-addons:
-  postgresql: "9.5"
-  postgresql: "9.6"
+
+matrix:
+  include:
+    - addons:
+        postgresql: "9.4"
+      env: DB="9.4"
+      python: "2.7"
+    - addons:
+        postgresql: "9.5"
+      env: DB="9.5"
+      python: "2.7"
+    - addons:
+        postgresql: "9.6"
+      env: DB="9.6"
+      python: "2.7"
+    - addons:
+        postgresql: "10"
+      env: DB="10"
+      python: "2.7"
+    - addons:
+        postgresql: "9.4"
+      env: DB="9.4"
+      python: "3.5"
+    - addons:
+        postgresql: "9.5"
+      env: DB="9.5"
+      python: "3.5"
+    - addons:
+        postgresql: "9.6"
+      env: DB="9.6"
+      python: "3.5"
+    - addons:
+        postgresql: "10"
+      env: DB="10"
+      python: "3.5"
+    - addons:
+        postgresql: "9.4"
+      env: DB="9.4"
+      python: "3.6"
+    - addons:
+        postgresql: "9.5"
+      env: DB="9.5"
+      python: "3.6"
+    - addons:
+        postgresql: "9.6"
+      env: DB="9.6"
+      python: "3.6"
+    - addons:
+        postgresql: "10"
+      env: DB="10"
+      python: "3.6"
+    - addons:
+        postgresql: "9.4"
+      env: DB="9.4"
+      python: "pypy3.5"
+    - addons:
+        postgresql: "9.5"
+      env: DB="9.5"
+      python: "pypy3.5"
+    - addons:
+        postgresql: "9.6"
+      env: DB="9.6"
+      python: "pypy3.5"
+    - addons:
+        postgresql: "10"
+      env: DB="10"
+      python: "pypy3.5"
 
 before_install:
-  - sudo service postgresql stop
+  - sudo systemctl stop postgresql
   - cd /etc/postgresql/$DB/main
   - sudo chmod ugo+rw pg_hba.conf
   - sudo cp pg_hba.conf old_pg_hba.conf
@@ -25,12 +81,12 @@ before_install:
   - sudo echo "host pg8000_gss all 127.0.0.1/32 gss" >> pg_hba.conf
   - sudo echo "host pg8000_password all 127.0.0.1/32 password" >> pg_hba.conf
   - cat old_pg_hba.conf >> pg_hba.conf
-  - sudo service postgresql start $DB
+  - sudo systemctl start postgresql@${DB}-main
   - psql -U postgres -tc 'create extension hstore;'
   - psql -U postgres -tc 'show server_version;'
   - psql -U postgres -tc "alter user postgres with password 'pw';"
   - psql -U postgres -tc "alter system set client_min_messages = notice;"
-  - sudo service postgresql reload $DB
+  - sudo systemctl reload postgresql@${DB}-main
   - psql -U postgres -tc 'show client_min_messages;'
   - cd $TRAVIS_BUILD_DIR
 

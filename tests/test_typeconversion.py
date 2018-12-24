@@ -47,27 +47,32 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], True)
 
     def testNullRoundtrip(self):
-        # We can't just "SELECT %s" and set None as the parameter, since it has
-        # no type.  That would result in a PG error, "could not determine data
-        # type of parameter %s".  So we create a temporary table, insert null
-        # values, and read them back.
-        self.cursor.execute(
-            "CREATE TEMPORARY TABLE TestNullWrite "
-            "(f1 int4, f2 timestamp, f3 varchar)")
-        self.cursor.execute(
-            "INSERT INTO TestNullWrite VALUES (%s, %s, %s)",
-            (None, None, None,))
-        self.cursor.execute("SELECT * FROM TestNullWrite")
-        retval = self.cursor.fetchone()
-        self.assertEqual(retval, [None, None, None])
+        self.cursor.execute("show server_version_num")
+        version = self.cursor.fetchone()[0][:2]
 
-    def testNullSelectFailure(self):
-        # See comment in TestNullRoundtrip.  This test is here to ensure that
-        # this behaviour is documented and doesn't mysteriously change.
-        self.assertRaises(
-            pg8000.ProgrammingError, self.cursor.execute,
-            "SELECT %s as f1", (None,))
-        self.db.rollback()
+        if version.startswith('9'):
+            # Prior to PostgreSQL version 10 We can't just "SELECT %s" and set
+            # None as the parameter, since it has no type.  That would result
+            # in a PG error, "could not determine data type of parameter %s".
+            # So we create a temporary table, insert null values, and read them
+            # back.
+            self.cursor.execute(
+                "CREATE TEMPORARY TABLE TestNullWrite "
+                "(f1 int4, f2 timestamp, f3 varchar)")
+            self.cursor.execute(
+                "INSERT INTO TestNullWrite VALUES (%s, %s, %s)",
+                (None, None, None,))
+            self.cursor.execute("SELECT * FROM TestNullWrite")
+            retval = self.cursor.fetchone()
+            self.assertEqual(retval, [None, None, None])
+
+            self.assertRaises(
+                pg8000.ProgrammingError, self.cursor.execute,
+                "SELECT %s as f1", (None,))
+            self.db.rollback()
+        else:
+            self.cursor.execute("SELECT %s as f1", (None,))
+            self.assertEqual(self.cursor.fetchone()[0], None)
 
     def testDecimalRoundtrip(self):
         values = (
