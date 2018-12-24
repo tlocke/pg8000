@@ -809,6 +809,12 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 
+    def test_point_roundtrip(self):
+        v = '(2.3,1)'
+        self.cursor.execute("SELECT cast(%s as point) as f1", (v,))
+        retval = self.cursor.fetchall()
+        self.assertEqual(retval[0][0], v)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -79,6 +79,18 @@ A query that returns the PostgreSQL interval type:
 
 ----
 
+A round-trip with a
+https://www.postgresql.org/docs/current/datatype-geometric.html[PostgreSQL
+point] type:
+
+[source,python]
+----
+>>> cursor.execute("SELECT cast(%s as point)", ('(2.3,1)',))
+>>> cursor.fetchone()
+['(2.3,1)']
+
+----
+
 pg8000 supports all the DB-API parameter styles. Here's an example of using
 the 'numeric' parameter style:
 
