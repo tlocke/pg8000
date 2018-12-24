@@ -770,7 +770,7 @@ def int_in(data, offset, length):
     return int(data[offset: offset + length])
 
 
-class Cursor():
+class Cursor(object):
     """A cursor object is returned by the :meth:`~Connection.cursor` method of
     a connection. It has the following attributes and methods:
 

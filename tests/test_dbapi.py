@@ -249,7 +249,7 @@ class Tests(unittest.TestCase):
                 next_f1 = row[0]
                 assert next_f1 > f1
                 f1 = next_f1
-        except:
+        except BaseException:
             cursor.close()
 
         self.db.commit()
@@ -269,6 +269,13 @@ class Tests(unittest.TestCase):
         cursor.execute(
             'PREPARE gen_series AS SELECT generate_series(1, 10);')
         cursor.execute('EXECUTE gen_series')
+
+    def test_cursor_type(self):
+        try:
+            cursor = self.db.cursor()
+            assert str(type(cursor)) == "<class 'pg8000.core.Cursor'>"
+        finally:
+            cursor.close()
 
 
 if __name__ == "__main__":
