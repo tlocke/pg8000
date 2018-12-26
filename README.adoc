@@ -10,7 +10,7 @@ PostgreSQL interface for Python. pg8000 is distributed under the terms of the
 BSD 3-clause license.
 
 All bug reports, feature requests and contributions are welcome at
-http://github.com/mfenniak/pg8000/.
+http://github.com/tlocke/pg8000/.
 
 If you're a user of pg8000 we'd love to hear who you are and what you or your
 organization is using pg8000 for. Just log an issue on GitHub. The idea is to
