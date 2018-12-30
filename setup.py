@@ -29,22 +29,21 @@ setup(
     long_description=long_description,
     author="Mathieu Fenniak",
     author_email="biziqe@mathieu.fenniak.net",
-    url="https://github.com/mfenniak/pg8000",
+    url="https://github.com/tlocke/pg8000",
     license="BSD",
     install_requires=[
         "six>=1.10.0",
     ],
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: BSD License",
         "Programming Language :: Python",
         "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.3",
-        "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: Implementation",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: Jython",
@@ -54,9 +53,5 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
     keywords="postgresql dbapi",
-    packages=("pg8000",),
-    command_options={
-        'build_sphinx': {
-            'version': ('setup.py', version),
-            'release': ('setup.py', version)}},
+    packages=("pg8000",)
 )
