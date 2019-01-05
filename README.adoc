@@ -1077,8 +1077,9 @@ then run `tox` from the `pg8000` directory:
 
 `tox`
 
-This will run the tests against all the installed Python versions, and the
-installed PostgreSQL version listening on port 5432.
+This will run the tests against the Python version of the virtual environment,
+on the machine, and the installed PostgreSQL version listening on port 5432, or
+the PGPORT environment variable if set.
 
 If you're using Ubuntu you can install old Python versions using the
 https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes[Dead

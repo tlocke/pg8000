@@ -1,4 +1,11 @@
+from os import environ
+
 db_connect = {
     'user': 'postgres',
-    'password': 'pw',
-    'port': 5432}
+    'password': 'pw'
+}
+
+try:
+    db_connect['port'] = int(environ['PGPORT'])
+except KeyError:
+    pass
