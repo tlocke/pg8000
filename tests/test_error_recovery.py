@@ -70,7 +70,7 @@ class Tests(unittest.TestCase):
         try:
             cursor.execute("VALUES ('hw1'::text)")
             self.fail("Should have raised an exception")
-        except:
+        except BaseException:
             e = exc_info()[1]
             self.assertTrue(isinstance(e, self.db.InterfaceError))
             self.assertEqual(str(e), 'connection is closed')

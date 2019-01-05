@@ -101,7 +101,7 @@ class Tests(unittest.TestCase):
                 "COPY t1 (f1, f2) FROM STDIN WITH DELIMITER 'X' CSV HEADER "
                 "QUOTE AS 'Y' FORCE NOT NULL f1", stream=stream)
             self.assertTrue(False, "Should have raised an exception")
-        except:
+        except BaseException:
             args_dict = {
                 'S': u('ERROR'),
                 'C': u('22P02'),

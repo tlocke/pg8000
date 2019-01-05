@@ -369,5 +369,6 @@ class Tests(unittest.TestCase):
             cursor.close()
             self.db.rollback()
 
+
 if __name__ == "__main__":
     unittest.main()

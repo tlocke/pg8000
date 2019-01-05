@@ -172,7 +172,8 @@ class Tests(unittest.TestCase):
                 cur.execute("rollback")
 
             cur.execute(
-                "create user " + username + " with password '" + password + "';")
+                "create user " + username + " with password '" + password +
+                "';")
             cur.execute('commit;')
 
             data = db_connect.copy()
@@ -194,17 +195,18 @@ class Tests(unittest.TestCase):
     def testBrokenPipe(self):
         with pg8000.connect(**db_connect) as db1:
             with pg8000.connect(**db_connect) as db2:
-                with db1.cursor() as cur1:
-                    with db2.cursor() as cur2:
+                with db1.cursor() as cur1, db2.cursor() as cur2:
 
-                        cur1.execute("select pg_backend_pid()")
-                        pid1 = cur1.fetchone()[0]
+                    cur1.execute("select pg_backend_pid()")
+                    pid1 = cur1.fetchone()[0]
 
-                        cur2.execute("select pg_terminate_backend(%s)", (pid1,))
-                        try:
-                            cur1.execute("select 1")
-                        except Exception as e:
-                            self.assertTrue(isinstance(e, (socket.error, struct.error)))
+                    cur2.execute(
+                            "select pg_terminate_backend(%s)", (pid1,))
+                    try:
+                        cur1.execute("select 1")
+                    except Exception as e:
+                        self.assertTrue(
+                            isinstance(e, (socket.error, struct.error)))
 
     def testApplicatioName(self):
         params = db_connect.copy()
