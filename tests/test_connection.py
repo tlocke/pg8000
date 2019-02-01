@@ -225,6 +225,21 @@ class Tests(unittest.TestCase):
         application_name = cur.fetchone()[0]
         self.assertEqual(application_name, 'my test application name')
 
+    # This requires a line in pg_hba.conf that requires scram-sha-256 for the
+    # database scram-sha-256
+
+    def test_scram_sha_256(self):
+        data = db_connect.copy()
+        data["database"] = "pg8000_scram_sha_256"
+
+        # Should only raise an exception saying db doesn't exist
+        if PY2:
+            self.assertRaises(
+                pg8000.ProgrammingError, pg8000.connect, **data)
+        else:
+            self.assertRaisesRegex(
+                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+
 
 if __name__ == "__main__":
     unittest.main()

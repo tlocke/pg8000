@@ -1,11 +1,12 @@
 import unittest
 import pg8000
 from pg8000 import PGJsonb, PGEnum
-import datetime
+from datetime import (
+    datetime as Datetime, time as Time, date as Date, timedelta as Timedelta,
+    timezone as Timezone)
 import decimal
 import struct
 from connection_settings import db_connect
-from six import b, PY2, u
 import uuid
 import os
 import time
@@ -31,12 +32,12 @@ class Tests(unittest.TestCase):
         self.db.close()
 
     def testTimeRoundtrip(self):
-        self.cursor.execute("SELECT %s as f1", (datetime.time(4, 5, 6),))
+        self.cursor.execute("SELECT %s as f1", (Time(4, 5, 6),))
         retval = self.cursor.fetchall()
-        self.assertEqual(retval[0][0], datetime.time(4, 5, 6))
+        self.assertEqual(retval[0][0], Time(4, 5, 6))
 
     def testDateRoundtrip(self):
-        v = datetime.date(2001, 2, 3)
+        v = Date(2001, 2, 3)
         self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
@@ -109,12 +110,6 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 
-        if PY2:
-            v = "hello \xce\x94 world"
-            self.cursor.execute("SELECT cast(%s as varchar) as f1", (v,))
-            retval = self.cursor.fetchall()
-            self.assertEqual(retval[0][0], v.decode('utf8'))
-
     def test_str_then_int(self):
         v1 = "hello world"
         self.cursor.execute("SELECT cast(%s as varchar) as f1", (v1,))
@@ -127,7 +122,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], str(v2))
 
     def testUnicodeRoundtrip(self):
-        v = u("hello \u0173 world")
+        v = "hello \u0173 world"
         self.cursor.execute("SELECT cast(%s as varchar) as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
@@ -178,9 +173,9 @@ class Tests(unittest.TestCase):
     def testByteaRoundtrip(self):
         self.cursor.execute(
             "SELECT %s as f1",
-            (pg8000.Binary(b("\x00\x01\x02\x03\x02\x01\x00")),))
+            (pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00"),))
         retval = self.cursor.fetchall()
-        self.assertEqual(retval[0][0], b("\x00\x01\x02\x03\x02\x01\x00"))
+        self.assertEqual(retval[0][0], b"\x00\x01\x02\x03\x02\x01\x00")
 
     def test_bytearray_round_trip(self):
         binary = b'\x00\x01\x02\x03\x02\x01\x00'
@@ -197,7 +192,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(retval[0][0], binary)
 
     def testTimestampRoundtrip(self):
-        v = datetime.datetime(2001, 2, 3, 4, 5, 6, 170000)
+        v = Datetime(2001, 2, 3, 4, 5, 6, 170000)
         self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
@@ -225,7 +220,7 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 
-        v = datetime.timedelta(seconds=30)
+        v = Timedelta(seconds=30)
         self.cursor.execute("SELECT %s as f1", (v,))
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
@@ -372,14 +367,14 @@ class Tests(unittest.TestCase):
         dt = retval[0][0]
         self.assertEqual(dt.tzinfo is not None, True, "no tzinfo returned")
         self.assertEqual(
-            dt.astimezone(pg8000.utc),
-            datetime.datetime(2001, 2, 3, 11, 5, 6, 170000, pg8000.utc),
+            dt.astimezone(Timezone.utc),
+            Datetime(2001, 2, 3, 11, 5, 6, 170000, Timezone.utc),
             "retrieved value match failed")
 
     def testTimestampTzRoundtrip(self):
         if not IS_JYTHON:
             mst = pytz.timezone("America/Edmonton")
-            v1 = mst.localize(datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
+            v1 = mst.localize(Datetime(2001, 2, 3, 4, 5, 6, 170000))
             self.cursor.execute("SELECT %s as f1", (v1,))
             retval = self.cursor.fetchall()
             v2 = retval[0][0]
@@ -398,9 +393,9 @@ class Tests(unittest.TestCase):
                 self.cursor.execute(
                     "INSERT INTO TestTz (f1, f2) VALUES (%s, %s)", (
                         # insert timestamp into timestamptz field (v1)
-                        datetime.datetime(2001, 2, 3, 4, 5, 6, 170000),
+                        Datetime(2001, 2, 3, 4, 5, 6, 170000),
                         # insert timestamptz into timestamp field (v2)
-                        mst.localize(datetime.datetime(
+                        mst.localize(Datetime(
                             2001, 2, 3, 4, 5, 6, 170000))))
                 self.cursor.execute("SELECT f1, f2 FROM TestTz")
                 retval = self.cursor.fetchall()
@@ -412,8 +407,7 @@ class Tests(unittest.TestCase):
                 # be...
                 f1 = retval[0][0]
                 self.assertEqual(
-                    f1, datetime.datetime(
-                        2001, 2, 3, 11, 5, 6, 170000, pytz.utc))
+                    f1, Datetime(2001, 2, 3, 11, 5, 6, 170000, Timezone.utc))
 
                 # inserting the timestamptz into a timestamp field, pg8000
                 # converts the value into UTC, and then the PG server converts
@@ -421,8 +415,7 @@ class Tests(unittest.TestCase):
                 # query for it, we get the same time back, like the tz was
                 # dropped.
                 f2 = retval[0][1]
-                self.assertEqual(
-                    f2, datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
+                self.assertEqual(f2, Datetime(2001, 2, 3, 4, 5, 6, 170000))
             finally:
                 self.cursor.execute("SET SESSION TIME ZONE DEFAULT")
 
@@ -495,33 +488,31 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         expected_value = pg8000.Interval(
             microseconds=(12 * 60 * 60 * 1000 * 1000) +
-            (32 * 60 * 1000 * 1000) + (64 * 1000 * 1000),
-            days=16, months=1)
+            (32 * 60 * 1000 * 1000) + (64 * 1000 * 1000), days=16, months=1)
         self.assertEqual(retval[0][0], expected_value)
 
         self.cursor.execute("select interval '30 seconds'")
         retval = self.cursor.fetchall()
-        expected_value = datetime.timedelta(seconds=30)
+        expected_value = Timedelta(seconds=30)
         self.assertEqual(retval[0][0], expected_value)
 
         self.cursor.execute("select interval '12 days 30 seconds'")
         retval = self.cursor.fetchall()
-        expected_value = datetime.timedelta(days=12, seconds=30)
+        expected_value = Timedelta(days=12, seconds=30)
         self.assertEqual(retval[0][0], expected_value)
 
     def testTimestampOut(self):
         self.cursor.execute("SELECT '2001-02-03 04:05:06.17'::timestamp")
         retval = self.cursor.fetchall()
-        self.assertEqual(
-            retval[0][0], datetime.datetime(2001, 2, 3, 4, 5, 6, 170000))
+        self.assertEqual(retval[0][0], Datetime(2001, 2, 3, 4, 5, 6, 170000))
 
     # confirms that pg8000's binary output methods have the same output for
     # a data type as the PG server
     def testBinaryOutputMethods(self):
         methods = (
             ("float8send", 22.2),
-            ("timestamp_send", datetime.datetime(2001, 2, 3, 4, 5, 6, 789)),
-            ("byteasend", pg8000.Binary(b("\x01\x02"))),
+            ("timestamp_send", Datetime(2001, 2, 3, 4, 5, 6, 789)),
+            ("byteasend", pg8000.Binary(b"\x01\x02")),
             ("interval_send", pg8000.Interval(1234567, 123, 123)),)
         for method_out, value in methods:
             self.cursor.execute("SELECT %s(%%s) as f1" % method_out, (value,))
@@ -678,13 +669,6 @@ class Tests(unittest.TestCase):
         retval = self.cursor.fetchall()
         self.assertEqual(retval[0][0], v)
 
-    def testUnicodeArrayRoundtrip(self):
-        if PY2:
-            v = map(unicode, ("Second", "To", None))  # noqa
-            self.cursor.execute("SELECT %s as f1", (v,))
-            retval = self.cursor.fetchall()
-            self.assertEqual(retval[0][0], v)
-
     def testEmptyArray(self):
         v = []
         self.cursor.execute("SELECT %s as f1", (v,))
@@ -804,9 +788,8 @@ class Tests(unittest.TestCase):
             self.assertEqual(retval[0][0], str(j[path[0]][int(path[1])]))
 
     def test_timestamp_send_float(self):
-        assert b('A\xbe\x19\xcf\x80\x00\x00\x00') == \
-            pg8000.core.timestamp_send_float(
-                datetime.datetime(2016, 1, 2, 0, 0))
+        assert b'A\xbe\x19\xcf\x80\x00\x00\x00' == \
+            pg8000.core.timestamp_send_float(Datetime(2016, 1, 2, 0, 0))
 
     def test_infinity_timestamp_roundtrip(self):
         v = 'infinity'

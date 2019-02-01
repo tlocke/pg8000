@@ -4,7 +4,7 @@
 pg8000 is a pure-link:http://www.python.org/[Python]
 http://www.postgresql.org/[PostgreSQL] driver that complies with
 http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. It is tested on Python
-versions 2.7+ and 3.5+, on CPython and PyPy, and PostgreSQL versions 9.4+.
+versions 3.5+, on CPython and PyPy, and PostgreSQL versions 9.4+.
 Pg8000's name comes from the belief that it is probably about the 8000th
 PostgreSQL interface for Python. pg8000 is distributed under the terms of the
 BSD 3-clause license.
@@ -17,13 +17,6 @@ organization is using pg8000 for. Just log an issue on GitHub. The idea is to
 put together a list of users.
 
 image::https://travis-ci.org/tlocke/pg8000.svg?branch=master[Build Status]
-
-
-== Key Points
-
-* Use one thread per connection.
-* Internally, all queries use prepared statements. pg8000 remembers that a
-  prepared statement has been created, and uses it on subsequent queries.
 
 
 == Installation
@@ -192,17 +185,9 @@ XML types.
 | int4
 |
 
-| long
-| numeric
-| Python 2 only.
-
 | str
-| text (Python 3), bytea (Python 2)
-|
-
-| unicode
 | text
-| Python 2 only.
+|
 
 | float
 | float8
@@ -212,13 +197,9 @@ XML types.
 | numeric
 |
 
-| pg8000.Bytea
-| bytea
-| Python 2 only.
-
 | bytes
 | bytea
-| Python 3 only.
+|
 
 | datetime.datetime (without tzinfo)
 | timestamp without timezone
@@ -251,19 +232,19 @@ XML types.
 
 | ipaddress.IPv4Address
 | inet
-| Python 3.3 onwards
+|
 
 | ipaddress.IPv6Address
 | inet
-| Python 3.3 onwards
+|
 
 | ipaddress.IPv4Network
 | inet
-| Python 3.3 onwards
+|
 
 | ipaddress.IPv6Network
 | inet
-| Python 3.3 onwards
+|
 
 | int
 | xid
@@ -285,10 +266,6 @@ XML types.
 | TEXT[]
 |
 
-| list of unicode
-| TEXT[]
-| Python 2 only.
-
 | int
 | int2vector
 | Only from PostgreSQL to Python
@@ -304,6 +281,7 @@ XML types.
 [[_theory_of_operation]]
 == Theory Of Operation
 
+pg8000 is designed to be used with one thread per connection.
 
 Pg8000 communicates with the database using the
 http://www.postgresql.org/docs/current/static/protocol.html[PostgreSQL
@@ -312,7 +290,10 @@ statements. It uses the Extended Query feature of the FEBE. So the steps are:
 
 . Query comes in.
 . If pg8000 hasn't seen it before, send a PARSE message to the server to create
-  a prepared statement.
+  a prepared statement. The SQL query and a reference to the prepared statement
+  are stored by pg8000, so that if the query is executed again, pg8000 skips
+  the PARSE step and uses the prepared statement that already exists on the
+  server.
 . Send a BIND message to run the query using the prepared statement, resulting
   in an unnamed portal on the server.
 . Send an EXECUTE message to read all the results from the portal.
@@ -582,7 +563,7 @@ Construct an object holding binary data.
 This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
-Returns: `pg8000.types.Bytea` for Python 2, otherwise `bytes`.
+Returns: `bytes`.
 
 
 === Generic Exceptions
@@ -1009,12 +990,6 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification], however, it
 is not implemented by pg8000.
 
 
-==== pg8000.Bytea
-
-Bytea is a str-derived class that is mapped to a PostgreSQL byte array. This
-class is only used in Python 2, the built-in `bytes` type is used in Python 3.
-
-
 ==== pg8000.Interval
 
 An Interval represents a measurement of time.  In PostgreSQL, an interval is
@@ -1070,6 +1045,7 @@ and add a line to pg_hba.conf for the various authentication options:
 host    pg8000_md5      all             127.0.0.1/32            md5
 host    pg8000_gss      all             127.0.0.1/32            gss
 host    pg8000_password all             127.0.0.1/32            password
+host    pg8000_scram_sha_256 all        127.0.0.1/32            scram-sha-256
 host    all             all             127.0.0.1/32            trust
 ....
 

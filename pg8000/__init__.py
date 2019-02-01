@@ -1,8 +1,8 @@
 from pg8000.core import (
-    Warning, Bytea, DataError, DatabaseError, InterfaceError, ProgrammingError,
+    Warning, DataError, DatabaseError, InterfaceError, ProgrammingError,
     Error, OperationalError, IntegrityError, InternalError, NotSupportedError,
     ArrayContentNotHomogenousError, ArrayDimensionsNotConsistentError,
-    ArrayContentNotSupportedError, utc, Connection, Cursor, Binary, Date,
+    ArrayContentNotSupportedError, Connection, Cursor, Binary, Date,
     DateFromTicks, Time, TimeFromTicks, Timestamp, TimestampFromTicks, BINARY,
     Interval, PGEnum, PGJson, PGJsonb, PGTsvector, PGText, PGVarchar)
 from ._version import get_versions
@@ -90,10 +90,10 @@ ROWID = 26
 """ROWID type oid"""
 
 __all__ = [
-    Warning, Bytea, DataError, DatabaseError, connect, InterfaceError,
+    Warning, DataError, DatabaseError, connect, InterfaceError,
     ProgrammingError, Error, OperationalError, IntegrityError, InternalError,
     NotSupportedError, ArrayContentNotHomogenousError,
-    ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError, utc,
+    ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError,
     Connection, Cursor, Binary, Date, DateFromTicks, Time, TimeFromTicks,
     Timestamp, TimestampFromTicks, BINARY, Interval, PGEnum, PGJson, PGJsonb,
     PGTsvector, PGText, PGVarchar]

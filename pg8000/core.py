@@ -1,5 +1,5 @@
 from datetime import (
-    timedelta as Timedelta, datetime as Datetime, tzinfo, date, time)
+    timedelta as Timedelta, datetime as Datetime, date, time)
 from warnings import warn
 import socket
 from struct import pack
@@ -7,10 +7,6 @@ from hashlib import md5
 from decimal import Decimal
 from collections import deque, defaultdict
 from itertools import count, islice
-from six.moves import map
-from six import (
-    b, PY2, integer_types, next, text_type, u, binary_type, itervalues,
-    iteritems)
 from uuid import UUID
 from copy import deepcopy
 from calendar import timegm
@@ -20,6 +16,11 @@ from time import localtime
 import pg8000
 from json import loads, dumps
 from os import getpid
+from pg8000.pg_scram import Auth
+import enum
+from ipaddress import (
+    ip_address, IPv4Address, IPv6Address, ip_network, IPv4Network, IPv6Network)
+from datetime import timezone as Timezone
 
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
@@ -54,24 +55,10 @@ __author__ = "Mathieu Fenniak"
 
 
 ZERO = Timedelta(0)
+BINARY = bytes
 
 
-class UTC(tzinfo):
-
-    def utcoffset(self, dt):
-        return ZERO
-
-    def tzname(self, dt):
-        return "UTC"
-
-    def dst(self, dt):
-        return ZERO
-
-
-utc = UTC()
-
-
-class Interval(object):
+class Interval():
     """An Interval represents a measurement of time.  In PostgreSQL, an
     interval is defined in the measure of months, days, and microseconds; as
     such, the pg8000 interval type represents the same information.
@@ -112,7 +99,7 @@ class Interval(object):
         self.months = months
 
     def _setMicroseconds(self, value):
-        if not isinstance(value, integer_types):
+        if not isinstance(value, int):
             raise TypeError("microseconds must be an integer type")
         elif not (min_int8 < value < max_int8):
             raise OverflowError(
@@ -121,7 +108,7 @@ class Interval(object):
             self._microseconds = value
 
     def _setDays(self, value):
-        if not isinstance(value, integer_types):
+        if not isinstance(value, int):
             raise TypeError("days must be an integer type")
         elif not (min_int4 < value < max_int4):
             raise OverflowError(
@@ -130,7 +117,7 @@ class Interval(object):
             self._days = value
 
     def _setMonths(self, value):
-        if not isinstance(value, integer_types):
+        if not isinstance(value, int):
             raise TypeError("months must be an integer type")
         elif not (min_int4 < value < max_int4):
             raise OverflowError(
@@ -155,7 +142,7 @@ class Interval(object):
         return not self.__eq__(other)
 
 
-class PGType(object):
+class PGType():
     def __init__(self, value):
         self.value = value
 
@@ -349,14 +336,6 @@ class ArrayDimensionsNotConsistentError(ProgrammingError):
     pass
 
 
-class Bytea(binary_type):
-    """Bytea is a str-derived class that is mapped to a PostgreSQL byte array.
-    This class is only used in Python 2, the built-in ``bytes`` type is used in
-    Python 3.
-    """
-    pass
-
-
 def Date(year, month, day):
     """Constuct an object holding a date value.
 
@@ -432,24 +411,12 @@ def Binary(value):
     This function is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
 
-    :rtype: :class:`pg8000.types.Bytea` for Python 2, otherwise :class:`bytes`
     """
-    if PY2:
-        return Bytea(value)
-    else:
-        return value
+    return value
 
-
-if PY2:
-    BINARY = Bytea
-else:
-    BINARY = bytes
 
 FC_TEXT = 0
 FC_BINARY = 1
-
-BINARY_SPACE = b(" ")
-DDL_COMMANDS = b("ALTER"), b("CREATE")
 
 
 def convert_paramstyle(style, query):
@@ -591,7 +558,7 @@ def convert_paramstyle(style, query):
 
 
 EPOCH = Datetime(2000, 1, 1)
-EPOCH_TZ = EPOCH.replace(tzinfo=utc)
+EPOCH_TZ = EPOCH.replace(tzinfo=Timezone.utc)
 EPOCH_SECONDS = timegm(EPOCH.timetuple())
 INFINITY_MICROSECONDS = 2 ** 63 - 1
 MINUS_INFINITY_MICROSECONDS = -1 * INFINITY_MICROSECONDS - 1
@@ -630,13 +597,15 @@ def timestamp_send_float(v):
 def timestamptz_send_integer(v):
     # timestamps should be sent as UTC.  If they have zone info,
     # convert them.
-    return timestamp_send_integer(v.astimezone(utc).replace(tzinfo=None))
+    return timestamp_send_integer(
+        v.astimezone(Timezone.utc).replace(tzinfo=None))
 
 
 def timestamptz_send_float(v):
     # timestamps should be sent as UTC.  If they have zone info,
     # convert them.
-    return timestamp_send_float(v.astimezone(utc).replace(tzinfo=None))
+    return timestamp_send_float(
+        v.astimezone(Timezone.utc).replace(tzinfo=None))
 
 
 # return a timezone-aware datetime instance if we're reading from a
@@ -657,7 +626,8 @@ def timestamptz_recv_integer(data, offset, length):
 
 
 def timestamptz_recv_float(data, offset, length):
-    return timestamp_recv_float(data, offset, length).replace(tzinfo=utc)
+    return timestamp_recv_float(data, offset, length).replace(
+        tzinfo=Timezone.utc)
 
 
 def interval_send_integer(v):
@@ -733,12 +703,8 @@ def bytea_send(v):
 
 
 # bytea
-if PY2:
-    def bytea_recv(data, offset, length):
-        return Bytea(data[offset:offset + length])
-else:
-    def bytea_recv(data, offset, length):
-        return data[offset:offset + length]
+def bytea_recv(data, offset, length):
+    return data[offset:offset + length]
 
 
 def uuid_send(v):
@@ -749,17 +715,13 @@ def uuid_recv(data, offset, length):
     return UUID(bytes=data[offset:offset+length])
 
 
-TRUE = b("\x01")
-FALSE = b("\x00")
-
-
 def bool_send(v):
-    return TRUE if v else FALSE
+    return b"\x01" if v else b"\x00"
 
 
 NULL = i_pack(-1)
 
-NULL_BYTE = b('\x00')
+NULL_BYTE = b'\x00'
 
 
 def null_send(v):
@@ -770,7 +732,7 @@ def int_in(data, offset, length):
     return int(data[offset: offset + length])
 
 
-class Cursor(object):
+class Cursor():
     """A cursor object is returned by the :meth:`~Connection.cursor` method of
     a connection. It has the following attributes and methods:
 
@@ -1025,41 +987,38 @@ class Cursor(object):
                 raise StopIteration()
 
 
-if PY2:
-    Cursor.next = Cursor.__next__
-
 # Message codes
-NOTICE_RESPONSE = b("N")
-AUTHENTICATION_REQUEST = b("R")
-PARAMETER_STATUS = b("S")
-BACKEND_KEY_DATA = b("K")
-READY_FOR_QUERY = b("Z")
-ROW_DESCRIPTION = b("T")
-ERROR_RESPONSE = b("E")
-DATA_ROW = b("D")
-COMMAND_COMPLETE = b("C")
-PARSE_COMPLETE = b("1")
-BIND_COMPLETE = b("2")
-CLOSE_COMPLETE = b("3")
-PORTAL_SUSPENDED = b("s")
-NO_DATA = b("n")
-PARAMETER_DESCRIPTION = b("t")
-NOTIFICATION_RESPONSE = b("A")
-COPY_DONE = b("c")
-COPY_DATA = b("d")
-COPY_IN_RESPONSE = b("G")
-COPY_OUT_RESPONSE = b("H")
-EMPTY_QUERY_RESPONSE = b("I")
+NOTICE_RESPONSE = b"N"
+AUTHENTICATION_REQUEST = b"R"
+PARAMETER_STATUS = b"S"
+BACKEND_KEY_DATA = b"K"
+READY_FOR_QUERY = b"Z"
+ROW_DESCRIPTION = b"T"
+ERROR_RESPONSE = b"E"
+DATA_ROW = b"D"
+COMMAND_COMPLETE = b"C"
+PARSE_COMPLETE = b"1"
+BIND_COMPLETE = b"2"
+CLOSE_COMPLETE = b"3"
+PORTAL_SUSPENDED = b"s"
+NO_DATA = b"n"
+PARAMETER_DESCRIPTION = b"t"
+NOTIFICATION_RESPONSE = b"A"
+COPY_DONE = b"c"
+COPY_DATA = b"d"
+COPY_IN_RESPONSE = b"G"
+COPY_OUT_RESPONSE = b"H"
+EMPTY_QUERY_RESPONSE = b"I"
 
-BIND = b("B")
-PARSE = b("P")
-EXECUTE = b("E")
-FLUSH = b('H')
-SYNC = b('S')
-PASSWORD = b('p')
-DESCRIBE = b('D')
-TERMINATE = b('X')
-CLOSE = b('C')
+BIND = b"B"
+PARSE = b"P"
+EXECUTE = b"E"
+FLUSH = b'H'
+SYNC = b'S'
+PASSWORD = b'p'
+DESCRIBE = b'D'
+TERMINATE = b'X'
+CLOSE = b'C'
 
 
 def _establish_ssl(_socket, ssl_params):
@@ -1081,7 +1040,7 @@ def _establish_ssl(_socket, ssl_params):
         # Int32(80877103) - The SSL request code.
         _socket.sendall(ii_pack(8, 80877103))
         resp = _socket.recv(1)
-        if resp == b('S'):
+        if resp == b'S':
             return sslmodule.wrap_socket(
                 _socket, keyfile=keyfile, certfile=certfile,
                 cert_reqs=verify_mode, ca_certs=ca_certs)
@@ -1093,7 +1052,7 @@ def _establish_ssl(_socket, ssl_params):
             "this python installation")
 
 
-def create_message(code, data=b('')):
+def create_message(code, data=b''):
     return code + i_pack(len(data) + 4) + data
 
 
@@ -1104,8 +1063,8 @@ COPY_DONE_MSG = create_message(COPY_DONE)
 EXECUTE_MSG = create_message(EXECUTE, NULL_BYTE + i_pack(0))
 
 # DESCRIBE constants
-STATEMENT = b('S')
-PORTAL = b('P')
+STATEMENT = b'S'
+PORTAL = b'P'
 
 # ErrorResponse codes
 RESPONSE_SEVERITY = "S"  # always present
@@ -1122,15 +1081,15 @@ RESPONSE_FILE = "F"
 RESPONSE_LINE = "L"
 RESPONSE_ROUTINE = "R"
 
-IDLE = b("I")
-IDLE_IN_TRANSACTION = b("T")
-IDLE_IN_FAILED_TRANSACTION = b("E")
+IDLE = b"I"
+IDLE_IN_TRANSACTION = b"T"
+IDLE_IN_FAILED_TRANSACTION = b"E"
 
 
-arr_trans = dict(zip(map(ord, u("[] 'u")), list(u('{}')) + [None] * 3))
+arr_trans = dict(zip(map(ord, "[] 'u"), list('{}') + [None] * 3))
 
 
-class Connection(object):
+class Connection():
 
     # DBAPI Extension: supply exceptions as attributes on the connection
     Warning = property(lambda self: self._getError(Warning))
@@ -1161,8 +1120,8 @@ class Connection(object):
             timeout, application_name, max_prepared_statements, tcp_keepalive):
         self._client_encoding = "utf8"
         self._commands_with_count = (
-            b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
-            b("FETCH"), b("COPY"), b("SELECT"))
+            b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY",
+            b"SELECT")
         self.notifications = deque(maxlen=100)
         self.notices = deque(maxlen=100)
         self.parameter_statuses = deque(maxlen=100)
@@ -1172,12 +1131,12 @@ class Connection(object):
             raise InterfaceError(
                 "The 'user' connection parameter cannot be None")
 
-        if isinstance(user, text_type):
+        if isinstance(user, str):
             self.user = user.encode('utf8')
         else:
             self.user = user
 
-        if isinstance(password, text_type):
+        if isinstance(password, str):
             self.password = password.encode('utf8')
         else:
             self.password = password
@@ -1199,7 +1158,7 @@ class Connection(object):
             else:
                 raise ProgrammingError(
                     "one of host or unix_sock must be provided")
-            if not PY2 and timeout is not None:
+            if timeout is not None:
                 self._usock.settimeout(timeout)
 
             if unix_sock is None and host is not None:
@@ -1237,7 +1196,7 @@ class Connection(object):
         def unknown_out(v):
             return str(v).encode(self._client_encoding)
 
-        trans_tab = dict(zip(map(ord, u('{}')), u('[]')))
+        trans_tab = dict(zip(map(ord, '{}'), '[]'))
         glbls = {'Decimal': Decimal}
 
         def array_in(data, idx, length):
@@ -1245,7 +1204,7 @@ class Connection(object):
             prev_c = None
             for c in data[idx:idx+length].decode(
                     self._client_encoding).translate(
-                    trans_tab).replace(u('NULL'), u('None')):
+                    trans_tab).replace('NULL', 'None'):
                 if c not in ('[', ']', ',', 'N') and prev_c in ('[', ','):
                     arr.extend("Decimal('")
                 elif c in (']', ',') and prev_c not in ('[', ']', ',', 'e'):
@@ -1291,29 +1250,15 @@ class Connection(object):
             return eval('[' + data[idx:idx+length].decode(
                 self._client_encoding).replace(' ', ',') + ']')
 
-        if PY2:
-            def text_recv(data, offset, length):
-                return unicode(  # noqa
-                    data[offset: offset + length], self._client_encoding)
+        def text_recv(data, offset, length):
+            return str(data[offset: offset + length], self._client_encoding)
 
-            def bool_recv(d, o, l):
-                return d[o] == "\x01"
+        def bool_recv(data, offset, length):
+            return data[offset] == 1
 
-            def json_in(data, offset, length):
-                return loads(unicode(  # noqa
-                    data[offset: offset + length], self._client_encoding))
-
-        else:
-            def text_recv(data, offset, length):
-                return str(
-                    data[offset: offset + length], self._client_encoding)
-
-            def bool_recv(data, offset, length):
-                return data[offset] == 1
-
-            def json_in(data, offset, length):
-                return loads(
-                    str(data[offset: offset + length], self._client_encoding))
+        def json_in(data, offset, length):
+            return loads(
+                str(data[offset: offset + length], self._client_encoding))
 
         def time_in(data, offset, length):
             hour = int(data[offset:offset + 2])
@@ -1409,46 +1354,26 @@ class Connection(object):
             tuple: self.array_inspect,
             int: self.inspect_int}
 
-        if PY2:
-            self.py_types[Bytea] = (17, FC_BINARY, bytea_send)  # bytea
-            self.py_types[text_type] = (705, FC_TEXT, text_out)  # unknown
-            self.py_types[str] = (705, FC_TEXT, bytea_send)  # unknown
+        self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
+        self.py_types[str] = (705, FC_TEXT, text_out)  # unknown
+        self.py_types[enum.Enum] = (705, FC_TEXT, enum_out)
 
-            self.inspect_funcs[long] = self.inspect_int  # noqa
-        else:
-            self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
-            self.py_types[str] = (705, FC_TEXT, text_out)  # unknown
+        def inet_out(v):
+            return str(v).encode(self._client_encoding)
 
-        try:
-            import enum
+        def inet_in(data, offset, length):
+            inet_str = data[offset: offset + length].decode(
+                self._client_encoding)
+            if '/' in inet_str:
+                return ip_network(inet_str, False)
+            else:
+                return ip_address(inet_str)
 
-            self.py_types[enum.Enum] = (705, FC_TEXT, enum_out)
-        except ImportError:
-            pass
-
-        try:
-            from ipaddress import (
-                ip_address, IPv4Address, IPv6Address, ip_network, IPv4Network,
-                IPv6Network)
-
-            def inet_out(v):
-                return str(v).encode(self._client_encoding)
-
-            def inet_in(data, offset, length):
-                inet_str = data[offset: offset + length].decode(
-                    self._client_encoding)
-                if '/' in inet_str:
-                    return ip_network(inet_str, False)
-                else:
-                    return ip_address(inet_str)
-
-            self.py_types[IPv4Address] = (869, FC_TEXT, inet_out)  # inet
-            self.py_types[IPv6Address] = (869, FC_TEXT, inet_out)  # inet
-            self.py_types[IPv4Network] = (869, FC_TEXT, inet_out)  # inet
-            self.py_types[IPv6Network] = (869, FC_TEXT, inet_out)  # inet
-            self.pg_types[869] = (FC_TEXT, inet_in)  # inet
-        except ImportError:
-            pass
+        self.py_types[IPv4Address] = (869, FC_TEXT, inet_out)  # inet
+        self.py_types[IPv6Address] = (869, FC_TEXT, inet_out)  # inet
+        self.py_types[IPv4Network] = (869, FC_TEXT, inet_out)  # inet
+        self.py_types[IPv6Network] = (869, FC_TEXT, inet_out)  # inet
+        self.pg_types[869] = (FC_TEXT, inet_in)  # inet
 
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,
@@ -1480,16 +1405,16 @@ class Connection(object):
         #   String - Parameter value
         protocol = 196608
         val = bytearray(
-            i_pack(protocol) + b("user\x00") + self.user + NULL_BYTE)
+            i_pack(protocol) + b"user\x00" + self.user + NULL_BYTE)
         if database is not None:
-            if isinstance(database, text_type):
+            if isinstance(database, str):
                 database = database.encode('utf8')
-            val.extend(b("database\x00") + database + NULL_BYTE)
+            val.extend(b"database\x00" + database + NULL_BYTE)
         if application_name is not None:
-            if isinstance(application_name, text_type):
+            if isinstance(application_name, str):
                 application_name = application_name.encode('utf8')
             val.extend(
-                b("application_name\x00") + application_name + NULL_BYTE)
+                b"application_name\x00" + application_name + NULL_BYTE)
         val.append(0)
         self._write(i_pack(len(val) + 4))
         self._write(val)
@@ -1510,7 +1435,7 @@ class Connection(object):
             (
                 s[:1].decode(self._client_encoding),
                 s[1:].decode(self._client_encoding)) for s in
-            data.split(NULL_BYTE) if s != b(''))
+            data.split(NULL_BYTE) if s != b'')
 
         response_code = msg[RESPONSE_CODE]
         if response_code == '28000':
@@ -1573,23 +1498,14 @@ class Connection(object):
             raise InterfaceError(
                 "An input stream is required for the COPY IN response.")
 
-        if PY2:
-            while True:
-                data = ps.stream.read(8192)
-                if not data:
-                    break
-                self._write(COPY_DATA + i_pack(len(data) + 4))
-                self._write(data)
-                self._flush()
-        else:
-            bffr = bytearray(8192)
-            while True:
-                bytes_read = ps.stream.readinto(bffr)
-                if bytes_read == 0:
-                    break
-                self._write(COPY_DATA + i_pack(bytes_read + 4))
-                self._write(bffr[:bytes_read])
-                self._flush()
+        bffr = bytearray(8192)
+        while True:
+            bytes_read = ps.stream.readinto(bffr)
+            if bytes_read == 0:
+                break
+            self._write(COPY_DATA + i_pack(bytes_read + 4))
+            self._write(bffr[:bytes_read])
+            self._flush()
 
         # Send CopyDone
         # Byte1('c') - Identifier.
@@ -1698,12 +1614,12 @@ class Connection(object):
 
             # Additional message data:
             #  Byte4 - Hash salt.
-            salt = b("").join(cccc_unpack(data, 4))
+            salt = b"".join(cccc_unpack(data, 4))
             if self.password is None:
                 raise InterfaceError(
                     "server requesting MD5 password authentication, but no "
                     "password was provided")
-            pwd = b("md5") + md5(
+            pwd = b"md5" + md5(
                 md5(self.password + self.user).hexdigest().encode("ascii") +
                 salt).hexdigest().encode("ascii")
             # Byte1('p') - Identifies the message as a password message.
@@ -1711,6 +1627,37 @@ class Connection(object):
             # String - The password.  Password may be encrypted.
             self._send_message(PASSWORD, pwd + NULL_BYTE)
             self._flush()
+
+        elif auth_code == 10:
+            # AuthenticationSASL
+            mechanisms = [
+                m.decode('ascii') for m in data[4:-1].split(NULL_BYTE)]
+
+            self.auth = Auth(
+                mechanisms, self.user.decode('utf8'),
+                self.password.decode('utf8'))
+
+            init = self.auth.get_client_first_message().encode('utf8')
+
+            # SASLInitialResponse
+            self._write(
+                create_message(
+                    PASSWORD,
+                    b'SCRAM-SHA-256' + NULL_BYTE + i_pack(len(init)) + init))
+            self._flush()
+
+        elif auth_code == 11:
+            # AuthenticationSASLContinue
+            self.auth.set_server_first_message(data[4:].decode('utf8'))
+
+            # SASLResponse
+            msg = self.auth.get_client_final_message().encode('utf8')
+            self._write(create_message(PASSWORD, msg))
+            self._flush()
+
+        elif auth_code == 12:
+            # AuthenticationSASLFinal
+            self.auth.set_server_final_message(data[4:].decode('utf8'))
 
         elif auth_code in (2, 4, 6, 7, 8, 9):
             raise InterfaceError(
@@ -1753,7 +1700,7 @@ class Connection(object):
                     params.append(self.inspect_funcs[typ](value))
                 except KeyError as e:
                     param = None
-                    for k, v in iteritems(self.py_types):
+                    for k, v in self.py_types.items():
                         try:
                             if isinstance(value, k):
                                 param = v
@@ -1762,7 +1709,7 @@ class Connection(object):
                             pass
 
                     if param is None:
-                        for k, v in iteritems(self.inspect_funcs):
+                        for k, v in self.inspect_funcs.items():
                             try:
                                 if isinstance(value, k):
                                     param = v(value)
@@ -1830,10 +1777,10 @@ class Connection(object):
             cursor.ps = ps
         except KeyError:
             statement_nums = [0]
-            for style_cache in itervalues(self._caches):
+            for style_cache in self._caches.values():
                 try:
                     pid_cache = style_cache[pid]
-                    for csh in itervalues(pid_cache['ps']):
+                    for csh in pid_cache['ps'].values():
                         statement_nums.append(csh['statement_num'])
                 except KeyError:
                     pass
@@ -1918,7 +1865,7 @@ class Connection(object):
                 pack("!" + "h" * len(output_fc), *output_fc)
 
             if len(cache['ps']) > self.max_prepared_statements:
-                for p in itervalues(cache['ps']):
+                for p in cache['ps'].values():
                     self.close_prepared_statement(p['statement_name_bin'])
                 cache['ps'].clear()
 
@@ -1987,7 +1934,7 @@ class Connection(object):
         pass
 
     def handle_COMMAND_COMPLETE(self, data, cursor):
-        values = data[:-1].split(BINARY_SPACE)
+        values = data[:-1].split(b' ')
         command = values[0]
         if command in self._commands_with_count:
             row_count = int(values[-1])
@@ -1996,10 +1943,10 @@ class Connection(object):
             else:
                 cursor._row_count += row_count
 
-        if command in DDL_COMMANDS:
-            for scache in itervalues(self._caches):
-                for pcache in itervalues(scache):
-                    for ps in itervalues(pcache['ps']):
+        if command in (b"ALTER", b"CREATE"):
+            for scache in self._caches.values():
+                for pcache in scache.values():
+                    for ps in pcache['ps'].values():
                         self.close_prepared_statement(ps['statement_name_bin'])
                     pcache['ps'].clear()
 
@@ -2049,12 +1996,12 @@ class Connection(object):
         pos = data.find(NULL_BYTE)
         key, value = data[:pos], data[pos + 1:-1]
         self.parameter_statuses.append((key, value))
-        if key == b("client_encoding"):
+        if key == b"client_encoding":
             encoding = value.decode("ascii").lower()
             self._client_encoding = pg_to_py_encodings.get(encoding, encoding)
 
-        elif key == b("integer_datetimes"):
-            if value == b('on'):
+        elif key == b"integer_datetimes":
+            if value == b'on':
 
                 self.py_types[1114] = (1114, FC_BINARY, timestamp_send_integer)
                 self.pg_types[1114] = (FC_BINARY, timestamp_recv_integer)
@@ -2080,16 +2027,15 @@ class Connection(object):
                     1186, FC_BINARY, interval_send_float)
                 self.pg_types[1186] = (FC_BINARY, interval_recv_float)
 
-        elif key == b("server_version"):
+        elif key == b"server_version":
             self._server_version = LooseVersion(value.decode('ascii'))
             if self._server_version < LooseVersion('8.2.0'):
                 self._commands_with_count = (
-                    b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
-                    b("FETCH"))
+                    b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH")
             elif self._server_version < LooseVersion('9.0.0'):
                 self._commands_with_count = (
-                    b("INSERT"), b("DELETE"), b("UPDATE"), b("MOVE"),
-                    b("FETCH"), b("COPY"))
+                    b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH",
+                    b"COPY")
 
     def array_inspect(self, value):
         # Check if array has any values. If empty, we can just assume it's an
@@ -2105,10 +2051,10 @@ class Connection(object):
             # supported array output
             typ = type(first_element)
 
-            if issubclass(typ, integer_types):
+            if issubclass(typ, int):
                 # special int array support -- send as smallest possible array
                 # type
-                typ = integer_types
+                typ = int
                 int2_ok, int4_ok, int8_ok = True, True, True
                 for v in array_flatten(value):
                     if v is None:
@@ -2185,7 +2131,7 @@ class Connection(object):
                     else:
                         raise ArrayContentNotHomogenousError(
                             "not all array elements are of type " + str(typ))
-                return u(str(ar)).translate(arr_trans).encode('ascii')
+                return str(ar).translate(arr_trans).encode('ascii')
 
         return (array_oid, fc, send_array)
 

@@ -1,9 +1,8 @@
 import unittest
 import pg8000
 from connection_settings import db_connect
-from six import u
 from sys import exc_info
-import datetime
+from datetime import datetime as Datetime, timezone as Timezone
 from distutils.version import LooseVersion
 
 from warnings import filterwarnings
@@ -241,10 +240,9 @@ class Tests(unittest.TestCase):
         try:
             cursor = self.db.cursor()
             cursor.execute(
-                u(
-                    "CREATE TEMPORARY TABLE \u043c\u0435\u0441\u0442\u043e "
-                    "(\u0438\u043c\u044f VARCHAR(50), "
-                    "\u0430\u0434\u0440\u0435\u0441 VARCHAR(250))"))
+                "CREATE TEMPORARY TABLE \u043c\u0435\u0441\u0442\u043e "
+                "(\u0438\u043c\u044f VARCHAR(50), "
+                "\u0430\u0434\u0440\u0435\u0441 VARCHAR(250))")
         finally:
             cursor.close()
             self.db.commit()
@@ -259,8 +257,8 @@ class Tests(unittest.TestCase):
             cursor.executemany(
                 "select %s",
                 (
-                    (datetime.datetime(2014, 5, 7, tzinfo=pg8000.core.utc), ),
-                    (datetime.datetime(2014, 5, 7),)))
+                    (Datetime(2014, 5, 7, tzinfo=Timezone.utc), ),
+                    (Datetime(2014, 5, 7),)))
         finally:
             cursor.close()
             self.db.commit()
