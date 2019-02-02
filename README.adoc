@@ -1097,7 +1097,9 @@ python setup.py sdist bdist_wheel upload --sign
 
 * Remove support for Python 2.
 
-* Support the scram-sha-256 authentication protocol.
+* Support the scram-sha-256 authentication protocol. Reading through the
+  https://github.com/cagdass/scrampy code was a great help in implementing
+  this, so thanks to https://github.com/cagdass[cagdass] for his code.
 
 
 === Version 1.12.4, 2019-01-05
