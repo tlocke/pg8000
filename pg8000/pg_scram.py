@@ -4,7 +4,6 @@ from uuid import uuid4
 from passlib.utils import saslprep
 from base64 import b64encode, b64decode
 import hashlib
-from six import b
 
 
 # https://tools.ietf.org/html/rfc5802
@@ -91,7 +90,7 @@ def _client_final_message(
     client_key = _hmac(salted_password, "Client Key")
     stored_key = _h(client_key)
 
-    message = ['c=' + _b64enc(b('n,,')), 'r=' + nonce]
+    message = ['c=' + _b64enc(b'n,,'), 'r=' + nonce]
 
     auth_message = ','.join(
         (client_first_message_bare, server_first_message, ','.join(message)))
