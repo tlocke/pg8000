@@ -1,7 +1,7 @@
 import unittest
 import pg8000
 from connection_settings import db_connect
-from six import b, BytesIO, u, iteritems
+from io import BytesIO
 from sys import exc_info
 
 
@@ -44,7 +44,7 @@ class Tests(unittest.TestCase):
             stream = BytesIO()
             cursor.execute("copy t1 to stdout", stream=stream)
             self.assertEqual(
-                stream.getvalue(), b("1\t1\t1\n2\t2\t2\n3\t3\t3\n"))
+                stream.getvalue(), b"1\t1\t1\n2\t2\t2\n3\t3\t3\n")
             self.assertEqual(cursor.rowcount, 3)
             self.db.commit()
         finally:
@@ -57,7 +57,7 @@ class Tests(unittest.TestCase):
             cursor.execute(
                 "COPY (SELECT 1 as One, 2 as Two) TO STDOUT WITH DELIMITER "
                 "'X' CSV HEADER QUOTE AS 'Y' FORCE QUOTE Two", stream=stream)
-            self.assertEqual(stream.getvalue(), b('oneXtwo\n1XY2Y\n'))
+            self.assertEqual(stream.getvalue(), b'oneXtwo\n1XY2Y\n')
             self.assertEqual(cursor.rowcount, 1)
             self.db.rollback()
         finally:
@@ -66,7 +66,7 @@ class Tests(unittest.TestCase):
     def testCopyFromWithTable(self):
         try:
             cursor = self.db.cursor()
-            stream = BytesIO(b("1\t1\t1\n2\t2\t2\n3\t3\t3\n"))
+            stream = BytesIO(b"1\t1\t1\n2\t2\t2\n3\t3\t3\n")
             cursor.execute("copy t1 from STDIN", stream=stream)
             self.assertEqual(cursor.rowcount, 3)
 
@@ -80,7 +80,7 @@ class Tests(unittest.TestCase):
     def testCopyFromWithQuery(self):
         try:
             cursor = self.db.cursor()
-            stream = BytesIO(b("f1Xf2\n1XY1Y\n"))
+            stream = BytesIO(b"f1Xf2\n1XY1Y\n")
             cursor.execute(
                 "COPY t1 (f1, f2) FROM STDIN WITH DELIMITER 'X' CSV HEADER "
                 "QUOTE AS 'Y' FORCE NOT NULL f1", stream=stream)
@@ -96,22 +96,22 @@ class Tests(unittest.TestCase):
     def testCopyFromWithError(self):
         try:
             cursor = self.db.cursor()
-            stream = BytesIO(b("f1Xf2\n\n1XY1Y\n"))
+            stream = BytesIO(b"f1Xf2\n\n1XY1Y\n")
             cursor.execute(
                 "COPY t1 (f1, f2) FROM STDIN WITH DELIMITER 'X' CSV HEADER "
                 "QUOTE AS 'Y' FORCE NOT NULL f1", stream=stream)
             self.assertTrue(False, "Should have raised an exception")
         except BaseException:
             args_dict = {
-                'S': u('ERROR'),
-                'C': u('22P02'),
-                'M': u('invalid input syntax for integer: ""'),
-                'W': u('COPY t1, line 2, column f1: ""'),
-                'F': u('numutils.c'),
-                'R': u('pg_atoi')
+                'S': 'ERROR',
+                'C': '22P02',
+                'M': 'invalid input syntax for integer: ""',
+                'W': 'COPY t1, line 2, column f1: ""',
+                'F': 'numutils.c',
+                'R': 'pg_atoi'
             }
             args = exc_info()[1].args[0]
-            for k, v in iteritems(args_dict):
+            for k, v in args_dict.items():
                 self.assertEqual(args[k], v)
         finally:
             cursor.close()

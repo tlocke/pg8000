@@ -1,7 +1,6 @@
 import unittest
 import pg8000
 from connection_settings import db_connect
-from six import PY2, u
 import sys
 from distutils.version import LooseVersion
 import socket
@@ -88,12 +87,8 @@ class Tests(unittest.TestCase):
         data["database"] = "pg8000_md5"
 
         # Should only raise an exception saying db doesn't exist
-        if PY2:
-            self.assertRaises(
-                pg8000.ProgrammingError, pg8000.connect, **data)
-        else:
-            self.assertRaisesRegex(
-                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+        self.assertRaisesRegex(
+            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
     # This requires a line in pg_hba.conf that requires gss for the database
     # pg8000_gss
@@ -103,13 +98,10 @@ class Tests(unittest.TestCase):
         data["database"] = "pg8000_gss"
 
         # Should raise an exception saying gss isn't supported
-        if PY2:
-            self.assertRaises(pg8000.InterfaceError, pg8000.connect, **data)
-        else:
-            self.assertRaisesRegex(
-                pg8000.InterfaceError,
-                "Authentication method 7 not supported by pg8000.",
-                pg8000.connect, **data)
+        self.assertRaisesRegex(
+            pg8000.InterfaceError,
+            "Authentication method 7 not supported by pg8000.",
+            pg8000.connect, **data)
 
     @trust_all_certificates
     def testSsl(self):
@@ -126,43 +118,30 @@ class Tests(unittest.TestCase):
         data["database"] = "pg8000_password"
 
         # Should only raise an exception saying db doesn't exist
-        if PY2:
-            self.assertRaises(
-                pg8000.ProgrammingError, pg8000.connect, **data)
-        else:
-            self.assertRaisesRegex(
-                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+        self.assertRaisesRegex(
+            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
     def testUnicodeDatabaseName(self):
         data = db_connect.copy()
         data["database"] = "pg8000_sn\uFF6Fw"
 
         # Should only raise an exception saying db doesn't exist
-        if PY2:
-            self.assertRaises(
-                pg8000.ProgrammingError, pg8000.connect, **data)
-        else:
-            self.assertRaisesRegex(
-                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+        self.assertRaisesRegex(
+            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
     def testBytesDatabaseName(self):
         data = db_connect.copy()
 
         # Should only raise an exception saying db doesn't exist
-        if PY2:
-            data["database"] = "pg8000_sn\uFF6Fw"
-            self.assertRaises(
-                pg8000.ProgrammingError, pg8000.connect, **data)
-        else:
-            data["database"] = bytes("pg8000_sn\uFF6Fw", 'utf8')
-            self.assertRaisesRegex(
-                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+        data["database"] = bytes("pg8000_sn\uFF6Fw", 'utf8')
+        self.assertRaisesRegex(
+            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
     def testBytesPassword(self):
         with pg8000.connect(**db_connect) as db:
             # Create user
             username = 'boltzmann'
-            password = u('cha\uFF6Fs')
+            password = 'cha\uFF6Fs'
             cur = db.cursor()
 
             # Delete user if left over from previous run
@@ -180,12 +159,8 @@ class Tests(unittest.TestCase):
             data['user'] = username
             data['password'] = password.encode('utf8')
             data['database'] = 'pg8000_md5'
-            if PY2:
-                self.assertRaises(
-                    pg8000.ProgrammingError, pg8000.connect, **data)
-            else:
-                self.assertRaisesRegex(
-                    pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+            self.assertRaisesRegex(
+                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
         with pg8000.connect(**db_connect) as db:
             cur = db.cursor()
@@ -233,12 +208,8 @@ class Tests(unittest.TestCase):
         data["database"] = "pg8000_scram_sha_256"
 
         # Should only raise an exception saying db doesn't exist
-        if PY2:
-            self.assertRaises(
-                pg8000.ProgrammingError, pg8000.connect, **data)
-        else:
-            self.assertRaisesRegex(
-                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+        self.assertRaisesRegex(
+            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
 
 if __name__ == "__main__":

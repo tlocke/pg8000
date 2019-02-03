@@ -5,7 +5,6 @@ import pg8000
 import datetime
 from connection_settings import db_connect
 from sys import exc_info
-from six import b
 from distutils.version import LooseVersion
 
 
@@ -201,8 +200,8 @@ class Tests(unittest.TestCase):
             self.assertEqual(val, datetime.datetime(2007, 3, 13, 16, 45, 19))
 
     def testBinary(self):
-        v = pg8000.Binary(b("\x00\x01\x02\x03\x02\x01\x00"))
-        self.assertEqual(v, b("\x00\x01\x02\x03\x02\x01\x00"))
+        v = pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
+        self.assertEqual(v, b"\x00\x01\x02\x03\x02\x01\x00")
         self.assertTrue(isinstance(v, pg8000.BINARY))
 
     def testRowCount(self):
