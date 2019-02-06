@@ -1086,11 +1086,26 @@ Run `tox` to make sure all tests pass, then update the release notes, then do:
 
 ....
 git tag -a x.y.z -m "version x.y.z"
-python setup.py sdist bdist_wheel upload --sign
+rm -r dist
+python setup.py sdist bdist_wheel --python-tag py3
+for f in dist/*; do gpg --detach-sign -a $f; done
+twine upload dist/*
 ....
 
 
 == Release Notes
+
+
+=== Version 1.13.1, 2019-02-06
+
+* We weren't correctly uploading releases to PyPI, which led to confusion
+  when dropping Python 2 compatibility. Thanks to
+  https://github.com/piroux[Pierre Roux] for his
+  https://github.com/tlocke/pg8000/issues/7[detailed explanation] of what
+  went wrong and how to correct it.
+
+* Fixed bug where references to the `six` library were still in the code, even
+  though we don't use `six` anymore.
 
 
 === Version 1.13.0, 2019-02-01

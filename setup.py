@@ -31,6 +31,7 @@ setup(
     author_email="biziqe@mathieu.fenniak.net",
     url="https://github.com/tlocke/pg8000",
     license="BSD",
+    python_requires='>=3.5',
     install_requires=[
         "passlib==1.7.1"
     ],
