@@ -1106,15 +1106,29 @@ run the stress test, and you should get `no unpinned buffers` errors.
 
 == Doing A Release Of pg8000
 
-Run `tox` to make sure all tests pass, then update the release notes, then do:
+In a Python27 virtual environment, run `tox` to make sure all tests pass, then
+update the release notes, then do:
 
 ....
 git tag -a x.y.z -m "version x.y.z"
-python setup.py sdist bdist_wheel upload --sign
+rm -r dist
+python setup.py sdist bdist_wheel --universal
+for f in dist/*; do gpg --detach-sign -a $f; done
+twine upload dist/*
 ....
 
 
 == Release Notes
+
+
+=== Version 1.12.5, 2019-02-06
+
+* We weren't correctly uploading releases to PyPI, which led to confusion
+  when dropping Python 2 compatibility. Thanks to
+  https://github.com/piroux[Pierre Roux] for his
+  https://github.com/tlocke/pg8000/issues/7[detailed explanation] of what
+  went wrong and how to correct it.
+
 
 === Version 1.12.4, 2019-01-05
 
