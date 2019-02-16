@@ -16,7 +16,7 @@ from time import localtime
 import pg8000
 from json import loads, dumps
 from os import getpid
-from pg8000.pg_scram import Auth
+from scramp import ScramClient
 import enum
 from ipaddress import (
     ip_address, IPv4Address, IPv6Address, ip_network, IPv4Network, IPv6Network)
@@ -1633,7 +1633,7 @@ class Connection():
             mechanisms = [
                 m.decode('ascii') for m in data[4:-1].split(NULL_BYTE)]
 
-            self.auth = Auth(
+            self.auth = ScramClient(
                 mechanisms, self.user.decode('utf8'),
                 self.password.decode('utf8'))
 
