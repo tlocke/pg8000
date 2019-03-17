@@ -866,6 +866,7 @@ class Cursor():
                 raise InterfaceError("connection is closed")
             else:
                 raise e
+        return self
 
     def executemany(self, operation, param_sets):
         """Prepare a database operation, and then execute it against all
@@ -887,6 +888,7 @@ class Cursor():
             rowcounts.append(self._row_count)
 
         self._row_count = -1 if -1 in rowcounts else sum(rowcounts)
+        return self
 
     def fetchone(self):
         """Fetch the next row of a query result set.
@@ -1637,7 +1639,7 @@ class Connection():
                 mechanisms, self.user.decode('utf8'),
                 self.password.decode('utf8'))
 
-            init = self.auth.get_client_first_message().encode('utf8')
+            init = self.auth.get_client_first().encode('utf8')
 
             # SASLInitialResponse
             self._write(
@@ -1648,16 +1650,16 @@ class Connection():
 
         elif auth_code == 11:
             # AuthenticationSASLContinue
-            self.auth.set_server_first_message(data[4:].decode('utf8'))
+            self.auth.set_server_first(data[4:].decode('utf8'))
 
             # SASLResponse
-            msg = self.auth.get_client_final_message().encode('utf8')
+            msg = self.auth.get_client_final().encode('utf8')
             self._write(create_message(PASSWORD, msg))
             self._flush()
 
         elif auth_code == 12:
             # AuthenticationSASLFinal
-            self.auth.set_server_final_message(data[4:].decode('utf8'))
+            self.auth.set_server_final(data[4:].decode('utf8'))
 
         elif auth_code in (2, 4, 6, 7, 8, 9):
             raise InterfaceError(

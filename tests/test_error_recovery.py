@@ -1,82 +1,50 @@
-import unittest
 import pg8000
-from connection_settings import db_connect
 import warnings
 import datetime
-from sys import exc_info
+import pytest
 
 
-class TestException(Exception):
+class PG8000TestException(Exception):
     pass
 
 
-class Tests(unittest.TestCase):
-    def setUp(self):
-        self.db = pg8000.connect(**db_connect)
-
-    def tearDown(self):
-        self.db.close()
-
-    def raiseException(self, value):
-        raise TestException("oh noes!")
-
-    def testPyValueFail(self):
-        # Ensure that if types.py_value throws an exception, the original
-        # exception is raised (TestException), and the connection is
-        # still usable after the error.
-        orig = self.db.py_types[datetime.time]
-        self.db.py_types[datetime.time] = (
-            orig[0], orig[1], self.raiseException)
-
-        try:
-            c = self.db.cursor()
-            try:
-                try:
-                    c.execute("SELECT %s as f1", (datetime.time(10, 30),))
-                    c.fetchall()
-                    # shouldn't get here, exception should be thrown
-                    self.fail()
-                except TestException:
-                    # should be TestException type, this is OK!
-                    self.db.rollback()
-            finally:
-                self.db.py_types[datetime.time] = orig
-
-            # ensure that the connection is still usable for a new query
-            c.execute("VALUES ('hw3'::text)")
-            self.assertEqual(c.fetchone()[0], "hw3")
-        finally:
-            c.close()
-
-    def testNoDataErrorRecovery(self):
-        for i in range(1, 4):
-            try:
-                try:
-                    cursor = self.db.cursor()
-                    cursor.execute("DROP TABLE t1")
-                finally:
-                    cursor.close()
-            except pg8000.DatabaseError:
-                e = exc_info()[1]
-                # the only acceptable error is 'table does not exist'
-                self.assertEqual(e.args[0]['C'], '42P01')
-                self.db.rollback()
-
-    def testClosedConnection(self):
-        warnings.simplefilter("ignore")
-        my_db = pg8000.connect(**db_connect)
-        cursor = my_db.cursor()
-        my_db.close()
-        try:
-            cursor.execute("VALUES ('hw1'::text)")
-            self.fail("Should have raised an exception")
-        except BaseException:
-            e = exc_info()[1]
-            self.assertTrue(isinstance(e, self.db.InterfaceError))
-            self.assertEqual(str(e), 'connection is closed')
-
-        warnings.resetwarnings()
+def raise_exception(val):
+    raise PG8000TestException("oh noes!")
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_py_value_fail(con, mocker):
+    # Ensure that if types.py_value throws an exception, the original
+    # exception is raised (PG8000TestException), and the connection is
+    # still usable after the error.
+    orig = con.py_types[datetime.time]
+    mocker.patch.object(con, 'py_types')
+    con.py_types = {
+        datetime.time: (orig[0], orig[1], raise_exception)
+    }
+
+    with con.cursor() as c, pytest.raises(PG8000TestException):
+        c.execute("SELECT %s as f1", (datetime.time(10, 30),))
+        c.fetchall()
+
+        # ensure that the connection is still usable for a new query
+        c.execute("VALUES ('hw3'::text)")
+        assert c.fetchone()[0] == "hw3"
+
+
+def test_no_data_error_recovery(con):
+    for i in range(1, 4):
+        with con.cursor() as c, pytest.raises(pg8000.DatabaseError) as e:
+            c.execute("DROP TABLE t1")
+        assert e.value.args[0]['C'] == '42P01'
+        con.rollback()
+
+
+def testClosedConnection(db_kwargs):
+    warnings.simplefilter("ignore")
+    my_db = pg8000.connect(**db_kwargs)
+    cursor = my_db.cursor()
+    my_db.close()
+    with pytest.raises(my_db.InterfaceError, match="connection is closed"):
+        cursor.execute("VALUES ('hw1'::text)")
+
+    warnings.resetwarnings()

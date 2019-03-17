@@ -1,121 +1,95 @@
-import unittest
 import os
 import time
 import pg8000
 import datetime
-from connection_settings import db_connect
-from sys import exc_info
-from distutils.version import LooseVersion
+import pytest
+
+
+@pytest.fixture
+def has_tzset():
+
+    # Neither Windows nor Jython 2.5.3 have a time.tzset() so skip
+    if hasattr(time, 'tzset'):
+        os.environ['TZ'] = "UTC"
+        time.tzset()
+        return True
+    return False
 
 
 # DBAPI compatible interface tests
-class Tests(unittest.TestCase):
-    def setUp(self):
-        self.db = pg8000.connect(**db_connect)
+@pytest.fixture
+def db_table(con, has_tzset):
+    with con.cursor() as c:
+        c.execute(
+            "CREATE TEMPORARY TABLE t1 "
+            "(f1 int primary key, f2 int not null, f3 varchar(50) null) "
+            "ON COMMIT DROP")
+        c.execute(
+            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
+        c.execute(
+            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
+        c.execute(
+            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
+        c.execute(
+            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
+        c.execute(
+            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
+            (5, 10000, None))
+    return con
 
-        # Neither Windows nor Jython 2.5.3 have a time.tzset() so skip
-        if hasattr(time, 'tzset'):
-            os.environ['TZ'] = "UTC"
-            time.tzset()
-            self.HAS_TZSET = True
-        else:
-            self.HAS_TZSET = False
 
-        try:
-            c = self.db.cursor()
-            try:
-                c = self.db.cursor()
-                c.execute("DROP TABLE t1")
-            except pg8000.DatabaseError:
-                e = exc_info()[1]
-                # the only acceptable error is table does not exist
-                self.assertEqual(e.args[0]['C'], '42P01')
-                self.db.rollback()
-            c.execute(
-                "CREATE TEMPORARY TABLE t1 "
-                "(f1 int primary key, f2 int not null, f3 varchar(50) null)")
-            c.execute(
-                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-                (1, 1, None))
-            c.execute(
-                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-                (2, 10, None))
-            c.execute(
-                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-                (3, 100, None))
-            c.execute(
-                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-                (4, 1000, None))
-            c.execute(
-                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-                (5, 10000, None))
-            self.db.commit()
-        finally:
-            c.close()
+def test_parallel_queries(db_table):
+    with db_table.cursor() as c1, db_table.cursor() as c2:
 
-    def tearDown(self):
-        self.db.close()
-
-    def testParallelQueries(self):
-        try:
-            c1 = self.db.cursor()
-            c2 = self.db.cursor()
-
-            c1.execute("SELECT f1, f2, f3 FROM t1")
+        c1.execute("SELECT f1, f2, f3 FROM t1")
+        while 1:
+            row = c1.fetchone()
+            if row is None:
+                break
+            f1, f2, f3 = row
+            c2.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (f1,))
             while 1:
-                row = c1.fetchone()
+                row = c2.fetchone()
                 if row is None:
                     break
                 f1, f2, f3 = row
-                c2.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (f1,))
-                while 1:
-                    row = c2.fetchone()
-                    if row is None:
-                        break
-                    f1, f2, f3 = row
-        finally:
-            c1.close()
-            c2.close()
 
-        self.db.rollback()
 
-    def testQmark(self):
-        orig_paramstyle = pg8000.paramstyle
-        try:
-            pg8000.paramstyle = "qmark"
-            c1 = self.db.cursor()
+def test_qmark(db_table):
+    orig_paramstyle = pg8000.paramstyle
+    try:
+        pg8000.paramstyle = "qmark"
+        with db_table.cursor() as c1:
             c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > ?", (3,))
             while 1:
                 row = c1.fetchone()
                 if row is None:
                     break
                 f1, f2, f3 = row
-            self.db.rollback()
-        finally:
-            pg8000.paramstyle = orig_paramstyle
-            c1.close()
+    finally:
+        pg8000.paramstyle = orig_paramstyle
 
-    def testNumeric(self):
-        orig_paramstyle = pg8000.paramstyle
-        try:
-            pg8000.paramstyle = "numeric"
-            c1 = self.db.cursor()
+
+def test_numeric(db_table):
+    orig_paramstyle = pg8000.paramstyle
+    try:
+        pg8000.paramstyle = "numeric"
+        with db_table.cursor() as c1:
             c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :1", (3,))
             while 1:
                 row = c1.fetchone()
                 if row is None:
                     break
                 f1, f2, f3 = row
-            self.db.rollback()
-        finally:
-            pg8000.paramstyle = orig_paramstyle
-            c1.close()
+    finally:
+        pg8000.paramstyle = orig_paramstyle
 
-    def testNamed(self):
-        orig_paramstyle = pg8000.paramstyle
-        try:
-            pg8000.paramstyle = "named"
-            c1 = self.db.cursor()
+
+def test_named(db_table):
+    orig_paramstyle = pg8000.paramstyle
+    try:
+        pg8000.paramstyle = "named"
+        with db_table.cursor() as c1:
             c1.execute(
                 "SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
             while 1:
@@ -123,32 +97,30 @@ class Tests(unittest.TestCase):
                 if row is None:
                     break
                 f1, f2, f3 = row
-            self.db.rollback()
-        finally:
-            pg8000.paramstyle = orig_paramstyle
-            c1.close()
+    finally:
+        pg8000.paramstyle = orig_paramstyle
 
-    def testFormat(self):
-        orig_paramstyle = pg8000.paramstyle
-        try:
-            pg8000.paramstyle = "format"
-            c1 = self.db.cursor()
+
+def test_format(db_table):
+    orig_paramstyle = pg8000.paramstyle
+    try:
+        pg8000.paramstyle = "format"
+        with db_table.cursor() as c1:
             c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %s", (3,))
             while 1:
                 row = c1.fetchone()
                 if row is None:
                     break
                 f1, f2, f3 = row
-            self.db.commit()
-        finally:
-            pg8000.paramstyle = orig_paramstyle
-            c1.close()
+    finally:
+        pg8000.paramstyle = orig_paramstyle
 
-    def testPyformat(self):
-        orig_paramstyle = pg8000.paramstyle
-        try:
-            pg8000.paramstyle = "pyformat"
-            c1 = self.db.cursor()
+
+def test_pyformat(db_table):
+    orig_paramstyle = pg8000.paramstyle
+    try:
+        pg8000.paramstyle = "pyformat"
+        with db_table.cursor() as c1:
             c1.execute(
                 "SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
             while 1:
@@ -156,126 +128,103 @@ class Tests(unittest.TestCase):
                 if row is None:
                     break
                 f1, f2, f3 = row
-            self.db.commit()
-        finally:
-            pg8000.paramstyle = orig_paramstyle
-            c1.close()
+    finally:
+        pg8000.paramstyle = orig_paramstyle
 
-    def testArraysize(self):
-        try:
-            c1 = self.db.cursor()
-            c1.arraysize = 3
-            c1.execute("SELECT * FROM t1")
-            retval = c1.fetchmany()
-            self.assertEqual(len(retval), c1.arraysize)
-        finally:
-            c1.close()
-        self.db.commit()
 
-    def testDate(self):
-        val = pg8000.Date(2001, 2, 3)
-        self.assertEqual(val, datetime.date(2001, 2, 3))
+def test_arraysize(db_table):
+    with db_table.cursor() as c1:
+        c1.arraysize = 3
+        c1.execute("SELECT * FROM t1")
+        retval = c1.fetchmany()
+        assert len(retval) == c1.arraysize
 
-    def testTime(self):
-        val = pg8000.Time(4, 5, 6)
-        self.assertEqual(val, datetime.time(4, 5, 6))
 
-    def testTimestamp(self):
-        val = pg8000.Timestamp(2001, 2, 3, 4, 5, 6)
-        self.assertEqual(val, datetime.datetime(2001, 2, 3, 4, 5, 6))
+def test_date():
+    val = pg8000.Date(2001, 2, 3)
+    assert val == datetime.date(2001, 2, 3)
 
-    def testDateFromTicks(self):
-        if self.HAS_TZSET:
-            val = pg8000.DateFromTicks(1173804319)
-            self.assertEqual(val, datetime.date(2007, 3, 13))
 
-    def testTimeFromTicks(self):
-        if self.HAS_TZSET:
-            val = pg8000.TimeFromTicks(1173804319)
-            self.assertEqual(val, datetime.time(16, 45, 19))
+def test_time():
+    val = pg8000.Time(4, 5, 6)
+    assert val == datetime.time(4, 5, 6)
 
-    def testTimestampFromTicks(self):
-        if self.HAS_TZSET:
-            val = pg8000.TimestampFromTicks(1173804319)
-            self.assertEqual(val, datetime.datetime(2007, 3, 13, 16, 45, 19))
 
-    def testBinary(self):
-        v = pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
-        self.assertEqual(v, b"\x00\x01\x02\x03\x02\x01\x00")
-        self.assertTrue(isinstance(v, pg8000.BINARY))
+def test_timestamp():
+    val = pg8000.Timestamp(2001, 2, 3, 4, 5, 6)
+    assert val == datetime.datetime(2001, 2, 3, 4, 5, 6)
 
-    def testRowCount(self):
-        try:
-            c1 = self.db.cursor()
-            c1.execute("SELECT * FROM t1")
 
-            # Before PostgreSQL 9 we don't know the row count for a select
-            if self.db._server_version > LooseVersion('8.0.0'):
-                self.assertEqual(5, c1.rowcount)
+def test_date_from_ticks(has_tzset):
+    if has_tzset:
+        val = pg8000.DateFromTicks(1173804319)
+        assert val == datetime.date(2007, 3, 13)
 
-            c1.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", ("Hello!",))
-            self.assertEqual(2, c1.rowcount)
 
-            c1.execute("DELETE FROM t1")
-            self.assertEqual(5, c1.rowcount)
-        finally:
-            c1.close()
-        self.db.commit()
+def testTimeFromTicks(has_tzset):
+    if has_tzset:
+        val = pg8000.TimeFromTicks(1173804319)
+        assert val == datetime.time(16, 45, 19)
 
-    def testFetchMany(self):
-        try:
-            cursor = self.db.cursor()
-            cursor.arraysize = 2
-            cursor.execute("SELECT * FROM t1")
-            self.assertEqual(2, len(cursor.fetchmany()))
-            self.assertEqual(2, len(cursor.fetchmany()))
-            self.assertEqual(1, len(cursor.fetchmany()))
-            self.assertEqual(0, len(cursor.fetchmany()))
-        finally:
-            cursor.close()
-        self.db.commit()
 
-    def testIterator(self):
-        from warnings import filterwarnings
-        filterwarnings("ignore", "DB-API extension cursor.next()")
-        filterwarnings("ignore", "DB-API extension cursor.__iter__()")
+def test_timestamp_from_ticks(has_tzset):
+    if has_tzset:
+        val = pg8000.TimestampFromTicks(1173804319)
+        assert val == datetime.datetime(2007, 3, 13, 16, 45, 19)
 
-        try:
-            cursor = self.db.cursor()
-            cursor.execute("SELECT * FROM t1 ORDER BY f1")
-            f1 = 0
-            for row in cursor:
-                next_f1 = row[0]
-                assert next_f1 > f1
-                f1 = next_f1
-        except BaseException:
-            cursor.close()
 
-        self.db.commit()
+def test_binary():
+    v = pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
+    assert v == b"\x00\x01\x02\x03\x02\x01\x00"
+    assert isinstance(v, pg8000.BINARY)
 
-    # Vacuum can't be run inside a transaction, so we need to turn
-    # autocommit on.
-    def testVacuum(self):
-        self.db.autocommit = True
-        try:
-            cursor = self.db.cursor()
-            cursor.execute("vacuum")
-        finally:
-            cursor.close()
 
-    def testPreparedStatement(self):
-        cursor = self.db.cursor()
-        cursor.execute(
-            'PREPARE gen_series AS SELECT generate_series(1, 10);')
+def test_row_count(db_table):
+    with db_table.cursor() as c1:
+        c1.execute("SELECT * FROM t1")
+
+        assert 5 == c1.rowcount
+
+        c1.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", ("Hello!",))
+        assert 2 == c1.rowcount
+
+        c1.execute("DELETE FROM t1")
+        assert 5 == c1.rowcount
+
+
+def test_fetch_many(db_table):
+    with db_table.cursor() as cursor:
+        cursor.arraysize = 2
+        cursor.execute("SELECT * FROM t1")
+        assert 2 == len(cursor.fetchmany())
+        assert 2 == len(cursor.fetchmany())
+        assert 1 == len(cursor.fetchmany())
+        assert 0 == len(cursor.fetchmany())
+
+
+def test_iterator(db_table):
+    with db_table.cursor() as cursor:
+        cursor.execute("SELECT * FROM t1 ORDER BY f1")
+        f1 = 0
+        for row in cursor:
+            next_f1 = row[0]
+            assert next_f1 > f1
+            f1 = next_f1
+
+
+# Vacuum can't be run inside a transaction, so we need to turn
+# autocommit on.
+def test_vacuum(con):
+    con.autocommit = True
+    with con.cursor() as cursor:
+        cursor.execute("vacuum")
+
+
+def test_prepared_statement(con):
+    with con.cursor() as cursor:
+        cursor.execute('PREPARE gen_series AS SELECT generate_series(1, 10);')
         cursor.execute('EXECUTE gen_series')
 
-    def test_cursor_type(self):
-        try:
-            cursor = self.db.cursor()
-            assert str(type(cursor)) == "<class 'pg8000.core.Cursor'>"
-        finally:
-            cursor.close()
 
-
-if __name__ == "__main__":
-    unittest.main()
+def test_cursor_type(cursor):
+    assert str(type(cursor)) == "<class 'pg8000.core.Cursor'>"

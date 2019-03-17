@@ -1,121 +1,81 @@
-import unittest
-import pg8000
-from connection_settings import db_connect
 from io import BytesIO
-from sys import exc_info
+import pytest
 
 
-class Tests(unittest.TestCase):
-    def setUp(self):
-        self.db = pg8000.connect(**db_connect)
-        try:
-            cursor = self.db.cursor()
-            try:
-                cursor = self.db.cursor()
-                cursor.execute("DROP TABLE t1")
-            except pg8000.DatabaseError:
-                e = exc_info()[1]
-                # the only acceptable error is:
-                msg = e.args[0]
-                code = msg['C']
-                self.assertEqual(
-                    code, '42P01',  # table does not exist
-                    "incorrect error for drop table: " + str(msg))
-                self.db.rollback()
-            cursor.execute(
-                "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
-                "f2 int not null, f3 varchar(50) null)")
-        finally:
-            cursor.close()
+@pytest.fixture
+def db_table(request, con):
+    with con.cursor() as cursor:
+        cursor.execute(
+            "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
+            "f2 int not null, f3 varchar(50) null) "
+            "on commit drop")
+    return con
 
-    def tearDown(self):
-        self.db.close()
 
-    def testCopyToWithTable(self):
-        try:
-            cursor = self.db.cursor()
-            cursor.execute(
-                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, 1))
-            cursor.execute(
-                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 2, 2))
-            cursor.execute(
-                "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 3, 3))
+def test_copy_to_with_table(db_table):
+    with db_table.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, 1))
+        cursor.execute(
+            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 2, 2))
+        cursor.execute(
+            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 3, 3))
 
-            stream = BytesIO()
-            cursor.execute("copy t1 to stdout", stream=stream)
-            self.assertEqual(
-                stream.getvalue(), b"1\t1\t1\n2\t2\t2\n3\t3\t3\n")
-            self.assertEqual(cursor.rowcount, 3)
-            self.db.commit()
-        finally:
-            cursor.close()
+        stream = BytesIO()
+        cursor.execute("copy t1 to stdout", stream=stream)
+        assert stream.getvalue() == b"1\t1\t1\n2\t2\t2\n3\t3\t3\n"
+        assert cursor.rowcount == 3
 
-    def testCopyToWithQuery(self):
-        try:
-            cursor = self.db.cursor()
-            stream = BytesIO()
-            cursor.execute(
-                "COPY (SELECT 1 as One, 2 as Two) TO STDOUT WITH DELIMITER "
-                "'X' CSV HEADER QUOTE AS 'Y' FORCE QUOTE Two", stream=stream)
-            self.assertEqual(stream.getvalue(), b'oneXtwo\n1XY2Y\n')
-            self.assertEqual(cursor.rowcount, 1)
-            self.db.rollback()
-        finally:
-            cursor.close()
 
-    def testCopyFromWithTable(self):
-        try:
-            cursor = self.db.cursor()
-            stream = BytesIO(b"1\t1\t1\n2\t2\t2\n3\t3\t3\n")
-            cursor.execute("copy t1 from STDIN", stream=stream)
-            self.assertEqual(cursor.rowcount, 3)
+def test_copy_to_with_query(db_table):
+    with db_table.cursor() as cursor:
+        stream = BytesIO()
+        cursor.execute(
+            "COPY (SELECT 1 as One, 2 as Two) TO STDOUT WITH DELIMITER "
+            "'X' CSV HEADER QUOTE AS 'Y' FORCE QUOTE Two", stream=stream)
+        assert stream.getvalue() == b'oneXtwo\n1XY2Y\n'
+        assert cursor.rowcount == 1
 
-            cursor.execute("SELECT * FROM t1 ORDER BY f1")
-            retval = cursor.fetchall()
-            self.assertEqual(retval, ([1, 1, '1'], [2, 2, '2'], [3, 3, '3']))
-            self.db.rollback()
-        finally:
-            cursor.close()
 
-    def testCopyFromWithQuery(self):
-        try:
-            cursor = self.db.cursor()
-            stream = BytesIO(b"f1Xf2\n1XY1Y\n")
+def test_copy_from_with_table(db_table):
+    with db_table.cursor() as cursor:
+        stream = BytesIO(b"1\t1\t1\n2\t2\t2\n3\t3\t3\n")
+        cursor.execute("copy t1 from STDIN", stream=stream)
+        assert cursor.rowcount == 3
+
+        cursor.execute("SELECT * FROM t1 ORDER BY f1")
+        retval = cursor.fetchall()
+        assert retval == ([1, 1, '1'], [2, 2, '2'], [3, 3, '3'])
+
+
+def test_copy_from_with_query(db_table):
+    with db_table.cursor() as cursor:
+        stream = BytesIO(b"f1Xf2\n1XY1Y\n")
+        cursor.execute(
+            "COPY t1 (f1, f2) FROM STDIN WITH DELIMITER 'X' CSV HEADER "
+            "QUOTE AS 'Y' FORCE NOT NULL f1", stream=stream)
+        assert cursor.rowcount == 1
+
+        cursor.execute("SELECT * FROM t1 ORDER BY f1")
+        retval = cursor.fetchall()
+        assert retval == ([1, 1, None],)
+
+
+def test_copy_from_with_error(db_table):
+    with db_table.cursor() as cursor:
+        stream = BytesIO(b"f1Xf2\n\n1XY1Y\n")
+        with pytest.raises(BaseException) as e:
             cursor.execute(
                 "COPY t1 (f1, f2) FROM STDIN WITH DELIMITER 'X' CSV HEADER "
                 "QUOTE AS 'Y' FORCE NOT NULL f1", stream=stream)
-            self.assertEqual(cursor.rowcount, 1)
-
-            cursor.execute("SELECT * FROM t1 ORDER BY f1")
-            retval = cursor.fetchall()
-            self.assertEqual(retval, ([1, 1, None],))
-            self.db.commit()
-        finally:
-            cursor.close()
-
-    def testCopyFromWithError(self):
-        try:
-            cursor = self.db.cursor()
-            stream = BytesIO(b"f1Xf2\n\n1XY1Y\n")
-            cursor.execute(
-                "COPY t1 (f1, f2) FROM STDIN WITH DELIMITER 'X' CSV HEADER "
-                "QUOTE AS 'Y' FORCE NOT NULL f1", stream=stream)
-            self.assertTrue(False, "Should have raised an exception")
-        except BaseException:
-            args_dict = {
-                'S': 'ERROR',
-                'C': '22P02',
-                'M': 'invalid input syntax for integer: ""',
-                'W': 'COPY t1, line 2, column f1: ""',
-                'F': 'numutils.c',
-                'R': 'pg_atoi'
-            }
-            args = exc_info()[1].args[0]
-            for k, v in args_dict.items():
-                self.assertEqual(args[k], v)
-        finally:
-            cursor.close()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        arg = {
+            'S': 'ERROR',
+            'C': '22P02',
+            'M': 'invalid input syntax for integer: ""',
+            'W': 'COPY t1, line 2, column f1: ""',
+            'F': 'numutils.c',
+            'R': 'pg_atoi'
+        }
+        earg = e.value.args[0]
+        for k, v in arg.items():
+            assert earg[k] == v

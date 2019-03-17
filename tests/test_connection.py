@@ -1,10 +1,8 @@
-import unittest
 import pg8000
-from connection_settings import db_connect
 import sys
-from distutils.version import LooseVersion
 import socket
 import struct
+import pytest
 
 
 # Check if running in Jython
@@ -35,182 +33,160 @@ if 'java' in sys.platform:
     DEFAULT_CONTEXT = SSLContext.getDefault()
 
 
-def trust_all_certificates(f):
+@pytest.fixture
+def trust_all_certificates(request):
     '''Decorator function that will make it so the context of the decorated
     method will run with our TrustManager that accepts all certificates'''
-    def wrapped(*args, **kwargs):
-        # Only do this if running under Jython
-        if 'java' in sys.platform:
-            from javax.net.ssl import SSLContext
-            SSLContext.setDefault(TRUST_ALL_CONTEXT)
-            try:
-                res = f(*args, **kwargs)
-                return res
-            finally:
-                SSLContext.setDefault(DEFAULT_CONTEXT)
-        else:
-            return f(*args, **kwargs)
-    return wrapped
+    # Only do this if running under Jython
+    is_java = 'java' in sys.platform
+
+    if is_java:
+        from javax.net.ssl import SSLContext
+        SSLContext.setDefault(TRUST_ALL_CONTEXT)
+
+    def fin():
+        if is_java:
+            SSLContext.setDefault(DEFAULT_CONTEXT)
+
+    request.addfinalizer(fin)
 
 
-# Tests related to connecting to a database.
-class Tests(unittest.TestCase):
-    def testSocketMissing(self):
-        conn_params = {
-            'unix_sock': "/file-does-not-exist",
-            'user': "doesn't-matter"}
-        self.assertRaises(pg8000.InterfaceError, pg8000.connect, **conn_params)
+def testSocketMissing():
+    conn_params = {
+        'unix_sock': "/file-does-not-exist",
+        'user': "doesn't-matter"}
 
-    def testDatabaseMissing(self):
-        data = db_connect.copy()
-        data["database"] = "missing-db"
-        self.assertRaises(pg8000.ProgrammingError, pg8000.connect, **data)
+    with pytest.raises(pg8000.InterfaceError):
+        pg8000.connect(**conn_params)
 
-    def testNotify(self):
 
-        with pg8000.connect(**db_connect) as db:
-            self.assertEqual(list(db.notifications), [])
-            with db.cursor() as cursor:
-                cursor.execute("LISTEN test")
-                cursor.execute("NOTIFY test")
-                db.commit()
+def testDatabaseMissing(db_kwargs):
+    db_kwargs["database"] = "missing-db"
+    with pytest.raises(pg8000.ProgrammingError):
+        pg8000.connect(**db_kwargs)
 
-                cursor.execute("VALUES (1, 2), (3, 4), (5, 6)")
-                self.assertEqual(len(db.notifications), 1)
-                self.assertEqual(db.notifications[0][1], "test")
 
-    # This requires a line in pg_hba.conf that requires md5 for the database
-    # pg8000_md5
+def testNotify(con):
+    assert list(con.notifications) == []
+    with con.cursor() as cursor:
+        cursor.execute("LISTEN test")
+        cursor.execute("NOTIFY test")
+        con.commit()
 
-    def testMd5(self):
-        data = db_connect.copy()
-        data["database"] = "pg8000_md5"
+        cursor.execute("VALUES (1, 2), (3, 4), (5, 6)")
+        assert len(con.notifications) == 1
+        assert con.notifications[0][1] == "test"
 
-        # Should only raise an exception saying db doesn't exist
-        self.assertRaisesRegex(
-            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
 
-    # This requires a line in pg_hba.conf that requires gss for the database
-    # pg8000_gss
+# This requires a line in pg_hba.conf that requires md5 for the database
+# pg8000_md5
 
-    def testGss(self):
-        data = db_connect.copy()
-        data["database"] = "pg8000_gss"
+def testMd5(db_kwargs):
+    db_kwargs["database"] = "pg8000_md5"
 
-        # Should raise an exception saying gss isn't supported
-        self.assertRaisesRegex(
+    # Should only raise an exception saying db doesn't exist
+    with pytest.raises(pg8000.ProgrammingError, match='3D000'):
+        pg8000.connect(**db_kwargs)
+
+
+# This requires a line in pg_hba.conf that requires gss for the database
+# pg8000_gss
+
+def testGss(db_kwargs):
+    db_kwargs["database"] = "pg8000_gss"
+
+    # Should raise an exception saying gss isn't supported
+    with pytest.raises(
             pg8000.InterfaceError,
-            "Authentication method 7 not supported by pg8000.",
-            pg8000.connect, **data)
+            match="Authentication method 7 not supported by pg8000."):
+        pg8000.connect(**db_kwargs)
 
-    @trust_all_certificates
-    def testSsl(self):
-        data = db_connect.copy()
-        data["ssl"] = True
-        db = pg8000.connect(**data)
-        db.close()
 
-    # This requires a line in pg_hba.conf that requires 'password' for the
-    # database pg8000_password
+@pytest.mark.usefixtures("trust_all_certificates")
+def testSsl(db_kwargs):
+    db_kwargs["ssl"] = True
+    with pg8000.connect(**db_kwargs):
+        pass
 
-    def testPassword(self):
-        data = db_connect.copy()
-        data["database"] = "pg8000_password"
 
-        # Should only raise an exception saying db doesn't exist
-        self.assertRaisesRegex(
-            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+# This requires a line in pg_hba.conf that requires 'password' for the
+# database pg8000_password
 
-    def testUnicodeDatabaseName(self):
-        data = db_connect.copy()
-        data["database"] = "pg8000_sn\uFF6Fw"
+def testPassword(db_kwargs):
+    db_kwargs["database"] = "pg8000_password"
 
-        # Should only raise an exception saying db doesn't exist
-        self.assertRaisesRegex(
-            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+    # Should only raise an exception saying db doesn't exist
+    with pytest.raises(pg8000.ProgrammingError, match='3D000'):
+        pg8000.connect(**db_kwargs)
 
-    def testBytesDatabaseName(self):
-        data = db_connect.copy()
 
-        # Should only raise an exception saying db doesn't exist
-        data["database"] = bytes("pg8000_sn\uFF6Fw", 'utf8')
-        self.assertRaisesRegex(
-            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+def testUnicodeDatabaseName(db_kwargs):
+    db_kwargs["database"] = "pg8000_sn\uFF6Fw"
 
-    def testBytesPassword(self):
-        with pg8000.connect(**db_connect) as db:
-            # Create user
-            username = 'boltzmann'
-            password = 'cha\uFF6Fs'
-            cur = db.cursor()
+    # Should only raise an exception saying db doesn't exist
+    with pytest.raises(pg8000.ProgrammingError, match='3D000'):
+        pg8000.connect(**db_kwargs)
 
-            # Delete user if left over from previous run
+
+def testBytesDatabaseName(db_kwargs):
+    """ Should only raise an exception saying db doesn't exist """
+
+    db_kwargs["database"] = bytes("pg8000_sn\uFF6Fw", 'utf8')
+    with pytest.raises(pg8000.ProgrammingError, match='3D000'):
+        pg8000.connect(**db_kwargs)
+
+
+def testBytesPassword(con, db_kwargs):
+    # Create user
+    username = 'boltzmann'
+    password = 'cha\uFF6Fs'
+    with con.cursor() as cur:
+        cur.execute(
+            "create user " + username + " with password '" + password + "';")
+        con.commit()
+
+        db_kwargs['user'] = username
+        db_kwargs['password'] = password.encode('utf8')
+        db_kwargs['database'] = 'pg8000_md5'
+        with pytest.raises(pg8000.ProgrammingError, match='3D000'):
+            pg8000.connect(**db_kwargs)
+
+        cur.execute("drop role " + username)
+        con.commit()
+
+
+def test_broken_pipe(con, db_kwargs):
+    with pg8000.connect(**db_kwargs) as db1:
+        with db1.cursor() as cur1, con.cursor() as cur2:
+            cur1.execute("select pg_backend_pid()")
+            pid1 = cur1.fetchone()[0]
+
+            cur2.execute("select pg_terminate_backend(%s)", (pid1,))
             try:
-                cur.execute("drop role " + username)
-            except pg8000.ProgrammingError:
-                cur.execute("rollback")
+                cur1.execute("select 1")
+            except Exception as e:
+                assert isinstance(e, (socket.error, struct.error))
 
-            cur.execute(
-                "create user " + username + " with password '" + password +
-                "';")
-            cur.execute('commit;')
 
-            data = db_connect.copy()
-            data['user'] = username
-            data['password'] = password.encode('utf8')
-            data['database'] = 'pg8000_md5'
-            self.assertRaisesRegex(
-                pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
-
-        with pg8000.connect(**db_connect) as db:
-            cur = db.cursor()
-            cur.execute("drop role " + username)
-            cur.execute("commit;")
-
-    def testBrokenPipe(self):
-        with pg8000.connect(**db_connect) as db1:
-            with pg8000.connect(**db_connect) as db2:
-                with db1.cursor() as cur1, db2.cursor() as cur2:
-
-                    cur1.execute("select pg_backend_pid()")
-                    pid1 = cur1.fetchone()[0]
-
-                    cur2.execute(
-                            "select pg_terminate_backend(%s)", (pid1,))
-                    try:
-                        cur1.execute("select 1")
-                    except Exception as e:
-                        self.assertTrue(
-                            isinstance(e, (socket.error, struct.error)))
-
-    def testApplicatioName(self):
-        params = db_connect.copy()
-        params['application_name'] = 'my test application name'
-        db = pg8000.connect(**params)
+def testApplicatioName(db_kwargs):
+    app_name = 'my test application name'
+    db_kwargs['application_name'] = app_name
+    with pg8000.connect(**db_kwargs) as db:
         cur = db.cursor()
-
-        if db._server_version >= LooseVersion('9.2'):
-            cur.execute('select application_name from pg_stat_activity '
-                        ' where pid = pg_backend_pid()')
-        else:
-            # for pg9.1 and earlier, procpod field rather than pid
-            cur.execute('select application_name from pg_stat_activity '
-                        ' where procpid = pg_backend_pid()')
+        cur.execute(
+            'select application_name from pg_stat_activity '
+            ' where pid = pg_backend_pid()')
 
         application_name = cur.fetchone()[0]
-        self.assertEqual(application_name, 'my test application name')
-
-    # This requires a line in pg_hba.conf that requires scram-sha-256 for the
-    # database scram-sha-256
-
-    def test_scram_sha_256(self):
-        data = db_connect.copy()
-        data["database"] = "pg8000_scram_sha_256"
-
-        # Should only raise an exception saying db doesn't exist
-        self.assertRaisesRegex(
-            pg8000.ProgrammingError, '3D000', pg8000.connect, **data)
+        assert application_name == app_name
 
 
-if __name__ == "__main__":
-    unittest.main()
+# This requires a line in pg_hba.conf that requires scram-sha-256 for the
+# database scram-sha-256
+
+def test_scram_sha_256(db_kwargs):
+    db_kwargs["database"] = "pg8000_scram_sha_256"
+
+    # Should only raise an exception saying db doesn't exist
+    with pytest.raises(pg8000.ProgrammingError, match='3D000'):
+        pg8000.connect(**db_kwargs)
