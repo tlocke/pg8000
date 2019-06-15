@@ -171,8 +171,8 @@ Use the columns names retrieved from a query:
 >>> #
 >>> rows = c.execute("select * from quark")
 >>> keys = [k[0].decode('ascii') for k in c.description]
->>> [dict((k, row[i]) for i, k in enumerate(keys)) for row in rows]
-[{'id': 1, 'name': 'Up'}, {'id': 2, 'name': 'Down'}]
+>>> results = [dict(zip(keys, row)) for row in rows]
+>>> assert results == [{'id': 1, 'name': 'Up'}, {'id': 2, 'name': 'Down'}]
 
 ----
 
