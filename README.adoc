@@ -155,6 +155,27 @@ example:
 ----
 
 
+Use the columns names retrieved from a query:
+
+[source,python]
+----
+>>> import pg8000
+>>> conn = pg8000.connect(user="postgres", password="C.P.Snow")
+>>> c = conn.cursor()
+>>> c.execute("create temporary table quark (id serial, name text)")
+<pg8000.core.Cursor object at ...>
+>>> c.executemany("INSERT INTO quark (name) VALUES (%s)", (("Up",), ("Down",)))
+<pg8000.core.Cursor object at ...>
+>>> #
+>>> # Now retrieve the results
+>>> #
+>>> rows = c.execute("select * from quark")
+>>> keys = [k[0].decode('ascii') for k in c.description]
+>>> [dict((k, row[i]) for i, k in enumerate(keys)) for row in rows]
+[{'id': 1, 'name': 'Up'}, {'id': 2, 'name': 'Down'}]
+
+----
+
 PostgreSQL https://www.postgresql.org/docs/current/static/plpgsql-errors-and-messages.html[notices]
 are stored in a deque called `Connection.notices` and added using the
 `append()` method. Similarly there are `Connection.notifications` for
