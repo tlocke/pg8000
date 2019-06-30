@@ -1129,6 +1129,14 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.13.2, 2019-06-30
+
+* Use the https://pypi.org/project/scramp/[Scramp] library for the SCRAM
+  implementation.
+
+* Fixed bug where SQL such as `make_interval(days := 10)` fail on the `:=`
+  part. Thanks to https://github.com/sanepal[sanepal] for reporting this.
+
 
 === Version 1.13.1, 2019-02-06
 
