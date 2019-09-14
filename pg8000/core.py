@@ -1565,8 +1565,8 @@ class Connection():
         if save_point is None:
             self.execute(self._cursor, "rollback", None)
         else:
-            self.execute(self._cursor, "rollback to savepoint (%s)", 
-            [save_point])
+            self.execute(self._cursor, "rollback to savepoint (%s)",
+                         [save_point])
 
     def close(self):
         """Closes the database connection.
