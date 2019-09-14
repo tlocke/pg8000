@@ -1551,15 +1551,21 @@ class Connection():
         """
         self.execute(self._cursor, "commit", None)
 
-    def rollback(self):
+    def rollback(self, save_point=None):
         """Rolls back the current database transaction.
+
+        Supports the ability to rollback to a specific
+        savepoint if savepoint param is provided.
 
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
         if not self.in_transaction:
             return
-        self.execute(self._cursor, "rollback", None)
+        if save_point is None:
+            self.execute(self._cursor, "rollback", None)
+        else:
+            self.execute(self._cursor, "rollback to savepoint (%s)", [save_point])
 
     def close(self):
         """Closes the database connection.
