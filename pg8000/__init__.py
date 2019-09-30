@@ -47,8 +47,8 @@ def connect(
         tcp_keepalive=True):
 
     return Connection(
-        user, host, source_address, unix_sock, port, database, password, ssl, timeout,
-        application_name, max_prepared_statements, tcp_keepalive)
+        user, host, source_address, unix_sock, port, database, password, ssl,
+        timeout, application_name, max_prepared_statements, tcp_keepalive)
 
 
 apilevel = "2.0"
