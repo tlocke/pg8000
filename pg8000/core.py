@@ -1151,8 +1151,8 @@ class Connection():
         try:
             if unix_sock is None and host is not None:
                 self._usock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    if source_address is not None:
-                        self._usock.bind((source_address,0))
+                if source_address is not None:
+                    self._usock.bind((source_address,0))
             elif unix_sock is not None:
                 if not hasattr(socket, "AF_UNIX"):
                     raise InterfaceError(
