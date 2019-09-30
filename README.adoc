@@ -461,7 +461,7 @@ ROWID type oid
 === Functions
 
 
-==== pg8000.connect(user, host='localhost', unix_sock=None, port=5432, database=None, password=None, ssl=None, timeout=None, application_name=None, tcp_keepalive=True)
+==== pg8000.connect(user, host='localhost', source_address=None, unix_sock=None, port=5432, database=None, password=None, ssl=None, timeout=None, application_name=None, tcp_keepalive=True)
 
 Creates a connection to a PostgreSQL database.
 
@@ -477,6 +477,11 @@ host::
   The hostname of the PostgreSQL server to connect with. Providing this
   parameter is necessary for TCP/IP connections. One of either `host` or
   `unix_sock` must be provided. The default is `localhost`.
+
+source_address::
+  The source IP address which initiates the connection to the PostgreSQL server.
+  This is an optional parameter, if not set the operation system will choose an
+  source address
 
 unix_sock::
   The path to the UNIX socket to access the database through, for example,
@@ -1289,7 +1294,7 @@ Note that this version is not backward compatible with previous versions.
   2 it's recommended to send text as unicode() objects.
 
 * Dropped and added support for Python versions. Now pg8000 supports
-  Python 2.7+ and Python 3.3+. 
+  Python 2.7+ and Python 3.3+.
 
 * Dropped and added support for PostgreSQL versions. Now pg8000 supports
   PostgreSQL 9.1+.
