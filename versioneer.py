@@ -1,5 +1,5 @@
 
-# Version: 0.15
+# Version: 0.16
 
 """
 The Versioneer
