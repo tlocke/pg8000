@@ -1118,8 +1118,9 @@ class Connection():
         return error
 
     def __init__(
-            self, user, host, source_address, unix_sock, port, database, password, ssl,
-            timeout, application_name, max_prepared_statements, tcp_keepalive):
+            self, user, host, source_address, unix_sock, port, database,
+            password, ssl, timeout, application_name, max_prepared_statements,
+            tcp_keepalive):
         self._client_encoding = "utf8"
         self._commands_with_count = (
             b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY",
@@ -1152,7 +1153,7 @@ class Connection():
             if unix_sock is None and host is not None:
                 self._usock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 if source_address is not None:
-                    self._usock.bind((source_address,0))
+                    self._usock.bind((source_address, 0))
             elif unix_sock is not None:
                 if not hasattr(socket, "AF_UNIX"):
                     raise InterfaceError(

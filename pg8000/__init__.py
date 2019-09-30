@@ -41,9 +41,10 @@ __author__ = "Mathieu Fenniak"
 
 
 def connect(
-        user, host='localhost', source_address=None, unix_sock=None, port=5432, database=None,
-        password=None, ssl=None, timeout=None, application_name=None,
-        max_prepared_statements=1000, tcp_keepalive=True):
+        user, host='localhost', source_address=None, unix_sock=None, port=5432,
+        database=None, password=None, ssl=None, timeout=None,
+        application_name=None, max_prepared_statements=1000,
+        tcp_keepalive=True):
 
     return Connection(
         user, host, source_address, unix_sock, port, database, password, ssl, timeout,
