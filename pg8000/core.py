@@ -1118,7 +1118,7 @@ class Connection():
         return error
 
     def __init__(
-            self, user, host, unix_sock, port, database, password, ssl,
+            self, user, host, source_address, unix_sock, port, database, password, ssl,
             timeout, application_name, max_prepared_statements, tcp_keepalive):
         self._client_encoding = "utf8"
         self._commands_with_count = (
