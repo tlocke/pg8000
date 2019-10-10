@@ -1694,6 +1694,7 @@ class Connection():
             return self.py_types[23]
         if min_int8 < value < max_int8:
             return self.py_types[20]
+        return self.py_types[Decimal]
 
     def make_params(self, values):
         params = []
