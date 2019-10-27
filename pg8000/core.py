@@ -1287,6 +1287,17 @@ class Connection():
         def numeric_out(d):
             return str(d).encode(self._client_encoding)
 
+        def inet_out(v):
+            return str(v).encode(self._client_encoding)
+
+        def inet_in(data, offset, length):
+            inet_str = data[offset: offset + length].decode(
+                self._client_encoding)
+            if '/' in inet_str:
+                return ip_network(inet_str, False)
+            else:
+                return ip_address(inet_str)
+
         self.pg_types = defaultdict(
             lambda: (FC_TEXT, text_recv), {
                 16: (FC_BINARY, bool_recv),  # boolean
@@ -1304,6 +1315,7 @@ class Connection():
                 701: (FC_BINARY, float8_recv),  # float8
                 705: (FC_BINARY, text_recv),  # unknown
                 829: (FC_TEXT, text_recv),  # MACADDR type
+                869: (FC_TEXT, inet_in),  # inet
                 1000: (FC_BINARY, array_recv),  # BOOL[]
                 1003: (FC_BINARY, array_recv),  # NAME[]
                 1005: (FC_BINARY, array_recv),  # INT2[]
@@ -1327,7 +1339,8 @@ class Connection():
                 2275: (FC_BINARY, text_recv),  # cstring
                 2950: (FC_BINARY, uuid_recv),  # uuid
                 3802: (FC_TEXT, json_in),  # jsonb
-            })
+            }
+        )
 
         self.py_types = {
             type(None): (-1, FC_BINARY, null_send),  # null
@@ -1351,34 +1364,22 @@ class Connection():
             Interval: (1186, FC_BINARY, interval_send_integer),
             Decimal: (1700, FC_TEXT, numeric_out),  # Decimal
             PGTsvector: (3614, FC_TEXT, text_out),
-            UUID: (2950, FC_BINARY, uuid_send)}  # uuid
+            UUID: (2950, FC_BINARY, uuid_send),  # uuid
+            bytes: (17, FC_BINARY, bytea_send),  # bytea
+            str: (705, FC_TEXT, text_out),  # unknown
+            enum.Enum: (705, FC_TEXT, enum_out),
+            IPv4Address: (869, FC_TEXT, inet_out),  # inet
+            IPv6Address: (869, FC_TEXT, inet_out),  # inet
+            IPv4Network: (869, FC_TEXT, inet_out),  # inet
+            IPv6Network: (869, FC_TEXT, inet_out)  # inet
+        }
 
         self.inspect_funcs = {
             Datetime: self.inspect_datetime,
             list: self.array_inspect,
             tuple: self.array_inspect,
-            int: self.inspect_int}
-
-        self.py_types[bytes] = (17, FC_BINARY, bytea_send)  # bytea
-        self.py_types[str] = (705, FC_TEXT, text_out)  # unknown
-        self.py_types[enum.Enum] = (705, FC_TEXT, enum_out)
-
-        def inet_out(v):
-            return str(v).encode(self._client_encoding)
-
-        def inet_in(data, offset, length):
-            inet_str = data[offset: offset + length].decode(
-                self._client_encoding)
-            if '/' in inet_str:
-                return ip_network(inet_str, False)
-            else:
-                return ip_address(inet_str)
-
-        self.py_types[IPv4Address] = (869, FC_TEXT, inet_out)  # inet
-        self.py_types[IPv6Address] = (869, FC_TEXT, inet_out)  # inet
-        self.py_types[IPv4Network] = (869, FC_TEXT, inet_out)  # inet
-        self.py_types[IPv6Network] = (869, FC_TEXT, inet_out)  # inet
-        self.pg_types[869] = (FC_TEXT, inet_in)  # inet
+            int: self.inspect_int
+        }
 
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,
