@@ -1023,7 +1023,7 @@ TERMINATE = b'X'
 CLOSE = b'C'
 
 
-def _establish_ssl(_socket, ssl_params):
+def _establish_ssl(_socket, ssl_params, hostname):
     if not isinstance(ssl_params, dict):
         ssl_params = {}
 
@@ -1033,6 +1033,7 @@ def _establish_ssl(_socket, ssl_params):
         keyfile = ssl_params.get('keyfile')
         certfile = ssl_params.get('certfile')
         ca_certs = ssl_params.get('ca_certs')
+        check_hostname = ssl_params.get('check_hostname')
         if ca_certs is None:
             verify_mode = sslmodule.CERT_NONE
         else:
@@ -1043,9 +1044,12 @@ def _establish_ssl(_socket, ssl_params):
         _socket.sendall(ii_pack(8, 80877103))
         resp = _socket.recv(1)
         if resp == b'S':
-            return sslmodule.wrap_socket(
-                _socket, keyfile=keyfile, certfile=certfile,
-                cert_reqs=verify_mode, ca_certs=ca_certs)
+            ctx = sslmodule.create_default_context(cafile=ca_certs)
+            if certfile is not None:
+                ctx.load_cert_chain(certfile, keyfile)
+            ctx.check_hostname = check_hostname
+            ctx.verify_mode = verify_mode
+            return ctx.wrap_socket(_socket, server_hostname=hostname)
         else:
             raise InterfaceError("Server refuses SSL")
     except ImportError:
@@ -1172,7 +1176,7 @@ class Connection():
                 self._usock.connect(unix_sock)
 
             if ssl:
-                self._usock = _establish_ssl(self._usock, ssl)
+                self._usock = _establish_ssl(self._usock, ssl, host)
 
             self._sock = self._usock.makefile(mode="rwb")
             if tcp_keepalive:
