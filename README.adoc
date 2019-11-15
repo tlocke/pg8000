@@ -511,13 +511,15 @@ password::
   `'my_password'.encode('EUC-JP')`.
 
 ssl::
-  Use SSL encryption for TCP/IP sockets if `ssl` is a dictionary of SSL
-  parameters, eg `{'keyfile': '...', 'certfile': '...', 'ca_certs': '...'}`.
-  The parameters have the same meaning as those in the
-  https://docs.python.org/3.7/library/ssl.html#ssl.wrap_socket[ssl.wrap_socket]
-  function. Omitting a key in the dictionary is equivalent to setting it to
-  `None`, so for a default SSL connection, set `ssl` to be the empty dictionary
-  `{}`. The default for `ssl` is `None`, meaning no SSL.
+  This governs SSL encryption for TCP/IP sockets. It can have three values:
+    * `None`, meaning no SSL (the default)
+    * `True`, means use SSL with an
+       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+       created using
+      https://docs.python.org/3/library/ssl.html#ssl.create_default_context[`ssl.create_default_context()`]
+    *  An instance of
+       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+       which will be used to create the SSL connection.
 
 timeout::
   Only used with Python 3, this is the time in seconds before the connection to

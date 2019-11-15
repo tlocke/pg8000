@@ -3,6 +3,7 @@ import sys
 import socket
 import struct
 import pytest
+import ssl
 
 
 # Check if running in Jython
@@ -104,7 +105,9 @@ def testGss(db_kwargs):
 
 @pytest.mark.usefixtures("trust_all_certificates")
 def testSsl(db_kwargs):
-    db_kwargs["ssl"] = True
+    context = ssl.SSLContext()
+    context.check_hostname = False
+    db_kwargs["ssl_context"] = context
     with pg8000.connect(**db_kwargs):
         pass
 
