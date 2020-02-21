@@ -26,7 +26,9 @@ To install pg8000 using `pip` type:
 `pip install pg8000`
 
 
-== Interactive Example
+== Interactive Examples
+
+=== Basic Example
 
 Import pg8000, connect to the database, create a table, add some rows and then
 query the table:
@@ -52,6 +54,9 @@ id = 2, title = Speaker for the Dead
 
 ----
 
+
+=== Query Using Fuctions
+
 Another query, using some PostgreSQL functions:
 
 [source,python]
@@ -62,6 +67,9 @@ Another query, using some PostgreSQL functions:
 [3.0]
 
 ----
+
+
+=== Interval Type
 
 A query that returns the PostgreSQL interval type:
 
@@ -76,6 +84,9 @@ A query that returns the PostgreSQL interval type:
 
 ----
 
+
+=== Point Type
+
 A round-trip with a
 https://www.postgresql.org/docs/current/datatype-geometric.html[PostgreSQL
 point] type:
@@ -88,6 +99,9 @@ point] type:
 ['(2.3,1)']
 
 ----
+
+
+=== Numeric Parameter Style
 
 pg8000 supports all the DB-API parameter styles. Here's an example of using
 the 'numeric' parameter style:
@@ -104,6 +118,9 @@ the 'numeric' parameter style:
 
 ----
 
+
+=== Autocommit
+
 Following the DB-API specification, autocommit is off by default. It can be
 turned on by using the autocommit property of the connection.
 
@@ -117,6 +134,9 @@ turned on by using the autocommit property of the connection.
 >>> cur.close()
 
 ----
+
+
+=== Client Encoding
 
 When communicating with the server, pg8000 uses the character set that the
 server asks it to use (the client encoding). By default the client encoding is
@@ -138,6 +158,9 @@ encoding is by using an SQL command. For example:
 
 ----
 
+
+=== JSON
+
 JSON is sent to the server serialized, and returned de-serialized. Here's an
 example:
 
@@ -154,6 +177,8 @@ example:
 
 ----
 
+
+=== Retrieve Column Names From Results
 
 Use the columns names retrieved from a query:
 
@@ -176,6 +201,9 @@ Use the columns names retrieved from a query:
 
 ----
 
+
+=== Notices
+
 PostgreSQL https://www.postgresql.org/docs/current/static/plpgsql-errors-and-messages.html[notices]
 are stored in a deque called `Connection.notices` and added using the
 `append()` method. Similarly there are `Connection.notifications` for
@@ -193,6 +221,35 @@ Here's an example:
 >>> conn.commit()
 >>> conn.notifications[0][1]
 'aliens_landed'
+
+----
+
+
+=== Parameters Are For Data Not Identifiers
+
+In PostgreSQL parameters can only be used for
+https://www.postgresql.org/docs/current/xfunc-sql.html#XFUNC-SQL-FUNCTION-ARGUMENTS[data values, not identifiers]. Sometimes this might not work as expected,
+for example the following fails:
+
+[source,python]
+----
+>>> cursor.execute("SELECT 'silo 1' limit %s", ('ALL',))
+Traceback (most recent call last):
+pg8000.core.ProgrammingError: {'S': 'ERROR', 'C': '22P02', 'M': 'invalid input syntax for integer: "ALL"', 'F': 'int8.c', 'L': '99', 'R': 'scanint8'}
+>>> conn.rollback()
+
+----
+
+Instead the https://www.postgresql.org/docs/current/sql-select.html[docs say]
+that you can send `null` as an alternative to `ALL`, which does work:
+
+[source,python]
+----
+>>> cur = conn.cursor()
+>>> cur.execute("SELECT 'silo 1' limit %s", (None,))
+<pg8000.core.Cursor object at ...>
+>>> cur.fetchone()
+['silo 1']
 
 ----
 
@@ -495,7 +552,7 @@ database::
   The name of the database instance to connect with.  This parameter is
   optional; if omitted, the PostgreSQL server will assume the database name is
   the same as the username. +
-  +
+   +
   If your server character encoding is not '`ascii`' or '`utf8`', then
   you need to provide `database` as bytes, eg.
   `'my_db'.encode('EUC-JP')`.
@@ -505,7 +562,7 @@ password::
   if omitted and the database server requests password-based authentication,
   the connection will fail to open. If this parameter is provided but not
   requested by the server, no error will occur. +
-  +
+   +
   If your server character encoding is not '`ascii`' or '`utf8`', then
   you need to provide `password` as bytes, eg.
   `'my_password'.encode('EUC-JP')`.
