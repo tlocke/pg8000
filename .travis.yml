@@ -1,11 +1,11 @@
+os: linux
 dist: xenial
-sudo: required
 language: python
 
 services:
   - postgresql
 
-matrix:
+jobs:
   include:
     - addons:
         postgresql: "9.4"
