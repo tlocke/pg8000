@@ -461,7 +461,7 @@ ROWID type oid
 === Functions
 
 
-==== pg8000.connect(user, host='localhost', source_address=None, unix_sock=None, port=5432, database=None, password=None, ssl=None, timeout=None, application_name=None, tcp_keepalive=True)
+==== pg8000.connect(user, host='localhost', source_address=None, unix_sock=None, port=5432, database=None, password=None, ssl_context=None, timeout=None, application_name=None, tcp_keepalive=True)
 
 Creates a connection to a PostgreSQL database.
 
@@ -510,7 +510,7 @@ password::
   you need to provide `password` as bytes, eg.
   `'my_password'.encode('EUC-JP')`.
 
-ssl::
+ssl_context::
   This governs SSL encryption for TCP/IP sockets. It can have three values:
     * `None`, meaning no SSL (the default)
     * `True`, means use SSL with an
