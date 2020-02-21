@@ -235,7 +235,7 @@ for example the following fails:
 ----
 >>> cursor.execute("SELECT 'silo 1' limit %s", ('ALL',))
 Traceback (most recent call last):
-pg8000.core.ProgrammingError: {'S': 'ERROR', 'C': '22P02', 'M': 'invalid input syntax for integer: "ALL"', 'F': 'int8.c', 'L': '99', 'R': 'scanint8'}
+pg8000.core.ProgrammingError: ...
 >>> conn.rollback()
 
 ----
