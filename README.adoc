@@ -518,8 +518,7 @@ ROWID type oid
 === Functions
 
 
-==== pg8000.connect(user, host='localhost', source_address=None, unix_sock=None, port=5432, password=None, ssl_context=None, timeout=None, tcp_keepalive=True,
-\*\*init_params)
+==== pg8000.connect(user, host='localhost', source_address=None, unix_sock=None, port=5432, password=None, ssl_context=None, timeout=None, tcp_keepalive=True, **init_params)
 
 Creates a connection to a PostgreSQL database.
 
@@ -528,8 +527,8 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 user::
   The username to connect to the PostgreSQL server with. If your server
-  character encoding is not '`ascii`' or '`utf8`', then you need to provide
-  `user` as bytes, eg. `'my_name'.encode(\'EUC-JP\')`.
+  character encoding is not `ascii` or `utf8`, then you need to provide
+  `user` as bytes, eg. `'my_name'.encode('EUC-JP')`.
 
 host::
   The hostname of the PostgreSQL server to connect with. Providing this
@@ -555,7 +554,7 @@ password::
   the connection will fail to open. If this parameter is provided but not
   requested by the server, no error will occur. +
    +
-  If your server character encoding is not '`ascii`' or '`utf8`', then
+  If your server character encoding is not `ascii` or `utf8`, then
   you need to provide `password` as bytes, eg.
   `'my_password'.encode('EUC-JP')`.
 
@@ -583,13 +582,16 @@ tcp_keepalive::
 init_params::
   Any additional keyword arguments are passed on to PostgreSQL when the
   connection starts. Common parameters are:
+
     * `database` - The name of the database instance to connect with. By
       default the PostgreSQL server will assume the database name is
       the same as the username.
     * `application_name` - Sets the https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-APPLICATION-NAME[application_name].
     * `replication` - Used to run in https://www.postgresql.org/docs/12/protocol-replication.html[streaming replication mode].
-  If your server character encoding is not '`ascii`' or '`utf8`', then
-  you need to provide values as bytes, eg. `'my_db'.encode('EUC-JP')`.
+
++
+If your server character encoding is not `ascii` or `utf8`, then you need to
+provide values as bytes, eg. `'my_db'.encode('EUC-JP')`.
 
 
 ==== pg8000.Date(year, month, day)
