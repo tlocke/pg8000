@@ -42,14 +42,12 @@ __author__ = "Mathieu Fenniak"
 
 def connect(
         user, host='localhost', source_address=None, unix_sock=None, port=5432,
-        database=None, password=None, ssl_context=None, timeout=None,
-        application_name=None, max_prepared_statements=1000,
-        tcp_keepalive=True):
+        password=None, ssl_context=None, timeout=None,
+        max_prepared_statements=1000, tcp_keepalive=True, **init_params):
 
     return Connection(
-        user, host, source_address, unix_sock, port, database, password,
-        ssl_context, timeout, application_name, max_prepared_statements,
-        tcp_keepalive)
+        user, host, source_address, unix_sock, port, password, ssl_context,
+        timeout, max_prepared_statements, tcp_keepalive, init_params)
 
 
 apilevel = "2.0"

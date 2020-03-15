@@ -1087,9 +1087,9 @@ class Connection():
         return error
 
     def __init__(
-            self, user, host, source_address, unix_sock, port, database,
-            password, ssl_context, timeout, application_name,
-            max_prepared_statements, tcp_keepalive):
+            self, user, host, source_address, unix_sock, port, password,
+            ssl_context, timeout, max_prepared_statements, tcp_keepalive,
+            init_params):
         self._client_encoding = "utf8"
         self._commands_with_count = (
             b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY",
@@ -1103,10 +1103,13 @@ class Connection():
             raise InterfaceError(
                 "The 'user' connection parameter cannot be None")
 
-        if isinstance(user, str):
-            self.user = user.encode('utf8')
-        else:
-            self.user = user
+        init_params['user'] = user
+
+        for k, v in tuple(init_params.items()):
+            if isinstance(v, str):
+                init_params[k] = v.encode('utf8')
+
+        self.user = init_params['user']
 
         if isinstance(password, str):
             self.password = password.encode('utf8')
@@ -1397,17 +1400,10 @@ class Connection():
         #   String - A parameter name (user, database, or options)
         #   String - Parameter value
         protocol = 196608
-        val = bytearray(
-            i_pack(protocol) + b"user\x00" + self.user + NULL_BYTE)
-        if database is not None:
-            if isinstance(database, str):
-                database = database.encode('utf8')
-            val.extend(b"database\x00" + database + NULL_BYTE)
-        if application_name is not None:
-            if isinstance(application_name, str):
-                application_name = application_name.encode('utf8')
-            val.extend(
-                b"application_name\x00" + application_name + NULL_BYTE)
+        val = bytearray(i_pack(protocol))
+
+        for k, v in init_params.items():
+            val.extend(k.encode('ascii') + NULL_BYTE + v + NULL_BYTE)
         val.append(0)
         self._write(i_pack(len(val) + 4))
         self._write(val)

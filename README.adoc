@@ -518,7 +518,8 @@ ROWID type oid
 === Functions
 
 
-==== pg8000.connect(user, host='localhost', source_address=None, unix_sock=None, port=5432, database=None, password=None, ssl_context=None, timeout=None, application_name=None, tcp_keepalive=True)
+==== pg8000.connect(user, host='localhost', source_address=None, unix_sock=None, port=5432, password=None, ssl_context=None, timeout=None, tcp_keepalive=True,
+\*\*init_params)
 
 Creates a connection to a PostgreSQL database.
 
@@ -547,15 +548,6 @@ unix_sock::
 port::
   The TCP/IP port of the PostgreSQL server instance.  This parameter defaults
   to `5432`, the registered common port of PostgreSQL TCP/IP servers.
-
-database::
-  The name of the database instance to connect with.  This parameter is
-  optional; if omitted, the PostgreSQL server will assume the database name is
-  the same as the username. +
-   +
-  If your server character encoding is not '`ascii`' or '`utf8`', then
-  you need to provide `database` as bytes, eg.
-  `'my_db'.encode('EUC-JP')`.
 
 password::
   The user password to connect to the server with. This parameter is optional;
@@ -587,6 +579,17 @@ tcp_keepalive::
   If `True` then use
   https://en.wikipedia.org/wiki/Keepalive#TCP_keepalive[TCP keepalive]. The
   default is `True`.
+
+init_params::
+  Any additional keyword arguments are passed on to PostgreSQL when the
+  connection starts. Common parameters are:
+    * `database` - The name of the database instance to connect with. By
+      default the PostgreSQL server will assume the database name is
+      the same as the username.
+    * `application_name` - Sets the https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-APPLICATION-NAME[application_name].
+    * `replication` - Used to run in https://www.postgresql.org/docs/12/protocol-replication.html[streaming replication mode].
+  If your server character encoding is not '`ascii`' or '`utf8`', then
+  you need to provide values as bytes, eg. `'my_db'.encode('EUC-JP')`.
 
 
 ==== pg8000.Date(year, month, day)
