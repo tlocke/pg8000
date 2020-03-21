@@ -1199,6 +1199,28 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.14.0, 2020-03-21
+
+* Tests are now included in the source distribution.
+
+* Any extra keyword parameters of the `connect()` function are sent as
+  initialization parameters when the PostgreSQL session starts. See the API
+  docs for more information. Thanks to Patrick Hayes for suggesting this.
+
+* The ssl.wrap_socket function is deprecated, so we now give the user the
+  option of using a default `SSLContext` or to pass in a custom one. This is a
+  backwardly incompatible change. See the API docs for more info. Thanks to
+  Jonathan Ross Rogers <jrogers@emphasys-software.com> for his work on this.
+
+* Oversized integers are now returned as a `Decimal` type, whereas before a
+  `None` was returned. Thanks to Igor Kaplounenko <igor.kaplounenko@intel.com>
+  for his work on this.
+
+* Allow setting of connection source address in the `connect()` function. See
+  the API docs for more details. Thanks to David King
+  <davidking@davids-mbp.home> for his work on this.
+
+
 === Version 1.13.2, 2019-06-30
 
 * Use the https://pypi.org/project/scramp/[Scramp] library for the SCRAM
