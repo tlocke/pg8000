@@ -591,7 +591,8 @@ init_params::
 
 +
 If your server character encoding is not `ascii` or `utf8`, then you need to
-provide values as bytes, eg. `'my_db'.encode('EUC-JP')`.
+provide values as bytes, eg. `'my_db'.encode('EUC-JP')`. Any init_params that
+have a value of `None` will be ignored.
 
 
 ==== pg8000.Date(year, month, day)
@@ -1198,6 +1199,12 @@ twine upload dist/*
 
 
 == Release Notes
+
+=== Version 1.14.1, 2020-03-23
+
+* Ignore any `init_params` that have a value of `None`. This seems to be more
+  useful and the behaviour is more expected.
+
 
 === Version 1.14.0, 2020-03-21
 

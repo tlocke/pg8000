@@ -1108,6 +1108,8 @@ class Connection():
         for k, v in tuple(init_params.items()):
             if isinstance(v, str):
                 init_params[k] = v.encode('utf8')
+            elif v is None:
+                del init_params[k]
 
         self.user = init_params['user']
 

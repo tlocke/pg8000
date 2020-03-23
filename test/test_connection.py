@@ -193,3 +193,11 @@ def test_scram_sha_256(db_kwargs):
     # Should only raise an exception saying db doesn't exist
     with pytest.raises(pg8000.ProgrammingError, match='3D000'):
         pg8000.connect(**db_kwargs)
+
+
+def test_init_param_none(db_kwargs):
+    """Test that an init param with value None is ignored
+    """
+    db_kwargs["param"] = None
+
+    pg8000.connect(**db_kwargs)
