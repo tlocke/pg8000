@@ -32,7 +32,7 @@ setup(
     url="https://github.com/tlocke/pg8000",
     license="BSD",
     python_requires='>=3.5',
-    install_requires=['scramp==1.1.0'],
+    install_requires=['scramp==1.1.1'],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
