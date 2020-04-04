@@ -47,9 +47,12 @@ def connect(
         application_name=None, replication=None):
 
     return Connection(
-        user, host, database, port, password, source_address, unix_sock,
-        ssl_context, timeout, max_prepared_statements, tcp_keepalive,
-        application_name, replication)
+        user, host=host, database=database, port=port, password=password,
+        source_address=source_address, unix_sock=unix_sock,
+        ssl_context=ssl_context, timeout=timeout,
+        max_prepared_statements=max_prepared_statements,
+        tcp_keepalive=tcp_keepalive, application_name=application_name,
+        replication=replication)
 
 
 apilevel = "2.0"

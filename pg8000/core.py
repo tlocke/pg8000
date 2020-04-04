@@ -1087,9 +1087,10 @@ class Connection():
         return error
 
     def __init__(
-            self, user, host, database, port, password, source_address,
-            unix_sock, ssl_context, timeout, max_prepared_statements,
-            tcp_keepalive, application_name, replication):
+            self, user, host='localhost', database=None, port=5432,
+            password=None, source_address=None, unix_sock=None,
+            ssl_context=None, timeout=None, max_prepared_statements=1000,
+            tcp_keepalive=True, application_name=None, replication=None):
         self._client_encoding = "utf8"
         self._commands_with_count = (
             b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY",
