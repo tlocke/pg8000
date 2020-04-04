@@ -5,16 +5,12 @@ pg8000 is a pure-link:http://www.python.org/[Python]
 http://www.postgresql.org/[PostgreSQL] driver that complies with
 http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. It is tested on Python
 versions 3.5+, on CPython and PyPy, and PostgreSQL versions 9.4+.
-Pg8000's name comes from the belief that it is probably about the 8000th
-PostgreSQL interface for Python. pg8000 is distributed under the terms of the
-BSD 3-clause license.
+pg8000's name comes from the belief that it is probably about the 8000th
+PostgreSQL interface for Python. pg8000 is distributed under the BSD 3-clause
+license.
 
 All bug reports, feature requests and contributions are welcome at
 http://github.com/tlocke/pg8000/.
-
-If you're a user of pg8000 we'd love to hear who you are and what you or your
-organization is using pg8000 for. Just log an issue on GitHub. The idea is to
-put together a list of users.
 
 image::https://travis-ci.org/tlocke/pg8000.svg?branch=master[Build Status]
 
@@ -27,6 +23,244 @@ To install pg8000 using `pip` type:
 
 
 == Interactive Examples
+
+These examples make use of the pg8000 extensions to the DB-API 2.0 standard.
+
+
+=== Basic Example
+
+Import pg8000, connect to the database, create a table, add some rows and then
+query the table:
+
+[source,python]
+----
+>>> import pg8000
+>>>
+>>> # Connect to the database with user name postgres
+>>>
+>>> con = pg8000.connect("postgres", password="C.P.Snow")
+>>>
+>>> # Create a temporary tabe
+>>>
+>>> con.run("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
+()
+>>>
+>>> # Populate the table
+>>>
+>>> for title in ("Ender's Game", "The Magus"):
+...     con.run("INSERT INTO book (title) VALUES (:title)", title=title)
+()
+()
+>>>
+>>> # Print all the rows in the table
+>>>
+>>> for row in con.run("SELECT * FROM book"):
+...     print(row)
+[1, "Ender's Game"]
+[2, 'The Magus']
+>>>
+>>> # Commit the transaction
+>>>
+>>> con.commit()
+
+----
+
+
+=== Query Using Fuctions
+
+Another query, using some PostgreSQL functions:
+
+[source,python]
+----
+>>> con.run("SELECT extract(millennium from now())")
+([3.0],)
+
+----
+
+
+=== Interval Type
+
+A query that returns the PostgreSQL interval type:
+
+[source,python]
+----
+>>> import datetime
+>>>
+>>> ts = datetime.date(1980, 4, 27)
+>>> con.run("SELECT timestamp '2013-12-01 16:06' - :ts", ts=ts)
+([datetime.timedelta(12271, 57960)],)
+
+----
+
+
+=== Point Type
+
+A round-trip with a
+https://www.postgresql.org/docs/current/datatype-geometric.html[PostgreSQL
+point] type:
+
+[source,python]
+----
+>>> con.run("SELECT CAST(:pt as point)", pt='(2.3,1)')
+(['(2.3,1)'],)
+
+----
+
+
+=== Autocommit
+
+Following the DB-API specification, autocommit is off by default. It can be
+turned on by using the autocommit property of the connection.
+
+[source,python]
+----
+>>> # Make sure we're not in a transaction
+>>> con.rollback()
+>>>
+>>> con.autocommit = True
+>>> con.run("VACUUM")
+()
+>>> con.autocommit = False
+
+----
+
+
+=== Client Encoding
+
+When communicating with the server, pg8000 uses the character set that the
+server asks it to use (the client encoding). By default the client encoding is
+the database's character set (chosen when the database is created), but the
+client encoding can be changed in a number of ways (eg. setting
+CLIENT_ENCODING in postgresql.conf). Another way of changing the client
+encoding is by using an SQL command. For example:
+
+[source,python]
+----
+>>> con.run("SET CLIENT_ENCODING TO 'UTF8'")
+()
+>>> con.run("SHOW CLIENT_ENCODING")
+(['UTF8'],)
+
+----
+
+
+=== JSON
+
+JSON is sent to the server serialized, and returned de-serialized. Here's an
+example:
+
+[source,python]
+----
+>>> import json
+>>> val = ['Apollo 11 Cave', True, 26.003]
+>>> con.run("SELECT CAST(:apollo as json)", apollo=json.dumps(val))
+([['Apollo 11 Cave', True, 26.003]],)
+
+----
+
+
+=== Retrieve Column Names From Results
+
+Use the columns names retrieved from a query:
+
+[source,python]
+----
+>>> con.run("create temporary table quark (id serial, name text)")
+()
+>>> for name in ('Up', 'Down'):
+...     con.run("INSERT INTO quark (name) VALUES (:name)", name=name)
+()
+()
+>>> # Now retrieve the results
+>>>
+>>> rows = con.run("SELECT * FROM quark")
+>>> col_names = [k[0].decode('ascii') for k in con.description]
+>>> col_names
+['id', 'name']
+
+----
+
+
+=== Notices
+
+PostgreSQL https://www.postgresql.org/docs/current/static/plpgsql-errors-and-messages.html[notices]
+are stored in a deque called `Connection.notices` and added using the
+`append()` method. Similarly there are `Connection.notifications` for
+https://www.postgresql.org/docs/current/static/sql-notify.html[notifications]
+and `Connection.parameter_statuses` for changes to the server configuration.
+Here's an example:
+
+[source,python]
+----
+>>> con.run("LISTEN aliens_landed")
+()
+>>> con.run("NOTIFY aliens_landed")
+()
+>>> con.commit()
+>>> con.notifications[0][1]
+'aliens_landed'
+
+----
+
+
+=== Parameters Are For Data Not Identifiers
+
+In PostgreSQL parameters can only be used for
+https://www.postgresql.org/docs/current/xfunc-sql.html#XFUNC-SQL-FUNCTION-ARGUMENTS[data values, not identifiers]. Sometimes this might not work as expected,
+for example the following fails:
+
+[source,python]
+----
+>>> con.run("SELECT 'silo 1' LIMIT :lim", lim='ALL')
+Traceback (most recent call last):
+pg8000.core.ProgrammingError: ...
+>>> con.rollback()
+
+----
+
+Instead the https://www.postgresql.org/docs/current/sql-select.html[docs say]
+that you can send `null` as an alternative to `ALL`, which does work:
+
+[source,python]
+----
+>>> con.run("SELECT 'silo 1' LIMIT :lim", lim=None)
+(['silo 1'],)
+
+----
+
+
+=== COPY from and to a file
+
+The SQL https://www.postgresql.org/docs/current/sql-copy.html[COPY] statement
+can be used to copy from and to a file or file-like object:
+
+[source,python]
+----
+
+>>> from io import BytesIO
+>>>
+>>> # COPY from a stream to a table
+>>>
+>>> stream_in = BytesIO(b'1\telectron\n2\tmuon\n3\ttau\n')
+>>> con.run("CREATE TEMPORARY TABLE lepton (id SERIAL, name TEXT)")
+()
+>>> con.run("COPY lepton FROM STDIN", stream=stream_in)
+()
+>>>
+>>> # COPY from a table to a stream
+>>>
+>>> stream_out = BytesIO()
+>>> con.run("COPY lepton TO STDOUT", stream=stream_out)
+()
+>>> stream_out.getvalue()
+b'1\telectron\n2\tmuon\n3\ttau\n'
+
+----
+
+== DB-API 2 Interactive Examples
+
+These examples stick to the DB-API 2.0 standard.
+
 
 === Basic Example
 
@@ -109,6 +343,7 @@ the 'numeric' parameter style:
 [source,python]
 ----
 >>> pg8000.paramstyle = "numeric"
+>>> cursor = conn.cursor()
 >>> cursor.execute("SELECT array_prepend(:1, :2)", ( 500, [1, 2, 3, 4], ))
 <pg8000.core.Cursor object at ...>
 >>> cursor.fetchone()
@@ -966,6 +1201,27 @@ Create a Transaction IDs (only global_transaction_id is used in pg) format_id
 and branch_qualifier are not used in postgres global_transaction_id may be any
 string identifier supported by postgres returns a tuple (format_id,
 global_transaction_id, branch_qualifier)
+
+===== pg8000.Connection.run(sql, stream=None, \**kwargs)
+
+Executes an sql statement, and returns the results as a `tuple`. For example:
+
+`con.run("SELECT * FROM cities where population > :pop", pop=10000)`
+
+This method is a pg8000 extension.
+
+sql::
+  The SQL statement to execute. Parameter placeholders appear as a `:` followed
+  by the parameter name.
+
+stream::
+  For use with the PostgreSQL
+http://www.postgresql.org/docs/current/static/sql-copy.html[COPY] command. For
+a `COPY FROM` the parameter must be a readable file-like object, and for
+`COPY TO` it must be writable.
+
+kwargs::
+  The parameters of the SQL statement.
 
 
 ==== pg8000.Cursor

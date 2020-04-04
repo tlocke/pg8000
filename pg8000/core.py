@@ -785,12 +785,16 @@ class Cursor():
         <http://www.python.org/dev/peps/pep-0249/>`_.
     """
 
-    def __init__(self, connection):
+    def __init__(self, connection, paramstyle=None):
         self._c = connection
         self.arraysize = 1
         self.ps = None
         self._row_count = -1
         self._cached_rows = deque()
+        if paramstyle is None:
+            self.paramstyle = pg8000.paramstyle
+        else:
+            self.paramstyle = paramstyle
 
     def __enter__(self):
         return self
@@ -1099,6 +1103,7 @@ class Connection():
         self.notices = deque(maxlen=100)
         self.parameter_statuses = deque(maxlen=100)
         self.max_prepared_statements = int(max_prepared_statements)
+        self._run_cursor = Cursor(self, paramstyle='named')
 
         if user is None:
             raise InterfaceError(
@@ -1538,6 +1543,14 @@ class Connection():
         """
         return Cursor(self)
 
+    @property
+    def description(self):
+        return self._run_cursor._getDescription()
+
+    def run(self, sql, stream=None, **params):
+        self._run_cursor.execute(sql, params, stream=stream)
+        return tuple(self._run_cursor._cached_rows)
+
     def commit(self):
         """Commits the current database transaction.
 
@@ -1745,15 +1758,14 @@ class Connection():
         if vals is None:
             vals = ()
 
-        paramstyle = pg8000.paramstyle
         pid = getpid()
         try:
-            cache = self._caches[paramstyle][pid]
+            cache = self._caches[cursor.paramstyle][pid]
         except KeyError:
             try:
-                param_cache = self._caches[paramstyle]
+                param_cache = self._caches[cursor.paramstyle]
             except KeyError:
-                param_cache = self._caches[paramstyle] = {}
+                param_cache = self._caches[cursor.paramstyle] = {}
 
             try:
                 cache = param_cache[pid]
@@ -1764,7 +1776,7 @@ class Connection():
             statement, make_args = cache['statement'][operation]
         except KeyError:
             statement, make_args = cache['statement'][operation] = \
-                convert_paramstyle(paramstyle, operation)
+                convert_paramstyle(cursor.paramstyle, operation)
 
         args = make_args(vals)
         params = self.make_params(args)
