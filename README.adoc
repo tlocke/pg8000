@@ -1200,6 +1200,18 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.15.0, 2020-04-04
+
+* Abandon the idea of arbitrary `init_params` in the connect() function. We now
+  go back to having a fixed number of arguments. The argument `replication` has
+  been added as this is the only extra init param that was needed. The reason
+  for going back to a fixed number of aguments is that you get better feedback
+  if you accidently mis-type a parameter name.
+
+* The `max_prepared_statements` parameter has been moved from being a module
+  property to being an argument of the connect() function.
+
+
 === Version 1.14.1, 2020-03-23
 
 * Ignore any `init_params` that have a value of `None`. This seems to be more
