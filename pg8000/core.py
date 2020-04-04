@@ -1087,9 +1087,9 @@ class Connection():
         return error
 
     def __init__(
-            self, user, host, source_address, unix_sock, port, password,
-            ssl_context, timeout, max_prepared_statements, tcp_keepalive,
-            init_params):
+            self, user, host, database, port, password, source_address,
+            unix_sock, ssl_context, timeout, max_prepared_statements,
+            tcp_keepalive, application_name, replication):
         self._client_encoding = "utf8"
         self._commands_with_count = (
             b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY",
@@ -1103,7 +1103,12 @@ class Connection():
             raise InterfaceError(
                 "The 'user' connection parameter cannot be None")
 
-        init_params['user'] = user
+        init_params = {
+            'user': user,
+            'database': database,
+            'application_name': application_name,
+            'replication': replication
+        }
 
         for k, v in tuple(init_params.items()):
             if isinstance(v, str):

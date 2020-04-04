@@ -41,13 +41,15 @@ __author__ = "Mathieu Fenniak"
 
 
 def connect(
-        user, host='localhost', source_address=None, unix_sock=None, port=5432,
-        password=None, ssl_context=None, timeout=None,
-        max_prepared_statements=1000, tcp_keepalive=True, **init_params):
+        user, host='localhost', database=None, port=5432, password=None,
+        source_address=None, unix_sock=None, ssl_context=None, timeout=None,
+        max_prepared_statements=1000, tcp_keepalive=True,
+        application_name=None, replication=None):
 
     return Connection(
-        user, host, source_address, unix_sock, port, password, ssl_context,
-        timeout, max_prepared_statements, tcp_keepalive, init_params)
+        user, host, database, port, password, source_address, unix_sock,
+        ssl_context, timeout, max_prepared_statements, tcp_keepalive,
+        application_name, replication)
 
 
 apilevel = "2.0"
@@ -68,8 +70,6 @@ This property is part of the `DBAPI 2.0 specification
 """
 
 paramstyle = 'format'
-
-max_prepared_statements = 1000
 
 # I have no idea what this would be used for by a client app.  Should it be
 # TEXT, VARCHAR, CHAR?  It will only compare against row_description's

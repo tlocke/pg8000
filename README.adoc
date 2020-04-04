@@ -517,8 +517,7 @@ ROWID type oid
 
 === Functions
 
-
-==== pg8000.connect(user, host='localhost', source_address=None, unix_sock=None, port=5432, password=None, ssl_context=None, timeout=None, tcp_keepalive=True, **init_params)
+==== pg8000.connect(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, max_prepared_statements=1000, tcp_keepalive=True, application_name=None, replication=None)
 
 Creates a connection to a PostgreSQL database.
 
@@ -535,14 +534,11 @@ host::
   parameter is necessary for TCP/IP connections. One of either `host` or
   `unix_sock` must be provided. The default is `localhost`.
 
-source_address::
-  The source IP address which initiates the connection to the PostgreSQL server.
-  This is an optional parameter, if not set the operation system will choose an
-  source address
-
-unix_sock::
-  The path to the UNIX socket to access the database through, for example,
-  `'/tmp/.s.PGSQL.5432'`. One of either `host` or `unix_sock` must be provided.
+database::
+  The name of the database instance to connect with. If `None` then the
+  PostgreSQL server will assume the database name is the same as the username.
+  If your server character encoding is not `ascii` or `utf8`, then you need to
+  provide `database` as bytes, eg. `'my_db'.encode('EUC-JP')`.
 
 port::
   The TCP/IP port of the PostgreSQL server instance.  This parameter defaults
@@ -558,6 +554,16 @@ password::
   you need to provide `password` as bytes, eg.
   `'my_password'.encode('EUC-JP')`.
 
+
+source_address::
+  The source IP address which initiates the connection to the PostgreSQL server.
+  The default is `None` which means that the operating system will choose the
+  source address.
+
+unix_sock::
+  The path to the UNIX socket to access the database through, for example,
+  `'/tmp/.s.PGSQL.5432'`. One of either `host` or `unix_sock` must be provided.
+
 ssl_context::
   This governs SSL encryption for TCP/IP sockets. It can have three values:
     * `None`, meaning no SSL (the default)
@@ -570,29 +576,29 @@ ssl_context::
        which will be used to create the SSL connection.
 
 timeout::
-  Only used with Python 3, this is the time in seconds before the connection to
-  the database will time out. The default is `None` which means no timeout.
+  This is the time in seconds before the connection to the server will time
+  out. The default is `None` which means no timeout.
 
+max_prepared_statements::
+  The maximum number of prepared statements that pg8000 keeps track of. If this
+  number is exceeded, they'll all be closed, and then new ones will
+  automatically be created as needed. The default is 1000.
 
 tcp_keepalive::
   If `True` then use
   https://en.wikipedia.org/wiki/Keepalive#TCP_keepalive[TCP keepalive]. The
   default is `True`.
 
-init_params::
-  Any additional keyword arguments are passed on to PostgreSQL when the
-  connection starts. Common parameters are:
+application_name::
+  Sets the https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-APPLICATION-NAME[application_name]. If your server character encoding is not
+  `ascii` or `utf8`, then you need to provide values as bytes, eg.
+  `'my_application_name'.encode('EUC-JP')`. The default is `None` which means
+  that the server will set the application name.
 
-    * `database` - The name of the database instance to connect with. By
-      default the PostgreSQL server will assume the database name is
-      the same as the username.
-    * `application_name` - Sets the https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-APPLICATION-NAME[application_name].
-    * `replication` - Used to run in https://www.postgresql.org/docs/12/protocol-replication.html[streaming replication mode].
-
-+
-If your server character encoding is not `ascii` or `utf8`, then you need to
-provide values as bytes, eg. `'my_db'.encode('EUC-JP')`. Any init_params that
-have a value of `None` will be ignored.
+replication::
+  Used to run in https://www.postgresql.org/docs/12/protocol-replication.html[streaming replication mode].
+  If your server character encoding is not `ascii` or `utf8`, then you need to
+  provide values as bytes, eg. `'database'.encode('EUC-JP')`.
 
 
 ==== pg8000.Date(year, month, day)
@@ -829,12 +835,6 @@ Following the DB-API specification, autocommit is off by default. It can be
 turned on by setting this boolean pg8000-specific autocommit property to True.
 
 New in version 1.9.
-
-
-===== pg8000.Connection.max_prepared_statements
-
-The maximum number of prepared statements that pg8000 keeps track of. If this
-number is exceeded, they'll all be closed. The default is 1000.
 
 
 ===== pg8000.Connection.close()
