@@ -1200,6 +1200,14 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.15.1, 2020-04-04
+
+* Up to now the only supported way to create a new connection was to use the
+  `connect()` function. However, some people are using the `Connect` class
+  directly and this change makes it a bit easier to do that by making the class
+  use a contructor which has the same signature as the `connect()` function.
+
+
 === Version 1.15.0, 2020-04-04
 
 * Abandon the idea of arbitrary `init_params` in the connect() function. We now
