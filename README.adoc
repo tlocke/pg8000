@@ -254,6 +254,36 @@ that you can send `null` as an alternative to `ALL`, which does work:
 ----
 
 
+=== COPY from and to a file
+
+The SQL https://www.postgresql.org/docs/current/sql-copy.html[COPY] statement
+can be used to copy from and to a file or file-like object:
+
+[source,python]
+----
+
+>>> from io import BytesIO
+>>> #
+>>> # COPY from a stream to a table
+>>> #
+>>> stream_in = BytesIO(b'1\telectron\n2\tmuon\n3\ttau\n')
+>>> cur = conn.cursor()
+>>> cur.execute("create temporary table lepton (id serial, name text)")
+<pg8000.core.Cursor object at ...>
+>>> cur.execute("COPY lepton FROM stdin", stream=stream_in)
+<pg8000.core.Cursor object at ...>
+>>> #
+>>> # Now COPY from a table to a stream
+>>> #
+>>> stream_out = BytesIO()
+>>> cur.execute("copy lepton to stdout", stream=stream_out)
+<pg8000.core.Cursor object at ...>
+>>> stream_out.getvalue()
+b'1\telectron\n2\tmuon\n3\ttau\n'
+
+----
+
+
 == Type Mapping
 
 The following table shows the mapping between Python types and PostgreSQL
