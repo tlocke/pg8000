@@ -1475,6 +1475,22 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.15.2, 2020-04-16
+
+* Added a new method `run()` to the connection, which lets you run queries
+  directly without using a `Cursor`. It always uses the `named` parameter
+  style, and the parameters are provided using keyword arguments. There are now
+  two sets of interactive examples, one using the pg8000 extensions, and one
+  using just DB-API features.
+
+* Better error message if certain parameters in the `connect()` function are of
+  the wrong type.
+
+* The constructor of the `Connection` class now has the same signature as the
+  `connect()` function, which makes it easier to use the `Connection` class
+  directly if you want to.
+
+
 === Version 1.15.1, 2020-04-04
 
 * Up to now the only supported way to create a new connection was to use the
