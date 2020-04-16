@@ -1121,6 +1121,10 @@ class Connection():
                 init_params[k] = v.encode('utf8')
             elif v is None:
                 del init_params[k]
+            elif not isinstance(v, (bytes, bytearray)):
+                raise InterfaceError(
+                    "The parameter " + k + " can't be of type " +
+                    str(type(v)) + ".")
 
         self.user = init_params['user']
 

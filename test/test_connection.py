@@ -184,6 +184,20 @@ def testApplicatioName(db_kwargs):
         assert application_name == app_name
 
 
+def test_application_name_integer(db_kwargs):
+    db_kwargs['application_name'] = 1
+    with pytest.raises(
+            pg8000.InterfaceError,
+            match="The parameter application_name can't be of type "
+            "<class 'int'>."):
+        pg8000.connect(**db_kwargs)
+
+
+def test_application_name_bytearray(db_kwargs):
+    db_kwargs['application_name'] = bytearray(b'Philby')
+    pg8000.connect(**db_kwargs)
+
+
 # This requires a line in pg_hba.conf that requires scram-sha-256 for the
 # database scram-sha-256
 
