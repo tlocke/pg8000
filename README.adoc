@@ -40,7 +40,7 @@ query the table:
 >>>
 >>> con = pg8000.connect("postgres", password="C.P.Snow")
 >>>
->>> # Create a temporary tabe
+>>> # Create a temporary table
 >>>
 >>> con.run("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
 ()
