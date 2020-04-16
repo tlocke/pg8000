@@ -203,11 +203,9 @@ Here's an example:
 ----
 
 
-=== Parameters Are For Data Not Identifiers
+=== LIMIT ALL
 
-In PostgreSQL parameters can only be used for
-https://www.postgresql.org/docs/current/xfunc-sql.html#XFUNC-SQL-FUNCTION-ARGUMENTS[data values, not identifiers]. Sometimes this might not work as expected,
-for example the following fails:
+You might think that the following would work, but in fact it fails:
 
 [source,python]
 ----
@@ -227,6 +225,26 @@ that you can send `null` as an alternative to `ALL`, which does work:
 (['silo 1'],)
 
 ----
+
+
+=== Many SQL Statements Can't Be Parameterized
+
+In PostgreSQL parameters can only be used for
+https://www.postgresql.org/docs/current/xfunc-sql.html#XFUNC-SQL-FUNCTION-ARGUMENTS[data values, not identifiers]. Sometimes this might not work as expected,
+for example the following fails:
+
+[source,python]
+----
+>>> con.run("CREATE USER juan WITH PASSWORD :password", password='quail')
+Traceback (most recent call last):
+pg8000.core.ProgrammingError: ...
+>>> con.rollback()
+
+----
+
+It fails because the PostgreSQL server doesn't allow this statement to have
+any parameters. There are many SQL statements that one might think
+would have parameters, but don't.
 
 
 === COPY from and to a file
@@ -456,35 +474,6 @@ Here's an example:
 >>> conn.commit()
 >>> conn.notifications[0][1]
 'aliens_landed'
-
-----
-
-
-=== Parameters Are For Data Not Identifiers
-
-In PostgreSQL parameters can only be used for
-https://www.postgresql.org/docs/current/xfunc-sql.html#XFUNC-SQL-FUNCTION-ARGUMENTS[data values, not identifiers]. Sometimes this might not work as expected,
-for example the following fails:
-
-[source,python]
-----
->>> cursor.execute("SELECT 'silo 1' limit %s", ('ALL',))
-Traceback (most recent call last):
-pg8000.core.ProgrammingError: ...
->>> conn.rollback()
-
-----
-
-Instead the https://www.postgresql.org/docs/current/sql-select.html[docs say]
-that you can send `null` as an alternative to `ALL`, which does work:
-
-[source,python]
-----
->>> cur = conn.cursor()
->>> cur.execute("SELECT 'silo 1' limit %s", (None,))
-<pg8000.core.Cursor object at ...>
->>> cur.fetchone()
-['silo 1']
 
 ----
 
