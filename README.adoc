@@ -24,7 +24,8 @@ To install pg8000 using `pip` type:
 
 == Interactive Examples
 
-These examples make use of the pg8000 extensions to the DB-API 2.0 standard.
+These examples make use of the pg8000 extensions to the DB-API 2.0 standard,
+including the `run()` method introduced in version 1.15.2.
 
 
 === Basic Example
