@@ -626,6 +626,16 @@ XML types.
 [[_theory_of_operation]]
 == Theory Of Operation
 
+{empty} +
+
+[quote, Jochen Liedtke, Liedtke's minimality principle]
+____
+A concept is tolerated inside the microkernel only if moving it outside the
+kernel, i.e., permitting competing implementations, would prevent the
+implementation of the system's required functionality.
+____
+
+
 pg8000 is designed to be used with one thread per connection.
 
 Pg8000 communicates with the database using the
