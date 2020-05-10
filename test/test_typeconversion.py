@@ -4,7 +4,6 @@ from datetime import (
     datetime as Datetime, time as Time, date as Date, timedelta as Timedelta,
     timezone as Timezone)
 import decimal
-import struct
 import uuid
 import os
 import time
@@ -14,32 +13,30 @@ from collections import OrderedDict
 import pytest
 from enum import Enum
 import ipaddress
+from pg8000 import converters
 
 
 # Type conversion tests
 
-def testTimeRoundtrip(cursor):
-    cursor.execute("SELECT %s as f1", (Time(4, 5, 6),))
-    retval = cursor.fetchall()
+def test_time_roundtrip(con):
+    retval = con.run("SELECT cast(:t as time) as f1", t=Time(4, 5, 6))
     assert retval[0][0] == Time(4, 5, 6)
 
 
-def test_date_roundtrip(cursor):
+def test_date_roundtrip(con):
     v = Date(2001, 2, 3)
-    cursor.execute("SELECT %s as f1", (v,))
-    retval = cursor.fetchall()
+    retval = con.run("SELECT cast(:d as date) as f1", d=v)
     assert retval[0][0] == v
 
 
-def test_bool_roundtrip(cursor):
-    cursor.execute("SELECT %s as f1", (True,))
-    retval = cursor.fetchall()
+def test_bool_roundtrip(con):
+    retval = con.run("SELECT cast(:b as bool) as f1", b=True)
     assert retval[0][0] is True
 
 
-def test_null_roundtrip(cursor):
-    cursor.execute("show server_version_num")
-    version = cursor.fetchone()[0][:2]
+def test_null_roundtrip(con):
+    retval = con.run("show server_version_num")
+    version = retval[0][0][:2]
 
     if version.startswith('9'):
         # Prior to PostgreSQL version 10 We can't just "SELECT %s" and set
@@ -47,21 +44,20 @@ def test_null_roundtrip(cursor):
         # in a PG error, "could not determine data type of parameter %s".
         # So we create a temporary table, insert null values, and read them
         # back.
-        cursor.execute(
+        con.run(
             "CREATE TEMPORARY TABLE TestNullWrite "
             "(f1 int4, f2 timestamp, f3 varchar)")
-        cursor.execute(
-            "INSERT INTO TestNullWrite VALUES (%s, %s, %s)",
-            (None, None, None,))
-        cursor.execute("SELECT * FROM TestNullWrite")
-        retval = cursor.fetchone()
-        assert retval == [None, None, None]
+        con.run(
+            "INSERT INTO TestNullWrite VALUES (:v1, :v2, :v3)",
+            v1=None, v2=None, v3=None)
+        retval = con.run("SELECT * FROM TestNullWrite")
+        assert retval[0] == [None, None, None]
 
         with pytest.raises(pg8000.ProgrammingError):
-            cursor.execute("SELECT %s as f1", (None,))
+            con.run("SELECT :v as f1", v=None)
     else:
-        cursor.execute("SELECT %s as f1", (None,))
-        assert cursor.fetchone()[0] is None
+        retval = con.run("SELECT cast(:v as integer)", v=None)
+        assert retval[0][0] is None
 
 
 def test_decimal_roundtrip(cursor):
@@ -74,22 +70,15 @@ def test_decimal_roundtrip(cursor):
         assert str(retval[0][0]) == v
 
 
-def test_float_roundtrip(cursor):
-    # This test ensures that the binary float value doesn't change in a
-    # roundtrip to the server.  That could happen if the value was
-    # converted to text and got rounded by a decimal place somewhere.
+def test_float_roundtrip(con):
     val = 1.756e-12
-    bin_orig = struct.pack("!d", val)
-    cursor.execute("SELECT %s as f1", (val,))
-    retval = cursor.fetchall()
-    bin_new = struct.pack("!d", retval[0][0])
-    assert bin_new == bin_orig
+    retval = con.run("SELECT cast(:v as double precision)", v=val)
+    assert retval[0][0] == val
 
 
-def test_float_plus_infinity_roundtrip(cursor):
+def test_float_plus_infinity_roundtrip(con):
     v = float('inf')
-    cursor.execute("SELECT %s as f1", (v,))
-    retval = cursor.fetchall()
+    retval = con.run("SELECT cast(:v as double precision)", v=v)
     assert retval[0][0] == v
 
 
@@ -118,15 +107,17 @@ def test_unicode_roundtrip(cursor):
     assert retval[0][0] == v
 
 
-def test_long_roundtrip(cursor):
+def test_long_roundtrip(con):
     v = 50000000000000
-    retval = tuple(cursor.execute("SELECT %s", (v,)))
+    retval = con.run("SELECT cast(:v as bigint)", v=v)
     assert retval[0][0] == v
 
 
-def test_int_execute_many(cursor):
+def test_int_execute_many_select(cursor):
     tuple(cursor.executemany("SELECT %s", ((1,), (40000,))))
 
+
+def test_int_execute_many_insert(cursor):
     v = ([None], [4])
     cursor.execute("create temporary table test_int (f integer)")
     cursor.executemany("INSERT INTO test_int VALUES (%s)", v)
@@ -134,10 +125,24 @@ def test_int_execute_many(cursor):
     assert retval == v
 
 
-def test_int_roundtrip(cursor):
+def test_insert_null(con):
+    v = None
+    con.run("CREATE TEMPORARY TABLE test_int (f INTEGER)")
+    con.run("INSERT INTO test_int VALUES (:v)", v=v)
+    retval = con.run("SELECT * FROM test_int")
+    assert retval[0][0] == v
+
+
+def test_int_roundtrip(con):
     int2 = 21
     int4 = 23
     int8 = 20
+
+    MAP = {
+        int2: 'int2',
+        int4: 'int4',
+        int8: 'int8',
+    }
 
     test_values = [
         (0, int2),
@@ -153,40 +158,36 @@ def test_int_roundtrip(cursor):
         (+9223372036854775807, int8)]
 
     for value, typoid in test_values:
-        cursor.execute("SELECT %s", (value,))
-        retval = cursor.fetchall()
+        retval = con.run("SELECT cast(:v as " + MAP[typoid] + ")", v=value)
         assert retval[0][0] == value
-        column_name, column_typeoid = cursor.description[0][0:2]
+        column_name, column_typeoid = con.description[0][0:2]
         assert column_typeoid == typoid
 
 
-def test_bytea_roundtrip(cursor):
-    cursor.execute(
-        "SELECT %s as f1", (pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00"),))
-    retval = cursor.fetchall()
+def test_bytea_roundtrip(con):
+    retval = con.run(
+            "SELECT cast(:v as bytea)",
+            v=pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00"))
     assert retval[0][0] == b"\x00\x01\x02\x03\x02\x01\x00"
 
 
-def test_bytearray_round_trip(cursor):
+def test_bytearray_round_trip(con):
     binary = b'\x00\x01\x02\x03\x02\x01\x00'
-    cursor.execute("SELECT %s as f1", (bytearray(binary),))
-    retval = cursor.fetchall()
+    retval = con.run("SELECT cast(:v as bytea)", v=bytearray(binary))
     assert retval[0][0] == binary
 
 
-def test_bytearray_subclass_round_trip(cursor):
+def test_bytearray_subclass_round_trip(con):
     class BClass(bytearray):
         pass
     binary = b'\x00\x01\x02\x03\x02\x01\x00'
-    cursor.execute("SELECT %s as f1", (BClass(binary),))
-    retval = cursor.fetchall()
+    retval = con.run("SELECT cast(:v as bytea)", v=BClass(binary))
     assert retval[0][0] == binary
 
 
-def test_timestamp_roundtrip(is_java, cursor):
+def test_timestamp_roundtrip(is_java, con):
     v = Datetime(2001, 2, 3, 4, 5, 6, 170000)
-    cursor.execute("SELECT %s as f1", (v,))
-    retval = cursor.fetchall()
+    retval = con.run("SELECT cast(:v as timestamp)", v=v)
     assert retval[0][0] == v
 
     # Test that time zone doesn't affect it
@@ -196,8 +197,7 @@ def test_timestamp_roundtrip(is_java, cursor):
         os.environ['TZ'] = "America/Edmonton"
         time.tzset()
 
-        cursor.execute("SELECT %s as f1", (v,))
-        retval = cursor.fetchall()
+        retval = con.run("SELECT cast(:v as timestamp)", v=v)
         assert retval[0][0] == v
 
         if orig_tz is None:
@@ -207,15 +207,29 @@ def test_timestamp_roundtrip(is_java, cursor):
         time.tzset()
 
 
-def test_interval_roundtrip(cursor):
-    v = pg8000.Interval(microseconds=123456789, days=2, months=24)
-    cursor.execute("SELECT %s as f1", (v,))
-    retval = cursor.fetchall()
+def test_interval_repr():
+    v = pg8000.PGInterval(microseconds=123456789, days=2, months=24)
+    assert repr(v) == '<PGInterval 24 months 2 days 123456789 microseconds>'
+
+
+def test_interval_in_1_year():
+    assert converters.pginterval_in('1 year') == pg8000.PGInterval(years=1)
+
+
+def test_timedelta_in_2_months():
+    assert converters.timedelta_in('2 hours')
+
+
+def test_interval_roundtrip(con):
+    con.register_in_adapter(1186, converters.pginterval_in)
+    v = pg8000.PGInterval(microseconds=123456789, days=2, months=24)
+    retval = con.run("SELECT cast(:v as interval)", v=v)
     assert retval[0][0] == v
 
+
+def test_timedelta_roundtrip(con):
     v = Timedelta(seconds=30)
-    cursor.execute("SELECT %s as f1", (v,))
-    retval = cursor.fetchall()
+    retval = con.run("SELECT cast(:v as interval)", v=v)
     assert retval[0][0] == v
 
 
@@ -289,19 +303,21 @@ def test_xml_roundtrip(cursor):
     assert retval[0][0] == v
 
 
-def test_uuid_roundtrip(cursor):
+def test_uuid_roundtrip(con):
     v = uuid.UUID('911460f2-1f43-fea2-3e2c-e01fd5b5069d')
-    retval = tuple(cursor.execute("select %s as f1", (v,)))
+    retval = con.run("select cast(:v as uuid)", v=v)
     assert retval[0][0] == v
 
 
-def test_inet_roundtrip(cursor):
+def test_inet_roundtrip_network(con):
     v = ipaddress.ip_network('192.168.0.0/28')
-    retval = tuple(cursor.execute("select %s as f1", (v,)))
+    retval = con.run("select cast(:v as inet)", v=v)
     assert retval[0][0] == v
 
+
+def test_inet_roundtrip_address(con):
     v = ipaddress.ip_address('192.168.0.1')
-    retval = tuple(cursor.execute("select %s as f1", (v,)))
+    retval = con.run("select cast(:v as inet)", v=v)
     assert retval[0][0] == v
 
 
@@ -336,12 +352,11 @@ def test_timestamp_tz_out(cursor):
         "retrieved value match failed"
 
 
-def test_timestamp_tz_roundtrip(is_java, cursor):
+def test_timestamp_tz_roundtrip(is_java, con):
     if not is_java:
         mst = pytz.timezone("America/Edmonton")
         v1 = mst.localize(Datetime(2001, 2, 3, 4, 5, 6, 170000))
-        cursor.execute("SELECT %s as f1", (v1,))
-        retval = cursor.fetchall()
+        retval = con.run("SELECT cast(:v as timestamptz)", v=v1)
         v2 = retval[0][0]
         assert v2.tzinfo is not None
         assert v1 == v2
@@ -396,7 +411,7 @@ def test_oid_out(cursor):
     # It is sufficient that no errors were encountered.
 
 
-def test_boolean_out(cursor):
+def test_boolean_in(cursor):
     retval = tuple(cursor.execute("SELECT cast('t' as bool)"))
     assert retval[0][0]
 
@@ -424,7 +439,7 @@ def test_int8_out(cursor):
 
 def test_float4_out(cursor):
     retval = tuple(cursor.execute("SELECT 1.1::real"))
-    assert retval[0][0] == 1.1000000238418579
+    assert retval[0][0] == 1.1
 
 
 def test_float8_out(cursor):
@@ -447,20 +462,23 @@ def test_text_out(cursor):
     assert retval[0][0] == "hello"
 
 
-def test_interval_out(cursor):
-    retval = tuple(
-        cursor.execute(
-            "SELECT '1 month 16 days 12 hours 32 minutes 64 seconds'"
-            "::interval"))
-    expected_value = pg8000.Interval(
+def test_interval_in(con):
+    con.register_in_adapter(1186, pg8000.converters.pginterval_in)
+    retval = con.run(
+        "SELECT '1 month 16 days 12 hours 32 minutes 64 seconds'::interval")
+    expected_value = pg8000.PGInterval(
         microseconds=(12 * 60 * 60 * 1000 * 1000) +
         (32 * 60 * 1000 * 1000) + (64 * 1000 * 1000), days=16, months=1)
     assert retval[0][0] == expected_value
 
-    retval = tuple(cursor.execute("select interval '30 seconds'"))
+
+def test_interval_in_30_seconds(con):
+    retval = con.run("select interval '30 seconds'")
     assert retval[0][0] == Timedelta(seconds=30)
 
-    retval = tuple(cursor.execute("select interval '12 days 30 seconds'"))
+
+def test_interval_in_12_days_30_seconds(con):
+    retval = con.run("select interval '12 days 30 seconds'")
     assert retval[0][0] == Timedelta(days=12, seconds=30)
 
 
@@ -468,21 +486,6 @@ def test_timestamp_out(cursor):
     cursor.execute("SELECT '2001-02-03 04:05:06.17'::timestamp")
     retval = cursor.fetchall()
     assert retval[0][0] == Datetime(2001, 2, 3, 4, 5, 6, 170000)
-
-
-# confirms that pg8000's binary output methods have the same output for
-# a data type as the PG server
-def test_binary_output_methods(con):
-    with con.cursor() as cursor:
-        methods = (
-            ("float8send", 22.2),
-            ("timestamp_send", Datetime(2001, 2, 3, 4, 5, 6, 789)),
-            ("byteasend", pg8000.Binary(b"\x01\x02")),
-            ("interval_send", pg8000.Interval(1234567, 123, 123)),)
-        for method_out, value in methods:
-            cursor.execute("SELECT %s(%%s) as f1" % method_out, (value,))
-            retval = cursor.fetchall()
-            assert retval[0][0] == con.make_params((value,))[0][2](value)
 
 
 def test_int4_array_out(cursor):
@@ -552,65 +555,77 @@ def test_float8_array_out(cursor):
     assert f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]]
 
 
-def test_int_array_roundtrip(cursor):
-    # send small int array, should be sent as INT2[]
-    retval = tuple(cursor.execute("SELECT %s as f1", ([1, 2, 3],)))
+def test_int_array_roundtrip_small(con):
+    """ send small int array, should be sent as INT2[]
+    """
+    retval = con.run("SELECT cast(:v as int2[])", v=[1, 2, 3])
     assert retval[0][0], [1, 2, 3]
-    column_name, column_typeoid = cursor.description[0][0:2]
+    column_name, column_typeoid = con.description[0][0:2]
     assert column_typeoid == 1005, "type should be INT2[]"
 
-    # test multi-dimensional array, should be sent as INT2[]
-    retval = tuple(cursor.execute("SELECT %s as f1", ([[1, 2], [3, 4]],)))
+
+def test_int_array_roundtrip_multi(con):
+    """ test multi-dimensional array, should be sent as INT2[]
+    """
+    retval = con.run("SELECT cast(:v as int2[])", v=[[1, 2], [3, 4]])
     assert retval[0][0] == [[1, 2], [3, 4]]
 
-    column_name, column_typeoid = cursor.description[0][0:2]
+    column_name, column_typeoid = con.description[0][0:2]
     assert column_typeoid == 1005, "type should be INT2[]"
 
-    # a larger value should kick it up to INT4[]...
-    cursor.execute("SELECT %s as f1 -- integer[]", ([70000, 2, 3],))
-    retval = cursor.fetchall()
+
+def test_int4_array_roundtrip(con):
+    """ a larger value should kick it up to INT4[]...
+    """
+    retval = con.run("SELECT cast(:v as int4[])", v=[70000, 2, 3])
     assert retval[0][0] == [70000, 2, 3]
-    column_name, column_typeoid = cursor.description[0][0:2]
+    column_name, column_typeoid = con.description[0][0:2]
     assert column_typeoid == 1007, "type should be INT4[]"
 
-    # a much larger value should kick it up to INT8[]...
-    cursor.execute("SELECT %s as f1 -- bigint[]", ([7000000000, 2, 3],))
-    retval = cursor.fetchall()
+
+def test_int8_array_roundtrip(con):
+    """ a much larger value should kick it up to INT8[]...
+    """
+    retval = con.run("SELECT cast(:v as int8[])", v=[7000000000, 2, 3])
     assert retval[0][0] == [7000000000, 2, 3], "retrieved value match failed"
-    column_name, column_typeoid = cursor.description[0][0:2]
+    column_name, column_typeoid = con.description[0][0:2]
     assert column_typeoid == 1016, "type should be INT8[]"
 
 
-def test_int_array_with_null_roundtrip(cursor):
-    retval = tuple(cursor.execute("SELECT %s as f1", ([1, None, 3],)))
+def test_int_array_with_null_roundtrip(con):
+    retval = con.run("SELECT cast(:v as int[])", v=[1, None, 3])
     assert retval[0][0] == [1, None, 3]
 
 
-def test_float_array_roundtrip(cursor):
-    retval = tuple(cursor.execute("SELECT %s as f1", ([1.1, 2.2, 3.3],)))
+def test_float_array_roundtrip(con):
+    retval = con.run(
+        "SELECT cast(:v as double precision[])", v=[1.1, 2.2, 3.3])
     assert retval[0][0] == [1.1, 2.2, 3.3]
 
 
-def test_bool_array_roundtrip(cursor):
-    retval = tuple(cursor.execute("SELECT %s as f1", ([True, False, None],)))
+def test_bool_array_roundtrip(con):
+    retval = con.run("SELECT cast(:v as bool[])", v=[True, False, None])
     assert retval[0][0] == [True, False, None]
 
 
-def test_string_array_out(cursor):
-    cursor.execute("SELECT '{a,b,c}'::TEXT[] AS f1")
-    assert cursor.fetchone()[0] == ["a", "b", "c"]
-    cursor.execute("SELECT '{a,b,c}'::CHAR[] AS f1")
-    assert cursor.fetchone()[0] == ["a", "b", "c"]
-    cursor.execute("SELECT '{a,b,c}'::VARCHAR[] AS f1")
-    assert cursor.fetchone()[0] == ["a", "b", "c"]
-    cursor.execute("SELECT '{a,b,c}'::CSTRING[] AS f1")
-    assert cursor.fetchone()[0] == ["a", "b", "c"]
-    cursor.execute("SELECT '{a,b,c}'::NAME[] AS f1")
-    assert cursor.fetchone()[0] == ["a", "b", "c"]
-    cursor.execute("SELECT '{}'::text[];")
-    assert cursor.fetchone()[0] == []
-    cursor.execute("SELECT '{NULL,\"NULL\",NULL,\"\"}'::text[];")
-    assert cursor.fetchone()[0] == [None, 'NULL', None, ""]
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
+        ("SELECT '{a,b,c}'::TEXT[] AS f1", ["a", "b", "c"]),
+        ("SELECT '{a,b,c}'::CHAR[] AS f1", ["a", "b", "c"]),
+        ("SELECT '{a,b,c}'::VARCHAR[] AS f1", ["a", "b", "c"]),
+        ("SELECT '{a,b,c}'::CSTRING[] AS f1", ["a", "b", "c"]),
+        ("SELECT '{a,b,c}'::NAME[] AS f1", ["a", "b", "c"]),
+        ("SELECT '{}'::text[];", []),
+        (
+            "SELECT '{NULL,\"NULL\",NULL,\"\"}'::text[];",
+            [None, 'NULL', None, ""]
+        )
+    ]
+)
+def test_string_array_out(con, test_input, expected):
+    result = con.run(test_input)
+    assert result[0][0] == expected
 
 
 def test_numeric_array_out(cursor):
@@ -619,58 +634,31 @@ def test_numeric_array_out(cursor):
         decimal.Decimal("1.1"), decimal.Decimal("2.2"), decimal.Decimal("3.3")]
 
 
-def test_numeric_array_roundtrip(cursor):
+def test_numeric_array_roundtrip(con):
     v = [decimal.Decimal("1.1"), None, decimal.Decimal("3.3")]
-    retval = tuple(cursor.execute("SELECT %s as f1", (v,)))
+    retval = con.run("SELECT cast(:v as numeric[])", v=v)
     assert retval[0][0] == v
 
 
-def test_string_array_roundtrip(cursor):
+def test_string_array_roundtrip(con):
     v = [
         "Hello!", "World!", "abcdefghijklmnopqrstuvwxyz", "",
         "A bunch of random characters:",
         " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t", None]
-    retval = tuple(cursor.execute("SELECT %s as f1", (v,)))
+    retval = con.run("SELECT cast(:v as varchar[])", v=v)
     assert retval[0][0] == v
 
 
-def test_empty_array(cursor):
+def test_array_string_escape():
+    v = "\""
+    res = pg8000.converters.array_string_escape(v)
+    assert res == '"\\""'
+
+
+def test_empty_array(con):
     v = []
-    retval = tuple(cursor.execute("SELECT %s as f1", (v,)))
+    retval = con.run("SELECT cast(:v as varchar[])", v=v)
     assert retval[0][0] == v
-
-
-def test_array_content_not_supported(con):
-    class Kajigger(object):
-        pass
-    with pytest.raises(pg8000.ArrayContentNotSupportedError):
-        con.array_inspect([[Kajigger()], [None], [None]])
-
-
-def test_array_dimensions(con):
-    for arr in (
-            [1, [2]], [[1], [2], [3, 4]],
-            [[[1]], [[2]], [[3, 4]]],
-            [[[1]], [[2]], [[3, 4]]],
-            [[[[1]]], [[[2]]], [[[3, 4]]]],
-            [[1, 2, 3], [4, [5], 6]]):
-
-        arr_send = con.array_inspect(arr)[2]
-        with pytest.raises(pg8000.ArrayDimensionsNotConsistentError):
-            arr_send(arr)
-
-
-def test_array_homogenous(con):
-    arr = [[[1]], [[2]], [[3.1]]]
-    arr_send = con.array_inspect(arr)[2]
-    with pytest.raises(pg8000.ArrayContentNotHomogenousError):
-        arr_send(arr)
-
-
-def test_array_inspect(con):
-    con.array_inspect([1, 2, 3])
-    con.array_inspect([[1], [2], [3]])
-    con.array_inspect([[[1]], [[2]], [[3]]])
 
 
 def test_macaddr(cursor):
@@ -692,9 +680,9 @@ def test_hstore_roundtrip(cursor):
     assert retval[0][0] == val
 
 
-def test_json_roundtrip(cursor):
+def test_json_roundtrip(con):
     val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
-    retval = tuple(cursor.execute("SELECT %s", (pg8000.PGJson(val),)))
+    retval = con.run("SELECT cast(:v as jsonb)", v=pg8000.PGJson(val))
     assert retval[0][0] == val
 
 
@@ -719,34 +707,32 @@ def test_jsonb_access_object(cursor):
     assert retval[0][0] == 'Apollo 11 Cave'
 
 
-def test_json_access_array(cursor):
+def test_json_access_array(con):
     val = [-1, -2, -3, -4, -5]
-    cursor.execute("SELECT cast(%s as json) -> %s", (json.dumps(val), 2))
-    retval = cursor.fetchall()
+    retval = con.run(
+        "SELECT cast(:v1 as json) -> cast(:v2 as int)",
+        v1=json.dumps(val), v2=2)
     assert retval[0][0] == -3
 
 
-def test_jsonb_access_array(cursor):
+def test_jsonb_access_array(con):
     val = [-1, -2, -3, -4, -5]
-    cursor.execute("SELECT cast(%s as jsonb) -> %s", (json.dumps(val), 2))
-    retval = cursor.fetchall()
+    retval = con.run(
+        "SELECT cast(:v1 as jsonb) -> cast(:v2 as int)",
+        v1=json.dumps(val), v2=2)
     assert retval[0][0] == -3
 
 
-def test_jsonb_access_path(cursor):
+def test_jsonb_access_path(con):
     j = {
         "a": [1, 2, 3],
         "b": [4, 5, 6]}
 
     path = ['a', '2']
 
-    retval = tuple(cursor.execute("SELECT %s #>> %s", [PGJsonb(j), path]))
+    retval = con.run(
+        "SELECT cast(:v1 as jsonb) #>> :v2", v1=PGJsonb(j), v2=path)
     assert retval[0][0] == str(j[path[0]][int(path[1])])
-
-
-def test_timestamp_send_float():
-    assert b'A\xbe\x19\xcf\x80\x00\x00\x00' == \
-        pg8000.core.timestamp_send_float(Datetime(2016, 1, 2, 0, 0))
 
 
 def test_infinity_timestamp_roundtrip(cursor):
@@ -761,5 +747,6 @@ def test_point_roundtrip(cursor):
     assert retval[0][0] == v
 
 
-def test_array_dim_lengths():
-    assert pg8000.core.array_dim_lengths([[4], [5]]) == [2, 1]
+def test_time_in():
+    actual = pg8000.converters.time_in("12:57:18.000396")
+    assert actual == Time(12, 57, 18, 396)

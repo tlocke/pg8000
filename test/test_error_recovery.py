@@ -16,10 +16,9 @@ def test_py_value_fail(con, mocker):
     # Ensure that if types.py_value throws an exception, the original
     # exception is raised (PG8000TestException), and the connection is
     # still usable after the error.
-    orig = con.py_types[datetime.time]
     mocker.patch.object(con, 'py_types')
     con.py_types = {
-        datetime.time: (orig[0], orig[1], raise_exception)
+        datetime.time: (1083, raise_exception)
     }
 
     with con.cursor() as c, pytest.raises(PG8000TestException):

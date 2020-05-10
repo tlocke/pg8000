@@ -1,10 +1,11 @@
-from pg8000.core import (
+from pg8000.core import Connection, Cursor
+from pg8000.exceptions import (
     Warning, DataError, DatabaseError, InterfaceError, ProgrammingError,
-    Error, OperationalError, IntegrityError, InternalError, NotSupportedError,
-    ArrayContentNotHomogenousError, ArrayDimensionsNotConsistentError,
-    ArrayContentNotSupportedError, Connection, Cursor, Binary, Date,
-    DateFromTicks, Time, TimeFromTicks, Timestamp, TimestampFromTicks, BINARY,
-    Interval, PGEnum, PGJson, PGJsonb, PGTsvector, PGText, PGVarchar)
+    Error, OperationalError, IntegrityError, InternalError, NotSupportedError)
+from pg8000.converters import (
+    Binary, Date, DateFromTicks, Time, TimeFromTicks, Timestamp,
+    TimestampFromTicks, BINARY, PGInterval, PGEnum, PGJson, PGJsonb,
+    PGTsvector, PGText, PGVarchar)
 from ._version import get_versions
 __version__ = get_versions()['version']
 del get_versions
@@ -43,16 +44,13 @@ __author__ = "Mathieu Fenniak"
 def connect(
         user, host='localhost', database=None, port=5432, password=None,
         source_address=None, unix_sock=None, ssl_context=None, timeout=None,
-        max_prepared_statements=1000, tcp_keepalive=True,
-        application_name=None, replication=None):
+        tcp_keepalive=True, application_name=None, replication=None):
 
     return Connection(
         user, host=host, database=database, port=port, password=password,
         source_address=source_address, unix_sock=unix_sock,
-        ssl_context=ssl_context, timeout=timeout,
-        max_prepared_statements=max_prepared_statements,
-        tcp_keepalive=tcp_keepalive, application_name=application_name,
-        replication=replication)
+        ssl_context=ssl_context, timeout=timeout, tcp_keepalive=tcp_keepalive,
+        application_name=application_name, replication=replication)
 
 
 apilevel = "2.0"
@@ -95,11 +93,9 @@ ROWID = 26
 __all__ = [
     Warning, DataError, DatabaseError, connect, InterfaceError,
     ProgrammingError, Error, OperationalError, IntegrityError, InternalError,
-    NotSupportedError, ArrayContentNotHomogenousError,
-    ArrayDimensionsNotConsistentError, ArrayContentNotSupportedError,
-    Connection, Cursor, Binary, Date, DateFromTicks, Time, TimeFromTicks,
-    Timestamp, TimestampFromTicks, BINARY, Interval, PGEnum, PGJson, PGJsonb,
-    PGTsvector, PGText, PGVarchar]
+    NotSupportedError, Connection, Cursor, Binary, Date, DateFromTicks, Time,
+    TimeFromTicks, Timestamp, TimestampFromTicks, BINARY, PGInterval, PGEnum,
+    PGJson, PGJsonb, PGTsvector, PGText, PGVarchar]
 
 """Version string for pg8000.
 

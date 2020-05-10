@@ -8,10 +8,6 @@ services:
 jobs:
   include:
     - addons:
-        postgresql: "9.4"
-      env: DB="9.4"
-      python: "3.5"
-    - addons:
         postgresql: "9.5"
       env: DB="9.5"
       python: "3.5"
@@ -24,10 +20,6 @@ jobs:
       env: DB="10"
       python: "3.5"
     - addons:
-        postgresql: "9.4"
-      env: DB="9.4"
-      python: "3.6"
-    - addons:
         postgresql: "9.5"
       env: DB="9.5"
       python: "3.6"
@@ -39,10 +31,6 @@ jobs:
         postgresql: "10"
       env: DB="10"
       python: "3.6"
-    - addons:
-        postgresql: "9.4"
-      env: DB="9.4"
-      python: "pypy3.5"
     - addons:
         postgresql: "9.5"
       env: DB="9.5"

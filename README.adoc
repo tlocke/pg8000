@@ -4,7 +4,7 @@
 pg8000 is a pure-link:http://www.python.org/[Python]
 http://www.postgresql.org/[PostgreSQL] driver that complies with
 http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. It is tested on Python
-versions 3.5+, on CPython and PyPy, and PostgreSQL versions 9.4+.
+versions 3.5+, on CPython and PyPy, and PostgreSQL versions 9.5+.
 pg8000's name comes from the belief that it is probably about the 8000th
 PostgreSQL interface for Python. pg8000 is distributed under the BSD 3-clause
 license.
@@ -212,7 +212,7 @@ You might think that the following would work, but in fact it fails:
 ----
 >>> con.run("SELECT 'silo 1' LIMIT :lim", lim='ALL')
 Traceback (most recent call last):
-pg8000.core.ProgrammingError: ...
+pg8000.exceptions.ProgrammingError: ...
 >>> con.rollback()
 
 ----
@@ -238,7 +238,7 @@ for example the following fails:
 ----
 >>> con.run("CREATE USER juan WITH PASSWORD :password", password='quail')
 Traceback (most recent call last):
-pg8000.core.ProgrammingError: ...
+pg8000.exceptions.ProgrammingError: ...
 >>> con.rollback()
 
 ----
@@ -323,6 +323,95 @@ to delimit the string instead:
 ----
 >>> con.run('''select 'hello' as "My Column"''')
 (['hello'],)
+
+----
+
+
+=== Custom adapter from a Python type to a PostgreSQL type
+
+pg8000 has a mapping from Python types to PostgreSQL types for when it needs
+to send SQL parameters to the server. The default mapping that comes with
+pg8000 is designed to work well in most cases, but you might want to add or
+replace the default mapping.
+
+A Python `datetime.timedelta` object is sent to the server as a PostgreSQL
+`interval` type,  which has the `oid` 1186. But let's say we wanted to create
+our own Python class to be sent as an `interval` type. Then we'd have to
+register an adapter:
+
+[source,python]
+----
+
+>>> class MyInterval(str):
+...     pass
+>>>
+>>> def my_interval_out(my_interval):
+...     return my_interval  # Must return a str
+>>>
+>>> con.register_out_adapter(MyInterval, 1186, my_interval_out)
+>>> con.run("SELECT :interval", interval=MyInterval("2 hours"))
+([datetime.timedelta(0, 7200)],)
+
+----
+
+Note that it still came back as a `datetime.timedelta` object because we only
+changed the mapping from Python to PostgreSQL. See below for an example of how
+to change the mapping from PostgreSQL to Python.
+
+
+=== Custom adapter from a PostgreSQL type to a Python type
+
+pg8000 has a mapping from PostgreSQL types to Python types for when it receives
+SQL results from the server. The default mapping that comes with pg8000 is
+designed to work well in most cases, but you might want to add or replace the
+default mapping.
+
+If pg800 recieves PostgreSQL `interval` type, which has the `oid` 1186, it
+converts it into a Python `datetime.timedelta` object. But let's say we wanted
+to create our own Python class to be used instead of `datetime.timedelta`. Then
+we'd have to register an adapter:
+
+
+[source,python]
+----
+
+>>> class MyInterval(str):
+...     pass
+>>>
+>>> def my_interval_in(my_interval_str):  # The parameter is of type str
+...     return MyInterval(my_interval)
+>>>
+>>> con.register_in_adapter(1186, my_interval_in)
+>>> con.run("SELECT \'2 years'")
+(['2 years'],)
+
+----
+
+Note that registering the 'in' adapter only afects the mapping from the
+PostgreSQL type to the Python type. See above for an example of how to change
+the mapping from PostgreSQL to Python.
+
+
+=== Prepared Statements
+
+https://www.postgresql.org/docs/current/sql-prepare.html[Prepared statements]
+can be useful in improving performance when you have a statement that's
+executed repeatedly. Here's an example:
+
+
+[source,python]
+----
+
+>>> # Create the prepared statement
+>>> ps = con.prepare("SELECT cast(:v as varchar)")
+>>>
+>>> # Exceute the statement repeatedly
+>>> ps.run(v="speedy")
+(['speedy'],)
+>>> ps.run(v="rapid")
+(['rapid'],)
+>>> ps.run(v="swift")
+(['swift'],)
 
 ----
 
@@ -562,12 +651,13 @@ b'1\telectron\n2\tmuon\n3\ttau\n'
 
 == Type Mapping
 
-The following table shows the mapping between Python types and PostgreSQL
-types, and vice versa.
+The following table shows the default mapping between Python types and
+PostgreSQL types, and vice versa.
 
 If pg8000 doesn't recognize a type that it receives from PostgreSQL, it will
 return it as a `str` type. This is how pg8000 handles PostgreSQL `enum` and
-XML types.
+XML types. It's possible to change the default mapping using adapters (see the
+examples).
 
 .Python to PostgreSQL Type Mapping
 |===
@@ -615,8 +705,7 @@ XML types.
 
 | datetime.timedelta
 | interval
-| datetime.timedelta is used unless the interval has months, in which case
-  pg8000.Interval is used
+|
 
 | None
 | NULL
@@ -691,51 +780,29 @@ pg8000 is designed to be used with one thread per connection.
 
 Pg8000 communicates with the database using the
 http://www.postgresql.org/docs/current/static/protocol.html[PostgreSQL
-Frontend/Backend Protocol] (FEBE). Every query made with pg8000 uses prepared
+Frontend/Backend Protocol] (FEBE). By default, pg8000 uses unnamed prepared
 statements. It uses the Extended Query feature of the FEBE. So the steps are:
 
 . Query comes in.
-. If pg8000 hasn't seen it before, send a PARSE message to the server to create
-  a prepared statement. The SQL query and a reference to the prepared statement
-  are stored by pg8000, so that if the query is executed again, pg8000 skips
-  the PARSE step and uses the prepared statement that already exists on the
-  server.
-. Send a BIND message to run the query using the prepared statement, resulting
+. Send a PARSE message to the server to create an unnamed prepared statement.
+. Send a BIND message to run against the unnamed prepared statement, resulting
   in an unnamed portal on the server.
 . Send an EXECUTE message to read all the results from the portal.
 
+It's also possible to use named prepared statements. In which case the
+prepared statement persists on the server, and represented in pg8000 using a
+PreparedStatement object. This means that the PARSE step gets executed once up
+front, and then only the BIND and EXECUTE steps are repeated subsequently.
+
 There are a lot of PostgreSQL data types, but few primitive data types in
 Python. A PostgreSQL data type has to be assigned to each query parameter,
-which is impossible to work out in all cases. In these cases a wrapper class
-can be used for the parameter to indicate its type, or an
+which is impossible to work out in all cases. In these cases an adapter can be
+used for the parameter to indicate its type, or sometimes an
 https://www.postgresql.org/docs/current/static/sql-expressions.html#SQL-SYNTAX-TYPE-CASTS[explicit cast] can be used in the SQL.
 
 In the FEBE protocol, each query parameter can be sent to the server either as
-binary or text according to the format code (FC). In pg8000 the FC depends
-on the type of the value. Here is a table of some common types and their FC:
-
-.Python Type to FC Mapping
-|===
-| Python Type                       | FC
-
-| None                              | binary
-| bool                              | binary
-| int                               | binary
-| float                             | binary
-| datetime.date                     | text
-| datetime.time                     | text
-| datetime.datetime (naive)         | binary
-| datetime.datetime (with timezone) | binary
-| datetime.timedelta                | binary
-| decimal.Decimal                   | text
-| uuid                              | binary
-|===
-
-* Since pg8000 uses prepared statements implicitly, there's nothing to be
-  gained by using them explicitly with the SQL PREPARE, EXECUTE and DEALLOCATE
-  keywords. In fact in some cases pg8000 won't work for parameterized EXECUTE
-  statements, because the server is unable to infer the types of the
-  parameters for an EXECUTE statement.
+binary or text according to the format code. In pg8000 the parameters are
+always sent as text.
 
 * PostgreSQL has +/-infinity values for dates and timestamps, but Python does
   not. Pg8000 handles this by returning +/-infinity strings in results, and in
@@ -745,11 +812,6 @@ on the type of the value. Here is a table of some common types and their FC:
   datetimes. These are handled using the underlying PostgreSQL storage method.
   I don't know of any users of pg8000 that use this feature, so get in touch if
   it affects you.
-
-* Pg8000 can't handle a change of `search_path`, so statements like `set schema
-  'value';` may cause subsequent statements to fail. This is because pg8000
-  will use a prepared statement for a previously executed query, and this
-  prepared statement won't be aware of any change in `search_path`.
 
 * Occasionally, the network connection between pg8000 and the server may go
   down. If pg8000 encounters a problem writing to a socket it raises
@@ -833,7 +895,7 @@ ROWID type oid
 
 === Functions
 
-==== pg8000.connect(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, max_prepared_statements=1000, tcp_keepalive=True, application_name=None, replication=None)
+==== pg8000.connect(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None)
 
 Creates a connection to a PostgreSQL database.
 
@@ -894,11 +956,6 @@ ssl_context::
 timeout::
   This is the time in seconds before the connection to the server will time
   out. The default is `None` which means no timeout.
-
-max_prepared_statements::
-  The maximum number of prepared statements that pg8000 keeps track of. If this
-  number is exceeded, they'll all be closed, and then new ones will
-  automatically be created as needed. The default is 1000.
 
 tcp_keepalive::
   If `True` then use
@@ -1089,29 +1146,6 @@ This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-=== Specific Exceptions
-
-Exceptions that are subclassed from the standard DB-API 2.0 exceptions above.
-
-
-==== pg8000.ArrayContentNotSupportedError
-
-Raised when attempting to transmit an array where the base type is not
-supported for binary data transfer by the interface.
-
-
-==== pg8000.ArrayContentNotHomogenousError
-
-Raised when attempting to transmit an array that doesn’t contain only a single
-type of object.
-
-
-==== pg8000.ArrayDimensionsNotConsistentError
-
-Raised when attempting to transmit an array that has inconsistent
-multi-dimension sizes.
-
-
 === Classes
 
 
@@ -1153,12 +1187,77 @@ turned on by setting this boolean pg8000-specific autocommit property to True.
 New in version 1.9.
 
 
+===== pg8000.Connection.run(sql, stream=None, \**kwargs)
+
+Executes an sql statement, and returns the results as a `tuple`. For example:
+
+`con.run("SELECT * FROM cities where population > :pop", pop=10000)`
+
+This method is a pg8000 extension.
+
+sql::
+  The SQL statement to execute. Parameter placeholders appear as a `:` followed
+  by the parameter name.
+
+stream::
+  For use with the PostgreSQL
+http://www.postgresql.org/docs/current/static/sql-copy.html[COPY] command. For
+a `COPY FROM` the parameter must be a readable file-like object, and for
+`COPY TO` it must be writable.
+
+kwargs::
+  The parameters of the SQL statement.
+
+
+===== pg8000.Connection.prepare(sql)
+
+Returns a PreparedStatement object which represents a
+https://www.postgresql.org/docs/current/sql-prepare.html[prepared statement] on
+the server. It can subsequently be repeatedly executed as shown in the
+<<_prepared_statements, example>>.
+
+sql::
+  The SQL statement to prepare. Parameter placeholders appear as a `:` followed
+  by the parameter name.
+
+
 ===== pg8000.Connection.close()
 
 Closes the database connection.
 
 This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+===== pg8000.Connection.register_out_adapter(typ, oid, out_func)
+
+Register a type adapter for types going out from pg8000 to the server.
+
+typ::
+  The Python class that the adapter is for.
+
+oid::
+  The PostgreSQL type identifier found in the
+  https://www.postgresql.org/docs/current/catalog-pg-type.html[pg_type system
+  calalog].
+
+out_func::
+  A function that takes the Python object and returns its string representation
+  in the format that the server requires.
+
+
+===== pg8000.Connection.register_in_adapter(oid, in_func)
+
+Register a type adapter for types coming in from the server to pg8000.
+
+oid::
+  The PostgreSQL type identifier found in the
+  https://www.postgresql.org/docs/current/catalog-pg-type.html[pg_type system
+  calalog].
+
+in_func::
+  A function that takes the PostgreSQL string representation and returns
+  a corresponding Python object.
 
 
 ===== pg8000.Connection.cursor()
@@ -1253,26 +1352,27 @@ and branch_qualifier are not used in postgres global_transaction_id may be any
 string identifier supported by postgres returns a tuple (format_id,
 global_transaction_id, branch_qualifier)
 
-===== pg8000.Connection.run(sql, stream=None, \**kwargs)
 
-Executes an sql statement, and returns the results as a `tuple`. For example:
+==== pg8000.PreparedStatement
 
-`con.run("SELECT * FROM cities where population > :pop", pop=10000)`
+A prepared statement object is returned by the `pg8000.Connection.prepare()`
+method of a connection. It has the following methods:
+
+
+===== pg8000.PreparedStatement.run(\**kwargs)
+
+Executes the prepared statement, and returns the results as a `tuple`.
 
 This method is a pg8000 extension.
 
-sql::
-  The SQL statement to execute. Parameter placeholders appear as a `:` followed
-  by the parameter name.
-
-stream::
-  For use with the PostgreSQL
-http://www.postgresql.org/docs/current/static/sql-copy.html[COPY] command. For
-a `COPY FROM` the parameter must be a readable file-like object, and for
-`COPY TO` it must be writable.
-
 kwargs::
-  The parameters of the SQL statement.
+  The parameters of the prepared statement.
+
+
+===== pg8000.PreparedStatement.close()
+
+Closes the prepared statement, releasing the prepared statement held on the
+server.
 
 
 ==== pg8000.Cursor
@@ -1536,6 +1636,20 @@ twine upload dist/*
 
 
 == Release Notes
+
+=== Version 1.16.0, 2020-07-11
+
+* This is a backwardly incompatible release of pg8000.
+
+* All data types are now sent as text rather than binary.
+
+* Using adapters, custom types can be plugged in to pg8000.
+
+* Previously, named prepared statements were used for all statements.
+  Now unnamed prepared statements are used by default, and named prepared
+  statements can be used explicitly by calling the Connection.prepare()
+  method, which returns a PreparedStatement object.
+
 
 === Version 1.15.3, 2020-06-14
 

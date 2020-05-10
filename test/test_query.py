@@ -242,7 +242,7 @@ def test_rollback_no_transaction(con):
     with con.cursor() as cursor:
 
         # First, verify that a raw rollback does produce a notice
-        con.execute(cursor, "rollback", None)
+        con.execute_unnamed(cursor, "rollback", None)
 
         assert 1 == len(con.notices)
 
@@ -266,10 +266,13 @@ def test_context_manager_class(con):
         cursor.execute('select 1')
 
 
-def test_deallocate_prepared_statements(db_table):
-    with db_table.cursor() as cursor:
-        cursor.execute("select * from t1")
-        cursor.execute("alter table t1 drop column f3")
-        cursor.execute("select count(*) from pg_prepared_statements")
-        res = cursor.fetchall()
-        assert res[0][0] == 1
+def test_close_prepared_statement(con):
+    ps = con.prepare("select 1")
+    ps.run()
+    res = con.run("select count(*) from pg_prepared_statements")
+    assert res[0][0] == 1  # Should have one prepared statement
+
+    ps.close()
+
+    res = con.run("select count(*) from pg_prepared_statements")
+    assert res[0][0] == 0  # Should have no prepared statements
