@@ -276,6 +276,30 @@ b'1\telectron\n2\tmuon\n3\ttau\n'
 
 ----
 
+
+=== Execute .sql files
+
+If you have a series of SQL statements in a file (an .sql file), you can
+execute them with the help of the
+https://sqlparse.readthedocs.io/en/latest[sqlparse] library like this:
+
+[source,python]
+----
+
+>>> import sqlparse
+>>> import io
+>>>
+>>> file = io.StringIO("SELECT 5; SELECT 'Erich Fromm';")
+>>>
+>>> for statement in sqlparse.split(file.read()):
+...     con.run(statement)
+([5],)
+(['Erich Fromm'],)
+
+
+----
+
+
 == DB-API 2 Interactive Examples
 
 These examples stick to the DB-API 2.0 standard.
