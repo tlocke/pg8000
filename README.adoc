@@ -300,6 +300,33 @@ https://sqlparse.readthedocs.io/en/latest[sqlparse] library like this:
 ----
 
 
+=== Quoted Identifiers in SQL
+
+Say you had a column called `My Column`. Since it's case sensitive and
+contains a space, you'd have to
+https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERSdouble[surround it by double quotes]. But you can't do:
+
+[source,python]
+----
+>>> con.run("select 'hello' as "My Column"")
+Traceback (most recent call last):
+SyntaxError: invalid syntax
+
+----
+
+since Python uses double quotes to delimit string literals, so one solution is
+to use Python's
+https://docs.python.org/3/tutorial/introduction.html#strings[triple quotes]
+to delimit the string instead:
+
+[source,python]
+----
+>>> con.run('''select 'hello' as "My Column"''')
+(['hello'],)
+
+----
+
+
 == DB-API 2 Interactive Examples
 
 These examples stick to the DB-API 2.0 standard.
