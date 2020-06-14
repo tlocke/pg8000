@@ -1137,28 +1137,23 @@ class Connection():
         self._xid = None
 
         self._caches = {}
+        self._usock = None
 
         try:
             if unix_sock is None and host is not None:
-                self._usock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                if source_address is not None:
-                    self._usock.bind((source_address, 0))
+                self._usock = socket.create_connection(
+                    (host, port), timeout, source_address)
             elif unix_sock is not None:
                 if not hasattr(socket, "AF_UNIX"):
                     raise InterfaceError(
                         "attempt to connect to unix socket on unsupported "
                         "platform")
                 self._usock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self._usock.settimeout(timeout)
+                self._usock.connect(unix_sock)
             else:
                 raise ProgrammingError(
                     "one of host or unix_sock must be provided")
-            if timeout is not None:
-                self._usock.settimeout(timeout)
-
-            if unix_sock is None and host is not None:
-                self._usock.connect((host, port))
-            elif unix_sock is not None:
-                self._usock.connect(unix_sock)
 
             if ssl_context is not None:
                 try:
@@ -1185,9 +1180,12 @@ class Connection():
             if tcp_keepalive:
                 self._usock.setsockopt(
                     socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
         except socket.error as e:
-            self._usock.close()
+            if self._usock is not None:
+                self._usock.close()
             raise InterfaceError("communication error", e)
+
         self._flush = self._sock.flush
         self._read = self._sock.read
         self._write = self._sock.write

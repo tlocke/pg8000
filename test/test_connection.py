@@ -52,10 +52,11 @@ def trust_all_certificates(request):
     request.addfinalizer(fin)
 
 
-def testSocketMissing():
+def testUnixSocketMissing():
     conn_params = {
         'unix_sock': "/file-does-not-exist",
-        'user': "doesn't-matter"}
+        'user': "doesn't-matter"
+    }
 
     with pytest.raises(pg8000.InterfaceError):
         pg8000.connect(**conn_params)
