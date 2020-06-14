@@ -62,6 +62,19 @@ def testUnixSocketMissing():
         pg8000.connect(**conn_params)
 
 
+def test_internet_socket_connection_refused():
+    conn_params = {
+        'port': 0,
+        'user': "doesn't-matter"
+    }
+
+    with pytest.raises(
+            pg8000.InterfaceError,
+            match="Can't create a connection to host localhost and port 0 "
+            "\\(timeout is None and source_address is None\\)."):
+        pg8000.connect(**conn_params)
+
+
 def testDatabaseMissing(db_kwargs):
     db_kwargs["database"] = "missing-db"
     with pytest.raises(pg8000.ProgrammingError):

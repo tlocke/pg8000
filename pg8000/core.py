@@ -1137,13 +1137,20 @@ class Connection():
         self._xid = None
 
         self._caches = {}
-        self._usock = None
 
-        try:
-            if unix_sock is None and host is not None:
+        if unix_sock is None and host is not None:
+            try:
                 self._usock = socket.create_connection(
                     (host, port), timeout, source_address)
-            elif unix_sock is not None:
+            except socket.error as e:
+                raise InterfaceError(
+                    "Can't create a connection to host " + str(host) +
+                    " and port " + str(port) + " (timeout is " + str(timeout) +
+                    " and source_address is " +
+                    str(source_address) + ").") from e
+
+        elif unix_sock is not None:
+            try:
                 if not hasattr(socket, "AF_UNIX"):
                     raise InterfaceError(
                         "attempt to connect to unix socket on unsupported "
@@ -1151,40 +1158,39 @@ class Connection():
                 self._usock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self._usock.settimeout(timeout)
                 self._usock.connect(unix_sock)
-            else:
-                raise ProgrammingError(
-                    "one of host or unix_sock must be provided")
+            except socket.error as e:
+                if self._usock is not None:
+                    self._usock.close()
+                raise InterfaceError("communication error") from e
 
-            if ssl_context is not None:
-                try:
-                    import ssl
+        else:
+            raise ProgrammingError("one of host or unix_sock must be provided")
 
-                    if ssl_context is True:
-                        ssl_context = ssl.create_default_context()
+        if tcp_keepalive:
+            self._usock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
-                    # Int32(8) - Message length, including self.
-                    # Int32(80877103) - The SSL request code.
-                    self._usock.sendall(ii_pack(8, 80877103))
-                    resp = self._usock.recv(1)
-                    if resp != b'S':
-                        raise InterfaceError("Server refuses SSL")
+        if ssl_context is not None:
+            try:
+                import ssl
 
-                    self._usock = ssl_context.wrap_socket(
-                        self._usock, server_hostname=host)
-                except ImportError:
-                    raise InterfaceError(
-                        "SSL required but ssl module not available in "
-                        "this python installation")
+                if ssl_context is True:
+                    ssl_context = ssl.create_default_context()
 
-            self._sock = self._usock.makefile(mode="rwb")
-            if tcp_keepalive:
-                self._usock.setsockopt(
-                    socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                # Int32(8) - Message length, including self.
+                # Int32(80877103) - The SSL request code.
+                self._usock.sendall(ii_pack(8, 80877103))
+                resp = self._usock.recv(1)
+                if resp != b'S':
+                    raise InterfaceError("Server refuses SSL")
 
-        except socket.error as e:
-            if self._usock is not None:
-                self._usock.close()
-            raise InterfaceError("communication error", e)
+                self._usock = ssl_context.wrap_socket(
+                    self._usock, server_hostname=host)
+            except ImportError:
+                raise InterfaceError(
+                    "SSL required but ssl module not available in "
+                    "this python installation")
+
+        self._sock = self._usock.makefile(mode="rwb")
 
         self._flush = self._sock.flush
         self._read = self._sock.read
