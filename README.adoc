@@ -1537,6 +1537,17 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.15.3, 2020-06-14
+
+* For TCP connections (as opposed to Unix socket connections) the
+  https://docs.python.org/3/library/socket.html#socket.create_connection[`socket.create_connection`]
+  function is now used. This means pg8000 now works with IPv6 as well as IPv4.
+
+* Better error messages for failed connections. A 'cause' exception is now
+  added to the top-level pg8000 exception, and the error message contains the
+  details of what was being connected to (host, port etc.).
+
+
 === Version 1.15.2, 2020-04-16
 
 * Added a new method `run()` to the connection, which lets you run queries
