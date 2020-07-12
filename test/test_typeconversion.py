@@ -56,7 +56,7 @@ def test_null_roundtrip(con):
         with pytest.raises(pg8000.ProgrammingError):
             con.run("SELECT :v as f1", v=None)
     else:
-        retval = con.run("SELECT cast(:v as integer)", v=None)
+        retval = con.run("SELECT :v", v=None)
         assert retval[0][0] is None
 
 
