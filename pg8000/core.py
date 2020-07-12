@@ -740,7 +740,7 @@ class Connection():
             date: (1082, converters.date_out),  # date
             time: (1083, converters.time_out),  # time
             1114: (1114, converters.timestamp_out),  # timestamp
-            converters.PGVarchar: converters.text_out,  # varchar
+            converters.PGVarchar: (1043, converters.text_out),  # varchar
             1184: (1184, converters.timestamptz_out),  # timestamptz
             converters.PGJson: (114, converters.text_out),
             converters.PGJsonb: (3802, converters.text_out),
