@@ -276,3 +276,11 @@ def test_close_prepared_statement(con):
 
     res = con.run("select count(*) from pg_prepared_statements")
     assert res[0][0] == 0  # Should have no prepared statements
+
+
+def test_setinputsizes(con):
+    cursor = con.cursor()
+    cursor.setinputsizes(20)
+    cursor.execute("select %s", (None,))
+    retval = cursor.fetchall()
+    assert retval[0][0] is None

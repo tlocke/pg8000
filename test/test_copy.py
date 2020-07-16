@@ -68,14 +68,18 @@ def test_copy_from_with_error(db_table):
             cursor.execute(
                 "COPY t1 (f1, f2) FROM STDIN WITH DELIMITER 'X' CSV HEADER "
                 "QUOTE AS 'Y' FORCE NOT NULL f1", stream=stream)
+
         arg = {
-            'S': 'ERROR',
-            'C': '22P02',
-            'M': 'invalid input syntax for integer: ""',
-            'W': 'COPY t1, line 2, column f1: ""',
-            'F': 'numutils.c',
-            'R': 'pg_atoi'
+            'S': ('ERROR',),
+            'C': ('22P02',),
+            'M': (
+                'invalid input syntax for type integer: ""',
+                'invalid input syntax for integer: ""'
+            ),
+            'W': ('COPY t1, line 2, column f1: ""',),
+            'F': ('numutils.c',),
+            'R': ('pg_atoi', 'pg_strtoint32')
         }
         earg = e.value.args[0]
         for k, v in arg.items():
-            assert earg[k] == v
+            assert earg[k] in v

@@ -89,7 +89,7 @@ A query that returns the PostgreSQL interval type:
 >>>
 >>> ts = datetime.date(1980, 4, 27)
 >>> con.run("SELECT timestamp '2013-12-01 16:06' - :ts", ts=ts)
-([datetime.timedelta(12271, 57960)],)
+([datetime.timedelta(days=12271, seconds=57960)],)
 
 ----
 
@@ -350,7 +350,7 @@ register an adapter:
 >>>
 >>> con.register_out_adapter(MyInterval, 1186, my_interval_out)
 >>> con.run("SELECT :interval", interval=MyInterval("2 hours"))
-([datetime.timedelta(0, 7200)],)
+([datetime.timedelta(seconds=7200)],)
 
 ----
 
@@ -473,7 +473,7 @@ A query that returns the PostgreSQL interval type:
 ... (datetime.date(1980, 4, 27),))
 <pg8000.core.Cursor object at ...>
 >>> cursor.fetchone()
-[datetime.timedelta(12271, 57960)]
+[datetime.timedelta(days=12271, seconds=57960)]
 
 ----
 
@@ -1517,11 +1517,19 @@ Returns: A row as a sequence of field values, or `None` if no more rows are
 available.
 
 
-===== pg8000.Cursor.setinputsizes
+===== pg8000.Cursor.setinputsizes(*sizes)
+
+Used to set the parameter types of the next query. This is useful if it's
+difficult for pg8000 to work out the types from the parameters themselves
+(eg. for parameters of type None).
+
+sizes::
+  Positional parameters that are either the Python type of the parameter to be
+  sent, or the PostgreSQL oid. Common oids are available as constants such as
+  pg8000.STRING, pg8000.INTEGER, pg8000.TIME etc.
 
 This method is part of the
-http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification], however, it
-is not implemented by pg8000.
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
 ===== pg8000.Cursor.setoutputsize(size, column=None)
@@ -1636,6 +1644,12 @@ twine upload dist/*
 
 
 == Release Notes
+
+=== Version 1.16.1, 2020-07-18
+
+* Enable the `Cursor.setinputsizes()` method. Previously this method didn't
+  do anything. It's an optional method of the DBAPI 2.0 specification.
+
 
 === Version 1.16.0, 2020-07-11
 

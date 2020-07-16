@@ -1,5 +1,5 @@
 os: linux
-dist: xenial
+dist: bionic
 language: python
 
 services:
@@ -34,15 +34,15 @@ jobs:
     - addons:
         postgresql: "9.5"
       env: DB="9.5"
-      python: "pypy3.5"
+      python: "3.8"
     - addons:
         postgresql: "9.6"
       env: DB="9.6"
-      python: "pypy3.5"
+      python: "3.8"
     - addons:
         postgresql: "10"
       env: DB="10"
-      python: "pypy3.5"
+      python: "3.8"
 
 before_install:
   - sudo systemctl stop postgresql

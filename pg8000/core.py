@@ -281,6 +281,7 @@ class Cursor():
             self.paramstyle = pg8000.paramstyle
         else:
             self.paramstyle = paramstyle
+        self._input_oids = None
 
     def __enter__(self):
         return self
@@ -348,7 +349,8 @@ class Cursor():
 
             if not self._c.in_transaction and not self._c.autocommit:
                 self._c.execute_unnamed(self, "begin transaction", None)
-            self._c.execute_unnamed(self, operation, args)
+            self._c.execute_unnamed(self, operation, args, self._input_oids)
+            self._input_oids = None
         except AttributeError as e:
             if self._c is None:
                 raise InterfaceError("Cursor closed")
@@ -356,6 +358,8 @@ class Cursor():
                 raise InterfaceError("connection is closed")
             else:
                 raise e
+
+        self.input_types = []
         return self
 
     def executemany(self, operation, param_sets):
@@ -453,12 +457,18 @@ class Cursor():
         """
         return self
 
-    def setinputsizes(self, sizes):
+    def setinputsizes(self, *sizes):
         """This method is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_, however, it is not
-        implemented by pg8000.
         """
-        pass
+        oids = []
+        for size in sizes:
+            if isinstance(size, int):
+                oid = size
+            else:
+                oid, _ = self._c.py_types[size]
+            oids.append(oid)
+
+        self._input_oids = oids
 
     def setoutputsize(self, size, column=None):
         """This method is part of the `DBAPI 2.0 specification
@@ -1206,7 +1216,11 @@ class Connection():
         return oid, func(value)
 
     def make_params(self, values):
-        return [self.make_param(v) for v in values]
+        if len(values) == 0:
+            return (), ()
+        else:
+            oids, params = zip(*map(self.make_param, values))
+            return tuple(oids), tuple(params)
 
     def inspect_datetime(self, value):
         if value.tzinfo is None:
@@ -1240,12 +1254,12 @@ class Connection():
             field['func'] = self.pg_types[field['type_oid']]
         cursor.row_desc = row_desc
 
-    def send_PARSE(self, statement_name_bin, statement, params):
+    def send_PARSE(self, statement_name_bin, statement, oids):
 
         val = bytearray(statement_name_bin)
         val.extend(statement.encode(self._client_encoding) + NULL_BYTE)
-        val.extend(h_pack(len(params)))
-        for oid, _ in params:
+        val.extend(h_pack(len(oids)))
+        for oid in oids:
             val.extend(i_pack(0 if oid == -1 else oid))
 
         self._send_message(PARSE, val)
@@ -1253,18 +1267,19 @@ class Connection():
     def send_DESCRIBE_STATEMENT(self, statement_name_bin):
         self._send_message(DESCRIBE, STATEMENT + statement_name_bin)
 
-    def execute_unnamed(self, cursor, operation, vals):
+    def execute_unnamed(self, cursor, operation, vals, input_oids=None):
         if vals is None:
             vals = ()
 
         statement, make_args = convert_paramstyle(cursor.paramstyle, operation)
 
         args = make_args(vals)
-        params = self.make_params(args)
+        param_oids, params = self.make_params(args)
+        oids = param_oids if input_oids is None else input_oids
 
         statement_name_bin = NULL_BYTE
 
-        self.send_PARSE(statement_name_bin, statement, params)
+        self.send_PARSE(statement_name_bin, statement, oids)
         self.send_DESCRIBE_STATEMENT(statement_name_bin)
         self._write(SYNC_MSG)
 
@@ -1282,7 +1297,6 @@ class Connection():
 
         cursor._cached_rows.clear()
         cursor._row_count = -1
-
         self.send_BIND(statement_name_bin, params)
         self.send_EXECUTE()
         self._write(SYNC_MSG)
@@ -1292,7 +1306,7 @@ class Connection():
     def prepare(self, operation):
         return PreparedStatement(self, operation)
 
-    def prepare_statement(self, operation, params):
+    def prepare_statement(self, operation, oids):
         statement, make_args = convert_paramstyle('named', operation)
 
         for i in count():
@@ -1302,7 +1316,7 @@ class Connection():
                 self._statement_nums.add(statement_name_bin)
                 break
 
-        self.send_PARSE(statement_name_bin, statement, params)
+        self.send_PARSE(statement_name_bin, statement, oids)
         self.send_DESCRIBE_STATEMENT(statement_name_bin)
         self._write(SYNC_MSG)
 
@@ -1369,7 +1383,7 @@ class Connection():
         retval = bytearray(
             NULL_BYTE + statement_name_bin + h_pack(0) + h_pack(len(params)))
 
-        for _, value in params:
+        for value in params:
             if value is None:
                 retval.extend(i_pack(-1))
             else:
@@ -1726,15 +1740,15 @@ class PreparedStatement():
     def run(self, **vals):
 
         args = self.make_args(vals)
-        params = self.con.make_params(args)
-        oids = tuple([i for i, _ in params])
+        oids, params = self.con.make_params(args)
+
         cursor = self.con._run_cursor
 
         try:
             name_bin, row_desc, input_funcs = self.name_map[oids]
         except KeyError:
             name_bin, row_desc, input_funcs = self.name_map[oids] = \
-                self.con.prepare_statement(self.operation, params)
+                self.con.prepare_statement(self.operation, oids)
 
         try:
             if not self.con.in_transaction and not self.con.autocommit:
