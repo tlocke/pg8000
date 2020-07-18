@@ -228,6 +228,32 @@ that you can send `null` as an alternative to `ALL`, which does work:
 ----
 
 
+=== IN and NOT IN
+
+You might think that the following would work, but in fact the server doesn't
+like it:
+
+[source,python]
+----
+>>> con.run("SELECT 'silo 1' WHERE 'a' IN :v", v=('a', 'b'))
+Traceback (most recent call last):
+pg8000.exceptions.ProgrammingError: ...
+>>> con.rollback()
+
+----
+
+Instead you can write it using the `ANY` subquery expression:
+
+[source,python]
+----
+>>> con.run("SELECT 'silo 1' WHERE 'a' = any(:v)", v=('a', 'b'))
+(['silo 1'],)
+
+----
+
+Likewise you can use `<> all()` instead of `NOT IN`.
+
+
 === Many SQL Statements Can't Be Parameterized
 
 In PostgreSQL parameters can only be used for
