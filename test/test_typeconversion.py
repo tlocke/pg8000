@@ -35,7 +35,7 @@ def test_bool_roundtrip(con):
 
 
 def test_null_roundtrip(con):
-    retval = con.run("show server_version_num")
+    retval = con.run("select current_setting('server_version')")
     version = retval[0][0][:2]
 
     if version.startswith('9'):

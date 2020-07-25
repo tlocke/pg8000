@@ -303,27 +303,23 @@ b'1\telectron\n2\tmuon\n3\ttau\n'
 ----
 
 
-=== Execute .sql files
+=== Execute Multiple SQL Statements
 
-If you have a series of SQL statements in a file (an .sql file), you can
-execute them with the help of the
-https://sqlparse.readthedocs.io/en/latest[sqlparse] library like this:
+If you want to execute a series of SQL statements (eg. an `.sql` file), you
+can run them as expected:
 
 [source,python]
 ----
 
->>> import sqlparse
->>> import io
+>>> statements = "SELECT 5; SELECT 'Erich Fromm';"
 >>>
->>> file = io.StringIO("SELECT 5; SELECT 'Erich Fromm';")
->>>
->>> for statement in sqlparse.split(file.read()):
-...     con.run(statement)
-([5],)
-(['Erich Fromm'],)
-
+>>> con.run(statements)
+([5], ['Erich Fromm'])
 
 ----
+
+The only caveat is that when executing multiple statements you can't have any
+parameters.
 
 
 === Quoted Identifiers in SQL
@@ -1604,7 +1600,7 @@ attempt to set a value too large or too small will result in an OverflowError
 being raised.
 
 
-== Regression Tests
+== Tests
 
 Install http://testrun.org/tox/latest/[tox]:
 
@@ -1637,12 +1633,7 @@ https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes[Dead
 Snakes APT Repository] and other versions of PostgreSQL using the
 http://wiki.postgresql.org/wiki/Apt[PostgreSQL APT Repository].
 
-
-== Performance Tests
-
-To run the performance tests from the `pg8000` directory:
-
- python -m pg8000.tests.performance
+Benchmarks are run as part of the test suite at `tests/test_benchmarks.py`.
 
 
 == Stress Test
@@ -1670,6 +1661,16 @@ twine upload dist/*
 
 
 == Release Notes
+
+=== Version 1.16.2, 2020-07-25
+
+* Use the
+  https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.4[simple query]
+  cycle for queries that don't have parameters. This should give a performance
+  improvement and also means that multiple statements can be executed in one go
+  (as long as they don't have parameters) whereas previously the `sqlparse` had
+  to be used.
+
 
 === Version 1.16.1, 2020-07-18
 

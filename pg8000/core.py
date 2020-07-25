@@ -317,7 +317,7 @@ class Cursor():
     # or mapping and will be bound to variables in the operation.
     # <p>
     # Stability: Part of the DBAPI 2.0 specification.
-    def execute(self, operation, args=None, stream=None):
+    def execute(self, operation, args=(), stream=None):
         """Executes a database operation.  Parameters may be provided as a
         sequence, or as a mapping, depending upon the value of
         :data:`pg8000.paramstyle`.
@@ -345,11 +345,11 @@ class Cursor():
             .. versionadded:: 1.9.11
         """
         try:
-            self.stream = stream
-
             if not self._c.in_transaction and not self._c.autocommit:
-                self._c.execute_unnamed(self, "begin transaction", None)
-            self._c.execute_unnamed(self, operation, args, self._input_oids)
+                self._c.execute_unnamed(self, "begin transaction")
+            self._c.execute_unnamed(
+                self, operation, vals=args, input_oids=self._input_oids,
+                stream=stream)
             self._input_oids = None
         except AttributeError as e:
             if self._c is None:
@@ -514,6 +514,7 @@ EMPTY_QUERY_RESPONSE = b"I"
 
 BIND = b"B"
 PARSE = b"P"
+QUERY = b"Q"
 EXECUTE = b"E"
 FLUSH = b'H'
 SYNC = b'S'
@@ -970,7 +971,7 @@ class Connection():
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
-        self.execute_unnamed(self._cursor, "commit", None)
+        self.execute_unnamed(self._cursor, "commit")
 
     def rollback(self):
         """Rolls back the current database transaction.
@@ -980,7 +981,7 @@ class Connection():
         """
         if not self.in_transaction:
             return
-        self.execute_unnamed(self._cursor, "rollback", None)
+        self.execute_unnamed(self._cursor, "rollback")
 
     def close(self):
         """Closes the database connection.
@@ -1241,6 +1242,7 @@ class Connection():
         count = h_unpack(data)[0]
         idx = 2
         row_desc = []
+        input_funcs = []
         for i in range(count):
             name = data[idx:data.find(NULL_BYTE, idx)]
             idx += len(name) + 1
@@ -1251,8 +1253,9 @@ class Connection():
             field['name'] = name
             idx += 18
             row_desc.append(field)
-            field['func'] = self.pg_types[field['type_oid']]
+            input_funcs.append(self.pg_types[field['type_oid']])
         cursor.row_desc = row_desc
+        cursor.input_funcs = input_funcs
 
     def send_PARSE(self, statement_name_bin, statement, oids):
 
@@ -1267,41 +1270,60 @@ class Connection():
     def send_DESCRIBE_STATEMENT(self, statement_name_bin):
         self._send_message(DESCRIBE, STATEMENT + statement_name_bin)
 
-    def execute_unnamed(self, cursor, operation, vals, input_oids=None):
-        if vals is None:
-            vals = ()
-
-        statement, make_args = convert_paramstyle(cursor.paramstyle, operation)
-
-        args = make_args(vals)
-        param_oids, params = self.make_params(args)
-        oids = param_oids if input_oids is None else input_oids
-
-        statement_name_bin = NULL_BYTE
-
-        self.send_PARSE(statement_name_bin, statement, oids)
-        self.send_DESCRIBE_STATEMENT(statement_name_bin)
-        self._write(SYNC_MSG)
-
+    def send_QUERY(self, sql):
+        data = sql.encode(self._client_encoding) + NULL_BYTE
         try:
-            self._flush()
-        except AttributeError as e:
-            if self._sock is None:
+            self._write(QUERY)
+            self._write(i_pack(len(data) + 4))
+            self._write(data)
+        except ValueError as e:
+            if str(e) == "write to closed file":
                 raise InterfaceError("connection is closed")
             else:
                 raise e
+        except AttributeError:
+            raise InterfaceError("connection is closed")
 
-        self.handle_messages(cursor)
-
-        cursor.input_funcs = tuple(f['func'] for f in cursor.row_desc)
-
+    def execute_unnamed(
+            self, cursor, operation, vals=(), input_oids=None, stream=None):
         cursor._cached_rows.clear()
         cursor._row_count = -1
-        self.send_BIND(statement_name_bin, params)
-        self.send_EXECUTE()
-        self._write(SYNC_MSG)
-        self._flush()
-        self.handle_messages(cursor)
+        cursor.stream = stream
+        if len(vals) == 0 and cursor.stream is None:
+            cursor.row_desc = []
+            self.send_QUERY(operation)
+            self._flush()
+            self.handle_messages(cursor)
+        else:
+            statement, make_args = convert_paramstyle(
+                cursor.paramstyle, operation)
+
+            param_oids, params = self.make_params(make_args(vals))
+            oids = param_oids if input_oids is None else input_oids
+
+            self.send_PARSE(NULL_BYTE, statement, oids)
+            self._write(SYNC_MSG)
+            self._flush()
+            self.handle_messages(cursor)
+            self.send_DESCRIBE_STATEMENT(NULL_BYTE)
+
+            self._write(SYNC_MSG)
+
+            try:
+                self._flush()
+            except AttributeError as e:
+                if self._sock is None:
+                    raise InterfaceError("connection is closed")
+                else:
+                    raise e
+
+            self.send_BIND(NULL_BYTE, params)
+            self.handle_messages(cursor)
+            self.send_EXECUTE()
+
+            self._write(SYNC_MSG)
+            self._flush()
+            self.handle_messages(cursor)
 
     def prepare(self, operation):
         return PreparedStatement(self, operation)
@@ -1328,12 +1350,10 @@ class Connection():
             else:
                 raise e
 
-        self.handle_messages(self._run_cursor)
+        cursor = self._run_cursor
+        self.handle_messages(cursor)
 
-        row_desc = self._run_cursor.row_desc
-        input_funcs = tuple(f['func'] for f in row_desc)
-
-        return statement_name_bin, row_desc, input_funcs
+        return statement_name_bin, cursor.row_desc, cursor.input_funcs
 
     def execute_named(self, statement_name_bin, params, row_desc, input_funcs):
         cursor = self._run_cursor
@@ -1739,9 +1759,7 @@ class PreparedStatement():
 
     def run(self, **vals):
 
-        args = self.make_args(vals)
-        oids, params = self.con.make_params(args)
-
+        oids, params = self.con.make_params(self.make_args(vals))
         cursor = self.con._run_cursor
 
         try:
@@ -1752,7 +1770,7 @@ class PreparedStatement():
 
         try:
             if not self.con.in_transaction and not self.con.autocommit:
-                self.con.execute_unnamed(cursor, "begin transaction", None)
+                self.con.execute_unnamed(cursor, "begin transaction")
             self.con.execute_named(name_bin, params, row_desc, input_funcs)
         except AttributeError as e:
             if self.con is None:

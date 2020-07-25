@@ -242,7 +242,7 @@ def test_rollback_no_transaction(con):
     with con.cursor() as cursor:
 
         # First, verify that a raw rollback does produce a notice
-        con.execute_unnamed(cursor, "rollback", None)
+        con.execute_unnamed(cursor, "rollback")
 
         assert 1 == len(con.notices)
 
