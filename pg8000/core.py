@@ -1501,7 +1501,7 @@ class Connection():
             self._server_version = LooseVersion(value.decode('ascii'))
             if self._server_version < LooseVersion('8.2.0'):
                 self._commands_with_count = (
-                    b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH")
+                    b"INSERT", b"DELETE", b"UPDATE", b"MOVE")
             elif self._server_version < LooseVersion('9.0.0'):
                 self._commands_with_count = (
                     b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH",
