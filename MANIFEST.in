@@ -2,3 +2,5 @@ include README.adoc
 include versioneer.py
 include pg8000/_version.py
 include LICENSE
+graft test
+global-exclude *.py[cod]
