@@ -5,7 +5,8 @@ from pg8000.exceptions import (
 from pg8000.converters import (
     Binary, Date, DateFromTicks, Time, TimeFromTicks, Timestamp,
     TimestampFromTicks, BINARY, PGInterval, PGEnum, PGJson, PGJsonb,
-    PGTsvector, PGText, PGVarchar)
+    PGTsvector, PGText, PGVarchar, STRING, NUMBER, DATETIME, TIME, BOOLEAN,
+    INTEGER, BIGINTEGER, INTERVAL, JSON, JSONB, UNKNOWN, NULLTYPE, ROWID)
 from ._version import get_versions
 __version__ = get_versions()['version']
 del get_versions
@@ -72,42 +73,13 @@ This property is part of the `DBAPI 2.0 specification
 
 paramstyle = 'format'
 
-# I have no idea what this would be used for by a client app.  Should it be
-# TEXT, VARCHAR, CHAR?  It will only compare against row_description's
-# type_code if it is this one type.  It is the varchar type oid for now, this
-# appears to match expectations in the DB API 2.0 compliance test suite.
-
-STRING = 1043
-"""String type oid."""
-
-
-NUMBER = 1700
-"""Numeric type oid"""
-
-DATETIME = 1114
-"""Timestamp type oid"""
-
-TIME = 1083
-BOOLEAN = 16
-INTEGER = 23
-BIGINTEGER = 20
-INTERVAL = 1186
-JSON = 114
-JSONB = 3802
-UNKNOWN = 705
-
-
-ROWID = 26
-"""ROWID type oid"""
 
 __all__ = [
     Warning, DataError, DatabaseError, connect, InterfaceError,
     ProgrammingError, Error, OperationalError, IntegrityError, InternalError,
     NotSupportedError, Connection, Cursor, Binary, Date, DateFromTicks, Time,
     TimeFromTicks, Timestamp, TimestampFromTicks, BINARY, PGInterval, PGEnum,
-    PGJson, PGJsonb, PGTsvector, PGText, PGVarchar]
-
-"""Version string for pg8000.
-
-    .. versionadded:: 1.9.11
-"""
+    PGJson, PGJsonb, PGTsvector, PGText, PGVarchar, STRING, NUMBER, DATETIME,
+    TIME, BOOLEAN, INTEGER, BIGINTEGER, INTERVAL, JSON, JSONB, UNKNOWN,
+    NULLTYPE, ROWID
+]

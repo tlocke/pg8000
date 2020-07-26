@@ -10,6 +10,21 @@ from pg8000.exceptions import InterfaceError
 from enum import Enum
 
 
+STRING = 1043
+NUMBER = 1700
+DATETIME = 1114
+TIME = 1083
+BOOLEAN = 16
+INTEGER = 23
+BIGINTEGER = 20
+INTERVAL = 1186
+JSON = 114
+JSONB = 3802
+UNKNOWN = 705
+NULLTYPE = -1
+ROWID = 26
+
+
 MIN_INT2, MAX_INT2 = -2 ** 15, 2 ** 15
 MIN_INT4, MAX_INT4 = -2 ** 31, 2 ** 31
 MIN_INT8, MAX_INT8 = -2 ** 63, 2 ** 63

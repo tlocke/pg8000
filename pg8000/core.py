@@ -11,7 +11,15 @@ import pg8000
 from scramp import ScramClient
 import enum
 from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
-from pg8000 import converters
+from pg8000.converters import (
+    NULLTYPE, UNKNOWN, text_in, bool_in, bytea_in, vector_in, json_in, inet_in,
+    array_bool_in, array_text_in, array_int_in, array_float_in, date_in,
+    time_in, timestamp_in, timestamptz_in, timedelta_in, array_numeric_in,
+    numeric_in, uuid_in, null_out, bool_out, bytes_out, int_out, text_out,
+    float_out, enum_out, date_out, time_out, timestamp_out, timestamptz_out,
+    timedelta_out, pginterval_out, uuid_out, numeric_out, inet_out, PGTsvector,
+    PGInterval, PGText, PGEnum, PGVarchar, PGJson, PGJsonb,
+    array_string_escape)
 from uuid import UUID
 from pg8000.exceptions import (
     InterfaceError, ProgrammingError, Error, DatabaseError, OperationalError,
@@ -465,7 +473,10 @@ class Cursor():
             if isinstance(size, int):
                 oid = size
             else:
-                oid, _ = self._c.py_types[size]
+                try:
+                    oid, _ = self._c.py_types[size]
+                except KeyError:
+                    oid = UNKNOWN
             oids.append(oid)
 
         self._input_oids = oids
@@ -695,78 +706,78 @@ class Connection():
         self._backend_key_data = None
 
         self.pg_types = defaultdict(
-            lambda: converters.text_in, {
-                16: converters.bool_in,  # boolean
-                17: converters.bytea_in,  # bytea
-                19: converters.text_in,  # name type
+            lambda: text_in, {
+                16: bool_in,  # boolean
+                17: bytea_in,  # bytea
+                19: text_in,  # name type
                 20: int,  # int8
                 21: int,  # int2
-                22: converters.vector_in,  # int2vector
+                22: vector_in,  # int2vector
                 23: int,  # int4
-                25: converters.text_in,  # TEXT type
+                25: text_in,  # TEXT type
                 26: int,  # oid
                 28: int,  # xid
-                114: converters.json_in,  # json
+                114: json_in,  # json
                 700: float,  # float4
                 701: float,  # float8
-                705: converters.text_in,  # unknown
-                829: converters.text_in,  # MACADDR type
-                869: converters.inet_in,  # inet
-                1000: converters.array_bool_in,  # BOOL[]
-                1003: converters.array_text_in,  # NAME[]
-                1005: converters.array_int_in,  # INT2[]
-                1007: converters.array_int_in,  # INT4[]
-                1009: converters.array_text_in,  # TEXT[]
-                1014: converters.array_text_in,  # CHAR[]
-                1015: converters.array_text_in,  # VARCHAR[]
-                1016: converters.array_int_in,  # INT8[]
-                1021: converters.array_float_in,  # FLOAT4[]
-                1022: converters.array_float_in,  # FLOAT8[]
-                1042: converters.text_in,  # CHAR type
-                1043: converters.text_in,  # VARCHAR type
-                1082: converters.date_in,  # date
-                1083: converters.time_in,
-                1114: converters.timestamp_in,
-                1184: converters.timestamptz_in,  # timestamp w/ tz
-                1186: converters.timedelta_in,
-                1231: converters.array_numeric_in,  # NUMERIC[]
-                1263: converters.array_text_in,  # cstring[]
-                1700: converters.numeric_in,  # NUMERIC
-                2275: converters.text_in,  # cstring
-                2950: converters.uuid_in,  # uuid
-                3802: converters.json_in,  # jsonb
+                UNKNOWN: text_in,  # unknown
+                829: text_in,  # MACADDR type
+                869: inet_in,  # inet
+                1000: array_bool_in,  # BOOL[]
+                1003: array_text_in,  # NAME[]
+                1005: array_int_in,  # INT2[]
+                1007: array_int_in,  # INT4[]
+                1009: array_text_in,  # TEXT[]
+                1014: array_text_in,  # CHAR[]
+                1015: array_text_in,  # VARCHAR[]
+                1016: array_int_in,  # INT8[]
+                1021: array_float_in,  # FLOAT4[]
+                1022: array_float_in,  # FLOAT8[]
+                1042: text_in,  # CHAR type
+                1043: text_in,  # VARCHAR type
+                1082: date_in,  # date
+                1083: time_in,
+                1114: timestamp_in,
+                1184: timestamptz_in,  # timestamp w/ tz
+                1186: timedelta_in,
+                1231: array_numeric_in,  # NUMERIC[]
+                1263: array_text_in,  # cstring[]
+                1700: numeric_in,  # NUMERIC
+                2275: text_in,  # cstring
+                2950: uuid_in,  # uuid
+                3802: json_in,  # jsonb
             }
         )
 
         self.py_types = {
-            type(None): (-1, converters.null_out),  # null
-            bool: (16, converters.bool_out),
-            bytearray: (17, converters.bytes_out),  # bytea
-            20: (20, converters.int_out),  # int8
-            21: (21, converters.int_out),  # int2
-            23: (23, converters.int_out),  # int4
-            converters.PGText: (25, converters.text_out),  # text
-            float: (701, converters.float_out),  # float8
-            converters.PGEnum: (705, converters.enum_out),
-            date: (1082, converters.date_out),  # date
-            time: (1083, converters.time_out),  # time
-            1114: (1114, converters.timestamp_out),  # timestamp
-            converters.PGVarchar: (1043, converters.text_out),  # varchar
-            1184: (1184, converters.timestamptz_out),  # timestamptz
-            converters.PGJson: (114, converters.text_out),
-            converters.PGJsonb: (3802, converters.text_out),
-            Timedelta: (1186, converters.timedelta_out),
-            converters.PGInterval: (1186, converters.pginterval_out),
-            Decimal: (1700, converters.numeric_out),  # Decimal
-            converters.PGTsvector: (3614, converters.text_out),
-            UUID: (2950, converters.uuid_out),  # uuid
-            bytes: (17, converters.bytes_out),  # bytea
-            str: (705, converters.text_out),  # unknown
-            enum.Enum: (705, converters.enum_out),
-            IPv4Address: (869, converters.inet_out),  # inet
-            IPv6Address: (869, converters.inet_out),  # inet
-            IPv4Network: (869, converters.inet_out),  # inet
-            IPv6Network: (869, converters.inet_out),  # inet
+            type(None): (NULLTYPE, null_out),  # null
+            bool: (16, bool_out),
+            bytearray: (17, bytes_out),  # bytea
+            20: (20, int_out),  # int8
+            21: (21, int_out),  # int2
+            23: (23, int_out),  # int4
+            PGText: (25, text_out),  # text
+            float: (701, float_out),  # float8
+            PGEnum: (705, enum_out),
+            date: (1082, date_out),  # date
+            time: (1083, time_out),  # time
+            1114: (1114, timestamp_out),  # timestamp
+            PGVarchar: (1043, text_out),  # varchar
+            1184: (1184, timestamptz_out),  # timestamptz
+            PGJson: (114, text_out),
+            PGJsonb: (3802, text_out),
+            Timedelta: (1186, timedelta_out),
+            PGInterval: (1186, pginterval_out),
+            Decimal: (1700, numeric_out),  # Decimal
+            PGTsvector: (3614, text_out),
+            UUID: (2950, uuid_out),  # uuid
+            bytes: (17, bytes_out),  # bytea
+            str: (UNKNOWN, text_out),  # unknown
+            enum.Enum: (UNKNOWN, enum_out),
+            IPv4Address: (869, inet_out),  # inet
+            IPv6Address: (869, inet_out),  # inet
+            IPv4Network: (869, inet_out),  # inet
+            IPv6Network: (869, inet_out),  # inet
         }
 
         self.inspect_funcs = {
@@ -1173,7 +1184,7 @@ class Connection():
                 val = 'NULL'
 
             elif isinstance(v, str):
-                val = converters.array_string_escape(v)
+                val = array_string_escape(v)
 
             else:
                 _, val = self.make_param(v)
