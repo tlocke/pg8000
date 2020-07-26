@@ -1662,6 +1662,17 @@ twine upload dist/*
 
 == Release Notes
 
+
+=== Version 1.16.3, 2020-07-26
+
+* If an unrecognized parameter is sent to `Cursor.setinputsizes()` use the
+  `pg8000.UNKNOWN` type (705).
+* When communicating with a PostgreSQL server with version < 8.2.0, `FETCH`
+  commands don't have a row count.
+* Include in the source distribution all necessary test files from the `test`
+  directory in
+
+
 === Version 1.16.2, 2020-07-25
 
 * Use the
