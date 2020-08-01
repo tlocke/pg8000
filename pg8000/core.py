@@ -951,13 +951,11 @@ class Connection():
         # guaranteed for v1.xx.
         backend_pid = i_unpack(data)[0]
         idx = 4
-        null = data.find(NULL_BYTE, idx) - idx
-        condition = data[idx:idx + null].decode("ascii")
-        idx += null + 1
-        null = data.find(NULL_BYTE, idx) - idx
-        # additional_info = data[idx:idx + null]
+        null_idx = data.find(NULL_BYTE, idx)
+        channel = data[idx:null_idx].decode("ascii")
+        payload = data[null_idx+1:-1].decode('ascii')
 
-        self.notifications.append((backend_pid, condition))
+        self.notifications.append((backend_pid, channel, payload))
 
     def cursor(self):
         """Creates a :class:`Cursor` object bound to this

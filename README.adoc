@@ -182,7 +182,7 @@ Use the columns names retrieved from a query:
 ----
 
 
-=== Notices
+=== Notices And Notifications
 
 PostgreSQL https://www.postgresql.org/docs/current/static/plpgsql-errors-and-messages.html[notices]
 are stored in a deque called `Connection.notices` and added using the
@@ -198,8 +198,11 @@ Here's an example:
 >>> con.run("NOTIFY aliens_landed")
 ()
 >>> con.commit()
->>> con.notifications[0][1]
-'aliens_landed'
+>>>
+>>> # A notification is a tuple containing (backend_pid, channel, payload)
+>>>
+>>> con.notifications[0]
+(..., 'aliens_landed', '')
 
 ----
 
@@ -1197,11 +1200,11 @@ represents a single physical connection to a PostgreSQL database.
 
 ===== pg8000.Connection.notifications
 
-A deque of server-side notifications received by this database connection (via
-the LISTEN/NOTIFY PostgreSQL commands). Each list element is a two-element
-tuple containing the PostgreSQL backend PID that issued the notify, and the
-notification name.
-
+A deque of server-side
+https://www.postgresql.org/docs/current/sql-notify.html[notifications] received
+by this database connection (via the LISTEN / NOTIFY PostgreSQL commands). Each
+list item is a three-element tuple containing the PostgreSQL backend PID that
+issued the notify, the channel and the payload.
 
 This attribute is not part of the DBAPI standard; it is a pg8000 extension.
 

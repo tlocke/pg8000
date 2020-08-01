@@ -81,16 +81,28 @@ def testDatabaseMissing(db_kwargs):
         pg8000.connect(**db_kwargs)
 
 
-def testNotify(con):
+def test_notify(con):
+    backend_pid = con.run("select pg_backend_pid()")[0][0]
     assert list(con.notifications) == []
-    with con.cursor() as cursor:
-        cursor.execute("LISTEN test")
-        cursor.execute("NOTIFY test")
-        con.commit()
+    con.run("LISTEN test")
+    con.run("NOTIFY test")
+    con.commit()
 
-        cursor.execute("VALUES (1, 2), (3, 4), (5, 6)")
-        assert len(con.notifications) == 1
-        assert con.notifications[0][1] == "test"
+    con.run("VALUES (1, 2), (3, 4), (5, 6)")
+    assert len(con.notifications) == 1
+    assert con.notifications[0] == (backend_pid, "test", '')
+
+
+def test_notify_with_payload(con):
+    backend_pid = con.run("select pg_backend_pid()")[0][0]
+    assert list(con.notifications) == []
+    con.run("LISTEN test")
+    con.run("NOTIFY test, 'Parnham'")
+    con.commit()
+
+    con.run("VALUES (1, 2), (3, 4), (5, 6)")
+    assert len(con.notifications) == 1
+    assert con.notifications[0] == (backend_pid, "test", 'Parnham')
 
 
 # This requires a line in pg_hba.conf that requires md5 for the database
