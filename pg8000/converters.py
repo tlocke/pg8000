@@ -1,28 +1,54 @@
-from decimal import Decimal
-from json import loads, dumps
 from datetime import (
-    datetime as Datetime, date as Date, time as Time, timedelta as Timedelta,
+    date as Date, datetime as Datetime, time as Time, timedelta as Timedelta,
     timezone as Timezone)
-from ipaddress import ip_address, ip_network
-from uuid import UUID
-from time import localtime
-from pg8000.exceptions import InterfaceError
+from decimal import Decimal
 from enum import Enum
+from ipaddress import ip_address, ip_network
+from json import dumps, loads
+from time import localtime
+from uuid import UUID
+
+from pg8000.exceptions import InterfaceError
 
 
-STRING = 1043
-NUMBER = 1700
-DATETIME = 1114
-TIME = 1083
-BOOLEAN = 16
-INTEGER = 23
 BIGINTEGER = 20
+BOOLEAN = 16
+BOOLEAN_ARRAY = 1000
+BYTES = 17
+CHAR = 1042
+CHAR_ARRAY = 1014
+DATE = 1082
+DATETIME = 1114
+DECIMAL = 1700
+DECIMAL_ARRAY = 1231
+FLOAT = 701
+FLOAT_ARRAY = 1022
+INET = 869
+INT2VECTOR = 22
+INTEGER = 23
+INTEGER_ARRAY = 1016
 INTERVAL = 1186
+MACADDR = 829
+NAME = 19
+NAME_ARRAY = 1003
+OID = 26
 JSON = 114
 JSONB = 3802
-UNKNOWN = 705
 NULLTYPE = -1
+NUMBER = 1700
 ROWID = 26
+STRING = 1043
+TEXT = 25
+TEXT_ARRAY = 1009
+TIME = 1083
+TIMEDELTA = 1186
+TIMESTAMP = 1114
+TIMESTAMPTZ = 1184
+UNKNOWN = 705
+UUID_TYPE = 2950
+VARCHAR = 1043
+VARCHAR_ARRAY = 1015
+XID = 28
 
 
 MIN_INT2, MAX_INT2 = -2 ** 15, 2 ** 15
