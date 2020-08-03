@@ -1684,6 +1684,12 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.16.4, 2020-08-03
+
+* Include the `payload` in the tuples in `Connection.notifications`.
+* More constants (eg. `DECIMAL` and `TEXT_ARRAY`) are now available for
+  PostgreSQL types that are used in `setinputsizes()`.
+
 
 === Version 1.16.3, 2020-07-26
 
