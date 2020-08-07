@@ -1,7 +1,9 @@
-import pg8000
 from datetime import datetime as Datetime, timezone as Timezone
-import pytest
 from warnings import filterwarnings
+
+import pg8000
+
+import pytest
 
 
 # Tests relating to the basic operation of the database driver, driven by the
@@ -227,6 +229,13 @@ def test_tpc_recover(con):
 
         # If tpc_recover() has started a transaction, this will fail
         cursor.execute("VACUUM")
+
+
+def test_tpc_prepare(con):
+    xid = 'Stacey'
+    con.tpc_begin(xid)
+    con.tpc_prepare()
+    con.tpc_rollback(xid)
 
 
 # An empty query should raise a ProgrammingError

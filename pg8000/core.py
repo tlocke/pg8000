@@ -1,31 +1,21 @@
-from datetime import (
-    timedelta as Timedelta, datetime as Datetime, date, time)
-from warnings import warn
 import socket
-from hashlib import md5
+from collections import defaultdict, deque
+from datetime import datetime as Datetime
 from decimal import Decimal
-from collections import deque, defaultdict
-from itertools import count, islice
 from distutils.version import LooseVersion
-import pg8000
-from scramp import ScramClient
-import enum
-from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
-from pg8000.converters import (
-    NULLTYPE, UNKNOWN, text_in, bool_in, bytea_in, vector_in, json_in, inet_in,
-    array_bool_in, array_text_in, array_int_in, array_float_in, date_in,
-    time_in, timestamp_in, timestamptz_in, timedelta_in, array_numeric_in,
-    numeric_in, uuid_in, null_out, bool_out, bytes_out, int_out, text_out,
-    float_out, enum_out, date_out, time_out, timestamp_out, timestamptz_out,
-    timedelta_out, pginterval_out, uuid_out, numeric_out, inet_out, PGTsvector,
-    PGInterval, PGText, PGEnum, PGVarchar, PGJson, PGJsonb,
-    array_string_escape)
-from uuid import UUID
-from pg8000.exceptions import (
-    InterfaceError, ProgrammingError, Error, DatabaseError, OperationalError,
-    IntegrityError, InternalError, NotSupportedError, Warning,
-    ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError)
+from hashlib import md5
+from itertools import count, islice
 from struct import Struct
+from warnings import warn
+
+import pg8000
+from pg8000 import converters
+from pg8000.exceptions import (
+    ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError,
+    DatabaseError, Error, IntegrityError, InterfaceError, InternalError,
+    NotSupportedError, OperationalError, ProgrammingError, Warning)
+
+from scramp import ScramClient
 
 
 def pack_funcs(fmt):
@@ -476,7 +466,7 @@ class Cursor():
                 try:
                     oid, _ = self._c.py_types[size]
                 except KeyError:
-                    oid = UNKNOWN
+                    oid = pg8000.converters.UNKNOWN
             oids.append(oid)
 
         self._input_oids = oids
@@ -706,79 +696,8 @@ class Connection():
         self._backend_key_data = None
 
         self.pg_types = defaultdict(
-            lambda: text_in, {
-                16: bool_in,  # boolean
-                17: bytea_in,  # bytea
-                19: text_in,  # name type
-                20: int,  # int8
-                21: int,  # int2
-                22: vector_in,  # int2vector
-                23: int,  # int4
-                25: text_in,  # TEXT type
-                26: int,  # oid
-                28: int,  # xid
-                114: json_in,  # json
-                700: float,  # float4
-                701: float,  # float8
-                UNKNOWN: text_in,  # unknown
-                829: text_in,  # MACADDR type
-                869: inet_in,  # inet
-                1000: array_bool_in,  # BOOL[]
-                1003: array_text_in,  # NAME[]
-                1005: array_int_in,  # INT2[]
-                1007: array_int_in,  # INT4[]
-                1009: array_text_in,  # TEXT[]
-                1014: array_text_in,  # CHAR[]
-                1015: array_text_in,  # VARCHAR[]
-                1016: array_int_in,  # INT8[]
-                1021: array_float_in,  # FLOAT4[]
-                1022: array_float_in,  # FLOAT8[]
-                1042: text_in,  # CHAR type
-                1043: text_in,  # VARCHAR type
-                1082: date_in,  # date
-                1083: time_in,
-                1114: timestamp_in,
-                1184: timestamptz_in,  # timestamp w/ tz
-                1186: timedelta_in,
-                1231: array_numeric_in,  # NUMERIC[]
-                1263: array_text_in,  # cstring[]
-                1700: numeric_in,  # NUMERIC
-                2275: text_in,  # cstring
-                2950: uuid_in,  # uuid
-                3802: json_in,  # jsonb
-            }
-        )
-
-        self.py_types = {
-            type(None): (NULLTYPE, null_out),  # null
-            bool: (16, bool_out),
-            bytearray: (17, bytes_out),  # bytea
-            20: (20, int_out),  # int8
-            21: (21, int_out),  # int2
-            23: (23, int_out),  # int4
-            PGText: (25, text_out),  # text
-            float: (701, float_out),  # float8
-            PGEnum: (705, enum_out),
-            date: (1082, date_out),  # date
-            time: (1083, time_out),  # time
-            1114: (1114, timestamp_out),  # timestamp
-            PGVarchar: (1043, text_out),  # varchar
-            1184: (1184, timestamptz_out),  # timestamptz
-            PGJson: (114, text_out),
-            PGJsonb: (3802, text_out),
-            Timedelta: (1186, timedelta_out),
-            PGInterval: (1186, pginterval_out),
-            Decimal: (1700, numeric_out),  # Decimal
-            PGTsvector: (3614, text_out),
-            UUID: (2950, uuid_out),  # uuid
-            bytes: (17, bytes_out),  # bytea
-            str: (UNKNOWN, text_out),  # unknown
-            enum.Enum: (UNKNOWN, enum_out),
-            IPv4Address: (869, inet_out),  # inet
-            IPv6Address: (869, inet_out),  # inet
-            IPv4Network: (869, inet_out),  # inet
-            IPv6Network: (869, inet_out),  # inet
-        }
+            lambda: converters.text_in, converters.PG_TYPES)
+        self.py_types = dict(converters.PY_TYPES)
 
         self.inspect_funcs = {
             Datetime: self.inspect_datetime,
@@ -1182,7 +1101,7 @@ class Connection():
                 val = 'NULL'
 
             elif isinstance(v, str):
-                val = array_string_escape(v)
+                val = converters.array_string_escape(v)
 
             else:
                 _, val = self.make_param(v)
@@ -1539,7 +1458,7 @@ class Connection():
         """
         self._xid = xid
         if self.autocommit:
-            self.execute(self._cursor, "begin transaction", None)
+            self.execute_unnamed(self._cursor, "begin transaction")
 
     def tpc_prepare(self):
         """Performs the first phase of a transaction started with .tpc_begin().
@@ -1553,7 +1472,7 @@ class Connection():
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
         q = "PREPARE TRANSACTION '%s';" % (self._xid[1],)
-        self.execute(self._cursor, q, None)
+        self.execute_unnamed(self._cursor, q)
 
     def tpc_commit(self, xid=None):
         """When called with no arguments, .tpc_commit() commits a TPC
@@ -1584,9 +1503,8 @@ class Connection():
             previous_autocommit_mode = self.autocommit
             self.autocommit = True
             if xid in self.tpc_recover():
-                self.execute(
-                    self._cursor, "COMMIT PREPARED '%s';" % (xid[1], ),
-                    None)
+                self.execute_unnamed(
+                    self._cursor, "COMMIT PREPARED '%s';" % (xid[1], ))
             else:
                 # a single-phase commit
                 self.commit()
@@ -1620,9 +1538,8 @@ class Connection():
             self.autocommit = True
             if xid in self.tpc_recover():
                 # a two-phase rollback
-                self.execute(
-                    self._cursor, "ROLLBACK PREPARED '%s';" % (xid[1],),
-                    None)
+                self.execute_unnamed(
+                    self._cursor, "ROLLBACK PREPARED '%s';" % (xid[1],))
             else:
                 # a single-phase rollback
                 self.rollback()

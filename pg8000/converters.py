@@ -3,7 +3,8 @@ from datetime import (
     timezone as Timezone)
 from decimal import Decimal
 from enum import Enum
-from ipaddress import ip_address, ip_network
+from ipaddress import (
+    IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_address, ip_network)
 from json import dumps, loads
 from time import localtime
 from uuid import UUID
@@ -600,3 +601,78 @@ def array_string_escape(v):
             [c in val for c in ('{', '}', ",", " ", '\\')]):
         val = '"' + val + '"'
     return val
+
+
+PY_TYPES = {
+    type(None): (NULLTYPE, null_out),  # null
+    bool: (16, bool_out),
+    bytearray: (17, bytes_out),  # bytea
+    20: (20, int_out),  # int8
+    21: (21, int_out),  # int2
+    23: (23, int_out),  # int4
+    PGText: (25, text_out),  # text
+    float: (701, float_out),  # float8
+    PGEnum: (705, enum_out),
+    Date: (1082, date_out),  # date
+    Time: (1083, time_out),  # time
+    1114: (1114, timestamp_out),  # timestamp
+    PGVarchar: (1043, text_out),  # varchar
+    1184: (1184, timestamptz_out),  # timestamptz
+    PGJson: (114, text_out),
+    PGJsonb: (3802, text_out),
+    Timedelta: (1186, timedelta_out),
+    PGInterval: (1186, pginterval_out),
+    Decimal: (1700, numeric_out),  # Decimal
+    PGTsvector: (3614, text_out),
+    UUID: (2950, uuid_out),  # uuid
+    bytes: (17, bytes_out),  # bytea
+    str: (UNKNOWN, text_out),  # unknown
+    Enum: (UNKNOWN, enum_out),
+    IPv4Address: (869, inet_out),  # inet
+    IPv6Address: (869, inet_out),  # inet
+    IPv4Network: (869, inet_out),  # inet
+    IPv6Network: (869, inet_out),  # inet
+}
+
+
+PG_TYPES = {
+    16: bool_in,  # boolean
+    17: bytea_in,  # bytea
+    19: text_in,  # name type
+    20: int,  # int8
+    21: int,  # int2
+    22: vector_in,  # int2vector
+    23: int,  # int4
+    25: text_in,  # TEXT type
+    26: int,  # oid
+    28: int,  # xid
+    114: json_in,  # json
+    700: float,  # float4
+    701: float,  # float8
+    UNKNOWN: text_in,  # unknown
+    829: text_in,  # MACADDR type
+    869: inet_in,  # inet
+    1000: array_bool_in,  # BOOL[]
+    1003: array_text_in,  # NAME[]
+    1005: array_int_in,  # INT2[]
+    1007: array_int_in,  # INT4[]
+    1009: array_text_in,  # TEXT[]
+    1014: array_text_in,  # CHAR[]
+    1015: array_text_in,  # VARCHAR[]
+    1016: array_int_in,  # INT8[]
+    1021: array_float_in,  # FLOAT4[]
+    1022: array_float_in,  # FLOAT8[]
+    1042: text_in,  # CHAR type
+    1043: text_in,  # VARCHAR type
+    1082: date_in,  # date
+    1083: time_in,
+    1114: timestamp_in,
+    1184: timestamptz_in,  # timestamp w/ tz
+    1186: timedelta_in,
+    1231: array_numeric_in,  # NUMERIC[]
+    1263: array_text_in,  # cstring[]
+    1700: numeric_in,  # NUMERIC
+    2275: text_in,  # cstring
+    2950: uuid_in,  # uuid
+    3802: json_in,  # jsonb
+}

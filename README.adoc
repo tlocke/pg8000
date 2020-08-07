@@ -1684,6 +1684,11 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.16.5, 2020-08-07
+
+* The TPC method `Connection.tpc_prepare()` was broken.
+
+
 === Version 1.16.4, 2020-08-03
 
 * Include the `payload` in the tuples in `Connection.notifications`.
