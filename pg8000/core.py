@@ -11,9 +11,9 @@ from warnings import warn
 import pg8000
 from pg8000 import converters
 from pg8000.exceptions import (
-    ArrayContentNotSupportedError, ArrayDimensionsNotConsistentError,
-    DatabaseError, Error, IntegrityError, InterfaceError, InternalError,
-    NotSupportedError, OperationalError, ProgrammingError, Warning)
+    ArrayContentNotSupportedError, DatabaseError, Error, IntegrityError,
+    InterfaceError, InternalError, NotSupportedError, OperationalError,
+    ProgrammingError, Warning)
 
 from scramp import ScramClient
 
@@ -62,13 +62,6 @@ cccc_pack, cccc_unpack = pack_funcs('cccc')
 
 __author__ = "Mathieu Fenniak"
 
-
-NULL = i_pack(-1)
-
-'''
-FC_TEXT = 0
-FC_BINARY = 1
-'''
 
 min_int2, max_int2 = -2 ** 15, 2 ** 15
 min_int4, max_int4 = -2 ** 31, 2 ** 31
@@ -559,9 +552,6 @@ IDLE_IN_TRANSACTION = b"T"
 IDLE_IN_FAILED_TRANSACTION = b"E"
 
 
-arr_trans = dict(zip(map(ord, "[] '"), list('{}') + [None] * 2))
-
-
 class Connection():
 
     # DBAPI Extension: supply exceptions as attributes on the connection
@@ -1035,14 +1025,14 @@ class Connection():
             oid = 25
             # Use binary ARRAY format to avoid having to properly
             # escape text in the array literals
-            array_oid = pg_array_types[oid]
+            array_oid = converters.PG_ARRAY_TYPES[oid]
         else:
             # supported array output
             typ = type(first_element)
 
             if typ == bool:
                 oid = 16
-                array_oid = pg_array_types[oid]
+                array_oid = converters.PG_ARRAY_TYPES[oid]
 
             elif issubclass(typ, int):
                 # special int array support -- send as smallest possible array
@@ -1079,7 +1069,7 @@ class Connection():
                         oid = 25
                         # Use binary ARRAY format to avoid having to properly
                         # escape text in the array literals
-                    array_oid = pg_array_types[oid]
+                    array_oid = converters.PG_ARRAY_TYPES[oid]
                 except KeyError:
                     raise ArrayContentNotSupportedError(
                         "oid " + str(oid) + " not supported as array contents")
@@ -1416,7 +1406,8 @@ class Connection():
         self.parameter_statuses.append((key, value))
         if key == b"client_encoding":
             encoding = value.decode("ascii").lower()
-            self._client_encoding = pg_to_py_encodings.get(encoding, encoding)
+            self._client_encoding = converters.pg_to_py_encodings.get(
+                encoding, encoding)
 
         elif key == b"integer_datetimes":
             if value == b'on':
@@ -1564,16 +1555,6 @@ class Connection():
             self.autocommit = previous_autocommit_mode
 
 
-# pg element oid -> pg array typeoid
-pg_array_types = {
-    16: 1000,
-    25: 1009,    # TEXT[]
-    701: 1022,
-    1043: 1009,
-    1700: 1231,  # NUMERIC[]
-}
-
-
 def array_find_first_element(arr):
     for v in array_flatten(arr):
         if v is not None:
@@ -1588,92 +1569,6 @@ def array_flatten(arr):
                 yield v2
         else:
             yield v
-
-
-def array_check_dimensions(arr):
-    if len(arr) > 0:
-        v0 = arr[0]
-        if isinstance(v0, list):
-            req_len = len(v0)
-            req_inner_lengths = array_check_dimensions(v0)
-            for v in arr:
-                inner_lengths = array_check_dimensions(v)
-                if len(v) != req_len or inner_lengths != req_inner_lengths:
-                    raise ArrayDimensionsNotConsistentError(
-                        "array dimensions not consistent")
-            retval = [req_len]
-            retval.extend(req_inner_lengths)
-            return retval
-        else:
-            # make sure nothing else at this level is a list
-            for v in arr:
-                if isinstance(v, list):
-                    raise ArrayDimensionsNotConsistentError(
-                        "array dimensions not consistent")
-    return []
-
-
-def array_has_null(arr):
-    for v in array_flatten(arr):
-        if v is None:
-            return True
-    return False
-
-
-# PostgreSQL encodings:
-#   http://www.postgresql.org/docs/8.3/interactive/multibyte.html
-# Python encodings:
-#   http://www.python.org/doc/2.4/lib/standard-encodings.html
-#
-# Commented out encodings don't require a name change between PostgreSQL and
-# Python.  If the py side is None, then the encoding isn't supported.
-pg_to_py_encodings = {
-    # Not supported:
-    "mule_internal": None,
-    "euc_tw": None,
-
-    # Name fine as-is:
-    # "euc_jp",
-    # "euc_jis_2004",
-    # "euc_kr",
-    # "gb18030",
-    # "gbk",
-    # "johab",
-    # "sjis",
-    # "shift_jis_2004",
-    # "uhc",
-    # "utf8",
-
-    # Different name:
-    "euc_cn": "gb2312",
-    "iso_8859_5": "is8859_5",
-    "iso_8859_6": "is8859_6",
-    "iso_8859_7": "is8859_7",
-    "iso_8859_8": "is8859_8",
-    "koi8": "koi8_r",
-    "latin1": "iso8859-1",
-    "latin2": "iso8859_2",
-    "latin3": "iso8859_3",
-    "latin4": "iso8859_4",
-    "latin5": "iso8859_9",
-    "latin6": "iso8859_10",
-    "latin7": "iso8859_13",
-    "latin8": "iso8859_14",
-    "latin9": "iso8859_15",
-    "sql_ascii": "ascii",
-    "win866": "cp886",
-    "win874": "cp874",
-    "win1250": "cp1250",
-    "win1251": "cp1251",
-    "win1252": "cp1252",
-    "win1253": "cp1253",
-    "win1254": "cp1254",
-    "win1255": "cp1255",
-    "win1256": "cp1256",
-    "win1257": "cp1257",
-    "win1258": "cp1258",
-    "unicode": "utf-8",  # Needed for Amazon Redshift
-}
 
 
 class PreparedStatement():

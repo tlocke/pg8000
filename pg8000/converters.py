@@ -676,3 +676,69 @@ PG_TYPES = {
     2950: uuid_in,  # uuid
     3802: json_in,  # jsonb
 }
+
+
+# PostgreSQL encodings:
+# https://www.postgresql.org/docs/current/multibyte.html
+#
+# Python encodings:
+# https://docs.python.org/3/library/codecs.html
+#
+# Commented out encodings don't require a name change between PostgreSQL and
+# Python.  If the py side is None, then the encoding isn't supported.
+pg_to_py_encodings = {
+    # Not supported:
+    "mule_internal": None,
+    "euc_tw": None,
+
+    # Name fine as-is:
+    # "euc_jp",
+    # "euc_jis_2004",
+    # "euc_kr",
+    # "gb18030",
+    # "gbk",
+    # "johab",
+    # "sjis",
+    # "shift_jis_2004",
+    # "uhc",
+    # "utf8",
+
+    # Different name:
+    "euc_cn": "gb2312",
+    "iso_8859_5": "is8859_5",
+    "iso_8859_6": "is8859_6",
+    "iso_8859_7": "is8859_7",
+    "iso_8859_8": "is8859_8",
+    "koi8": "koi8_r",
+    "latin1": "iso8859-1",
+    "latin2": "iso8859_2",
+    "latin3": "iso8859_3",
+    "latin4": "iso8859_4",
+    "latin5": "iso8859_9",
+    "latin6": "iso8859_10",
+    "latin7": "iso8859_13",
+    "latin8": "iso8859_14",
+    "latin9": "iso8859_15",
+    "sql_ascii": "ascii",
+    "win866": "cp886",
+    "win874": "cp874",
+    "win1250": "cp1250",
+    "win1251": "cp1251",
+    "win1252": "cp1252",
+    "win1253": "cp1253",
+    "win1254": "cp1254",
+    "win1255": "cp1255",
+    "win1256": "cp1256",
+    "win1257": "cp1257",
+    "win1258": "cp1258",
+    "unicode": "utf-8",  # Needed for Amazon Redshift
+}
+
+# pg element oid -> pg array typeoid
+PG_ARRAY_TYPES = {
+    16: 1000,
+    25: 1009,    # TEXT[]
+    701: 1022,
+    1043: 1009,
+    1700: 1231,  # NUMERIC[]
+}

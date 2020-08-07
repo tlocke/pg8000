@@ -111,19 +111,3 @@ class ArrayContentNotSupportedError(NotSupportedError):
     supported for binary data transfer by the interface.
     """
     pass
-
-
-class ArrayContentNotHomogenousError(ProgrammingError):
-    """
-    Raised when attempting to transmit an array that doesn't contain only a
-    single type of object.
-    """
-    pass
-
-
-class ArrayDimensionsNotConsistentError(ProgrammingError):
-    """
-    Raised when attempting to transmit an array that has inconsistent
-    multi-dimension sizes.
-    """
-    pass
