@@ -20,6 +20,10 @@ jobs:
       env: DB="10"
       python: "3.5"
     - addons:
+        postgresql: "11"
+      env: DB="11"
+      python: "3.5"
+    - addons:
         postgresql: "9.5"
       env: DB="9.5"
       python: "3.6"
@@ -32,6 +36,10 @@ jobs:
       env: DB="10"
       python: "3.6"
     - addons:
+        postgresql: "11"
+      env: DB="11"
+      python: "3.6"
+    - addons:
         postgresql: "9.5"
       env: DB="9.5"
       python: "3.8"
@@ -42,6 +50,10 @@ jobs:
     - addons:
         postgresql: "10"
       env: DB="10"
+      python: "3.8"
+    - addons:
+        postgresql: "11"
+      env: DB="11"
       python: "3.8"
 
 before_install:
