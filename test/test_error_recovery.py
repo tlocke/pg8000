@@ -1,6 +1,8 @@
-import pg8000
-import warnings
 import datetime
+import warnings
+
+import pg8000
+
 import pytest
 
 

@@ -1,6 +1,7 @@
+from contextlib import closing
+
 import pg8000
 from pg8000.tests.connection_settings import db_connect
-from contextlib import closing
 
 
 with closing(pg8000.connect(**db_connect)) as db:

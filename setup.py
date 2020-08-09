@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-import versioneer
 from setuptools import setup
+
+import versioneer
 
 long_description = """\
 

@@ -1,19 +1,25 @@
-import pg8000
-from pg8000 import PGJsonb, PGEnum
-from datetime import (
-    datetime as Datetime, time as Time, date as Date, timedelta as Timedelta,
-    timezone as Timezone)
 import decimal
-import uuid
+import ipaddress
+import json
 import os
 import time
-import json
-import pytz
+import uuid
 from collections import OrderedDict
-import pytest
+from datetime import (
+    date as Date,
+    datetime as Datetime,
+    time as Time,
+    timedelta as Timedelta,
+    timezone as Timezone)
 from enum import Enum
-import ipaddress
+
+import pg8000
+from pg8000 import PGEnum, PGJsonb
 from pg8000 import converters
+
+import pytest
+
+import pytz
 
 
 # Type conversion tests

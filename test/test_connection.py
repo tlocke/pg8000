@@ -1,9 +1,11 @@
-import pg8000
-import sys
 import socket
-import struct
-import pytest
 import ssl
+import struct
+import sys
+
+import pg8000
+
+import pytest
 
 
 # Check if running in Jython
