@@ -1,6 +1,5 @@
 import decimal
 import ipaddress
-import json
 import os
 import time
 import uuid
@@ -12,9 +11,9 @@ from datetime import (
     timedelta as Timedelta,
     timezone as Timezone)
 from enum import Enum
+from json import dumps
 
 import pg8000
-from pg8000 import PGEnum, PGJsonb
 from pg8000 import converters
 
 import pytest
@@ -256,8 +255,8 @@ def test_enum_str_round_trip(cursor):
         cursor.execute("drop type lepton")
 
 
-def test_enum_custom_round_trip(cursor):
-    class Lepton(object):
+def test_enum_custom_round_trip(con):
+    class Lepton():
         # Implements PEP 435 in the minimal fashion needed
         __members__ = OrderedDict()
 
@@ -270,15 +269,20 @@ def test_enum_custom_round_trip(cursor):
                 self.__members__[alias] = self
                 setattr(self.__class__, alias, self)
 
+    def lepton_out(lepton):
+        return lepton.value
+
     try:
-        cursor.execute("create type lepton as enum ('1', '2', '3')")
+        con.run("create type lepton as enum ('1', '2', '3')")
+        lepton_oid = con.run(
+            "select oid from pg_type where typname = 'lepton'")[0][0]
+        con.register_out_adapter(Lepton, lepton_oid, lepton_out)
 
         v = Lepton('muon', '2')
-        cursor.execute("SELECT cast(%s as lepton) as f1", (PGEnum(v),))
-        retval = cursor.fetchall()
+        retval = con.run("SELECT :v", v=v)
         assert retval[0][0] == v.value
     finally:
-        cursor.execute("drop type lepton")
+        con.run("drop type lepton")
 
 
 def test_enum_py_round_trip(cursor):
@@ -688,27 +692,27 @@ def test_hstore_roundtrip(cursor):
 
 def test_json_roundtrip(con):
     val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
-    retval = con.run("SELECT cast(:v as jsonb)", v=pg8000.PGJson(val))
+    retval = con.run("SELECT cast(:v as jsonb)", v=dumps(val))
     assert retval[0][0] == val
 
 
 def test_jsonb_roundtrip(cursor):
     val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
-    cursor.execute("SELECT cast(%s as jsonb)", (json.dumps(val),))
+    cursor.execute("SELECT cast(%s as jsonb)", (dumps(val),))
     retval = cursor.fetchall()
     assert retval[0][0] == val
 
 
 def test_json_access_object(cursor):
     val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
-    cursor.execute("SELECT cast(%s as json) -> %s", (json.dumps(val), 'name'))
+    cursor.execute("SELECT cast(%s as json) -> %s", (dumps(val), 'name'))
     retval = cursor.fetchall()
     assert retval[0][0] == 'Apollo 11 Cave'
 
 
 def test_jsonb_access_object(cursor):
     val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
-    cursor.execute("SELECT cast(%s as jsonb) -> %s", (json.dumps(val), 'name'))
+    cursor.execute("SELECT cast(%s as jsonb) -> %s", (dumps(val), 'name'))
     retval = cursor.fetchall()
     assert retval[0][0] == 'Apollo 11 Cave'
 
@@ -717,15 +721,14 @@ def test_json_access_array(con):
     val = [-1, -2, -3, -4, -5]
     retval = con.run(
         "SELECT cast(:v1 as json) -> cast(:v2 as int)",
-        v1=json.dumps(val), v2=2)
+        v1=dumps(val), v2=2)
     assert retval[0][0] == -3
 
 
 def test_jsonb_access_array(con):
     val = [-1, -2, -3, -4, -5]
     retval = con.run(
-        "SELECT cast(:v1 as jsonb) -> cast(:v2 as int)",
-        v1=json.dumps(val), v2=2)
+        "SELECT cast(:v1 as jsonb) -> cast(:v2 as int)", v1=dumps(val), v2=2)
     assert retval[0][0] == -3
 
 
@@ -737,7 +740,7 @@ def test_jsonb_access_path(con):
     path = ['a', '2']
 
     retval = con.run(
-        "SELECT cast(:v1 as jsonb) #>> :v2", v1=PGJsonb(j), v2=path)
+        "SELECT cast(:v1 as jsonb) #>> :v2", v1=dumps(j), v2=path)
     assert retval[0][0] == str(j[path[0]][int(path[1])])
 
 

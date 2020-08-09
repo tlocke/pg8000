@@ -801,9 +801,8 @@ examples).
 
 | JSON
 | json, jsonb
-| The Python JSON can be provided as a Python serialized string, or wrapped in
-  pg8000.PGJson and pg8000.PGJsonb wrappers. Results returned as
-  de-serialized JSON.
+| The Python JSON is provided as a Python serialized string. Results returned
+  as de-serialized JSON.
 |===
 
 

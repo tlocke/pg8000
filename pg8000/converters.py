@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from ipaddress import (
     IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_address, ip_network)
-from json import dumps, loads
+from json import loads
 from time import localtime
 from uuid import UUID
 
@@ -486,44 +486,6 @@ class PGInterval():
             return False
 
 
-class PGType():
-    def __init__(self, value):
-        self.value = value
-
-    def encode(self, encoding):
-        return str(self.value).encode(encoding)
-
-
-class PGEnum(PGType):
-    def __init__(self, value):
-        if isinstance(value, str):
-            self.value = value
-        else:
-            self.value = value.value
-
-
-class PGJson(PGType):
-    def encode(self, encoding):
-        return dumps(self.value).encode(encoding)
-
-
-class PGJsonb(PGType):
-    def encode(self, encoding):
-        return dumps(self.value).encode(encoding)
-
-
-class PGTsvector(PGType):
-    pass
-
-
-class PGVarchar(str):
-    pass
-
-
-class PGText(str):
-    pass
-
-
 class ArrayState(Enum):
     InString = 1
     InEscape = 2
@@ -610,20 +572,14 @@ PY_TYPES = {
     20: (20, int_out),  # int8
     21: (21, int_out),  # int2
     23: (23, int_out),  # int4
-    PGText: (25, text_out),  # text
     float: (701, float_out),  # float8
-    PGEnum: (705, enum_out),
     Date: (1082, date_out),  # date
     Time: (1083, time_out),  # time
     1114: (1114, timestamp_out),  # timestamp
-    PGVarchar: (1043, text_out),  # varchar
     1184: (1184, timestamptz_out),  # timestamptz
-    PGJson: (114, text_out),
-    PGJsonb: (3802, text_out),
     Timedelta: (1186, timedelta_out),
     PGInterval: (1186, pginterval_out),
     Decimal: (1700, numeric_out),  # Decimal
-    PGTsvector: (3614, text_out),
     UUID: (2950, uuid_out),  # uuid
     bytes: (17, bytes_out),  # bytea
     str: (UNKNOWN, text_out),  # unknown
