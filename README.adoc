@@ -460,6 +460,33 @@ executed repeatedly. Here's an example:
 ----
 
 
+=== Use Current User As DB Username
+
+You might want to use the current user as the the database username:
+
+[source,python]
+----
+
+>>> import pg8000
+>>> import getpass
+>>>
+>>> # Connect to the database with current user name
+>>> username = getpass.getuser()
+>>> connection = pg8000.connect(username, password="villagespice")
+>>>
+>>> connection.run("SELECT 'pilau'")
+(['pilau'],)
+
+----
+
+You might ask, why doesn't pg8000 have the current user as a default
+username? The thinking follows the second aphorism of the
+https://www.python.org/dev/peps/pep-0020/[Zen Of Python]:
+
+[quote]
+Explicit is better than implicit.
+
+
 == DB-API 2 Interactive Examples
 
 These examples stick to the DB-API 2.0 standard.
