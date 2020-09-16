@@ -237,7 +237,7 @@ def test_description(con):
         'cursor.description describes too many columns'
     assert len(cur.description[0]) == 7, \
         'cursor.description[x] tuples must have 7 elements'
-    assert cur.description[0][0].lower() == b'name', \
+    assert cur.description[0][0].lower() == 'name', \
         'cursor.description[x][0] must return column name'
     assert cur.description[0][1] == driver.STRING, \
         'cursor.description[x][1] must return column type. Got %r' \

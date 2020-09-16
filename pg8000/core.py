@@ -1168,7 +1168,7 @@ class Connection():
                 zip((
                     "table_oid", "column_attrnum", "type_oid", "type_size",
                     "type_modifier", "format"), ihihih_unpack(data, idx)))
-            field['name'] = name
+            field['name'] = name.decode(self._client_encoding)
             idx += 18
             row_desc.append(field)
             input_funcs.append(self.pg_types[field['type_oid']])

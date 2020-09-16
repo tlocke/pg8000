@@ -175,7 +175,7 @@ Use the columns names retrieved from a query:
 >>> # Now retrieve the results
 >>>
 >>> rows = con.run("SELECT * FROM quark")
->>> col_names = [k[0].decode('ascii') for k in con.description]
+>>> col_names = [k[0] for k in con.description]
 >>> col_names
 ['id', 'name']
 
@@ -462,7 +462,7 @@ executed repeatedly. Here's an example:
 
 === Use Current User As DB Username
 
-You might want to use the current user as the the database username:
+You might want to use the current user as the database username:
 
 [source,python]
 ----
@@ -479,9 +479,9 @@ You might want to use the current user as the the database username:
 
 ----
 
-You might ask, why doesn't pg8000 have the current user as a default
-username? The thinking follows the second aphorism of the
-https://www.python.org/dev/peps/pep-0020/[Zen Of Python]:
+It might be asked, why doesn't pg8000 have the current user as a default
+username? The thinking follows the second aphorism of
+https://www.python.org/dev/peps/pep-0020/[The Zen of Python]:
 
 [quote]
 Explicit is better than implicit.
@@ -660,7 +660,7 @@ Use the columns names retrieved from a query:
 >>> # Now retrieve the results
 >>> #
 >>> rows = c.execute("select * from quark")
->>> keys = [k[0].decode('ascii') for k in c.description]
+>>> keys = [k[0] for k in c.description]
 >>> results = [dict(zip(keys, row)) for row in rows]
 >>> assert results == [{'id': 1, 'name': 'Up'}, {'id': 2, 'name': 'Down'}]
 
