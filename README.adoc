@@ -1710,6 +1710,16 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.16.6, 2020-10-10
+
+* The column name in `Connection.description` used to be returned as a
+  `bytes` but now it's returned as a `str`.
+
+* Removed extra wrapper types PGJson, PGEnum etc. These were never properly
+  documented and the problem they solve can be solved using CAST in the SQL or
+  by using setinputsizes.
+
+
 === Version 1.16.5, 2020-08-07
 
 * The TPC method `Connection.tpc_prepare()` was broken.
