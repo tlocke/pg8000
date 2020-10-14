@@ -1674,12 +1674,7 @@ then run `tox` from the `pg8000` directory:
 
 This will run the tests against the Python version of the virtual environment,
 on the machine, and the installed PostgreSQL version listening on port 5432, or
-the PGPORT environment variable if set.
-
-If you're using Ubuntu you can install old Python versions using the
-https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes[Dead
-Snakes APT Repository] and other versions of PostgreSQL using the
-http://wiki.postgresql.org/wiki/Apt[PostgreSQL APT Repository].
+the `PGPORT` environment variable if set.
 
 Benchmarks are run as part of the test suite at `tests/test_benchmarks.py`.
 
