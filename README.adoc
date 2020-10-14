@@ -245,16 +245,18 @@ pg8000.exceptions.ProgrammingError: ...
 
 ----
 
-Instead you can write it using the `ANY` subquery expression:
+instead you can write it using the
+https://www.postgresql.org/docs/current/functions-array.html[`unnest`]
+function:
 
 [source,python]
 ----
->>> con.run("SELECT 'silo 1' WHERE 'a' = any(:v)", v=('a', 'b'))
+>>> con.run("SELECT 'silo 1' WHERE 'a' IN (SELECT unnest(:v))", v=('a', 'b'))
 (['silo 1'],)
 
 ----
 
-Likewise you can use `<> all()` instead of `NOT IN`.
+and you can do the same for `NOT IN`.
 
 
 === Many SQL Statements Can't Be Parameterized
