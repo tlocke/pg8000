@@ -1681,16 +1681,6 @@ the `PGPORT` environment variable if set.
 Benchmarks are run as part of the test suite at `tests/test_benchmarks.py`.
 
 
-== Stress Test
-
-There's a stress test that is run by doing:
-
- python ./multi
-
-The idea is to set `shared_buffers` in `postgresql.conf` to 128kB, and then
-run the stress test, and you should get `no unpinned buffers` errors.
-
-
 == Doing A Release Of pg8000
 
 Run `tox` to make sure all tests pass, then update the release notes, then do:
