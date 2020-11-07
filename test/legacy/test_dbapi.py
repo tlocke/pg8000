@@ -229,4 +229,4 @@ def test_prepared_statement(con):
 
 
 def test_cursor_type(cursor):
-    assert str(type(cursor)) == "<class 'pg8000.core.Cursor'>"
+    assert str(type(cursor)) == "<class 'pg8000.legacy.Cursor'>"

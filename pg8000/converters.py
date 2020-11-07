@@ -37,7 +37,6 @@ JSON = 114
 JSONB = 3802
 NULLTYPE = -1
 NUMBER = 1700
-ROWID = 26
 STRING = 1043
 TEXT = 25
 TEXT_ARRAY = 1009
@@ -698,3 +697,19 @@ PG_ARRAY_TYPES = {
     1043: 1009,
     1700: 1231,  # NUMERIC[]
 }
+
+
+def array_find_first_element(arr):
+    for v in array_flatten(arr):
+        if v is not None:
+            return v
+    return None
+
+
+def array_flatten(arr):
+    for v in arr:
+        if isinstance(v, list):
+            for v2 in array_flatten(v):
+                yield v2
+        else:
+            yield v

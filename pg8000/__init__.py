@@ -1,16 +1,14 @@
-from pg8000.converters import (
+from pg8000.legacy import (
     BIGINTEGER, BINARY, BOOLEAN, BOOLEAN_ARRAY, BYTES, Binary, CHAR,
-    CHAR_ARRAY, DATE, DATETIME, DECIMAL, DECIMAL_ARRAY, Date, DateFromTicks,
-    FLOAT, FLOAT_ARRAY, INET, INT2VECTOR, INTEGER, INTEGER_ARRAY, INTERVAL,
-    JSON, JSONB, MACADDR, NAME, NAME_ARRAY, NULLTYPE, NUMBER, OID, PGInterval,
-    ROWID, STRING, TEXT, TEXT_ARRAY, TIME, TIMEDELTA, TIMESTAMP, TIMESTAMPTZ,
-    Time, TimeFromTicks, Timestamp, TimestampFromTicks, UNKNOWN, UUID_TYPE,
-    VARCHAR, VARCHAR_ARRAY, XID)
-from pg8000.core import Connection, Cursor
-from pg8000.exceptions import (
-    DataError, DatabaseError, Error, IntegrityError, InterfaceError,
-    InternalError, NotSupportedError, OperationalError, ProgrammingError,
-    Warning)
+    CHAR_ARRAY, Connection, Cursor, DATE, DATETIME, DECIMAL, DECIMAL_ARRAY,
+    DataError, DatabaseError, Date, DateFromTicks, Error, FLOAT, FLOAT_ARRAY,
+    INET, INT2VECTOR, INTEGER, INTEGER_ARRAY, INTERVAL, IntegrityError,
+    InterfaceError, InternalError, JSON, JSONB, MACADDR, NAME, NAME_ARRAY,
+    NULLTYPE, NUMBER, NotSupportedError, OID, OperationalError, PGInterval,
+    ProgrammingError, ROWID, STRING, TEXT, TEXT_ARRAY, TIME, TIMEDELTA,
+    TIMESTAMP, TIMESTAMPTZ, Time, TimeFromTicks, Timestamp, TimestampFromTicks,
+    UNKNOWN, UUID_TYPE, VARCHAR, VARCHAR_ARRAY, Warning, XID
+)
 
 from ._version import get_versions
 __version__ = get_versions()['version']

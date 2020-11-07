@@ -22,10 +22,11 @@ To install pg8000 using `pip` type:
 `pip install pg8000`
 
 
-== Interactive Examples
+== Native API Interactive Examples
 
-These examples make use of the pg8000 extensions to the DB-API 2.0 standard,
-including the `run()` method introduced in version 1.15.2.
+pg8000 comes with two APIs, the native pg8000 API and the DB-API 2.0 standard
+API. These are the examples for the native API, and the DB-API 2.0 examples
+follow in the next section.
 
 
 === Basic Example
@@ -35,23 +36,23 @@ query the table:
 
 [source,python]
 ----
->>> import pg8000
+>>> import pg8000.native
 >>>
 >>> # Connect to the database with user name postgres
 >>>
->>> con = pg8000.connect("postgres", password="C.P.Snow")
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
 >>> # Create a temporary table
 >>>
 >>> con.run("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
-()
+[]
 >>>
 >>> # Populate the table
 >>>
 >>> for title in ("Ender's Game", "The Magus"):
 ...     con.run("INSERT INTO book (title) VALUES (:title)", title=title)
-()
-()
+[]
+[]
 >>>
 >>> # Print all the rows in the table
 >>>
@@ -59,10 +60,44 @@ query the table:
 ...     print(row)
 [1, "Ender's Game"]
 [2, 'The Magus']
->>>
->>> # Commit the transaction
->>>
->>> con.commit()
+
+----
+
+
+=== Transactions
+
+Here's how to run groups of SQL statements in a
+https://www.postgresql.org/docs/current/tutorial-transactions.html[transaction]:
+
+----
+>>> con.run("START TRANSACTION")
+[]
+>>> con.run("INSERT INTO book (title) VALUES (:title)", title="Phineas Finn") 
+[]
+>>> con.run("COMMIT")
+[]
+>>> for row in con.run("SELECT * FROM book"):
+...     print(row)
+[1, "Ender's Game"]
+[2, 'The Magus']
+[3, 'Phineas Finn']
+
+----
+
+rolling back a transaction:
+
+----
+>>> con.run("START TRANSACTION")
+[]
+>>> con.run("DELETE FROM book WHERE title = :title", title="Phineas Finn") 
+[]
+>>> con.run("ROLLBACK")
+[]
+>>> for row in con.run("SELECT * FROM book"):
+...     print(row)
+[1, "Ender's Game"]
+[2, 'The Magus']
+[3, 'Phineas Finn']
 
 ----
 
@@ -74,7 +109,7 @@ Another query, using some PostgreSQL functions:
 [source,python]
 ----
 >>> con.run("SELECT extract(millennium from now())")
-([3.0],)
+[[3.0]]
 
 ----
 
@@ -89,7 +124,7 @@ A query that returns the PostgreSQL interval type:
 >>>
 >>> ts = datetime.date(1980, 4, 27)
 >>> con.run("SELECT timestamp '2013-12-01 16:06' - :ts", ts=ts)
-([datetime.timedelta(days=12271, seconds=57960)],)
+[[datetime.timedelta(days=12271, seconds=57960)]]
 
 ----
 
@@ -103,25 +138,7 @@ point] type:
 [source,python]
 ----
 >>> con.run("SELECT CAST(:pt as point)", pt='(2.3,1)')
-(['(2.3,1)'],)
-
-----
-
-
-=== Autocommit
-
-Following the DB-API specification, autocommit is off by default. It can be
-turned on by using the autocommit property of the connection.
-
-[source,python]
-----
->>> # Make sure we're not in a transaction
->>> con.rollback()
->>>
->>> con.autocommit = True
->>> con.run("VACUUM")
-()
->>> con.autocommit = False
+[['(2.3,1)']]
 
 ----
 
@@ -138,9 +155,9 @@ encoding is by using an SQL command. For example:
 [source,python]
 ----
 >>> con.run("SET CLIENT_ENCODING TO 'UTF8'")
-()
+[]
 >>> con.run("SHOW CLIENT_ENCODING")
-(['UTF8'],)
+[['UTF8']]
 
 ----
 
@@ -155,28 +172,36 @@ example:
 >>> import json
 >>> val = ['Apollo 11 Cave', True, 26.003]
 >>> con.run("SELECT CAST(:apollo as json)", apollo=json.dumps(val))
-([['Apollo 11 Cave', True, 26.003]],)
+[[['Apollo 11 Cave', True, 26.003]]]
 
 ----
 
 
-=== Retrieve Column Names From Results
+=== Retrieve Column Metadata From Results
 
-Use the columns names retrieved from a query:
+Find the column metadata returned from a query:
 
 [source,python]
 ----
 >>> con.run("create temporary table quark (id serial, name text)")
-()
+[]
 >>> for name in ('Up', 'Down'):
 ...     con.run("INSERT INTO quark (name) VALUES (:name)", name=name)
-()
-()
->>> # Now retrieve the results
+[]
+[]
+>>> # Now execute the query
 >>>
->>> rows = con.run("SELECT * FROM quark")
->>> col_names = [k[0] for k in con.description]
->>> col_names
+>>> con.run("SELECT * FROM quark")
+[[1, 'Up'], [2, 'Down']]
+>>>
+>>> # and retried the metadata
+>>>
+>>> con.columns
+[{'table_oid': ..., 'column_attrnum': 1, 'type_oid': 23, 'type_size': 4, 'type_modifier': -1, 'format': 0, 'name': 'id'}, {'table_oid': ..., 'column_attrnum': 2, 'type_oid': 25, 'type_size': -1, 'type_modifier': -1, 'format': 0, 'name': 'name'}]
+>>>
+>>> # Show just the column names
+>>>
+>>> [c['name'] for c in con.columns]
 ['id', 'name']
 
 ----
@@ -194,11 +219,9 @@ Here's an example:
 [source,python]
 ----
 >>> con.run("LISTEN aliens_landed")
-()
+[]
 >>> con.run("NOTIFY aliens_landed")
-()
->>> con.commit()
->>>
+[]
 >>> # A notification is a tuple containing (backend_pid, channel, payload)
 >>>
 >>> con.notifications[0]
@@ -215,8 +238,7 @@ You might think that the following would work, but in fact it fails:
 ----
 >>> con.run("SELECT 'silo 1' LIMIT :lim", lim='ALL')
 Traceback (most recent call last):
-pg8000.exceptions.ProgrammingError: ...
->>> con.rollback()
+pg8000.exceptions.DatabaseError: ...
 
 ----
 
@@ -226,7 +248,7 @@ that you can send `null` as an alternative to `ALL`, which does work:
 [source,python]
 ----
 >>> con.run("SELECT 'silo 1' LIMIT :lim", lim=None)
-(['silo 1'],)
+[['silo 1']]
 
 ----
 
@@ -240,8 +262,7 @@ like it:
 ----
 >>> con.run("SELECT 'silo 1' WHERE 'a' IN :v", v=('a', 'b'))
 Traceback (most recent call last):
-pg8000.exceptions.ProgrammingError: ...
->>> con.rollback()
+pg8000.exceptions.DatabaseError: ...
 
 ----
 
@@ -252,7 +273,7 @@ function:
 [source,python]
 ----
 >>> con.run("SELECT 'silo 1' WHERE 'a' IN (SELECT unnest(:v))", v=('a', 'b'))
-(['silo 1'],)
+[['silo 1']]
 
 ----
 
@@ -269,14 +290,13 @@ for example the following fails:
 ----
 >>> con.run("CREATE USER juan WITH PASSWORD :password", password='quail')
 Traceback (most recent call last):
-pg8000.exceptions.ProgrammingError: ...
->>> con.rollback()
+pg8000.exceptions.DatabaseError: ...
 
 ----
 
 It fails because the PostgreSQL server doesn't allow this statement to have
-any parameters. There are many SQL statements that one might think
-would have parameters, but don't.
+any parameters. There are many SQL statements that one might think would have
+parameters, but don't.
 
 
 === COPY from and to a file
@@ -306,15 +326,15 @@ using the CSV format:
 >>> # Create a table and then copy the CSV into it
 >>>
 >>> con.run("CREATE TEMPORARY TABLE lepton (id SERIAL, name TEXT)")
-()
+[]
 >>> con.run("COPY lepton FROM STDIN WITH (FORMAT CSV)", stream=stream_in)
-()
+[]
 >>>
 >>> # COPY from a table to a stream
 >>>
 >>> stream_out = BytesIO()
 >>> con.run("COPY lepton TO STDOUT WITH (FORMAT CSV)", stream=stream_out)
-()
+[]
 >>> stream_out.seek(0)
 0
 >>> StreamReader = codecs.getreader('utf-8')
@@ -338,7 +358,7 @@ can run them as expected:
 >>> statements = "SELECT 5; SELECT 'Erich Fromm';"
 >>>
 >>> con.run(statements)
-([5], ['Erich Fromm'])
+[[5], ['Erich Fromm']]
 
 ----
 
@@ -368,7 +388,7 @@ to delimit the string instead:
 [source,python]
 ----
 >>> con.run('''select 'hello' as "My Column"''')
-(['hello'],)
+[['hello']]
 
 ----
 
@@ -396,7 +416,7 @@ register an adapter:
 >>>
 >>> con.register_out_adapter(MyInterval, 1186, my_interval_out)
 >>> con.run("SELECT :interval", interval=MyInterval("2 hours"))
-([datetime.timedelta(seconds=7200)],)
+[[datetime.timedelta(seconds=7200)]]
 
 ----
 
@@ -429,13 +449,49 @@ we'd have to register an adapter:
 >>>
 >>> con.register_in_adapter(1186, my_interval_in)
 >>> con.run("SELECT \'2 years'")
-(['2 years'],)
+[['2 years']]
 
 ----
 
 Note that registering the 'in' adapter only afects the mapping from the
 PostgreSQL type to the Python type. See above for an example of how to change
 the mapping from PostgreSQL to Python.
+
+
+=== Could Not Determine Data Type Of Parameter
+
+Sometimes you'll get the 'could not determine data type of parameter' error
+message from the server:
+
+[source,python]
+----
+
+>>> con.run("SELECT :v IS NULL", v=None)
+Traceback (most recent call last):
+pg8000.exceptions.DatabaseError: {'S': 'ERROR', 'V': 'ERROR', 'C': '42P18', 'M': 'could not determine data type of parameter $1', 'F': 'postgres.c', 'L': '...', 'R': 'exec_parse_message'}
+
+----
+
+One way of solving it is to put a `cast` in the SQL:
+
+[source,python]
+----
+
+>>> con.run("SELECT cast(:v as TIMESTAMP) IS NULL", v=None)
+[[True]]
+
+----
+
+Another way is to override the type that pg8000 sends along with each
+parameter:
+
+[source,python]
+----
+
+>>> con.run("SELECT :v IS NULL", v=None, types={'v': pg8000.native.TIMESTAMP})
+[[True]]
+
+----
 
 
 === Prepared Statements
@@ -453,11 +509,14 @@ executed repeatedly. Here's an example:
 >>>
 >>> # Exceute the statement repeatedly
 >>> ps.run(v="speedy")
-(['speedy'],)
+[['speedy']]
 >>> ps.run(v="rapid")
-(['rapid'],)
+[['rapid']]
 >>> ps.run(v="swift")
-(['swift'],)
+[['swift']]
+>>>
+>>> # Close the prepared statement, releasing resources on the server
+>>> ps.close()
 
 ----
 
@@ -474,10 +533,10 @@ You might want to use the current user as the database username:
 >>>
 >>> # Connect to the database with current user name
 >>> username = getpass.getuser()
->>> connection = pg8000.connect(username, password="villagespice")
+>>> connection = pg8000.native.Connection(username, password="cpsnow")
 >>>
 >>> connection.run("SELECT 'pilau'")
-(['pilau'],)
+[['pilau']]
 
 ----
 
@@ -502,14 +561,13 @@ query the table:
 [source,python]
 ----
 >>> import pg8000
->>> conn = pg8000.connect(user="postgres", password="C.P.Snow")
+>>>
+>>> conn = pg8000.dbapi.connect(user="postgres", password="cpsnow")
 >>> cursor = conn.cursor()
 >>> cursor.execute("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
-<pg8000.core.Cursor object at ...>
 >>> cursor.execute(
 ...     "INSERT INTO book (title) VALUES (%s), (%s) RETURNING id, title",
 ...     ("Ender's Game", "Speaker for the Dead"))
-<pg8000.core.Cursor object at ...>
 >>> results = cursor.fetchall()
 >>> for row in results:
 ...     id, title = row
@@ -528,7 +586,6 @@ Another query, using some PostgreSQL functions:
 [source,python]
 ----
 >>> cursor.execute("SELECT extract(millennium from now())")
-<pg8000.core.Cursor object at ...>
 >>> cursor.fetchone()
 [3.0]
 
@@ -544,7 +601,6 @@ A query that returns the PostgreSQL interval type:
 >>> import datetime
 >>> cursor.execute("SELECT timestamp '2013-12-01 16:06' - %s",
 ... (datetime.date(1980, 4, 27),))
-<pg8000.core.Cursor object at ...>
 >>> cursor.fetchone()
 [datetime.timedelta(days=12271, seconds=57960)]
 
@@ -560,7 +616,6 @@ point] type:
 [source,python]
 ----
 >>> cursor.execute("SELECT cast(%s as point)", ('(2.3,1)',))
-<pg8000.core.Cursor object at ...>
 >>> cursor.fetchone()
 ['(2.3,1)']
 
@@ -574,13 +629,12 @@ the 'numeric' parameter style:
 
 [source,python]
 ----
->>> pg8000.paramstyle = "numeric"
+>>> pg8000.dbapi.paramstyle = "numeric"
 >>> cursor = conn.cursor()
 >>> cursor.execute("SELECT array_prepend(:1, :2)", ( 500, [1, 2, 3, 4], ))
-<pg8000.core.Cursor object at ...>
 >>> cursor.fetchone()
 [[500, 1, 2, 3, 4]]
->>> pg8000.paramstyle = "format"
+>>> pg8000.dbapi.paramstyle = "format"
 >>> conn.rollback()
 
 ----
@@ -596,7 +650,6 @@ turned on by using the autocommit property of the connection.
 >>> conn.autocommit = True
 >>> cur = conn.cursor()
 >>> cur.execute("vacuum")
-<pg8000.core.Cursor object at ...>
 >>> conn.autocommit = False
 >>> cur.close()
 
@@ -616,9 +669,7 @@ encoding is by using an SQL command. For example:
 ----
 >>> cur = conn.cursor()
 >>> cur.execute("SET CLIENT_ENCODING TO 'UTF8'")
-<pg8000.core.Cursor object at ...>
 >>> cur.execute("SHOW CLIENT_ENCODING")
-<pg8000.core.Cursor object at ...>
 >>> cur.fetchone()
 ['UTF8']
 >>> cur.close()
@@ -637,7 +688,6 @@ example:
 >>> cur = conn.cursor()
 >>> val = ['Apollo 11 Cave', True, 26.003]
 >>> cur.execute("SELECT cast(%s as json)", (json.dumps(val),))
-<pg8000.core.Cursor object at ...>
 >>> cur.fetchone()
 [['Apollo 11 Cave', True, 26.003]]
 >>> cur.close()
@@ -652,16 +702,15 @@ Use the columns names retrieved from a query:
 [source,python]
 ----
 >>> import pg8000
->>> conn = pg8000.connect(user="postgres", password="C.P.Snow")
+>>> conn = pg8000.dbapi.connect(user="postgres", password="cpsnow")
 >>> c = conn.cursor()
 >>> c.execute("create temporary table quark (id serial, name text)")
-<pg8000.core.Cursor object at ...>
 >>> c.executemany("INSERT INTO quark (name) VALUES (%s)", (("Up",), ("Down",)))
-<pg8000.core.Cursor object at ...>
 >>> #
 >>> # Now retrieve the results
 >>> #
->>> rows = c.execute("select * from quark")
+>>> c.execute("select * from quark")
+>>> rows = c.fetchall()
 >>> keys = [k[0] for k in c.description]
 >>> results = [dict(zip(keys, row)) for row in rows]
 >>> assert results == [{'id': 1, 'name': 'Up'}, {'id': 2, 'name': 'Down'}]
@@ -682,9 +731,7 @@ Here's an example:
 ----
 >>> cur = conn.cursor()
 >>> cur.execute("LISTEN aliens_landed")
-<pg8000.core.Cursor object at ...>
 >>> cur.execute("NOTIFY aliens_landed")
-<pg8000.core.Cursor object at ...>
 >>> conn.commit()
 >>> conn.notifications[0][1]
 'aliens_landed'
@@ -707,15 +754,12 @@ can be used to copy from and to a file or file-like object:
 >>> stream_in = BytesIO(b'1\telectron\n2\tmuon\n3\ttau\n')
 >>> cur = conn.cursor()
 >>> cur.execute("create temporary table lepton (id serial, name text)")
-<pg8000.core.Cursor object at ...>
 >>> cur.execute("COPY lepton FROM stdin", stream=stream_in)
-<pg8000.core.Cursor object at ...>
 >>> #
 >>> # Now COPY from a table to a stream
 >>> #
 >>> stream_out = BytesIO()
 >>> cur.execute("copy lepton to stdout", stream=stream_out)
-<pg8000.core.Cursor object at ...>
 >>> stream_out.getvalue()
 b'1\telectron\n2\tmuon\n3\ttau\n'
 
@@ -892,13 +936,249 @@ always sent as text.
   of at least 5 bytes`.
 
 
-== API Docs
+== Native API Docs
+
+=== pg8000.native.Connection(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None)
+
+Creates a connection to a PostgreSQL database.
+
+user::
+  The username to connect to the PostgreSQL server with. If your server
+  character encoding is not `ascii` or `utf8`, then you need to provide
+  `user` as bytes, eg. `'my_name'.encode('EUC-JP')`.
+
+host::
+  The hostname of the PostgreSQL server to connect with. Providing this
+  parameter is necessary for TCP/IP connections. One of either `host` or
+  `unix_sock` must be provided. The default is `localhost`.
+
+database::
+  The name of the database instance to connect with. If `None` then the
+  PostgreSQL server will assume the database name is the same as the username.
+  If your server character encoding is not `ascii` or `utf8`, then you need to
+  provide `database` as bytes, eg. `'my_db'.encode('EUC-JP')`.
+
+port::
+  The TCP/IP port of the PostgreSQL server instance.  This parameter defaults
+  to `5432`, the registered common port of PostgreSQL TCP/IP servers.
+
+password::
+  The user password to connect to the server with. This parameter is optional;
+  if omitted and the database server requests password-based authentication,
+  the connection will fail to open. If this parameter is provided but not
+  requested by the server, no error will occur. +
+   +
+  If your server character encoding is not `ascii` or `utf8`, then
+  you need to provide `password` as bytes, eg.
+  `'my_password'.encode('EUC-JP')`.
+
+
+source_address::
+  The source IP address which initiates the connection to the PostgreSQL server.
+  The default is `None` which means that the operating system will choose the
+  source address.
+
+unix_sock::
+  The path to the UNIX socket to access the database through, for example,
+  `'/tmp/.s.PGSQL.5432'`. One of either `host` or `unix_sock` must be provided.
+
+ssl_context::
+  This governs SSL encryption for TCP/IP sockets. It can have three values:
+    * `None`, meaning no SSL (the default)
+    * `True`, means use SSL with an
+       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+       created using
+      https://docs.python.org/3/library/ssl.html#ssl.create_default_context[`ssl.create_default_context()`]
+    *  An instance of
+       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+       which will be used to create the SSL connection.
+
+timeout::
+  This is the time in seconds before the connection to the server will time
+  out. The default is `None` which means no timeout.
+
+tcp_keepalive::
+  If `True` then use
+  https://en.wikipedia.org/wiki/Keepalive#TCP_keepalive[TCP keepalive]. The
+  default is `True`.
+
+application_name::
+  Sets the https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-APPLICATION-NAME[application_name]. If your server character encoding is not
+  `ascii` or `utf8`, then you need to provide values as bytes, eg.
+  `'my_application_name'.encode('EUC-JP')`. The default is `None` which means
+  that the server will set the application name.
+
+replication::
+  Used to run in https://www.postgresql.org/docs/12/protocol-replication.html[streaming replication mode].
+  If your server character encoding is not `ascii` or `utf8`, then you need to
+  provide values as bytes, eg. `'database'.encode('EUC-JP')`.
+
+
+=== pg8000.native.Error
+
+Generic exception that is the base exception of the other error exceptions.
+
+
+=== pg8000.native.InterfaceError
+
+For errors that originate within pg8000.
+
+
+=== pg8000.native.DatabaseError
+
+For errors that originate from the server.
+
+=== pg8000.native.Connection.notifications
+
+A deque of server-side
+https://www.postgresql.org/docs/current/sql-notify.html[notifications] received
+by this database connection (via the LISTEN / NOTIFY PostgreSQL commands). Each
+list item is a three-element tuple containing the PostgreSQL backend PID that
+issued the notify, the channel and the payload.
+
+
+=== pg8000.native.Connection.notices
+
+A deque of server-side notices received by this database connection.
+
+
+=== pg8000.native.Connection.parameter_statuses
+
+A deque of server-side parameter statuses received by this database connection.
+
+
+=== pg8000.native.Connection.run(sql, stream=None, types=None, \**kwargs)
+
+Executes an sql statement, and returns the results as a `list`. For example:
+
+`con.run("SELECT * FROM cities where population > :pop", pop=10000)`
+
+This method is a pg8000 extension.
+
+sql::
+  The SQL statement to execute. Parameter placeholders appear as a `:` followed
+  by the parameter name.
+
+stream::
+  For use with the PostgreSQL
+http://www.postgresql.org/docs/current/static/sql-copy.html[COPY] command. For
+a `COPY FROM` the parameter must be a readable file-like object, and for
+`COPY TO` it must be writable.
+
+types::
+  A dictionary of oids. A key corresponds to a parameter. 
+
+kwargs::
+  The parameters of the SQL statement.
+
+
+=== pg8000.native.Connection.row_count
+
+This read-only attribute contains the number of rows that the last `run()`
+method produced (for query statements like `SELECT`) or affected (for
+modification statements like `UPDATE`.
+
+The value is -1 if:
+
+* No `run()` method has been performed yet.
+* There was no rowcount associated with the last `run()`.
+* Using a `SELECT` query statement on a PostgreSQL server older than version
+  9.
+* Using a `COPY` query statement on PostgreSQL server version 8.1 or older.
+
+
+===== pg8000.native.Connection.columns
+
+A list of column metadata. Each item in the list is a dictionary with the
+following keys:
+
+* name
+* table_oid
+* column_attrnum
+* type_oid
+* type_size
+* type_modifier
+* format
+
+
+=== pg8000.native.Connection.close()
+
+Closes the database connection.
+
+
+=== pg8000.native.Connection.register_out_adapter(typ, oid, out_func)
+
+Register a type adapter for types going out from pg8000 to the server.
+
+typ::
+  The Python class that the adapter is for.
+
+oid::
+  The PostgreSQL type identifier found in the
+  https://www.postgresql.org/docs/current/catalog-pg-type.html[pg_type system
+  calalog].
+
+out_func::
+  A function that takes the Python object and returns its string representation
+  in the format that the server requires.
+
+
+=== pg8000.native.Connection.register_in_adapter(oid, in_func)
+
+Register a type adapter for types coming in from the server to pg8000.
+
+oid::
+  The PostgreSQL type identifier found in the
+  https://www.postgresql.org/docs/current/catalog-pg-type.html[pg_type system
+  calalog].
+
+in_func::
+  A function that takes the PostgreSQL string representation and returns
+  a corresponding Python object.
+
+
+=== pg8000.native.Connection.prepare(sql)
+
+Returns a PreparedStatement object which represents a
+https://www.postgresql.org/docs/current/sql-prepare.html[prepared statement] on
+the server. It can subsequently be repeatedly executed as shown in the
+<<_prepared_statements, example>>.
+
+sql::
+  The SQL statement to prepare. Parameter placeholders appear as a `:` followed
+  by the parameter name.
+
+
+=== pg8000.native.PreparedStatement
+
+A prepared statement object is returned by the
+`pg8000.native.Connection.prepare()` method of a connection. It has the
+following methods:
+
+
+=== pg8000.native.PreparedStatement.run(\**kwargs)
+
+Executes the prepared statement, and returns the results as a `tuple`.
+
+This method is a pg8000 extension.
+
+kwargs::
+  The parameters of the prepared statement.
+
+
+=== pg8000.native.PreparedStatement.close()
+
+Closes the prepared statement, releasing the prepared statement held on the
+server.
+
+
+== DB-API 2 Docs
 
 
 === Properties
 
 
-==== pg8000.apilevel
+==== pg8000.dbapi.apilevel
 
 The DBAPI level supported, currently "2.0".
 
@@ -906,7 +1186,7 @@ This property is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-==== pg8000.threadsafety
+==== pg8000.dbapi.threadsafety
 
 Integer constant stating the level of thread safety the DBAPI interface
 supports. For pg8000, the threadsafety value is 1, meaning that threads may
@@ -915,7 +1195,7 @@ share the module but not connections.
 This property is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
-==== pg8000.paramstyle
+==== pg8000.dbapi.paramstyle
 
 String property stating the type of parameter marker formatting expected by
 the interface.  This value defaults to "format", in which parameters are
@@ -943,31 +1223,31 @@ pyformat::
   Python format codes, eg. `WHERE name=%(paramname)s`
 
 
-==== pg8000.STRING
+==== pg8000.dbapi.STRING
 
 String type oid.
 
-==== pg8000.BINARY
+==== pg8000.dbapi.BINARY
 
 
-==== pg8000.NUMBER
+==== pg8000.dbapi.NUMBER
 
 Numeric type oid.
 
 
-==== pg8000.DATETIME
+==== pg8000.dbapi.DATETIME
 
 Timestamp type oid
 
 
-==== pg8000.ROWID
+==== pg8000.dbapi.ROWID
 
 ROWID type oid
 
 
 === Functions
 
-==== pg8000.connect(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None)
+==== pg8000.dbapi.connect(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None)
 
 Creates a connection to a PostgreSQL database.
 
@@ -1046,7 +1326,7 @@ replication::
   provide values as bytes, eg. `'database'.encode('EUC-JP')`.
 
 
-==== pg8000.Date(year, month, day)
+==== pg8000.dbapi.Date(year, month, day)
 
 Constuct an object holding a date value.
 
@@ -1056,7 +1336,7 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 Returns: `datetime.date`
 
 
-==== pg8000.Time(hour, minute, second)
+==== pg8000.dbapi.Time(hour, minute, second)
 
 Construct an object holding a time value.
 
@@ -1066,7 +1346,7 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 Returns: `datetime.time`
 
 
-==== pg8000.Timestamp(year, month, day, hour, minute, second)
+==== pg8000.dbapi.Timestamp(year, month, day, hour, minute, second)
 
 Construct an object holding a timestamp value.
 
@@ -1076,7 +1356,7 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 Returns: `datetime.datetime`
 
 
-==== pg8000.DateFromTicks(ticks)
+==== pg8000.dbapi.DateFromTicks(ticks)
 
 Construct an object holding a date value from the given ticks value (number of
 seconds since the epoch).
@@ -1087,7 +1367,7 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 Returns: `datetime.datetime`
 
 
-==== pg8000.TimeFromTicks(ticks)
+==== pg8000.dbapi.TimeFromTicks(ticks)
 
 Construct an objet holding a time value from the given ticks value (number of
 seconds since the epoch).
@@ -1098,7 +1378,7 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 Returns: `datetime.time`
 
 
-==== pg8000.TimestampFromTicks(ticks)
+==== pg8000.dbapi.TimestampFromTicks(ticks)
 
 Construct an object holding a timestamp value from the given ticks value
 (number of seconds since the epoch).
@@ -1110,7 +1390,7 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 Returns: `datetime.datetime`
 
 
-==== pg8000.Binary(value)
+==== pg8000.dbapi.Binary(value)
 
 Construct an object holding binary data.
 
@@ -1126,7 +1406,7 @@ Pg8000 uses the standard DBAPI 2.0 exception tree as "generic" exceptions.
 Generally, more specific exception types are raised; these specific exception
 types are derived from the generic exceptions.
 
-==== pg8000.Warning
+==== pg8000.dbapi.Warning
 
 Generic exception raised for important database warnings like data truncations.
 This exception is not currently used by pg8000.
@@ -1134,7 +1414,7 @@ This exception is not currently used by pg8000.
 This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
-==== pg8000.Error
+==== pg8000.dbapi.Error
 
 Generic exception that is the base exception of all other error exceptions.
 
@@ -1142,7 +1422,7 @@ This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-==== pg8000.InterfaceError
+==== pg8000.dbapi.InterfaceError
 
 Generic exception raised for errors that are related to the database interface
 rather than the database itself. For example, if the interface attempts to use
@@ -1152,7 +1432,7 @@ This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-==== pg8000.DatabaseError
+==== pg8000.dbapi.DatabaseError
 
 Generic exception raised for errors that are related to the database. This
 exception is currently never raised by pg8000.
@@ -1161,7 +1441,7 @@ This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-==== pg8000.DataError
+==== pg8000.dbapi.DataError
 
 Generic exception raised for errors that are due to problems with the processed
 data. This exception is not currently raised by pg8000.
@@ -1170,7 +1450,7 @@ This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-==== pg8000.OperationalError
+==== pg8000.dbapi.OperationalError
 
 Generic exception raised for errors that are related to the database's
 operation and not necessarily under the control of the programmer. This
@@ -1180,7 +1460,7 @@ This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-==== pg8000.IntegrityError
+==== pg8000.dbapi.IntegrityError
 
 Generic exception raised when the relational integrity of the database is
 affected. This exception is not currently raised by pg8000.
@@ -1189,7 +1469,7 @@ This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-==== pg8000.InternalError
+==== pg8000.dbapi.InternalError
 
 Generic exception raised when the database encounters an internal error. This
 is currently only raised when unexpected state occurs in the pg8000 interface
@@ -1199,7 +1479,7 @@ This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-==== pg8000.ProgrammingError
+==== pg8000.dbapi.ProgrammingError
 
 Generic exception raised for programming errors.  For example, this exception
 is raised if more parameter fields are in a query string than there are
@@ -1209,7 +1489,7 @@ This exception is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-==== pg8000.NotSupportedError
+==== pg8000.dbapi.NotSupportedError
 
 Generic exception raised in case a method or database API was used which is not
 supported by the database.
@@ -1221,12 +1501,12 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 === Classes
 
 
-==== pg8000.Connection
+==== pg8000.dbapi.Connection
 
 A connection object is returned by the `pg8000.connect()` function. It
 represents a single physical connection to a PostgreSQL database.
 
-===== pg8000.Connection.notifications
+===== pg8000.dbapi.Connection.notifications
 
 A deque of server-side
 https://www.postgresql.org/docs/current/sql-notify.html[notifications] received
@@ -1237,21 +1517,21 @@ issued the notify, the channel and the payload.
 This attribute is not part of the DBAPI standard; it is a pg8000 extension.
 
 
-===== pg8000.Connection.notices
+===== pg8000.dbapi.Connection.notices
 
 A deque of server-side notices received by this database connection.
 
 This attribute is not part of the DBAPI standard; it is a pg8000 extension.
 
 
-===== pg8000.Connection.parameter_statuses
+===== pg8000.dbapi.Connection.parameter_statuses
 
 A deque of server-side parameter statuses received by this database connection.
 
 This attribute is not part of the DBAPI standard; it is a pg8000 extension.
 
 
-===== pg8000.Connection.autocommit
+===== pg8000.dbapi.Connection.autocommit
 
 Following the DB-API specification, autocommit is off by default. It can be
 turned on by setting this boolean pg8000-specific autocommit property to True.
@@ -1259,41 +1539,7 @@ turned on by setting this boolean pg8000-specific autocommit property to True.
 New in version 1.9.
 
 
-===== pg8000.Connection.run(sql, stream=None, \**kwargs)
-
-Executes an sql statement, and returns the results as a `tuple`. For example:
-
-`con.run("SELECT * FROM cities where population > :pop", pop=10000)`
-
-This method is a pg8000 extension.
-
-sql::
-  The SQL statement to execute. Parameter placeholders appear as a `:` followed
-  by the parameter name.
-
-stream::
-  For use with the PostgreSQL
-http://www.postgresql.org/docs/current/static/sql-copy.html[COPY] command. For
-a `COPY FROM` the parameter must be a readable file-like object, and for
-`COPY TO` it must be writable.
-
-kwargs::
-  The parameters of the SQL statement.
-
-
-===== pg8000.Connection.prepare(sql)
-
-Returns a PreparedStatement object which represents a
-https://www.postgresql.org/docs/current/sql-prepare.html[prepared statement] on
-the server. It can subsequently be repeatedly executed as shown in the
-<<_prepared_statements, example>>.
-
-sql::
-  The SQL statement to prepare. Parameter placeholders appear as a `:` followed
-  by the parameter name.
-
-
-===== pg8000.Connection.close()
+===== pg8000.dbapi.Connection.close()
 
 Closes the database connection.
 
@@ -1301,38 +1547,7 @@ This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Connection.register_out_adapter(typ, oid, out_func)
-
-Register a type adapter for types going out from pg8000 to the server.
-
-typ::
-  The Python class that the adapter is for.
-
-oid::
-  The PostgreSQL type identifier found in the
-  https://www.postgresql.org/docs/current/catalog-pg-type.html[pg_type system
-  calalog].
-
-out_func::
-  A function that takes the Python object and returns its string representation
-  in the format that the server requires.
-
-
-===== pg8000.Connection.register_in_adapter(oid, in_func)
-
-Register a type adapter for types coming in from the server to pg8000.
-
-oid::
-  The PostgreSQL type identifier found in the
-  https://www.postgresql.org/docs/current/catalog-pg-type.html[pg_type system
-  calalog].
-
-in_func::
-  A function that takes the PostgreSQL string representation and returns
-  a corresponding Python object.
-
-
-===== pg8000.Connection.cursor()
+===== pg8000.dbapi.Connection.cursor()
 
 Creates a `pg8000.Cursor` object bound to this connection.
 
@@ -1340,7 +1555,7 @@ This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Connection.rollback()
+===== pg8000.dbapi.Connection.rollback()
 
 Rolls back the current database transaction.
 
@@ -1348,7 +1563,7 @@ This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Connection.tpc_begin(xid)
+===== pg8000.dbapi.Connection.tpc_begin(xid)
 
 Begins a TPC transaction with the given transaction ID xid. This method should
 be called outside of a transaction (i.e. nothing may have executed since the
@@ -1361,7 +1576,7 @@ This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Connection.tpc_commit(xid=None)
+===== pg8000.dbapi.Connection.tpc_commit(xid=None)
 
 When called with no arguments, `tpc_commit()` commits a TPC transaction
 previously prepared with `tpc_prepare()`. If `tpc_commit()` is called prior to
@@ -1380,7 +1595,7 @@ This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Connection.tpc_prepare()
+===== pg8000.dbapi.Connection.tpc_prepare()
 
 Performs the first phase of a transaction started with .tpc_begin(). A
 ProgrammingError is be raised if this method is called outside of a TPC
@@ -1393,7 +1608,7 @@ This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Connection.tpc_recover()
+===== pg8000.dbapi.Connection.tpc_recover()
 
 Returns a list of pending transaction IDs suitable for use with
 `tpc_commit(xid)` or `tpc_rollback(xid)`
@@ -1402,7 +1617,7 @@ This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Connection.tpc_rollback(xid=None)
+===== pg8000.dbapi.Connection.tpc_rollback(xid=None)
 
 When called with no arguments, `tpc_rollback()` rolls back a TPC transaction.
 It may be called before or after `tpc_prepare()`.
@@ -1417,7 +1632,7 @@ On return, the TPC transaction is ended.
 This function is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
-===== pg8000.Connection.xid(format_id, global_transaction_id, branch_qualifier)
+===== pg8000.dbapi.Connection.xid(format_id, global_transaction_id, branch_qualifier)
 
 Create a Transaction IDs (only global_transaction_id is used in pg) format_id
 and branch_qualifier are not used in postgres global_transaction_id may be any
@@ -1425,49 +1640,27 @@ string identifier supported by postgres returns a tuple (format_id,
 global_transaction_id, branch_qualifier)
 
 
-==== pg8000.PreparedStatement
+==== pg8000.dbapi.Cursor
 
-A prepared statement object is returned by the `pg8000.Connection.prepare()`
-method of a connection. It has the following methods:
+A cursor object is returned by the `pg8000.dbapi.Connection.cursor()` method
+of a connection. It has the following attributes and methods:
 
-
-===== pg8000.PreparedStatement.run(\**kwargs)
-
-Executes the prepared statement, and returns the results as a `tuple`.
-
-This method is a pg8000 extension.
-
-kwargs::
-  The parameters of the prepared statement.
-
-
-===== pg8000.PreparedStatement.close()
-
-Closes the prepared statement, releasing the prepared statement held on the
-server.
-
-
-==== pg8000.Cursor
-
-A cursor object is returned by the `pg8000.Connection.cursor()` method of a
-connection. It has the following attributes and methods:
-
-===== pg8000.Cursor.arraysize
+===== pg8000.dbapi.Cursor.arraysize
 
 This read/write attribute specifies the number of rows to fetch at a time with
-`pg8000.Cursor.fetchmany()`.  It defaults to 1.
+`pg8000.dbapi.Cursor.fetchmany()`.  It defaults to 1.
 
 
-===== pg8000.Cursor.connection
+===== pg8000.dbapi.Cursor.connection
 
 This read-only attribute contains a reference to the connection object
-(an instance of `pg8000.Connection`) on which the cursor was created.
+(an instance of `pg8000.dbapi.Connection`) on which the cursor was created.
 
 This attribute is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Cursor.rowcount
+===== pg8000.dbapi.Cursor.rowcount
 
 This read-only attribute contains the number of rows that the last
 `execute()` or `executemany()` method produced (for query statements like
@@ -1488,7 +1681,7 @@ This attribute is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Cursor.description">
+===== pg8000.dbapi.Cursor.description
 
 This read-only attribute is a sequence of 7-item sequences. Each value contains
 information describing one result column. The 7 items returned for each column
@@ -1499,7 +1692,7 @@ This attribute is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Cursor.close()
+===== pg8000.dbapi.Cursor.close()
 
 Closes the cursor.
 
@@ -1507,7 +1700,7 @@ This method is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Cursor.execute(operation, args=None, stream=None)
+===== pg8000.dbapi.Cursor.execute(operation, args=None, stream=None)
 
 Executes a database operation. Parameters may be provided as a sequence, or as
 a mapping, depending upon the value of `pg8000.paramstyle`. Returns the cursor,
@@ -1521,10 +1714,10 @@ operation::
   The SQL statement to execute.
 
 args::
-  If `pg8000.paramstyle` is `qmark`, `numeric`, or `format`, this argument
-should be an array of parameters to bind into the statement. If
-`pg8000.paramstyle` is `named`, the argument should be a `dict` mapping of
-parameters. If `pg8000.paramstyle' is `pyformat`, the argument value may be
+  If `pg8000.dbapi.paramstyle` is `qmark`, `numeric`, or `format`, this
+argument should be an array of parameters to bind into the statement. If
+`pg8000.dbapi.paramstyle` is `named`, the argument should be a `dict` mapping of
+parameters. If `pg8000.dbapi.paramstyle' is `pyformat`, the argument value may be
 either an array or a mapping.
 
 stream::
@@ -1536,7 +1729,7 @@ a `COPY FROM` the parameter must be a readable file-like object, and for
 New in version 1.9.11.
 
 
-===== pg8000.Cursor.executemany(operation, param_sets)
+===== pg8000.dbapi.Cursor.executemany(operation, param_sets)
 
 Prepare a database operation, and then execute it against all parameter
 sequences or mappings provided.
@@ -1549,10 +1742,10 @@ operation::
 parameter_sets::
   A sequence of parameters to execute the statement with. The values in the
   sequence should be sequences or mappings of parameters, the same as the args
-  argument of the `pg8000.Cursor.execute()` method.
+  argument of the `pg8000.dbapi.Cursor.execute()` method.
 
 
-===== pg8000.Cursor.fetchall()
+===== pg8000.dbapi.Cursor.fetchall()
 
 Fetches all remaining rows of a query result.
 
@@ -1563,7 +1756,7 @@ Returns: A sequence, each entry of which is a sequence of field values making
 up a row.
 
 
-===== pg8000.Cursor.fetchmany(size=None)
+===== pg8000.dbapi.Cursor.fetchmany(size=None)
 
 Fetches the next set of rows of a query result.
 
@@ -1572,13 +1765,13 @@ http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 size::
   The number of rows to fetch when called.  If not provided, the
-  `pg8000.Cursor.arraysize` attribute value is used instead.
+  `pg8000.dbapi.Cursor.arraysize` attribute value is used instead.
 
 Returns: A sequence, each entry of which is a sequence of field values making
 up a row.  If no more rows are available, an empty sequence will be returned.
 
 
-===== pg8000.Cursor.fetchone()
+===== pg8000.dbapi.Cursor.fetchone()
 
 Fetch the next row of a query result set.
 
@@ -1589,7 +1782,7 @@ Returns: A row as a sequence of field values, or `None` if no more rows are
 available.
 
 
-===== pg8000.Cursor.setinputsizes(*sizes)
+===== pg8000.dbapi.Cursor.setinputsizes(*sizes)
 
 Used to set the parameter types of the next query. This is useful if it's
 difficult for pg8000 to work out the types from the parameters themselves
@@ -1604,14 +1797,14 @@ This method is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
 
 
-===== pg8000.Cursor.setoutputsize(size, column=None)
+===== pg8000.dbapi.Cursor.setoutputsize(size, column=None)
 
 This method is part of the
 http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification], however, it
 is not implemented by pg8000.
 
 
-==== pg8000.Interval
+==== pg8000.dbapi.Interval
 
 An Interval represents a measurement of time.  In PostgreSQL, an interval is
 defined in the measure of months, days, and microseconds; as such, the pg8000
@@ -1623,7 +1816,7 @@ be converted to each other. A month may be 28, 29, 30, or 31 days, and a day
 may occasionally be lengthened slightly by a leap second.
 
 
-===== pg8000.Interval.microseconds
+===== pg8000.dbapi.Interval.microseconds
 
 Measure of microseconds in the interval.
 
@@ -1632,7 +1825,7 @@ attempt to set a value too large or too small will result in an OverflowError
 being raised.
 
 
-===== pg8000.Interval.days
+===== pg8000.dbapi.Interval.days
 
 Measure of days in the interval.
 
@@ -1641,7 +1834,7 @@ to set a value too large or too small will result in an OverflowError being
 raised.
 
 
-===== pg8000.Interval.months
+===== pg8000.dbapi.Interval.months
 
 Measure of months in the interval.
 
@@ -1696,6 +1889,23 @@ twine upload dist/*
 
 
 == Release Notes
+
+=== Version 1.17.0, 2021-01-30
+
+* The API is now split in two, pg8000.native and pg8000.dbapi. The legacy API
+  still exists in this release, but will be removed in another release. The
+  idea is that pg8000.dbapi can stick strictly to the DB-API 2 specification,
+  while pg8000.native can focus on useability without having to worry about
+  compatibility with the DB-API standard.
+
+* The column name in `Connection.description` used to be returned as a
+  `bytes` but now it's returned as a `str`.
+
+* Removed extra wrapper types PGJson, PGEnum etc. These were never properly
+  documented and the problem they solve can be solved using CAST in the SQL or
+  by using setinputsizes.
+
+
 
 === Version 1.16.6, 2020-10-10
 

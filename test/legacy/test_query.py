@@ -248,28 +248,27 @@ def test_empty_query(cursor):
 def test_rollback_no_transaction(con):
     # Remove any existing notices
     con.notices.clear()
-    with con.cursor() as cursor:
 
-        # First, verify that a raw rollback does produce a notice
-        con.execute_unnamed(cursor, "rollback")
+    # First, verify that a raw rollback does produce a notice
+    con.execute_unnamed("rollback")
 
-        assert 1 == len(con.notices)
+    assert 1 == len(con.notices)
 
-        # 25P01 is the code for no_active_sql_tronsaction. It has
-        # a message and severity name, but those might be
-        # localized/depend on the server version.
-        assert con.notices.pop().get(b'C') == b'25P01'
+    # 25P01 is the code for no_active_sql_tronsaction. It has
+    # a message and severity name, but those might be
+    # localized/depend on the server version.
+    assert con.notices.pop().get(b'C') == b'25P01'
 
-        # Now going through the rollback method doesn't produce
-        # any notices because it knows we're not in a transaction.
-        con.rollback()
+    # Now going through the rollback method doesn't produce
+    # any notices because it knows we're not in a transaction.
+    con.rollback()
 
-        assert 0 == len(con.notices)
+    assert 0 == len(con.notices)
 
 
 def test_context_manager_class(con):
-    assert '__enter__' in pg8000.core.Cursor.__dict__
-    assert '__exit__' in pg8000.core.Cursor.__dict__
+    assert '__enter__' in pg8000.legacy.Cursor.__dict__
+    assert '__exit__' in pg8000.legacy.Cursor.__dict__
 
     with con.cursor() as cursor:
         cursor.execute('select 1')
@@ -293,3 +292,13 @@ def test_setinputsizes(con):
     cursor.execute("select %s", (None,))
     retval = cursor.fetchall()
     assert retval[0][0] is None
+
+
+def test_unexecuted_cursor_rowcount(con):
+    cursor = con.cursor()
+    assert cursor.rowcount == -1
+
+
+def test_unexecuted_cursor_description(con):
+    cursor = con.cursor()
+    assert cursor.description is None

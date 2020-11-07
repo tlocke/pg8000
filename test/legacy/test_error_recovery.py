@@ -34,7 +34,7 @@ def test_py_value_fail(con, mocker):
 
 def test_no_data_error_recovery(con):
     for i in range(1, 4):
-        with con.cursor() as c, pytest.raises(pg8000.DatabaseError) as e:
+        with con.cursor() as c, pytest.raises(pg8000.ProgrammingError) as e:
             c.execute("DROP TABLE t1")
         assert e.value.args[0]['C'] == '42P01'
         con.rollback()

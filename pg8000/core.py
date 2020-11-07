@@ -4,16 +4,11 @@ from datetime import datetime as Datetime
 from decimal import Decimal
 from distutils.version import LooseVersion
 from hashlib import md5
-from itertools import count, islice
+from itertools import count
 from struct import Struct
-from warnings import warn
 
-import pg8000
 from pg8000 import converters
-from pg8000.exceptions import (
-    ArrayContentNotSupportedError, DatabaseError, Error, IntegrityError,
-    InterfaceError, InternalError, NotSupportedError, OperationalError,
-    ProgrammingError, Warning)
+from pg8000.exceptions import DatabaseError, InterfaceError
 
 from scramp import ScramClient
 
@@ -68,419 +63,7 @@ min_int4, max_int4 = -2 ** 31, 2 ** 31
 min_int8, max_int8 = -2 ** 63, 2 ** 63
 
 
-def convert_paramstyle(style, query):
-    # I don't see any way to avoid scanning the query string char by char,
-    # so we might as well take that careful approach and create a
-    # state-based scanner.  We'll use int variables for the state.
-    OUTSIDE = 0    # outside quoted string
-    INSIDE_SQ = 1  # inside single-quote string '...'
-    INSIDE_QI = 2  # inside quoted identifier   "..."
-    INSIDE_ES = 3  # inside escaped single-quote string, E'...'
-    INSIDE_PN = 4  # inside parameter name eg. :name
-    INSIDE_CO = 5  # inside inline comment eg. --
-
-    in_quote_escape = False
-    in_param_escape = False
-    placeholders = []
-    output_query = []
-    param_idx = map(lambda x: "$" + str(x), count(1))
-    state = OUTSIDE
-    prev_c = None
-    for i, c in enumerate(query):
-        if i + 1 < len(query):
-            next_c = query[i + 1]
-        else:
-            next_c = None
-
-        if state == OUTSIDE:
-            if c == "'":
-                output_query.append(c)
-                if prev_c == 'E':
-                    state = INSIDE_ES
-                else:
-                    state = INSIDE_SQ
-            elif c == '"':
-                output_query.append(c)
-                state = INSIDE_QI
-            elif c == '-':
-                output_query.append(c)
-                if prev_c == '-':
-                    state = INSIDE_CO
-            elif style == "qmark" and c == "?":
-                output_query.append(next(param_idx))
-            elif style == "numeric" and c == ":" and next_c not in ':=' \
-                    and prev_c != ':':
-                # Treat : as beginning of parameter name if and only
-                # if it's the only : around
-                # Needed to properly process type conversions
-                # i.e. sum(x)::float
-                output_query.append("$")
-            elif style == "named" and c == ":" and next_c not in ':=' \
-                    and prev_c != ':':
-                # Same logic for : as in numeric parameters
-                state = INSIDE_PN
-                placeholders.append('')
-            elif style == "pyformat" and c == '%' and next_c == "(":
-                state = INSIDE_PN
-                placeholders.append('')
-            elif style in ("format", "pyformat") and c == "%":
-                style = "format"
-                if in_param_escape:
-                    in_param_escape = False
-                    output_query.append(c)
-                else:
-                    if next_c == "%":
-                        in_param_escape = True
-                    elif next_c == "s":
-                        state = INSIDE_PN
-                        output_query.append(next(param_idx))
-                    else:
-                        raise InterfaceError(
-                            "Only %s and %% are supported in the query.")
-            else:
-                output_query.append(c)
-
-        elif state == INSIDE_SQ:
-            if c == "'":
-                if in_quote_escape:
-                    in_quote_escape = False
-                else:
-                    if next_c == "'":
-                        in_quote_escape = True
-                    else:
-                        state = OUTSIDE
-            output_query.append(c)
-
-        elif state == INSIDE_QI:
-            if c == '"':
-                state = OUTSIDE
-            output_query.append(c)
-
-        elif state == INSIDE_ES:
-            if c == "'" and prev_c != "\\":
-                # check for escaped single-quote
-                state = OUTSIDE
-            output_query.append(c)
-
-        elif state == INSIDE_PN:
-            if style == 'named':
-                placeholders[-1] += c
-                if next_c is None or (not next_c.isalnum() and next_c != '_'):
-                    state = OUTSIDE
-                    try:
-                        pidx = placeholders.index(placeholders[-1], 0, -1)
-                        output_query.append("$" + str(pidx + 1))
-                        del placeholders[-1]
-                    except ValueError:
-                        output_query.append("$" + str(len(placeholders)))
-            elif style == 'pyformat':
-                if prev_c == ')' and c == "s":
-                    state = OUTSIDE
-                    try:
-                        pidx = placeholders.index(placeholders[-1], 0, -1)
-                        output_query.append("$" + str(pidx + 1))
-                        del placeholders[-1]
-                    except ValueError:
-                        output_query.append("$" + str(len(placeholders)))
-                elif c in "()":
-                    pass
-                else:
-                    placeholders[-1] += c
-            elif style == 'format':
-                state = OUTSIDE
-
-        elif state == INSIDE_CO:
-            output_query.append(c)
-            if c == '\n':
-                state = OUTSIDE
-
-        prev_c = c
-
-    if style in ('numeric', 'qmark', 'format'):
-        def make_args(vals):
-            return vals
-    else:
-        def make_args(vals):
-            return tuple(vals[p] for p in placeholders)
-
-    return ''.join(output_query), make_args
-
-
 NULL_BYTE = b'\x00'
-
-
-class Cursor():
-    """A cursor object is returned by the :meth:`~Connection.cursor` method of
-    a connection. It has the following attributes and methods:
-
-    .. attribute:: arraysize
-
-        This read/write attribute specifies the number of rows to fetch at a
-        time with :meth:`fetchmany`.  It defaults to 1.
-
-    .. attribute:: connection
-
-        This read-only attribute contains a reference to the connection object
-        (an instance of :class:`Connection`) on which the cursor was
-        created.
-
-        This attribute is part of a DBAPI 2.0 extension.  Accessing this
-        attribute will generate the following warning: ``DB-API extension
-        cursor.connection used``.
-
-    .. attribute:: rowcount
-
-        This read-only attribute contains the number of rows that the last
-        ``execute()`` or ``executemany()`` method produced (for query
-        statements like ``SELECT``) or affected (for modification statements
-        like ``UPDATE``).
-
-        The value is -1 if:
-
-        - No ``execute()`` or ``executemany()`` method has been performed yet
-          on the cursor.
-        - There was no rowcount associated with the last ``execute()``.
-        - At least one of the statements executed as part of an
-          ``executemany()`` had no row count associated with it.
-        - Using a ``SELECT`` query statement on PostgreSQL server older than
-          version 9.
-        - Using a ``COPY`` query statement on PostgreSQL server version 8.1 or
-          older.
-
-        This attribute is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-
-    .. attribute:: description
-
-        This read-only attribute is a sequence of 7-item sequences.  Each value
-        contains information describing one result column.  The 7 items
-        returned for each column are (name, type_code, display_size,
-        internal_size, precision, scale, null_ok).  Only the first two values
-        are provided by the current implementation.
-
-        This attribute is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-    """
-
-    def __init__(self, connection, paramstyle=None):
-        self._c = connection
-        self.arraysize = 1
-        self._row_count = -1
-        self._cached_rows = deque()
-        self.row_desc = None
-        if paramstyle is None:
-            self.paramstyle = pg8000.paramstyle
-        else:
-            self.paramstyle = paramstyle
-        self._input_oids = None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
-    @property
-    def connection(self):
-        warn("DB-API extension cursor.connection used", stacklevel=3)
-        return self._c
-
-    @property
-    def rowcount(self):
-        return self._row_count
-
-    description = property(lambda self: self._getDescription())
-
-    def _getDescription(self):
-        row_desc = self.row_desc
-        if row_desc is None:
-            return None
-        if len(row_desc) == 0:
-            return None
-        columns = []
-        for col in row_desc:
-            columns.append(
-                (col["name"], col["type_oid"], None, None, None, None, None))
-        return columns
-
-    ##
-    # Executes a database operation.  Parameters may be provided as a sequence
-    # or mapping and will be bound to variables in the operation.
-    # <p>
-    # Stability: Part of the DBAPI 2.0 specification.
-    def execute(self, operation, args=(), stream=None):
-        """Executes a database operation.  Parameters may be provided as a
-        sequence, or as a mapping, depending upon the value of
-        :data:`pg8000.paramstyle`.
-
-        This method is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-
-        :param operation:
-            The SQL statement to execute.
-
-        :param args:
-            If :data:`paramstyle` is ``qmark``, ``numeric``, or ``format``,
-            this argument should be an array of parameters to bind into the
-            statement.  If :data:`paramstyle` is ``named``, the argument should
-            be a dict mapping of parameters.  If the :data:`paramstyle` is
-            ``pyformat``, the argument value may be either an array or a
-            mapping.
-
-        :param stream: This is a pg8000 extension for use with the PostgreSQL
-            `COPY
-            <http://www.postgresql.org/docs/current/static/sql-copy.html>`_
-            command. For a COPY FROM the parameter must be a readable file-like
-            object, and for COPY TO it must be writable.
-
-            .. versionadded:: 1.9.11
-        """
-        try:
-            if not self._c.in_transaction and not self._c.autocommit:
-                self._c.execute_unnamed(self, "begin transaction")
-            self._c.execute_unnamed(
-                self, operation, vals=args, input_oids=self._input_oids,
-                stream=stream)
-            self._input_oids = None
-        except AttributeError as e:
-            if self._c is None:
-                raise InterfaceError("Cursor closed")
-            elif self._c._sock is None:
-                raise InterfaceError("connection is closed")
-            else:
-                raise e
-
-        self.input_types = []
-        return self
-
-    def executemany(self, operation, param_sets):
-        """Prepare a database operation, and then execute it against all
-        parameter sequences or mappings provided.
-
-        This method is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-
-        :param operation:
-            The SQL statement to execute
-        :param parameter_sets:
-            A sequence of parameters to execute the statement with. The values
-            in the sequence should be sequences or mappings of parameters, the
-            same as the args argument of the :meth:`execute` method.
-        """
-        rowcounts = []
-        for parameters in param_sets:
-            self.execute(operation, parameters)
-            rowcounts.append(self._row_count)
-
-        self._row_count = -1 if -1 in rowcounts else sum(rowcounts)
-        return self
-
-    def fetchone(self):
-        """Fetch the next row of a query result set.
-
-        This method is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-
-        :returns:
-            A row as a sequence of field values, or ``None`` if no more rows
-            are available.
-        """
-        try:
-            return next(self)
-        except StopIteration:
-            return None
-        except TypeError:
-            raise ProgrammingError("attempting to use unexecuted cursor")
-        except AttributeError:
-            raise ProgrammingError("attempting to use unexecuted cursor")
-
-    def fetchmany(self, num=None):
-        """Fetches the next set of rows of a query result.
-
-        This method is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-
-        :param size:
-
-            The number of rows to fetch when called.  If not provided, the
-            :attr:`arraysize` attribute value is used instead.
-
-        :returns:
-
-            A sequence, each entry of which is a sequence of field values
-            making up a row.  If no more rows are available, an empty sequence
-            will be returned.
-        """
-        try:
-            return tuple(
-                islice(self, self.arraysize if num is None else num))
-        except TypeError:
-            raise ProgrammingError("attempting to use unexecuted cursor")
-
-    def fetchall(self):
-        """Fetches all remaining rows of a query result.
-
-        This method is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-
-        :returns:
-
-            A sequence, each entry of which is a sequence of field values
-            making up a row.
-        """
-        try:
-            return tuple(self)
-        except TypeError:
-            raise ProgrammingError("attempting to use unexecuted cursor")
-
-    def close(self):
-        """Closes the cursor.
-
-        This method is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        self._c = None
-
-    def __iter__(self):
-        """A cursor object is iterable to retrieve the rows from a query.
-
-        This is a DBAPI 2.0 extension.
-        """
-        return self
-
-    def setinputsizes(self, *sizes):
-        """This method is part of the `DBAPI 2.0 specification
-        """
-        oids = []
-        for size in sizes:
-            if isinstance(size, int):
-                oid = size
-            else:
-                try:
-                    oid, _ = self._c.py_types[size]
-                except KeyError:
-                    oid = pg8000.converters.UNKNOWN
-            oids.append(oid)
-
-        self._input_oids = oids
-
-    def setoutputsize(self, size, column=None):
-        """This method is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_, however, it is not
-        implemented by pg8000.
-        """
-        pass
-
-    def __next__(self):
-        try:
-            return self._cached_rows.popleft()
-        except IndexError:
-            if self.row_desc is None:
-                raise ProgrammingError("A query hasn't been issued.")
-            elif len(self.row_desc) == 0:
-                raise ProgrammingError("no result set")
-            else:
-                raise StopIteration()
 
 
 # Message codes
@@ -552,31 +135,12 @@ IDLE_IN_TRANSACTION = b"T"
 IDLE_IN_FAILED_TRANSACTION = b"E"
 
 
-class Connection():
-
-    # DBAPI Extension: supply exceptions as attributes on the connection
-    Warning = property(lambda self: self._getError(Warning))
-    Error = property(lambda self: self._getError(Error))
-    InterfaceError = property(lambda self: self._getError(InterfaceError))
-    DatabaseError = property(lambda self: self._getError(DatabaseError))
-    OperationalError = property(lambda self: self._getError(OperationalError))
-    IntegrityError = property(lambda self: self._getError(IntegrityError))
-    InternalError = property(lambda self: self._getError(InternalError))
-    ProgrammingError = property(lambda self: self._getError(ProgrammingError))
-    NotSupportedError = property(
-        lambda self: self._getError(NotSupportedError))
-
+class CoreConnection():
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
-
-    def _getError(self, error):
-        warn(
-            "DB-API extension connection.%s used" %
-            error.__name__, stacklevel=3)
-        return error
 
     def __init__(
             self, user, host='localhost', database=None, port=5432,
@@ -590,7 +154,6 @@ class Connection():
         self.notifications = deque(maxlen=100)
         self.notices = deque(maxlen=100)
         self.parameter_statuses = deque(maxlen=100)
-        self._run_cursor = Cursor(self, paramstyle='named')
 
         if user is None:
             raise InterfaceError(
@@ -652,7 +215,7 @@ class Connection():
                 raise InterfaceError("communication error") from e
 
         else:
-            raise ProgrammingError("one of host or unix_sock must be provided")
+            raise InterfaceError("one of host or unix_sock must be provided")
 
         if tcp_keepalive:
             self._usock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -734,7 +297,6 @@ class Connection():
         self._write(val)
         self._flush()
 
-        self._cursor = self.cursor()
         code = self.error = None
         while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
             code, data_len = ci_unpack(self._read(5))
@@ -757,18 +319,10 @@ class Connection():
                 s[1:].decode(self._client_encoding)) for s in
             data.split(NULL_BYTE) if s != b'')
 
-        response_code = msg[RESPONSE_CODE]
-        if response_code == '28000':
-            cls = InterfaceError
-        elif response_code == '23505':
-            cls = IntegrityError
-        else:
-            cls = ProgrammingError
-
-        self.error = cls(msg)
+        self.error = DatabaseError(msg)
 
     def handle_EMPTY_QUERY_RESPONSE(self, data, ps):
-        self.error = ProgrammingError("query was empty")
+        self.error = DatabaseError("query was empty")
 
     def handle_CLOSE_COMPLETE(self, data, ps):
         pass
@@ -781,10 +335,10 @@ class Connection():
     def handle_BIND_COMPLETE(self, data, ps):
         pass
 
-    def handle_PORTAL_SUSPENDED(self, data, cursor):
+    def handle_PORTAL_SUSPENDED(self, data, context):
         pass
 
-    def handle_PARAMETER_DESCRIPTION(self, data, cursor):
+    def handle_PARAMETER_DESCRIPTION(self, data, context):
         '''
         ParameterDescription (B)
 
@@ -806,7 +360,7 @@ class Connection():
         '''
 
         # count = h_unpack(data)[0]
-        # cursor.parameter_oids = unpack_from("!" + "i" * count, data, 2)
+        # context.parameter_oids = unpack_from("!" + "i" * count, data, 2)
 
     def handle_COPY_DONE(self, data, ps):
         self._copy_done = True
@@ -822,21 +376,21 @@ class Connection():
             raise InterfaceError(
                 "An output stream is required for the COPY OUT response.")
 
-    def handle_COPY_DATA(self, data, ps):
-        ps.stream.write(data)
+    def handle_COPY_DATA(self, data, results):
+        results.stream.write(data)
 
-    def handle_COPY_IN_RESPONSE(self, data, ps):
+    def handle_COPY_IN_RESPONSE(self, data, results):
         # Int16(2) - Number of columns
         # Int16(N) - Format codes for each column (0 text, 1 binary)
         is_binary, num_cols = bh_unpack(data)
         # column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
-        if ps.stream is None:
+        if results.stream is None:
             raise InterfaceError(
                 "An input stream is required for the COPY IN response.")
 
         bffr = bytearray(8192)
         while True:
-            bytes_read = ps.stream.readinto(bffr)
+            bytes_read = results.stream.readinto(bffr)
             if bytes_read == 0:
                 break
             self._write(COPY_DATA + i_pack(bytes_read + 4))
@@ -850,7 +404,7 @@ class Connection():
         self._write(SYNC_MSG)
         self._flush()
 
-    def handle_NOTIFICATION_RESPONSE(self, data, ps):
+    def handle_NOTIFICATION_RESPONSE(self, data, results):
         ##
         # A message sent if this connection receives a NOTIFY that it was
         # LISTENing for.
@@ -865,41 +419,6 @@ class Connection():
         payload = data[null_idx+1:-1].decode('ascii')
 
         self.notifications.append((backend_pid, channel, payload))
-
-    def cursor(self):
-        """Creates a :class:`Cursor` object bound to this
-        connection.
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        return Cursor(self)
-
-    @property
-    def description(self):
-        return self._run_cursor._getDescription()
-
-    def run(self, sql, stream=None, **params):
-        self._run_cursor.execute(sql, params, stream=stream)
-        return tuple(self._run_cursor._cached_rows)
-
-    def commit(self):
-        """Commits the current database transaction.
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        self.execute_unnamed(self._cursor, "commit")
-
-    def rollback(self):
-        """Rolls back the current database transaction.
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        if not self.in_transaction:
-            return
-        self.execute_unnamed(self._cursor, "rollback")
 
     def close(self):
         """Closes the database connection.
@@ -923,7 +442,7 @@ class Connection():
             self._usock.close()
             self._sock = None
 
-    def handle_AUTHENTICATION_REQUEST(self, data, cursor):
+    def handle_AUTHENTICATION_REQUEST(self, data, context):
         # Int32 -   An authentication code that represents different
         #           authentication messages:
         #               0 = AuthenticationOk
@@ -1020,7 +539,7 @@ class Connection():
     def array_inspect(self, value):
         # Check if array has any values. If empty, we can just assume it's an
         # array of strings
-        first_element = array_find_first_element(value)
+        first_element = converters.array_find_first_element(value)
         if first_element is None:
             oid = 25
             # Use binary ARRAY format to avoid having to properly
@@ -1039,7 +558,7 @@ class Connection():
                 # type
                 typ = int
                 int2_ok, int4_ok, int8_ok = True, True, True
-                for v in array_flatten(value):
+                for v in converters.array_flatten(value):
                     if v is None:
                         continue
                     if min_int2 < v < max_int2:
@@ -1058,7 +577,7 @@ class Connection():
                 elif int8_ok:
                     array_oid = 1016  # INT8[]
                 else:
-                    raise ArrayContentNotSupportedError(
+                    raise InterfaceError(
                         "numeric not supported as array contents")
             else:
                 try:
@@ -1071,12 +590,8 @@ class Connection():
                         # escape text in the array literals
                     array_oid = converters.PG_ARRAY_TYPES[oid]
                 except KeyError:
-                    raise ArrayContentNotSupportedError(
+                    raise InterfaceError(
                         "oid " + str(oid) + " not supported as array contents")
-                except NotSupportedError:
-                    raise ArrayContentNotSupportedError(
-                        "type " + str(typ) +
-                        " not supported as array contents")
 
         return (array_oid, self.array_out)
 
@@ -1129,7 +644,7 @@ class Connection():
                             pass
 
                 if oid is None:
-                    raise NotSupportedError(
+                    raise InterfaceError(
                         "type " + str(e) + " not mapped to pg type")
 
         return oid, func(value)
@@ -1156,10 +671,10 @@ class Connection():
             return self.py_types[20]
         return self.py_types[Decimal]
 
-    def handle_ROW_DESCRIPTION(self, data, cursor):
+    def handle_ROW_DESCRIPTION(self, data, context):
         count = h_unpack(data)[0]
         idx = 2
-        row_desc = []
+        columns = []
         input_funcs = []
         for i in range(count):
             name = data[idx:data.find(NULL_BYTE, idx)]
@@ -1170,10 +685,11 @@ class Connection():
                     "type_modifier", "format"), ihihih_unpack(data, idx)))
             field['name'] = name.decode(self._client_encoding)
             idx += 18
-            row_desc.append(field)
+            columns.append(field)
             input_funcs.append(self.pg_types[field['type_oid']])
-        cursor.row_desc = row_desc
-        cursor.input_funcs = input_funcs
+
+        context.columns = columns
+        context.input_funcs = input_funcs
 
     def send_PARSE(self, statement_name_bin, statement, oids):
 
@@ -1203,26 +719,26 @@ class Connection():
             raise InterfaceError("connection is closed")
 
     def execute_unnamed(
-            self, cursor, operation, vals=(), input_oids=None, stream=None):
-        cursor._cached_rows.clear()
-        cursor._row_count = -1
-        cursor.stream = stream
-        if len(vals) == 0 and cursor.stream is None:
-            cursor.row_desc = []
-            self.send_QUERY(operation)
-            self._flush()
-            self.handle_messages(cursor)
-        else:
-            statement, make_args = convert_paramstyle(
-                cursor.paramstyle, operation)
+            self, statement, vals=(), input_oids=None, stream=None):
+        context = Context(stream=stream)
 
-            param_oids, params = self.make_params(make_args(vals))
-            oids = param_oids if input_oids is None else input_oids
+        if len(vals) == 0 and stream is None:
+            self.send_QUERY(statement)
+            self._flush()
+            self.handle_messages(context)
+        else:
+            param_oids, params = self.make_params(vals)
+            if input_oids is None:
+                oids = param_oids
+            else:
+                oids = [
+                    (p if i is None else i) for p, i in zip(
+                        param_oids, input_oids)]
 
             self.send_PARSE(NULL_BYTE, statement, oids)
             self._write(SYNC_MSG)
             self._flush()
-            self.handle_messages(cursor)
+            self.handle_messages(context)
             self.send_DESCRIBE_STATEMENT(NULL_BYTE)
 
             self._write(SYNC_MSG)
@@ -1236,18 +752,16 @@ class Connection():
                     raise e
 
             self.send_BIND(NULL_BYTE, params)
-            self.handle_messages(cursor)
+            self.handle_messages(context)
             self.send_EXECUTE()
 
             self._write(SYNC_MSG)
             self._flush()
-            self.handle_messages(cursor)
+            self.handle_messages(context)
 
-    def prepare(self, operation):
-        return PreparedStatement(self, operation)
+        return context
 
-    def prepare_statement(self, operation, oids):
-        statement, make_args = convert_paramstyle('named', operation)
+    def prepare_statement(self, statement, oids):
 
         for i in count():
             statement_name = '_'.join(("pg8000", "statement", str(i)))
@@ -1268,23 +782,20 @@ class Connection():
             else:
                 raise e
 
-        cursor = self._run_cursor
-        self.handle_messages(cursor)
+        context = Context()
+        self.handle_messages(context)
 
-        return statement_name_bin, cursor.row_desc, cursor.input_funcs
+        return statement_name_bin, context.columns, context.input_funcs
 
-    def execute_named(self, statement_name_bin, params, row_desc, input_funcs):
-        cursor = self._run_cursor
-        cursor.row_desc, cursor.input_funcs = row_desc, input_funcs
-
-        cursor._cached_rows.clear()
-        cursor._row_count = -1
+    def execute_named(self, statement_name_bin, params, columns, input_funcs):
+        context = Context(columns=columns, input_funcs=input_funcs)
 
         self.send_BIND(statement_name_bin, params)
         self.send_EXECUTE()
         self._write(SYNC_MSG)
         self._flush()
-        self.handle_messages(cursor)
+        self.handle_messages(context)
+        return context
 
     def _send_message(self, code, data):
         try:
@@ -1342,23 +853,23 @@ class Connection():
         self._write(EXECUTE_MSG)
         self._write(FLUSH_MSG)
 
-    def handle_NO_DATA(self, msg, cursor):
-        cursor.row_desc = []
+    def handle_NO_DATA(self, msg, context):
+        context.columns = []
 
-    def handle_COMMAND_COMPLETE(self, data, cursor):
+    def handle_COMMAND_COMPLETE(self, data, context):
         values = data[:-1].split(b' ')
         command = values[0]
         if command in self._commands_with_count:
             row_count = int(values[-1])
-            if cursor._row_count == -1:
-                cursor._row_count = row_count
+            if context.row_count == -1:
+                context.row_count = row_count
             else:
-                cursor._row_count += row_count
+                context.row_count += row_count
 
-    def handle_DATA_ROW(self, data, cursor):
+    def handle_DATA_ROW(self, data, results):
         idx = 2
         row = []
-        for func in cursor.input_funcs:
+        for func in results.input_funcs:
             vlen = i_unpack(data, idx)[0]
             idx += 4
             if vlen == -1:
@@ -1368,14 +879,14 @@ class Connection():
                     str(data[idx:idx + vlen], encoding=self._client_encoding))
                 idx += vlen
             row.append(v)
-        cursor._cached_rows.append(row)
+        results.rows.append(row)
 
-    def handle_messages(self, cursor):
+    def handle_messages(self, context):
         code = self.error = None
 
         while code != READY_FOR_QUERY:
             code, data_len = ci_unpack(self._read(5))
-            self.message_types[code](self._read(data_len - 4), cursor)
+            self.message_types[code](self._read(data_len - 4), context)
 
         if self.error is not None:
             raise self.error
@@ -1388,7 +899,8 @@ class Connection():
         self._send_message(CLOSE, STATEMENT + statement_name_bin)
         self._write(SYNC_MSG)
         self._flush()
-        self.handle_messages(self._cursor)
+        context = Context()
+        self.handle_messages(context)
         self._statement_nums.remove(statement_name_bin)
 
     # Byte1('N') - Identifier
@@ -1426,184 +938,11 @@ class Connection():
                     b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH",
                     b"COPY")
 
-    def xid(self, format_id, global_transaction_id, branch_qualifier):
-        """Create a Transaction IDs (only global_transaction_id is used in pg)
-        format_id and branch_qualifier are not used in postgres
-        global_transaction_id may be any string identifier supported by
-        postgres returns a tuple
-        (format_id, global_transaction_id, branch_qualifier)"""
-        return (format_id, global_transaction_id, branch_qualifier)
 
-    def tpc_begin(self, xid):
-        """Begins a TPC transaction with the given transaction ID xid.
-
-        This method should be called outside of a transaction (i.e. nothing may
-        have executed since the last .commit() or .rollback()).
-
-        Furthermore, it is an error to call .commit() or .rollback() within the
-        TPC transaction. A ProgrammingError is raised, if the application calls
-        .commit() or .rollback() during an active TPC transaction.
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        self._xid = xid
-        if self.autocommit:
-            self.execute_unnamed(self._cursor, "begin transaction")
-
-    def tpc_prepare(self):
-        """Performs the first phase of a transaction started with .tpc_begin().
-        A ProgrammingError is be raised if this method is called outside of a
-        TPC transaction.
-
-        After calling .tpc_prepare(), no statements can be executed until
-        .tpc_commit() or .tpc_rollback() have been called.
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        q = "PREPARE TRANSACTION '%s';" % (self._xid[1],)
-        self.execute_unnamed(self._cursor, q)
-
-    def tpc_commit(self, xid=None):
-        """When called with no arguments, .tpc_commit() commits a TPC
-        transaction previously prepared with .tpc_prepare().
-
-        If .tpc_commit() is called prior to .tpc_prepare(), a single phase
-        commit is performed. A transaction manager may choose to do this if
-        only a single resource is participating in the global transaction.
-
-        When called with a transaction ID xid, the database commits the given
-        transaction. If an invalid transaction ID is provided, a
-        ProgrammingError will be raised. This form should be called outside of
-        a transaction, and is intended for use in recovery.
-
-        On return, the TPC transaction is ended.
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        if xid is None:
-            xid = self._xid
-
-        if xid is None:
-            raise ProgrammingError(
-                "Cannot tpc_commit() without a TPC transaction!")
-
-        try:
-            previous_autocommit_mode = self.autocommit
-            self.autocommit = True
-            if xid in self.tpc_recover():
-                self.execute_unnamed(
-                    self._cursor, "COMMIT PREPARED '%s';" % (xid[1], ))
-            else:
-                # a single-phase commit
-                self.commit()
-        finally:
-            self.autocommit = previous_autocommit_mode
-        self._xid = None
-
-    def tpc_rollback(self, xid=None):
-        """When called with no arguments, .tpc_rollback() rolls back a TPC
-        transaction. It may be called before or after .tpc_prepare().
-
-        When called with a transaction ID xid, it rolls back the given
-        transaction. If an invalid transaction ID is provided, a
-        ProgrammingError is raised. This form should be called outside of a
-        transaction, and is intended for use in recovery.
-
-        On return, the TPC transaction is ended.
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        if xid is None:
-            xid = self._xid
-
-        if xid is None:
-            raise ProgrammingError(
-                "Cannot tpc_rollback() without a TPC prepared transaction!")
-
-        try:
-            previous_autocommit_mode = self.autocommit
-            self.autocommit = True
-            if xid in self.tpc_recover():
-                # a two-phase rollback
-                self.execute_unnamed(
-                    self._cursor, "ROLLBACK PREPARED '%s';" % (xid[1],))
-            else:
-                # a single-phase rollback
-                self.rollback()
-        finally:
-            self.autocommit = previous_autocommit_mode
-        self._xid = None
-
-    def tpc_recover(self):
-        """Returns a list of pending transaction IDs suitable for use with
-        .tpc_commit(xid) or .tpc_rollback(xid).
-
-        This function is part of the `DBAPI 2.0 specification
-        <http://www.python.org/dev/peps/pep-0249/>`_.
-        """
-        try:
-            previous_autocommit_mode = self.autocommit
-            self.autocommit = True
-            curs = self.cursor()
-            curs.execute("select gid FROM pg_prepared_xacts")
-            return [self.xid(0, row[0], '') for row in curs]
-        finally:
-            self.autocommit = previous_autocommit_mode
-
-
-def array_find_first_element(arr):
-    for v in array_flatten(arr):
-        if v is not None:
-            return v
-    return None
-
-
-def array_flatten(arr):
-    for v in arr:
-        if isinstance(v, list):
-            for v2 in array_flatten(v):
-                yield v2
-        else:
-            yield v
-
-
-class PreparedStatement():
-    def __init__(self, con, operation):
-        self.con = con
-        self.operation = operation
-        self.statement, self.make_args = convert_paramstyle('named', operation)
-        self.name_map = {}
-
-    def run(self, **vals):
-
-        oids, params = self.con.make_params(self.make_args(vals))
-        cursor = self.con._run_cursor
-
-        try:
-            name_bin, row_desc, input_funcs = self.name_map[oids]
-        except KeyError:
-            name_bin, row_desc, input_funcs = self.name_map[oids] = \
-                self.con.prepare_statement(self.operation, oids)
-
-        try:
-            if not self.con.in_transaction and not self.con.autocommit:
-                self.con.execute_unnamed(cursor, "begin transaction")
-            self.con.execute_named(name_bin, params, row_desc, input_funcs)
-        except AttributeError as e:
-            if self.con is None:
-                raise InterfaceError("Cursor closed")
-            elif self.con._sock is None:
-                raise InterfaceError("connection is closed")
-            else:
-                raise e
-
-        return tuple(cursor._cached_rows)
-
-    def close(self):
-        for statement_name_bin, _, _ in self.name_map.values():
-            self.con.close_prepared_statement(statement_name_bin)
-        self.con = None
+class Context():
+    def __init__(self, stream=None, columns=None, input_funcs=None):
+        self.rows = []
+        self.row_count = -1
+        self.columns = [] if columns is None else columns
+        self.stream = stream
+        self.input_funcs = [] if input_funcs is None else input_funcs
