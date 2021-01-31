@@ -92,7 +92,7 @@ jobs:
           PGHOST: postgres
           PGPASSWORD: postgres
         run: |
-          python -m pytest -x test/dbapi/github-actions/${{ matrix.auth-type }}.py
+          python -m pytest -x test/dbapi/github-actions/${{ matrix.auth-type }}_dbapi.py test/native/github-actions/${{ matrix.auth-type }}_native.py test/legacy/github-actions/${{ matrix.auth-type }}_legacy.py
 
   ssl-test:
     runs-on: ubuntu-latest
@@ -140,7 +140,7 @@ jobs:
           PGPASSWORD: postgres
           USER: postgres
         run: |
-          python -m pytest -x test/dbapi/github-actions/ssl_connection.py
+          python -m pytest -x test/dbapi/github-actions/ssl_dbapi.py test/native/github-actions/ssl_native.py test/legacy/github-actions/ssl_legacy.py
 
   static-test:
     runs-on: ubuntu-latest
