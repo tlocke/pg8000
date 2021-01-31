@@ -548,6 +548,42 @@ https://www.python.org/dev/peps/pep-0020/[The Zen of Python]:
 Explicit is better than implicit.
 
 
+=== Connect To PostgreSQL Over SSL
+
+To connect to the server using SSL defaults do:
+
+[source,python]
+----
+
+import pg8000.native
+
+
+connection = pg8000.native.Connection(
+    username, password="cpsnow", ssl_context=True)
+connection.run("SELECT 'The game is afoot!'")
+
+----
+
+To connect over SSL with custom settings, set the `ssl_context` parameter to
+an https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+object:
+
+[source,python]
+----
+
+import pg8000.native
+import ssl
+
+
+ssl_context = ssl.SSLContext()
+ssl_context.verify_mode = ssl.CERT_REQUIRED
+ssl_context.load_verify_locations('root.pem')        
+connection = pg8000.native.Connection(
+    username, password="cpsnow", ssl_context=ssl_context)
+
+----
+
+
 == DB-API 2 Interactive Examples
 
 These examples stick to the DB-API 2.0 standard.
