@@ -270,20 +270,6 @@ def test_rowcount(cursor):
         'no-result statements'
 
 
-lower_func = 'lower'
-
-
-def test_callproc(cursor):
-    if lower_func and hasattr(cursor, 'callproc'):
-        r = cursor.callproc(lower_func, ('FOO',))
-        assert len(r) == 1
-        assert r[0] == 'FOO'
-        r = cursor.fetchall()
-        assert len(r) == 1, 'callproc produced no result set'
-        assert len(r[0]) == 1, 'callproc produced invalid result set'
-        assert r[0][0] == 'foo', 'callproc produced invalid results'
-
-
 def test_close(con):
     cur = con.cursor()
     con.close()

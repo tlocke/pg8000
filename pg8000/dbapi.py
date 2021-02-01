@@ -321,19 +321,6 @@ class Cursor():
                 statement, vals=vals, input_oids=self._input_oids,
                 stream=stream)
 
-            def row_iter(context):
-                it = iter(context.rows)
-                while True:
-                    try:
-                        yield next(it)
-                    except StopIteration as e:
-                        if context is None:
-                            raise ProgrammingError(
-                                "A query hasn't been issued.")
-                        elif len(self._context.columns) == 0:
-                            raise ProgrammingError("no result set")
-                        else:
-                            raise e
             self._row_iter = iter(self._context.rows)
             self._input_oids = None
         except AttributeError as e:
@@ -366,6 +353,26 @@ class Cursor():
             rowcounts.append(self._context.row_count)
 
         self._context.row_count = -1 if -1 in rowcounts else sum(rowcounts)
+
+    def callproc(self, procname, parameters=None):
+        args = [] if parameters is None else parameters
+        operation = "CALL " + procname + "(" + \
+            ", ".join(['%s' for _ in args]) + ")"
+
+        try:
+
+            statement, vals = convert_paramstyle('format', operation, args)
+
+            self._context = self._c.execute_unnamed(statement, vals=vals)
+
+            self._row_iter = iter(self._context.rows)
+        except AttributeError as e:
+            if self._c is None:
+                raise InterfaceError("Cursor closed")
+            elif self._c._sock is None:
+                raise InterfaceError("connection is closed")
+            else:
+                raise e
 
     def fetchone(self):
         """Fetch the next row of a query result set.

@@ -1781,6 +1781,21 @@ parameter_sets::
   argument of the `pg8000.dbapi.Cursor.execute()` method.
 
 
+===== pg8000.dbapi.Cursor.callproc(procname, parameters=None)
+
+Call a stored database procedure with the given name and optional parameters.
+
+This method is part of the
+http://www.python.org/dev/peps/pep-0249/[DBAPI 2.0 specification].
+
+
+procname::
+  The name of the procedure to call.
+
+parameters::
+  A list of parameters.
+
+
 ===== pg8000.dbapi.Cursor.fetchall()
 
 Fetches all remaining rows of a query result.
