@@ -66,7 +66,7 @@ def trust_all_certificates(request):
 
 
 @pytest.mark.usefixtures("trust_all_certificates")
-def testSsl(db_kwargs):
+def test_ssl(db_kwargs):
     context = ssl.SSLContext()
     context.check_hostname = False
     db_kwargs["ssl_context"] = context

@@ -220,32 +220,35 @@ class CoreConnection():
         if tcp_keepalive:
             self._usock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
-        if ssl_context is None:
-            self.channel_binding = None
-        else:
+        self.channel_binding = None
+        if ssl_context is not None:
             try:
                 import ssl
 
                 if ssl_context is True:
                     ssl_context = ssl.create_default_context()
 
-                # Int32(8) - Message length, including self.
-                # Int32(80877103) - The SSL request code.
-                self._usock.sendall(ii_pack(8, 80877103))
-                resp = self._usock.recv(1)
-                if resp != b'S':
-                    raise InterfaceError("Server refuses SSL")
+                request_ssl = getattr(ssl_context, 'request_ssl', True)
+
+                if request_ssl:
+                    # Int32(8) - Message length, including self.
+                    # Int32(80877103) - The SSL request code.
+                    self._usock.sendall(ii_pack(8, 80877103))
+                    resp = self._usock.recv(1)
+                    if resp != b'S':
+                        raise InterfaceError("Server refuses SSL")
 
                 self._usock = ssl_context.wrap_socket(
                     self._usock, server_hostname=host)
 
-                self.channel_binding = scramp.make_channel_binding(
-                    'tls-server-end-point', self._usock)
+                if request_ssl:
+                    self.channel_binding = scramp.make_channel_binding(
+                        'tls-server-end-point', self._usock)
 
             except ImportError:
                 raise InterfaceError(
-                    "SSL required but ssl module not available in "
-                    "this python installation")
+                    "SSL required but ssl module not available in this python "
+                    "installation.")
 
         self._sock = self._usock.makefile(mode="rwb")
 
