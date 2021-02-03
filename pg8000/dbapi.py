@@ -73,14 +73,16 @@ paramstyle = 'format'
 
 def connect(
         user, host='localhost', database=None, port=5432, password=None,
-        source_address=None, unix_sock=None, ssl_context=None, timeout=None,
-        tcp_keepalive=True, application_name=None, replication=None):
+        source_address=None, unix_sock=None, ssl_context=None,
+        request_ssl=True, timeout=None, tcp_keepalive=True,
+        application_name=None, replication=None):
 
     return Connection(
         user, host=host, database=database, port=port, password=password,
         source_address=source_address, unix_sock=unix_sock,
-        ssl_context=ssl_context, timeout=timeout, tcp_keepalive=tcp_keepalive,
-        application_name=application_name, replication=replication)
+        ssl_context=ssl_context, request_ssl=request_ssl, timeout=timeout,
+        tcp_keepalive=tcp_keepalive, application_name=application_name,
+        replication=replication)
 
 
 apilevel = "2.0"

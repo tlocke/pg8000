@@ -145,8 +145,8 @@ class CoreConnection():
     def __init__(
             self, user, host='localhost', database=None, port=5432,
             password=None, source_address=None, unix_sock=None,
-            ssl_context=None, timeout=None, tcp_keepalive=True,
-            application_name=None, replication=None):
+            ssl_context=None, request_ssl=True, timeout=None,
+            tcp_keepalive=True, application_name=None, replication=None):
         self._client_encoding = "utf8"
         self._commands_with_count = (
             b"INSERT", b"DELETE", b"UPDATE", b"MOVE", b"FETCH", b"COPY",
@@ -227,12 +227,13 @@ class CoreConnection():
                 if ssl_context is True:
                     ssl_context = ssl.create_default_context()
 
-                # Int32(8) - Message length, including self.
-                # Int32(80877103) - The SSL request code.
-                self._usock.sendall(ii_pack(8, 80877103))
-                resp = self._usock.recv(1)
-                if resp != b'S':
-                    raise InterfaceError("Server refuses SSL")
+                if request_ssl:
+                    # Int32(8) - Message length, including self.
+                    # Int32(80877103) - The SSL request code.
+                    self._usock.sendall(ii_pack(8, 80877103))
+                    resp = self._usock.recv(1)
+                    if resp != b'S':
+                        raise InterfaceError("Server refuses SSL")
 
                 self._usock = ssl_context.wrap_socket(
                     self._usock, server_hostname=host)
