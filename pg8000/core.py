@@ -10,7 +10,7 @@ from struct import Struct
 from pg8000 import converters
 from pg8000.exceptions import DatabaseError, InterfaceError
 
-from scramp import ScramClient
+import scramp
 
 
 def pack_funcs(fmt):
@@ -220,7 +220,9 @@ class CoreConnection():
         if tcp_keepalive:
             self._usock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
-        if ssl_context is not None:
+        if ssl_context is None:
+            self.channel_binding = None
+        else:
             try:
                 import ssl
 
@@ -236,6 +238,19 @@ class CoreConnection():
 
                 self._usock = ssl_context.wrap_socket(
                     self._usock, server_hostname=host)
+
+                self.channel_binding = None
+                '''
+                https://github.com/tlocke/pg8000/issues/63
+
+                Can't get channel binding to work. This line should make it
+                work, but can't understand why it isn't working. Any help would
+                be much appreciated!
+
+                self.channel_binding = scramp.make_channel_binding(
+                    'tls-server-end-point', self._usock)
+                '''
+
             except ImportError:
                 raise InterfaceError(
                     "SSL required but ssl module not available in "
@@ -492,19 +507,19 @@ class CoreConnection():
         elif auth_code == 10:
             # AuthenticationSASL
             mechanisms = [
-                m.decode('ascii') for m in data[4:-1].split(NULL_BYTE)]
+                m.decode('ascii') for m in data[4:-2].split(NULL_BYTE)]
 
-            self.auth = ScramClient(
+            self.auth = scramp.ScramClient(
                 mechanisms, self.user.decode('utf8'),
-                self.password.decode('utf8'))
+                self.password.decode('utf8'),
+                channel_binding=self.channel_binding)
 
             init = self.auth.get_client_first().encode('utf8')
+            mech = self.auth.mechanism_name.encode('ascii') + NULL_BYTE
 
             # SASLInitialResponse
             self._write(
-                create_message(
-                    PASSWORD,
-                    b'SCRAM-SHA-256' + NULL_BYTE + i_pack(len(init)) + init))
+                create_message(PASSWORD, mech + i_pack(len(init)) + init))
             self._flush()
 
         elif auth_code == 11:
@@ -522,12 +537,10 @@ class CoreConnection():
 
         elif auth_code in (2, 4, 6, 7, 8, 9):
             raise InterfaceError(
-                "Authentication method " + str(auth_code) +
-                " not supported by pg8000.")
+                f"Authentication method {auth_code} not supported by pg8000.")
         else:
             raise InterfaceError(
-                "Authentication method " + str(auth_code) +
-                " not recognized by pg8000.")
+                f"Authentication method {auth_code} not recognized by pg8000.")
 
     def handle_READY_FOR_QUERY(self, data, ps):
         # Byte1 -   Status indicator.
