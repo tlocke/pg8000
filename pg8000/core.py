@@ -239,17 +239,8 @@ class CoreConnection():
                 self._usock = ssl_context.wrap_socket(
                     self._usock, server_hostname=host)
 
-                self.channel_binding = None
-                '''
-                https://github.com/tlocke/pg8000/issues/63
-
-                Can't get channel binding to work. This line should make it
-                work, but can't understand why it isn't working. Any help would
-                be much appreciated!
-
                 self.channel_binding = scramp.make_channel_binding(
                     'tls-server-end-point', self._usock)
-                '''
 
             except ImportError:
                 raise InterfaceError(

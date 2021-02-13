@@ -97,11 +97,17 @@ jobs:
   ssl-test:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        auth-type: [md5, scram-sha-256]
+
     services:
       postgres:
         image: postgres
         env:
           POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST_AUTH_METHOD: ${{ matrix.auth-type }}
+          POSTGRES_INITDB_ARGS: "${{ matrix.auth-type == 'scram-sha-256' && '--auth-host=scram-sha-256' || '' }}"
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
