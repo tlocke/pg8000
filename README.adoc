@@ -521,9 +521,9 @@ executed repeatedly. Here's an example:
 ----
 
 
-=== Use Current User As DB Username
+=== Use Environment Variables As Connection Defaults
 
-You might want to use the current user as the database username:
+You might want to use the current user as the database username for example:
 
 [source,python]
 ----
@@ -540,12 +540,39 @@ You might want to use the current user as the database username:
 
 ----
 
-It might be asked, why doesn't pg8000 have the current user as a default
-username? The thinking follows the second aphorism of
+or perhaps you may want to use some of the same
+https://www.postgresql.org/docs/current/libpq-envars.html[environment variables
+that libpq uses]:
+
+[source,python]
+----
+
+>>> import pg8000
+>>> from os import environ
+>>>
+>>> username = environ.get('PGUSER', 'postgres')
+>>> password = environ.get('PGPASSWORD', 'cpsnow')
+>>> host = environ.get('PGHOST', 'localhost')
+>>> port = environ.get('PGPORT', '5432')
+>>> database = environ.get('PGDATABASE')
+>>>
+>>> connection = pg8000.native.Connection(
+...     username, password=password, host=host, port=port, database=database)
+>>>
+>>> connection.run("SELECT 'Mr Cairo'")
+[['Mr Cairo']]
+
+----
+
+It might be asked, why doesn't pg8000 have this behaviour built in? The
+thinking follows the second aphorism of
 https://www.python.org/dev/peps/pep-0020/[The Zen of Python]:
 
 [quote]
 Explicit is better than implicit.
+
+So we've taken the approach of only being able to set connection parameters
+using the `pg8000.native.Connection()` constructor.
 
 
 === Connect To PostgreSQL Over SSL
