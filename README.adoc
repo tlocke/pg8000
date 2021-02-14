@@ -1110,13 +1110,11 @@ A deque of server-side notices received by this database connection.
 A deque of server-side parameter statuses received by this database connection.
 
 
-=== pg8000.native.Connection.run(sql, stream=None, types=None, \**kwargs)
+=== pg8000.native.Connection.run(sql, stream=None, types=None, **kwargs)
 
 Executes an sql statement, and returns the results as a `list`. For example:
 
 `con.run("SELECT * FROM cities where population > :pop", pop=10000)`
-
-This method is a pg8000 extension.
 
 sql::
   The SQL statement to execute. Parameter placeholders appear as a `:` followed
@@ -1150,7 +1148,7 @@ The value is -1 if:
 * Using a `COPY` query statement on PostgreSQL server version 8.1 or older.
 
 
-===== pg8000.native.Connection.columns
+=== pg8000.native.Connection.columns
 
 A list of column metadata. Each item in the list is a dictionary with the
 following keys:
@@ -1219,11 +1217,9 @@ A prepared statement object is returned by the
 following methods:
 
 
-=== pg8000.native.PreparedStatement.run(\**kwargs)
+=== pg8000.native.PreparedStatement.run(**kwargs)
 
 Executes the prepared statement, and returns the results as a `tuple`.
-
-This method is a pg8000 extension.
 
 kwargs::
   The parameters of the prepared statement.
