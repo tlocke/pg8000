@@ -1995,6 +1995,20 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.18.0, 2021-03-06
+
+* The `pg8000.dbapi.Cursor.callproc()` method is now implemented.
+
+* SCRAM channel binding is now supported. That means SCRAM mechanisms ending in
+  '-PLUS' such as SCRAM-SHA-256-PLUS are now supported when connecting to the
+  server.
+
+* A custom attribute `ssl.SSLContext.request_ssl` can be set to `False` to
+  tell pg8000 to connect using an SSL socket, but to not request SSL from
+  the PostgreSQL server. This is useful if you're connecting to a PostgreSQL
+  server that's behind an SSL proxy.
+
+
 === Version 1.17.0, 2021-01-30
 
 * The API is now split in two, pg8000.native and pg8000.dbapi. The legacy API
