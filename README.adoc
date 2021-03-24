@@ -592,7 +592,7 @@ connection.run("SELECT 'The game is afoot!'")
 ----
 
 To connect over SSL with custom settings, set the `ssl_context` parameter to
-an https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+an https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSLContext`]
 object:
 
 [source,python]
@@ -1068,11 +1068,11 @@ ssl_context::
   This governs SSL encryption for TCP/IP sockets. It can have three values:
     * `None`, meaning no SSL (the default)
     * `True`, means use SSL with an
-       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSLContext`]
        created using
       https://docs.python.org/3/library/ssl.html#ssl.create_default_context[`ssl.create_default_context()`]
     *  An instance of
-       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSLContext`]
        which will be used to create the SSL connection. +
        +
        If your PostgreSQL server is behind an SSL proxy, you can set the
@@ -1382,11 +1382,11 @@ ssl_context::
   This governs SSL encryption for TCP/IP sockets. It can have three values:
     * `None`, meaning no SSL (the default)
     * `True`, means use SSL with an
-       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSLContext`]
        created using
       https://docs.python.org/3/library/ssl.html#ssl.create_default_context[`ssl.create_default_context()`]
     *  An instance of
-       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSContext`]
+       https://docs.python.org/3/library/ssl.html#ssl.SSLContext[`ssl.SSLContext`]
        which will be used to create the SSL connection. +
        +
        If your PostgreSQL server is behind an SSL proxy, you can set the
