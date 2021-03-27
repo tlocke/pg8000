@@ -139,10 +139,11 @@ def test_broken_pipe_flush(con, db_kwargs):
     except BaseException:
         pass
 
-    with pytest.raises(
-            pg8000.exceptions.InterfaceError,
-            match="network error on flush"):
+    # Sometimes raises and sometime doesn't
+    try:
         db1.close()
+    except pg8000.exceptions.InterfaceError as e:
+        assert str(e) == "network error on flush"
 
 
 def testApplicatioName(db_kwargs):
