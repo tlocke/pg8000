@@ -1,6 +1,3 @@
-import socket
-import struct
-
 import pg8000
 
 import pytest
@@ -116,17 +113,48 @@ def testBytesPassword(con, db_kwargs):
         con.commit()
 
 
-def test_broken_pipe(con, db_kwargs):
-    with pg8000.connect(**db_kwargs) as db1:
-        with db1.cursor() as cur1, con.cursor() as cur2:
-            cur1.execute("select pg_backend_pid()")
-            pid1 = cur1.fetchone()[0]
+def test_broken_pipe_read(con, db_kwargs):
+    db1 = pg8000.legacy.connect(**db_kwargs)
+    cur1 = db1.cursor()
+    cur2 = con.cursor()
+    cur1.execute("select pg_backend_pid()")
+    pid1 = cur1.fetchone()[0]
 
-            cur2.execute("select pg_terminate_backend(%s)", (pid1,))
-            try:
-                cur1.execute("select 1")
-            except Exception as e:
-                assert isinstance(e, (socket.error, struct.error))
+    cur2.execute("select pg_terminate_backend(%s)", (pid1,))
+    with pytest.raises(
+            pg8000.exceptions.InterfaceError,
+            match="network error on read"):
+        cur1.execute("select 1")
+
+
+def test_broken_pipe_flush(con, db_kwargs):
+    db1 = pg8000.legacy.connect(**db_kwargs)
+    cur1 = db1.cursor()
+    cur2 = con.cursor()
+    cur1.execute("select pg_backend_pid()")
+    pid1 = cur1.fetchone()[0]
+
+    cur2.execute("select pg_terminate_backend(%s)", (pid1,))
+    try:
+        cur1.execute("select 1")
+    except BaseException:
+        pass
+
+    # Can do an assert_raises when we're on 3.8 or above
+    try:
+        db1.close()
+    except pg8000.exceptions.InterfaceError as e:
+        assert str(e) == "network error on flush"
+
+
+def test_broken_pipe_unpack(con):
+    cur = con.cursor()
+    cur.execute("select pg_backend_pid()")
+    pid1 = cur.fetchone()[0]
+
+    with pytest.raises(
+            pg8000.legacy.InterfaceError, match="network error"):
+        cur.execute("select pg_terminate_backend(%s)", (pid1,))
 
 
 def testApplicatioName(db_kwargs):

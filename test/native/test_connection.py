@@ -1,6 +1,3 @@
-import socket
-import struct
-
 import pg8000.native
 
 import pytest
@@ -110,15 +107,42 @@ def testBytesPassword(con, db_kwargs):
     con.run("drop role " + username)
 
 
-def test_broken_pipe(con, db_kwargs):
-    with pg8000.native.Connection(**db_kwargs) as db:
-        res = db.run("select pg_backend_pid()")
-        pid1 = res[0][0]
+def test_broken_pipe_read(con, db_kwargs):
+    db1 = pg8000.Connection(**db_kwargs)
+    res = db1.run("select pg_backend_pid()")
+    pid1 = res[0][0]
 
-        try:
-            db.run("select pg_terminate_backend(:v)", v=pid1)
-        except Exception as e:
-            assert isinstance(e, (socket.error, struct.error))
+    con.run("select pg_terminate_backend(:v)", v=pid1)
+    with pytest.raises(
+            pg8000.exceptions.InterfaceError,
+            match="network error on read"):
+        db1.run("select 1")
+
+
+def test_broken_pipe_unpack(con):
+    res = con.run("select pg_backend_pid()")
+    pid1 = res[0][0]
+
+    with pytest.raises(
+            pg8000.native.InterfaceError, match="network error"):
+        con.run("select pg_terminate_backend(:v)", v=pid1)
+
+
+def test_broken_pipe_flush(con, db_kwargs):
+    db1 = pg8000.native.Connection(**db_kwargs)
+    res = db1.run("select pg_backend_pid()")
+    pid1 = res[0][0]
+
+    con.run("select pg_terminate_backend(:v)", v=pid1)
+    try:
+        db1.run("select 1")
+    except BaseException:
+        pass
+
+    with pytest.raises(
+            pg8000.exceptions.InterfaceError,
+            match="network error on flush"):
+        db1.close()
 
 
 def testApplicatioName(db_kwargs):

@@ -1,4 +1,5 @@
 import socket
+import struct
 from collections import defaultdict, deque
 from datetime import datetime as Datetime
 from decimal import Decimal
@@ -252,9 +253,29 @@ class CoreConnection():
 
         self._sock = self._usock.makefile(mode="rwb")
 
-        self._flush = self._sock.flush
-        self._read = self._sock.read
-        self._write = self._sock.write
+        def sock_flush():
+            try:
+                self._sock.flush()
+            except OSError as e:
+                raise InterfaceError("network error on flush") from e
+
+        self._flush = sock_flush
+
+        def sock_read(b):
+            try:
+                return self._sock.read(b)
+            except OSError as e:
+                raise InterfaceError("network error on read") from e
+
+        self._read = sock_read
+
+        def sock_write(d):
+            try:
+                self._sock.write(d)
+            except OSError as e:
+                raise InterfaceError("network error on write") from e
+
+        self._write = sock_write
         self._backend_key_data = None
 
         self.pg_types = defaultdict(
@@ -892,7 +913,12 @@ class CoreConnection():
         code = self.error = None
 
         while code != READY_FOR_QUERY:
-            code, data_len = ci_unpack(self._read(5))
+
+            try:
+                code, data_len = ci_unpack(self._read(5))
+            except struct.error as e:
+                raise InterfaceError("network error on read") from e
+
             self.message_types[code](self._read(data_len - 4), context)
 
         if self.error is not None:

@@ -1012,10 +1012,9 @@ always sent as text.
   it affects you.
 
 * Occasionally, the network connection between pg8000 and the server may go
-  down. If pg8000 encounters a problem writing to a socket it raises
-  `BrokenPipeError: [Errno 32] Broken pipe`. If pg8000 encounters a problem
-  reading from a socket it raises `struct.error: unpack_from requires a buffer
-  of at least 5 bytes`.
+  down. If pg8000 encounters a network problem it'll raise an `InterfaceError`
+  with the original exception as the
+  https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement[cause].
 
 
 == Native API Docs

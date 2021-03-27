@@ -31,7 +31,11 @@ def con(request, db_kwargs):
     conn = pg8000.dbapi.connect(**db_kwargs)
 
     def fin():
-        conn.rollback()
+        try:
+            conn.rollback()
+        except pg8000.dbapi.InterfaceError:
+            pass
+
         try:
             conn.close()
         except pg8000.dbapi.InterfaceError:

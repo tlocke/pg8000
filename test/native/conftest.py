@@ -31,7 +31,11 @@ def con(request, db_kwargs):
     conn = pg8000.native.Connection(**db_kwargs)
 
     def fin():
-        conn.run("rollback")
+        try:
+            conn.run("rollback")
+        except pg8000.native.InterfaceError:
+            pass
+
         try:
             conn.close()
         except pg8000.native.InterfaceError:
