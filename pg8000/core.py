@@ -917,7 +917,7 @@ class CoreConnection():
             try:
                 code, data_len = ci_unpack(self._read(5))
             except struct.error as e:
-                raise InterfaceError("network error on read") from e
+                raise InterfaceError("network error on read, connection is closed") from e
 
             self.message_types[code](self._read(data_len - 4), context)
 
