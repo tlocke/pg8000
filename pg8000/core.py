@@ -257,7 +257,7 @@ class CoreConnection():
             try:
                 self._sock.flush()
             except OSError as e:
-                raise InterfaceError("network error on flush") from e
+                raise InterfaceError("network error on flush, connection is closed") from e
 
         self._flush = sock_flush
 
@@ -265,7 +265,7 @@ class CoreConnection():
             try:
                 return self._sock.read(b)
             except OSError as e:
-                raise InterfaceError("network error on read") from e
+                raise InterfaceError("network error on read, connection is closed") from e
 
         self._read = sock_read
 
@@ -273,7 +273,7 @@ class CoreConnection():
             try:
                 self._sock.write(d)
             except OSError as e:
-                raise InterfaceError("network error on write") from e
+                raise InterfaceError("network error on write, connection is closed") from e
 
         self._write = sock_write
         self._backend_key_data = None
