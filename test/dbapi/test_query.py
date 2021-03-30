@@ -1,6 +1,7 @@
 from datetime import datetime as Datetime, timezone as Timezone
 
-import pg8000
+import pg8000.dbapi
+from pg8000 import converters
 
 import pytest
 
@@ -188,6 +189,20 @@ def test_executemany(db_table):
         (
             (Datetime(2014, 5, 7, tzinfo=Timezone.utc), ),
             (Datetime(2014, 5, 7),)))
+
+
+def test_executemany_setinputsizes(cursor):
+    """ Make sure that setinputsizes works for all the parameter sets
+    """
+
+    cursor.execute(
+        "CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 inet[] not null) ")
+
+    ARRAY_OID = converters.PG_ARRAY_TYPES[converters.INET]
+    cursor.setinputsizes(converters.INTEGER, ARRAY_OID)
+    cursor.executemany(
+        "INSERT INTO t1 (f1, f2) VALUES (%s, %s)",
+        ((1, ['1.1.1.1']), (2, ['0.0.0.0'])))
 
 
 # Check that autocommit stays off

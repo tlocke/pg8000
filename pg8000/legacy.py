@@ -224,7 +224,9 @@ class Cursor():
             same as the args argument of the :meth:`execute` method.
         """
         rowcounts = []
+        input_oids = self._input_oids
         for parameters in param_sets:
+            self._input_oids = input_oids
             self.execute(operation, parameters)
             rowcounts.append(self._context.row_count)
 
