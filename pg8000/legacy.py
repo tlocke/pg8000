@@ -9,7 +9,7 @@ from pg8000.converters import (
     JSON, JSONB, MACADDR, NAME, NAME_ARRAY, NULLTYPE, NUMBER, OID, PGInterval,
     STRING, TEXT, TEXT_ARRAY, TIME, TIMEDELTA, TIMESTAMP, TIMESTAMPTZ, Time,
     TimeFromTicks, Timestamp, TimestampFromTicks, UNKNOWN, UUID_TYPE, VARCHAR,
-    VARCHAR_ARRAY, XID)
+    VARCHAR_ARRAY, XID, make_params)
 from pg8000.core import CoreConnection
 from pg8000.dbapi import (
     DataError, IntegrityError, InternalError, NotSupportedError,
@@ -644,7 +644,7 @@ class PreparedStatement():
 
     def run(self, **vals):
 
-        oids, params = self.con.make_params(self.make_args(vals))
+        oids, params = make_params(self.con.py_types, self.make_args(vals))
 
         try:
             name_bin, row_desc, input_funcs = self.name_map[oids]

@@ -547,6 +547,7 @@ array_int_in = _array_in(int)
 array_float_in = _array_in(float)
 array_numeric_in = _array_in(numeric_in)
 array_text_in = _array_in(text_in)
+array_inet_in = _array_in(inet_in)
 
 
 def array_string_escape(v):
@@ -617,6 +618,7 @@ PG_TYPES = {
     1016: array_int_in,  # INT8[]
     1021: array_float_in,  # FLOAT4[]
     1022: array_float_in,  # FLOAT8[]
+    1041: array_inet_in,  # INET[]
     1042: text_in,  # CHAR type
     1043: text_in,  # VARCHAR type
     1082: date_in,  # date
@@ -692,11 +694,38 @@ pg_to_py_encodings = {
 # pg element oid -> pg array typeoid
 PG_ARRAY_TYPES = {
     16: 1000,
+    17: 1001,    # BYTEA[]
     25: 1009,    # TEXT[]
     701: 1022,
+    790: 791,    # MONEY[]
+    869: 1041,   # INET[]
     1043: 1009,
     1700: 1231,  # NUMERIC[]
+    2950: 2951,  # UUID[]
+    705: 2277,   # ANY[]
 }
+
+
+def inspect_datetime(value):
+    if value.tzinfo is None:
+        return PY_TYPES[1114]  # timestamp
+    else:
+        return PY_TYPES[1184]  # send as timestamptz
+
+
+min_int2, max_int2 = -2 ** 15, 2 ** 15
+min_int4, max_int4 = -2 ** 31, 2 ** 31
+min_int8, max_int8 = -2 ** 63, 2 ** 63
+
+
+def inspect_int(value):
+    if min_int2 < value < max_int2:
+        return PY_TYPES[21]
+    if min_int4 < value < max_int4:
+        return PY_TYPES[23]
+    if min_int8 < value < max_int8:
+        return PY_TYPES[20]
+    return PY_TYPES[Decimal]
 
 
 def array_find_first_element(arr):
@@ -713,3 +742,137 @@ def array_flatten(arr):
                 yield v2
         else:
             yield v
+
+
+def array_inspect(value):
+    # Check if array has any values. If empty, we can just assume it's an
+    # array of strings
+    first_element = array_find_first_element(value)
+    if first_element is None:
+        oid = 25
+        # Use binary ARRAY format to avoid having to properly
+        # escape text in the array literals
+        array_oid = PG_ARRAY_TYPES[oid]
+    else:
+        # supported array output
+        typ = type(first_element)
+
+        if typ == bool:
+            oid = 16
+            array_oid = PG_ARRAY_TYPES[oid]
+
+        elif issubclass(typ, int):
+            # special int array support -- send as smallest possible array
+            # type
+            typ = int
+            int2_ok, int4_ok, int8_ok = True, True, True
+            for v in array_flatten(value):
+                if v is None:
+                    continue
+                if min_int2 < v < max_int2:
+                    continue
+                int2_ok = False
+                if min_int4 < v < max_int4:
+                    continue
+                int4_ok = False
+                if min_int8 < v < max_int8:
+                    continue
+                int8_ok = False
+            if int2_ok:
+                array_oid = 1005  # INT2[]
+            elif int4_ok:
+                array_oid = 1007  # INT4[]
+            elif int8_ok:
+                array_oid = 1016  # INT8[]
+            else:
+                raise InterfaceError("numeric not supported as array contents")
+        else:
+            try:
+                oid, _ = PY_TYPES[typ]
+            except KeyError:
+                oid = 25
+
+            # If unknown or string, assume it's a string array
+            if oid in (705, 1043, 25):
+                oid = 25
+                # Use binary ARRAY format to avoid having to properly
+                # escape text in the array literals
+
+            try:
+                array_oid = PG_ARRAY_TYPES[oid]
+            except KeyError:
+                raise InterfaceError(
+                    f"oid {oid} not supported as array contents")
+
+    return array_oid, array_out
+
+
+def array_out(ar):
+    result = []
+    for v in ar:
+
+        if isinstance(v, list):
+            val = array_out(v)
+
+        elif v is None:
+            val = 'NULL'
+
+        elif isinstance(v, str):
+            val = array_string_escape(v)
+
+        else:
+            _, val = make_param(PY_TYPES, v)
+
+        result.append(val)
+    return '{' + ','.join(result) + '}'
+
+
+INSPECT_FUNCS = {
+    Datetime: inspect_datetime,
+    list: array_inspect,
+    tuple: array_inspect,
+    int: inspect_int
+}
+
+
+def make_param(py_types, value):
+    typ = type(value)
+    try:
+        oid, func = py_types[typ]
+    except KeyError:
+        try:
+            oid, func = INSPECT_FUNCS[typ](value)
+        except KeyError:
+            oid, func = None, None
+            for k, v in py_types.items():
+                try:
+                    if isinstance(value, k):
+                        oid, func = v
+                        break
+                except TypeError:
+                    pass
+
+            if oid is None:
+                for k, v in INSPECT_FUNCS.items():
+                    try:
+                        if isinstance(value, k):
+                            oid, func = v(value)
+                            break
+                    except TypeError:
+                        pass
+                    except KeyError:
+                        pass
+
+            if oid is None:
+                oid, func = 705, text_out
+
+    return oid, func(value)
+
+
+def make_params(py_types, values):
+    oids, params = [], []
+    for v in values:
+        oid, param = make_param(py_types, v)
+        oids.append(oid)
+        params.append(param)
+    return tuple(oids), tuple(params)

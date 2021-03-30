@@ -6,7 +6,7 @@ from pg8000.converters import (
     INTEGER, INTEGER_ARRAY, INTERVAL, JSON, JSONB, MACADDR, NAME, NAME_ARRAY,
     NULLTYPE, NUMBER, OID, PGInterval, STRING, TEXT, TEXT_ARRAY, TIME,
     TIMEDELTA, TIMESTAMP, TIMESTAMPTZ, UNKNOWN, UUID_TYPE, VARCHAR,
-    VARCHAR_ARRAY, XID)
+    VARCHAR_ARRAY, XID, make_params)
 from pg8000.core import CoreConnection
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
@@ -184,7 +184,7 @@ class PreparedStatement():
         return self._context.columns
 
     def run(self, stream=None, **params):
-        oids, params = self.con.make_params(self.make_vals(params))
+        oids, params = make_params(self.con.py_types, self.make_vals(params))
 
         try:
             name_bin, columns, input_funcs = self.name_map[oids]

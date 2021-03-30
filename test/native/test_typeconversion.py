@@ -1,4 +1,3 @@
-import ipaddress
 import os
 import time
 import uuid
@@ -11,6 +10,7 @@ from datetime import (
     timezone as Timezone)
 from decimal import Decimal
 from enum import Enum
+from ipaddress import IPv4Address, ip_address, ip_network
 from json import dumps
 
 import pg8000
@@ -304,13 +304,13 @@ def test_uuid_roundtrip(con):
 
 
 def test_inet_roundtrip_network(con):
-    v = ipaddress.ip_network('192.168.0.0/28')
+    v = ip_network('192.168.0.0/28')
     retval = con.run("select cast(:v as inet)", v=v)
     assert retval[0][0] == v
 
 
 def test_inet_roundtrip_address(con):
-    v = ipaddress.ip_address('192.168.0.1')
+    v = ip_address('192.168.0.1')
     retval = con.run("select cast(:v as inet)", v=v)
     assert retval[0][0] == v
 
@@ -590,27 +590,34 @@ def test_int_array_with_null_roundtrip(con):
     assert retval[0][0] == [1.1, 2.2, 3.3]
 
 
-def test_bool_array_roundtrip(con):
-    retval = con.run("SELECT cast(:v as bool[])", v=[True, False, None])
-    assert retval[0][0] == [True, False, None]
+@pytest.mark.parametrize(
+    "test_input",
+    [
+        [True, False, None],  # BOOL[]
+        [IPv4Address('192.168.0.1')],  # INET[]
+    ]
+)
+def test_array_roundtrip(con, test_input):
+    retval = con.run("SELECT :v", v=test_input)
+    assert retval[0][0] == test_input
 
 
 @pytest.mark.parametrize(
     "test_input,expected",
     [
-        ("SELECT '{a,b,c}'::TEXT[] AS f1", ["a", "b", "c"]),
-        ("SELECT '{a,b,c}'::CHAR[] AS f1", ["a", "b", "c"]),
-        ("SELECT '{a,b,c}'::VARCHAR[] AS f1", ["a", "b", "c"]),
-        ("SELECT '{a,b,c}'::CSTRING[] AS f1", ["a", "b", "c"]),
-        ("SELECT '{a,b,c}'::NAME[] AS f1", ["a", "b", "c"]),
-        ("SELECT '{}'::text[];", []),
+        ("SELECT CAST('{a,b,c}' AS TEXT[])", ["a", "b", "c"]),
+        ("SELECT CAST('{a,b,c}' AS CHAR[])", ["a", "b", "c"]),
+        ("SELECT CAST('{a,b,c}' AS VARCHAR[])", ["a", "b", "c"]),
+        ("SELECT CAST('{a,b,c}' AS CSTRING[])", ["a", "b", "c"]),
+        ("SELECT CAST('{a,b,c}' AS NAME[])", ["a", "b", "c"]),
+        ("SELECT CAST('{}' AS text[])", []),
         (
-            "SELECT '{NULL,\"NULL\",NULL,\"\"}'::text[];",
+            "SELECT CAST('{NULL,\"NULL\",NULL,\"\"}' AS text[])",
             [None, 'NULL', None, ""]
         )
     ]
 )
-def test_string_array_out(con, test_input, expected):
+def test_array_in(con, test_input, expected):
     result = con.run(test_input)
     assert result[0][0] == expected
 

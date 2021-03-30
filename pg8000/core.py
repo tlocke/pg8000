@@ -1,8 +1,6 @@
 import socket
 import struct
 from collections import defaultdict, deque
-from datetime import datetime as Datetime
-from decimal import Decimal
 from distutils.version import LooseVersion
 from hashlib import md5
 from itertools import count
@@ -57,11 +55,6 @@ cccc_pack, cccc_unpack = pack_funcs('cccc')
 # POSSIBILITY OF SUCH DAMAGE.
 
 __author__ = "Mathieu Fenniak"
-
-
-min_int2, max_int2 = -2 ** 15, 2 ** 15
-min_int4, max_int4 = -2 ** 31, 2 ** 31
-min_int8, max_int8 = -2 ** 63, 2 ** 63
 
 
 NULL_BYTE = b'\x00'
@@ -281,13 +274,6 @@ class CoreConnection():
         self.pg_types = defaultdict(
             lambda: converters.text_in, converters.PG_TYPES)
         self.py_types = dict(converters.PY_TYPES)
-
-        self.inspect_funcs = {
-            Datetime: self.inspect_datetime,
-            list: self.array_inspect,
-            tuple: self.array_inspect,
-            int: self.inspect_int
-        }
 
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,
@@ -564,141 +550,6 @@ class CoreConnection():
     def handle_BACKEND_KEY_DATA(self, data, ps):
         self._backend_key_data = data
 
-    def array_inspect(self, value):
-        # Check if array has any values. If empty, we can just assume it's an
-        # array of strings
-        first_element = converters.array_find_first_element(value)
-        if first_element is None:
-            oid = 25
-            # Use binary ARRAY format to avoid having to properly
-            # escape text in the array literals
-            array_oid = converters.PG_ARRAY_TYPES[oid]
-        else:
-            # supported array output
-            typ = type(first_element)
-
-            if typ == bool:
-                oid = 16
-                array_oid = converters.PG_ARRAY_TYPES[oid]
-
-            elif issubclass(typ, int):
-                # special int array support -- send as smallest possible array
-                # type
-                typ = int
-                int2_ok, int4_ok, int8_ok = True, True, True
-                for v in converters.array_flatten(value):
-                    if v is None:
-                        continue
-                    if min_int2 < v < max_int2:
-                        continue
-                    int2_ok = False
-                    if min_int4 < v < max_int4:
-                        continue
-                    int4_ok = False
-                    if min_int8 < v < max_int8:
-                        continue
-                    int8_ok = False
-                if int2_ok:
-                    array_oid = 1005  # INT2[]
-                elif int4_ok:
-                    array_oid = 1007  # INT4[]
-                elif int8_ok:
-                    array_oid = 1016  # INT8[]
-                else:
-                    raise InterfaceError(
-                        "numeric not supported as array contents")
-            else:
-                try:
-                    oid, _ = self.make_param(first_element)
-
-                    # If unknown or string, assume it's a string array
-                    if oid in (705, 1043, 25):
-                        oid = 25
-                        # Use binary ARRAY format to avoid having to properly
-                        # escape text in the array literals
-                    array_oid = converters.PG_ARRAY_TYPES[oid]
-                except KeyError:
-                    raise InterfaceError(
-                        "oid " + str(oid) + " not supported as array contents")
-
-        return (array_oid, self.array_out)
-
-    def array_out(self, ar):
-        result = []
-        for v in ar:
-
-            if isinstance(v, list):
-                val = self.array_out(v)
-
-            elif v is None:
-                val = 'NULL'
-
-            elif isinstance(v, str):
-                val = converters.array_string_escape(v)
-
-            else:
-                _, val = self.make_param(v)
-
-            result.append(val)
-
-        return '{' + ','.join(result) + '}'
-
-    def make_param(self, value):
-        typ = type(value)
-        try:
-            oid, func = self.py_types[typ]
-        except KeyError:
-            try:
-                oid, func = self.inspect_funcs[typ](value)
-            except KeyError as e:
-                oid, func = None, None
-                for k, v in self.py_types.items():
-                    try:
-                        if isinstance(value, k):
-                            oid, func = v
-                            break
-                    except TypeError:
-                        pass
-
-                if oid is None:
-                    for k, v in self.inspect_funcs.items():
-                        try:
-                            if isinstance(value, k):
-                                oid, func = v(value)
-                                break
-                        except TypeError:
-                            pass
-                        except KeyError:
-                            pass
-
-                if oid is None:
-                    raise InterfaceError(
-                        "type " + str(e) + " not mapped to pg type")
-
-        return oid, func(value)
-
-    def make_params(self, values):
-        if len(values) == 0:
-            return (), ()
-        else:
-            oids, params = zip(*map(self.make_param, values))
-            return tuple(oids), tuple(params)
-
-    def inspect_datetime(self, value):
-        if value.tzinfo is None:
-            return self.py_types[1114]  # timestamp
-        else:
-            return self.py_types[1184]  # send as timestamptz
-
-    def inspect_int(self, value):
-        if min_int2 < value < max_int2:
-            return self.py_types[21]
-        if min_int4 < value < max_int4:
-            return self.py_types[23]
-        if min_int8 < value < max_int8:
-            return self.py_types[20]
-        return self.py_types[Decimal]
-
     def handle_ROW_DESCRIPTION(self, data, context):
         count = h_unpack(data)[0]
         idx = 2
@@ -755,7 +606,7 @@ class CoreConnection():
             self._flush()
             self.handle_messages(context)
         else:
-            param_oids, params = self.make_params(vals)
+            param_oids, params = converters.make_params(self.py_types, vals)
             if input_oids is None:
                 oids = param_oids
             else:
