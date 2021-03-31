@@ -5,47 +5,68 @@ from decimal import Decimal
 from enum import Enum
 from ipaddress import (
     IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_address, ip_network)
-from json import loads
-from time import localtime
+from json import dumps, loads
 from uuid import UUID
 
 from pg8000.exceptions import InterfaceError
 
 
-BIGINTEGER = 20
+ANY_ARRAY = 2277
+BIGINT = 20
+BIGINT_ARRAY = 1016
 BOOLEAN = 16
 BOOLEAN_ARRAY = 1000
 BYTES = 17
+BYTES_ARRAY = 1001
 CHAR = 1042
 CHAR_ARRAY = 1014
+CIDR = 650
+CIDR_ARRAY = 651
+CSTRING = 2275
+CSTRING_ARRAY = 1263
 DATE = 1082
+DATE_ARRAY = 1182
 DATETIME = 1114
-DECIMAL = 1700
-DECIMAL_ARRAY = 1231
 FLOAT = 701
 FLOAT_ARRAY = 1022
 INET = 869
+INET_ARRAY = 1041
 INT2VECTOR = 22
 INTEGER = 23
-INTEGER_ARRAY = 1016
+INTEGER_ARRAY = 1007
 INTERVAL = 1186
-MACADDR = 829
-NAME = 19
-NAME_ARRAY = 1003
 OID = 26
 JSON = 114
+JSON_ARRAY = 199
 JSONB = 3802
+JSONB_ARRAY = 3807
+MACADDR = 829
+MONEY = 790
+MONEY_ARRAY = 791
+NAME = 19
+NAME_ARRAY = 1003
+NUMERIC = 1700
+NUMERIC_ARRAY = 1231
 NULLTYPE = -1
-NUMBER = 1700
+OID = 26
+POINT = 600
+REAL = 700
+REAL_ARRAY = 1021
+SMALLINT = 21
+SMALLINT_ARRAY = 1005
+SMALLINT_VECTOR = 22
 STRING = 1043
 TEXT = 25
 TEXT_ARRAY = 1009
 TIME = 1083
 TIMEDELTA = 1186
 TIMESTAMP = 1114
+TIMESTAMP_ARRAY = 1115
 TIMESTAMPTZ = 1184
+TIMESTAMPTZ_ARRAY = 1185
 UNKNOWN = 705
 UUID_TYPE = 2950
+UUID_ARRAY = 2951
 VARCHAR = 1043
 VARCHAR_ARRAY = 1015
 XID = 28
@@ -56,53 +77,80 @@ MIN_INT4, MAX_INT4 = -2 ** 31, 2 ** 31
 MIN_INT8, MAX_INT8 = -2 ** 63, 2 ** 63
 
 
-def text_out(v):
-    return v
+def bool_in(data):
+    return data == 't'
 
 
-def enum_out(v):
-    return str(v.value)
+def bool_out(v):
+    return 'true' if v else 'false'
 
 
-def time_out(v):
-    return v.isoformat()
+def bytes_in(data):
+    return bytes.fromhex(data[2:])
+
+
+def bytes_out(v):
+    return '\\x' + v.hex()
+
+
+def cidr_out(v):
+    return str(v)
+
+
+def cidr_in(data):
+    return ip_network(data, False) if '/' in data else ip_address(data)
+
+
+def date_in(data):
+    return Datetime.strptime(data, "%Y-%m-%d").date()
 
 
 def date_out(v):
     return v.isoformat()
 
 
-def unknown_out(v):
+def enum_out(v):
+    return str(v.value)
+
+
+def float_out(v):
     return str(v)
 
 
-def vector_in(data):
-    return eval('[' + data.replace(' ', ',') + ']')
+def inet_in(data):
+    return ip_network(data, False) if '/' in data else ip_address(data)
 
 
-def text_in(data):
-    return data
+def inet_out(v):
+    return str(v)
 
 
-def bool_in(data):
-    return data == 't'
+def int_in(data):
+    return int(data)
+
+
+def int_out(v):
+    return str(v)
 
 
 def json_in(data):
     return loads(data)
 
 
-def time_in(data):
-    if "." in data:
-        pattern = "%H:%M:%S.%f"
-    else:
-        pattern = "%H:%M:%S"
-
-    return Datetime.strptime(data, pattern).time()
+def json_out(v):
+    return dumps(v)
 
 
-def date_in(data):
-    return Datetime.strptime(data, "%Y-%m-%d").date()
+def null_out(v):
+    return None
+
+
+def money_in(data):
+    return data[1:]
+
+
+def money_out(m):
+    return str(m)
 
 
 def numeric_in(data):
@@ -113,61 +161,29 @@ def numeric_out(d):
     return str(d)
 
 
-def inet_out(v):
-    return str(v)
-
-
-def inet_in(data):
-    return ip_network(data, False) if '/' in data else ip_address(data)
-
-
-def int_out(v):
-    return str(v)
-
-
-def float_out(v):
-    return str(v)
-
-
-def timestamp_in(data):
-    if data in ('infinity', '-infinity'):
-        return data
-
-    elif '.' in data:
-        pattern = "%Y-%m-%d %H:%M:%S.%f"
-
-    else:
-        pattern = "%Y-%m-%d %H:%M:%S"
-
-    return Datetime.strptime(data, pattern)
-
-
-def timestamp_out(v):
-    return v.isoformat()
-
-
-def timestamptz_out(v):
-    # timestamps should be sent as UTC.  If they have zone info,
-    # convert them.
-    return v.astimezone(Timezone.utc).isoformat()
-
-
-def timestamptz_in(data):
-    patt = "%Y-%m-%d %H:%M:%S.%f%z" if '.' in data else "%Y-%m-%d %H:%M:%S%z"
-    return Datetime.strptime(data + '00', patt)
+def pginterval_in(data):
+    return PGInterval.from_str(data)
 
 
 def pginterval_out(v):
     return str(v)
 
 
-def timedelta_out(v):
-    return ' '.join(
-        (
-            str(v.days), "days", str(v.seconds), "seconds",
-            str(v.microseconds), "microseconds"
-        )
-    )
+def string_in(data):
+    return data
+
+
+def string_out(v):
+    return v
+
+
+def time_in(data):
+    pattern = "%H:%M:%S.%f" if "." in data else "%H:%M:%S"
+    return Datetime.strptime(data, pattern).time()
+
+
+def time_out(v):
+    return v.isoformat()
 
 
 def timedelta_in(data):
@@ -186,22 +202,49 @@ def timedelta_in(data):
     for n in ['weeks', 'months', 'years', 'decades', 'centuries', 'millennia']:
         if n in t:
             raise InterfaceError(
-                "Can't fit the interval " + str(t) +
-                " into a datetime.timedelta.")
+                f"Can't fit the interval {t} into a datetime.timedelta.")
 
     return Timedelta(**t)
 
 
-def pginterval_in(data):
-    return PGInterval.from_str(data)
+def timedelta_out(v):
+    return ' '.join(
+        (
+            str(v.days), "days", str(v.seconds), "seconds",
+            str(v.microseconds), "microseconds"
+        )
+    )
 
 
-def bytes_out(v):
-    return '\\x' + v.hex()
+def timestamp_in(data):
+    if data in ('infinity', '-infinity'):
+        return data
+
+    pattern = "%Y-%m-%d %H:%M:%S.%f" if '.' in data else "%Y-%m-%d %H:%M:%S"
+    return Datetime.strptime(data, pattern)
 
 
-def bytea_in(data):
-    return bytes.fromhex(data[2:])
+def timestamp_out(v):
+    return v.isoformat()
+
+
+def timestamptz_out(v):
+    # timestamps should be sent as UTC.  If they have zone info,
+    # convert them.
+    return v.astimezone(Timezone.utc).isoformat()
+
+
+def timestamptz_in(data):
+    patt = "%Y-%m-%d %H:%M:%S.%f%z" if '.' in data else "%Y-%m-%d %H:%M:%S%z"
+    return Datetime.strptime(data + '00', patt)
+
+
+def unknown_out(v):
+    return str(v)
+
+
+def vector_in(data):
+    return eval('[' + data.replace(' ', ',') + ']')
 
 
 def uuid_out(v):
@@ -210,100 +253,6 @@ def uuid_out(v):
 
 def uuid_in(data):
     return UUID(data)
-
-
-def bool_out(v):
-    return 'true' if v else 'false'
-
-
-def null_out(v):
-    return None
-
-
-def int_in(data):
-    return int(data)
-
-
-BINARY = bytes
-
-
-def PgDate(year, month, day):
-    """Constuct an object holding a date value.
-
-    This function is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-    :rtype: :class:`datetime.date`
-    """
-    return Date(year, month, day)
-
-
-def PgTime(hour, minute, second):
-    """Construct an object holding a time value.
-
-    This function is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-    :rtype: :class:`datetime.time`
-    """
-    return Time(hour, minute, second)
-
-
-def Timestamp(year, month, day, hour, minute, second):
-    """Construct an object holding a timestamp value.
-
-    This function is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-    :rtype: :class:`datetime.datetime`
-    """
-    return Datetime(year, month, day, hour, minute, second)
-
-
-def DateFromTicks(ticks):
-    """Construct an object holding a date value from the given ticks value
-    (number of seconds since the epoch).
-
-    This function is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-    :rtype: :class:`datetime.date`
-    """
-    return Date(*localtime(ticks)[:3])
-
-
-def TimeFromTicks(ticks):
-    """Construct an objet holding a time value from the given ticks value
-    (number of seconds since the epoch).
-
-    This function is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-    :rtype: :class:`datetime.time`
-    """
-    return Time(*localtime(ticks)[3:6])
-
-
-def TimestampFromTicks(ticks):
-    """Construct an object holding a timestamp value from the given ticks value
-    (number of seconds since the epoch).
-
-    This function is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-    :rtype: :class:`datetime.datetime`
-    """
-    return Timestamp(*localtime(ticks)[:6])
-
-
-def Binary(value):
-    """Construct an object holding binary data.
-
-    This function is part of the `DBAPI 2.0 specification
-    <http://www.python.org/dev/peps/pep-0249/>`_.
-
-    """
-    return value
 
 
 class PGInterval():
@@ -542,12 +491,20 @@ def _array_in(adapter):
     return f
 
 
-array_bool_in = _array_in(bool_in)
-array_int_in = _array_in(int)
-array_float_in = _array_in(float)
-array_numeric_in = _array_in(numeric_in)
-array_text_in = _array_in(text_in)
-array_inet_in = _array_in(inet_in)
+bool_array_in = _array_in(bool_in)
+bytes_array_in = _array_in(bytes_in)
+cidr_array_in = _array_in(cidr_in)
+date_array_in = _array_in(date_in)
+inet_array_in = _array_in(inet_in)
+int_array_in = _array_in(int)
+json_array_in = _array_in(json_in)
+float_array_in = _array_in(float)
+money_array_in = _array_in(money_in)
+numeric_array_in = _array_in(numeric_in)
+string_array_in = _array_in(string_in)
+timestamp_array_in = _array_in(timestamp_in)
+timestamptz_array_in = _array_in(timestamptz_in)
+uuid_array_in = _array_in(uuid_in)
 
 
 def array_string_escape(v):
@@ -565,73 +522,287 @@ def array_string_escape(v):
     return val
 
 
+# pg element oid -> pg array typeoid
+PG_ARRAY_TYPES = {
+    BOOLEAN: BOOLEAN_ARRAY,          # bool[]
+    BIGINT: BIGINT_ARRAY,            # int8[]
+    BYTES: BYTES_ARRAY,              # bytea[]
+    CIDR: CIDR_ARRAY,                # cidr[]
+    DATE: DATE_ARRAY,                # date[]
+    FLOAT: FLOAT_ARRAY,              # float8[]
+    INET: INET_ARRAY,                # inet[]
+    INTEGER: INTEGER_ARRAY,          # int4[]
+    JSON: JSON_ARRAY,                # json[]
+    JSONB: JSONB_ARRAY,              # jsonb[]
+    MONEY: MONEY_ARRAY,              # money[]
+    NUMERIC: NUMERIC_ARRAY,          # numeric[]
+    SMALLINT: SMALLINT_ARRAY,        # int2[]
+    TEXT: TEXT_ARRAY,                # text[]
+    TIMESTAMP: TIMESTAMP_ARRAY,      # timestamp[]
+    TIMESTAMPTZ: TIMESTAMPTZ_ARRAY,  # timestamptz[]
+    UUID_TYPE: UUID_ARRAY,           # uuid[]
+    VARCHAR: VARCHAR_ARRAY,          # varchar[]
+    UNKNOWN: VARCHAR_ARRAY,          # any[]
+}
+
+
+def inspect_datetime(value):
+    if value.tzinfo is None:
+        return PY_TYPES[TIMESTAMP]
+    else:
+        return PY_TYPES[TIMESTAMPTZ]
+
+
+min_int2, max_int2 = -2 ** 15, 2 ** 15
+min_int4, max_int4 = -2 ** 31, 2 ** 31
+min_int8, max_int8 = -2 ** 63, 2 ** 63
+
+
+def inspect_int(value):
+    if min_int2 < value < max_int2:
+        return PY_TYPES[SMALLINT]
+    if min_int4 < value < max_int4:
+        return PY_TYPES[INTEGER]
+    if min_int8 < value < max_int8:
+        return PY_TYPES[BIGINT]
+    return PY_TYPES[Decimal]
+
+
+def array_find_first_element(arr):
+    for v in array_flatten(arr):
+        if v is not None:
+            return v
+    return None
+
+
+def array_flatten(arr):
+    for v in arr:
+        if isinstance(v, list):
+            for v2 in array_flatten(v):
+                yield v2
+        else:
+            yield v
+
+
+def array_inspect(array):
+    first_element = None
+    for v in array_flatten(array):
+        if v is not None:
+            first_element = v
+            break
+
+    if first_element is None:
+        oid = VARCHAR
+    else:
+        oid, _ = make_param(PY_TYPES, first_element)
+
+    try:
+        array_oid = PG_ARRAY_TYPES[oid]
+    except KeyError:
+        raise InterfaceError(
+            f"oid {oid} not supported as array contents")
+
+    try:
+        return PY_TYPES[array_oid]
+    except KeyError:
+        raise InterfaceError(f"array oid {array_oid} not supported")
+
+
+def _make_array_out(ar, adapter_f):
+    result = []
+    for v in ar:
+
+        if isinstance(v, list):
+            val = _make_array_out(v, adapter_f)
+
+        elif v is None:
+            val = 'NULL'
+
+        else:
+            val = adapter_f(v)
+
+        result.append(val)
+
+    return '{' + ','.join(result) + '}'
+
+
+def _array_out(adapter):
+    def f(data):
+        return _make_array_out(data, adapter)
+    return f
+
+
+bool_array_out = _array_out(bool_out)
+date_array_out = _array_out(date_out)
+float_array_out = _array_out(float_out)
+inet_array_out = _array_out(inet_out)
+int_array_out = _array_out(int_out)
+numeric_array_out = _array_out(numeric_out)
+money_array_out = _array_out(money_out)
+timestamp_array_out = _array_out(timestamp_out)
+timestamptz_array_out = _array_out(timestamptz_out)
+uuid_array_out = _array_out(uuid_out)
+
+
+def bytes_array_out(ar):
+    result = []
+    for v in ar:
+
+        if isinstance(v, list):
+            val = bytes_array_out(v)
+
+        elif v is None:
+            val = 'NULL'
+
+        else:
+            val = f'"\\{bytes_out(v)}"'
+
+        result.append(val)
+
+    return '{' + ','.join(result) + '}'
+
+
+def json_array_out(ar):
+    result = []
+    for v in ar:
+
+        if isinstance(v, list):
+            val = json_array_out(v)
+
+        elif v is None:
+            val = 'NULL'
+
+        else:
+            val = array_string_escape(json_out(v))
+
+        result.append(val)
+
+    return '{' + ','.join(result) + '}'
+
+
+def string_array_out(ar):
+    result = []
+    for v in ar:
+
+        if isinstance(v, list):
+            val = string_array_out(v)
+
+        elif v is None:
+            val = 'NULL'
+
+        else:
+            val = array_string_escape(v)
+
+        result.append(val)
+
+    return '{' + ','.join(result) + '}'
+
+
+INSPECT_FUNCS = {
+    Datetime: inspect_datetime,
+    list: array_inspect,
+    tuple: array_inspect,
+    int: inspect_int
+}
+
+
 PY_TYPES = {
-    type(None): (NULLTYPE, null_out),  # null
-    bool: (16, bool_out),
-    bytearray: (17, bytes_out),  # bytea
-    20: (20, int_out),  # int8
-    21: (21, int_out),  # int2
-    23: (23, int_out),  # int4
-    float: (701, float_out),  # float8
-    Date: (1082, date_out),  # date
-    Time: (1083, time_out),  # time
-    1114: (1114, timestamp_out),  # timestamp
-    1184: (1184, timestamptz_out),  # timestamptz
-    Timedelta: (1186, timedelta_out),
-    PGInterval: (1186, pginterval_out),
-    Decimal: (1700, numeric_out),  # Decimal
-    UUID: (2950, uuid_out),  # uuid
-    bytes: (17, bytes_out),  # bytea
-    str: (UNKNOWN, text_out),  # unknown
-    Enum: (UNKNOWN, enum_out),
-    IPv4Address: (869, inet_out),  # inet
-    IPv6Address: (869, inet_out),  # inet
-    IPv4Network: (869, inet_out),  # inet
-    IPv6Network: (869, inet_out),  # inet
+    BOOLEAN_ARRAY: (BOOLEAN_ARRAY, bool_array_out),        # bool[]
+    BIGINT: (BIGINT, int_out),                             # int8
+    BIGINT_ARRAY: (BIGINT_ARRAY, int_array_out),           # int8[]
+    BYTES_ARRAY: (BYTES_ARRAY, bytes_array_out),           # bytes[]
+    DATE_ARRAY: (DATE_ARRAY, date_array_out),              # date[]
+    FLOAT_ARRAY: (FLOAT_ARRAY, float_array_out),           # float8[]
+    INET_ARRAY: (INET_ARRAY, inet_array_out),              # inet[]
+    INTEGER: (INTEGER, int_out),                           # int4
+    INTEGER_ARRAY: (INTEGER_ARRAY, int_array_out),         # int4[]
+    JSON_ARRAY: (JSON_ARRAY, json_array_out),              # json[]
+    JSONB_ARRAY: (JSONB_ARRAY, json_array_out),            # jsonb[]
+    MONEY: (MONEY, money_out),                             # money[]
+    MONEY_ARRAY: (MONEY_ARRAY, numeric_array_out),         # money[]
+    NUMERIC_ARRAY: (NUMERIC_ARRAY, numeric_array_out),     # numeric[]
+    SMALLINT: (SMALLINT, int_out),                         # int2
+    SMALLINT_ARRAY: (SMALLINT_ARRAY, int_array_out),       # int2[]
+    TIMESTAMP: (TIMESTAMP, timestamp_out),                 # timestamp
+    TIMESTAMP_ARRAY:
+        (TIMESTAMP_ARRAY, timestamp_array_out),            # timestamp[]
+    TIMESTAMPTZ: (TIMESTAMPTZ, timestamptz_out),           # timestamptz
+    TIMESTAMPTZ_ARRAY:
+        (TIMESTAMPTZ_ARRAY, timestamptz_array_out),        # timestamptz[]
+    UUID_ARRAY: (UUID_ARRAY, uuid_array_out),              # uuid
+    VARCHAR_ARRAY: (VARCHAR_ARRAY, string_array_out),      # varchar[]
+    Date: (DATE, date_out),                                # date
+    Decimal: (1700, numeric_out),                          # numeric
+    Enum: (UNKNOWN, enum_out),                             # enum
+    IPv4Address: (INET, inet_out),                         # inet
+    IPv6Address: (INET, inet_out),                         # inet
+    IPv4Network: (INET, inet_out),                         # inet
+    IPv6Network: (INET, inet_out),                         # inet
+    PGInterval: (1186, pginterval_out),                    # interval
+    Time: (TIME, time_out),                                # time
+    Timedelta: (1186, timedelta_out),                      # interval
+    UUID: (UUID_TYPE, uuid_out),                           # uuid
+    bool: (BOOLEAN, bool_out),                             # bool
+    bytearray: (BYTES, bytes_out),                         # bytea
+    dict: (JSONB, json_out),                               # jsonb
+    float: (FLOAT, float_out),                             # float8
+    type(None): (NULLTYPE, null_out),                      # null
+    bytes: (BYTES, bytes_out),                             # bytea
+    str: (UNKNOWN, string_out),                            # unknown
 }
 
 
 PG_TYPES = {
-    16: bool_in,  # boolean
-    17: bytea_in,  # bytea
-    19: text_in,  # name type
-    20: int,  # int8
-    21: int,  # int2
-    22: vector_in,  # int2vector
-    23: int,  # int4
-    25: text_in,  # TEXT type
-    26: int,  # oid
-    28: int,  # xid
-    114: json_in,  # json
-    700: float,  # float4
-    701: float,  # float8
-    UNKNOWN: text_in,  # unknown
-    829: text_in,  # MACADDR type
-    869: inet_in,  # inet
-    1000: array_bool_in,  # BOOL[]
-    1003: array_text_in,  # NAME[]
-    1005: array_int_in,  # INT2[]
-    1007: array_int_in,  # INT4[]
-    1009: array_text_in,  # TEXT[]
-    1014: array_text_in,  # CHAR[]
-    1015: array_text_in,  # VARCHAR[]
-    1016: array_int_in,  # INT8[]
-    1021: array_float_in,  # FLOAT4[]
-    1022: array_float_in,  # FLOAT8[]
-    1041: array_inet_in,  # INET[]
-    1042: text_in,  # CHAR type
-    1043: text_in,  # VARCHAR type
-    1082: date_in,  # date
-    1083: time_in,
-    1114: timestamp_in,
-    1184: timestamptz_in,  # timestamp w/ tz
-    1186: timedelta_in,
-    1231: array_numeric_in,  # NUMERIC[]
-    1263: array_text_in,  # cstring[]
-    1700: numeric_in,  # NUMERIC
-    2275: text_in,  # cstring
-    2950: uuid_in,  # uuid
-    3802: json_in,  # jsonb
+    BIGINT: int,                              # int8
+    BIGINT_ARRAY: int_array_in,               # int8[]
+    BOOLEAN: bool_in,                         # bool
+    BOOLEAN_ARRAY: bool_array_in,             # bool[]
+    BYTES: bytes_in,                          # bytea
+    BYTES_ARRAY: bytes_array_in,              # bytea[]
+    CHAR: string_in,                          # char
+    CHAR_ARRAY: string_array_in,              # char[]
+    CIDR_ARRAY: cidr_array_in,                # cidr[]
+    CSTRING: string_in,                       # cstring
+    CSTRING_ARRAY: string_array_in,           # cstring[]
+    DATE: date_in,                            # date
+    DATE_ARRAY: date_array_in,                # date[]
+    FLOAT: float,                             # float8
+    FLOAT_ARRAY: float_array_in,              # float8[]
+    INET: inet_in,                            # inet
+    INET_ARRAY: inet_array_in,                # inet[]
+    INTEGER: int,                             # int4
+    INTEGER_ARRAY: int_array_in,              # int4[]
+    JSON: json_in,                            # json
+    JSON_ARRAY: json_array_in,                # json[]
+    JSONB: json_in,                           # jsonb
+    JSONB_ARRAY: json_array_in,               # jsonb[]
+    MACADDR: string_in,                       # MACADDR type
+    MONEY: money_in,                          # money
+    MONEY_ARRAY: money_array_in,              # money[]
+    NAME: string_in,                          # name
+    NAME_ARRAY: string_array_in,              # name[]
+    NUMERIC: numeric_in,                      # numeric
+    NUMERIC_ARRAY: numeric_array_in,          # numeric[]
+    OID: int,                                 # oid
+    REAL: float,                              # float4
+    REAL_ARRAY: float_array_in,               # float4[]
+    SMALLINT: int,                            # int2
+    SMALLINT_ARRAY: int_array_in,             # int2[]
+    SMALLINT_VECTOR: vector_in,               # int2vector
+    TEXT: string_in,                          # text
+    TEXT_ARRAY: string_array_in,              # text[]
+    TIME: time_in,                            # time
+    TIMEDELTA: timedelta_in,                  # interval
+    TIMESTAMP: timestamp_in,                  # timestamp
+    TIMESTAMP_ARRAY: timestamp_array_in,      # timestamp
+    TIMESTAMPTZ: timestamptz_in,              # timestamptz
+    TIMESTAMPTZ_ARRAY: timestamptz_array_in,  # timestamptz
+    UNKNOWN: string_in,                       # unknown
+    UUID_ARRAY: uuid_array_in,                # uuid[]
+    UUID_TYPE: uuid_in,                       # uuid
+    VARCHAR: string_in,                       # varchar
+    VARCHAR_ARRAY: string_array_in,           # varchar[]
+    XID: int,                                 # xid
 }
 
 
@@ -643,7 +814,7 @@ PG_TYPES = {
 #
 # Commented out encodings don't require a name change between PostgreSQL and
 # Python.  If the py side is None, then the encoding isn't supported.
-pg_to_py_encodings = {
+PG_PY_ENCODINGS = {
     # Not supported:
     "mule_internal": None,
     "euc_tw": None,
@@ -691,149 +862,6 @@ pg_to_py_encodings = {
     "unicode": "utf-8",  # Needed for Amazon Redshift
 }
 
-# pg element oid -> pg array typeoid
-PG_ARRAY_TYPES = {
-    16: 1000,
-    17: 1001,    # BYTEA[]
-    25: 1009,    # TEXT[]
-    701: 1022,
-    790: 791,    # MONEY[]
-    869: 1041,   # INET[]
-    1043: 1009,
-    1700: 1231,  # NUMERIC[]
-    2950: 2951,  # UUID[]
-    705: 2277,   # ANY[]
-}
-
-
-def inspect_datetime(value):
-    if value.tzinfo is None:
-        return PY_TYPES[1114]  # timestamp
-    else:
-        return PY_TYPES[1184]  # send as timestamptz
-
-
-min_int2, max_int2 = -2 ** 15, 2 ** 15
-min_int4, max_int4 = -2 ** 31, 2 ** 31
-min_int8, max_int8 = -2 ** 63, 2 ** 63
-
-
-def inspect_int(value):
-    if min_int2 < value < max_int2:
-        return PY_TYPES[21]
-    if min_int4 < value < max_int4:
-        return PY_TYPES[23]
-    if min_int8 < value < max_int8:
-        return PY_TYPES[20]
-    return PY_TYPES[Decimal]
-
-
-def array_find_first_element(arr):
-    for v in array_flatten(arr):
-        if v is not None:
-            return v
-    return None
-
-
-def array_flatten(arr):
-    for v in arr:
-        if isinstance(v, list):
-            for v2 in array_flatten(v):
-                yield v2
-        else:
-            yield v
-
-
-def array_inspect(value):
-    # Check if array has any values. If empty, we can just assume it's an
-    # array of strings
-    first_element = array_find_first_element(value)
-    if first_element is None:
-        oid = 25
-        # Use binary ARRAY format to avoid having to properly
-        # escape text in the array literals
-        array_oid = PG_ARRAY_TYPES[oid]
-    else:
-        # supported array output
-        typ = type(first_element)
-
-        if typ == bool:
-            oid = 16
-            array_oid = PG_ARRAY_TYPES[oid]
-
-        elif issubclass(typ, int):
-            # special int array support -- send as smallest possible array
-            # type
-            typ = int
-            int2_ok, int4_ok, int8_ok = True, True, True
-            for v in array_flatten(value):
-                if v is None:
-                    continue
-                if min_int2 < v < max_int2:
-                    continue
-                int2_ok = False
-                if min_int4 < v < max_int4:
-                    continue
-                int4_ok = False
-                if min_int8 < v < max_int8:
-                    continue
-                int8_ok = False
-            if int2_ok:
-                array_oid = 1005  # INT2[]
-            elif int4_ok:
-                array_oid = 1007  # INT4[]
-            elif int8_ok:
-                array_oid = 1016  # INT8[]
-            else:
-                raise InterfaceError("numeric not supported as array contents")
-        else:
-            try:
-                oid, _ = PY_TYPES[typ]
-            except KeyError:
-                oid = 25
-
-            # If unknown or string, assume it's a string array
-            if oid in (705, 1043, 25):
-                oid = 25
-                # Use binary ARRAY format to avoid having to properly
-                # escape text in the array literals
-
-            try:
-                array_oid = PG_ARRAY_TYPES[oid]
-            except KeyError:
-                raise InterfaceError(
-                    f"oid {oid} not supported as array contents")
-
-    return array_oid, array_out
-
-
-def array_out(ar):
-    result = []
-    for v in ar:
-
-        if isinstance(v, list):
-            val = array_out(v)
-
-        elif v is None:
-            val = 'NULL'
-
-        elif isinstance(v, str):
-            val = array_string_escape(v)
-
-        else:
-            _, val = make_param(PY_TYPES, v)
-
-        result.append(val)
-    return '{' + ','.join(result) + '}'
-
-
-INSPECT_FUNCS = {
-    Datetime: inspect_datetime,
-    list: array_inspect,
-    tuple: array_inspect,
-    int: inspect_int
-}
-
 
 def make_param(py_types, value):
     typ = type(value)
@@ -864,7 +892,7 @@ def make_param(py_types, value):
                         pass
 
             if oid is None:
-                oid, func = 705, text_out
+                oid, func = UNKNOWN, string_out
 
     return oid, func(value)
 
@@ -875,4 +903,5 @@ def make_params(py_types, values):
         oid, param = make_param(py_types, v)
         oids.append(oid)
         params.append(param)
+
     return tuple(oids), tuple(params)

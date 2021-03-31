@@ -46,5 +46,13 @@ def con(request, db_kwargs):
 
 
 @pytest.fixture
+def pg_version(con):
+    retval = con.run("select current_setting('server_version')")
+    version = retval[0][0]
+    idx = version.index('.')
+    return int(version[:idx])
+
+
+@pytest.fixture(scope="module")
 def is_java():
     return 'java' in sys.platform.lower()

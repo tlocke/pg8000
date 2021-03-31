@@ -162,10 +162,21 @@ encoding is by using an SQL command. For example:
 ----
 
 
-=== JSON
+=== JSONB and JSON
 
-JSON is sent to the server serialized, and returned de-serialized. Here's an
-example:
+JSONB (and JSON) always comes back from the server de-serialized. If the JSON
+you want to send is a `dict` then you can just do:
+
+[source,python]
+----
+>>> import json
+>>> val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
+>>> con.run("SELECT :apollo", apollo=val)
+[[{'age': 26.003, 'name': 'Apollo 11 Cave', 'zebra': True}]]
+
+----
+
+JSON can always be sent in serialized form to the server:
 
 [source,python]
 ----

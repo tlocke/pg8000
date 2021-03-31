@@ -1,6 +1,5 @@
 import os
 import time
-import uuid
 from collections import OrderedDict
 from datetime import (
     date as Date,
@@ -10,88 +9,22 @@ from datetime import (
     timezone as Timezone)
 from decimal import Decimal
 from enum import Enum
-from ipaddress import IPv4Address, ip_address, ip_network
+from ipaddress import IPv4Address, IPv4Network
 from json import dumps
+from uuid import UUID
 
 import pg8000
-from pg8000 import converters
+from pg8000.converters import (
+    BIGINT, BIGINT_ARRAY, BOOLEAN, CIDR_ARRAY, DATE, FLOAT_ARRAY, INET,
+    INTEGER_ARRAY, JSON, JSONB, JSONB_ARRAY, JSON_ARRAY, MONEY, MONEY_ARRAY,
+    NUMERIC, NUMERIC_ARRAY, POINT, SMALLINT_ARRAY, TIME, TIMESTAMP,
+    TIMESTAMPTZ, TIMESTAMPTZ_ARRAY, TIMESTAMP_ARRAY, UUID_ARRAY, UUID_TYPE,
+    XID, pginterval_in, timedelta_in
+)
 
 import pytest
 
 import pytz
-
-
-# Type conversion tests
-
-def test_time_roundtrip(con):
-    retval = con.run("SELECT cast(:t as time) as f1", t=Time(4, 5, 6))
-    assert retval[0][0] == Time(4, 5, 6)
-
-
-def test_date_roundtrip(con):
-    v = Date(2001, 2, 3)
-    retval = con.run("SELECT cast(:d as date) as f1", d=v)
-    assert retval[0][0] == v
-
-
-def test_bool_roundtrip(con):
-    retval = con.run("SELECT cast(:b as bool) as f1", b=True)
-    assert retval[0][0] is True
-
-
-def test_null_roundtrip(con):
-    retval = con.run("select current_setting('server_version')")
-    version = retval[0][0][:2]
-
-    if version.startswith('9'):
-        # Prior to PostgreSQL version 10 We can't just "SELECT %s" and set
-        # None as the parameter, since it has no type.  That would result
-        # in a PG error, "could not determine data type of parameter %s".
-        # So we create a temporary table, insert null values, and read them
-        # back.
-        con.run(
-            "CREATE TEMPORARY TABLE TestNullWrite "
-            "(f1 int4, f2 timestamp, f3 varchar)")
-        con.run(
-            "INSERT INTO TestNullWrite VALUES (:v1, :v2, :v3)",
-            v1=None, v2=None, v3=None)
-        retval = con.run("SELECT * FROM TestNullWrite")
-        assert retval[0] == [None, None, None]
-
-        with pytest.raises(pg8000.exceptions.DatabaseError):
-            con.run("SELECT :v as f1", v=None)
-    else:
-        retval = con.run("SELECT :v", v=None)
-        assert retval[0][0] is None
-
-
-def test_decimal_roundtrip(con):
-    values = (
-        "1.1", "-1.1", "10000", "20000", "-1000000000.123456789", "1.0",
-        "12.44")
-    for v in values:
-        res = con.run("SELECT :v1 as f1", v1=Decimal(v))
-        assert str(res[0][0]) == v
-
-
-def test_float_roundtrip(con):
-    val = 1.756e-12
-    retval = con.run("SELECT cast(:v as double precision)", v=val)
-    assert retval[0][0] == val
-
-
-def test_float_plus_infinity_roundtrip(con):
-    v = float('inf')
-    retval = con.run("SELECT cast(:v as double precision)", v=v)
-    assert retval[0][0] == v
-
-
-def test_str_roundtrip(con):
-    v = "hello world"
-    con.run("create temporary table test_str (f character varying(255))")
-    con.run("INSERT INTO test_str VALUES (:v)", v=v)
-    retval = con.run("SELECT * from test_str")
-    assert retval[0][0] == v
 
 
 def test_str_then_int(con):
@@ -102,18 +35,6 @@ def test_str_then_int(con):
     v2 = 1
     retval = con.run("SELECT cast(:v2 as varchar) as f1", v2=v2)
     assert retval[0][0] == str(v2)
-
-
-def test_unicode_roundtrip(con):
-    v = "hello \u0173 world"
-    retval = con.run("SELECT cast(:v as varchar) as f1", v=v)
-    assert retval[0][0] == v
-
-
-def test_long_roundtrip(con):
-    v = 50000000000000
-    retval = con.run("SELECT cast(:v as bigint)", v=v)
-    assert retval[0][0] == v
 
 
 def test_insert_null(con):
@@ -155,19 +76,6 @@ def test_int_roundtrip(con):
         assert column_type_oid == typoid
 
 
-def test_bytea_roundtrip(con):
-    retval = con.run(
-            "SELECT cast(:v as bytea)",
-            v=pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00"))
-    assert retval[0][0] == b"\x00\x01\x02\x03\x02\x01\x00"
-
-
-def test_bytearray_round_trip(con):
-    binary = b'\x00\x01\x02\x03\x02\x01\x00'
-    retval = con.run("SELECT cast(:v as bytea)", v=bytearray(binary))
-    assert retval[0][0] == binary
-
-
 def test_bytearray_subclass_round_trip(con):
     class BClass(bytearray):
         pass
@@ -204,22 +112,16 @@ def test_interval_repr():
 
 
 def test_interval_in_1_year():
-    assert converters.pginterval_in('1 year') == pg8000.PGInterval(years=1)
+    assert pginterval_in('1 year') == pg8000.PGInterval(years=1)
 
 
 def test_timedelta_in_2_months():
-    assert converters.timedelta_in('2 hours')
+    assert timedelta_in('2 hours')
 
 
 def test_interval_roundtrip(con):
-    con.register_in_adapter(1186, converters.pginterval_in)
+    con.register_in_adapter(1186, pginterval_in)
     v = pg8000.PGInterval(microseconds=123456789, days=2, months=24)
-    retval = con.run("SELECT cast(:v as interval)", v=v)
-    assert retval[0][0] == v
-
-
-def test_timedelta_roundtrip(con):
-    v = Timedelta(seconds=30)
     retval = con.run("SELECT cast(:v as interval)", v=v)
     assert retval[0][0] == v
 
@@ -295,33 +197,6 @@ def test_xml_roundtrip(con):
     v = '<genome>gatccgagtac</genome>'
     retval = con.run("select xmlparse(content :v) as f1", v=v)
     assert retval[0][0] == v
-
-
-def test_uuid_roundtrip(con):
-    v = uuid.UUID('911460f2-1f43-fea2-3e2c-e01fd5b5069d')
-    retval = con.run("select cast(:v as uuid)", v=v)
-    assert retval[0][0] == v
-
-
-def test_inet_roundtrip_network(con):
-    v = ip_network('192.168.0.0/28')
-    retval = con.run("select cast(:v as inet)", v=v)
-    assert retval[0][0] == v
-
-
-def test_inet_roundtrip_address(con):
-    v = ip_address('192.168.0.1')
-    retval = con.run("select cast(:v as inet)", v=v)
-    assert retval[0][0] == v
-
-
-def test_xid_roundtrip(con):
-    v = 86722
-    retval = con.run("select cast(cast(:v as varchar) as xid) as f1", v=v)
-    assert retval[0][0] == v
-
-    # Should complete without an exception
-    con.run("select * from pg_locks where transactionid = :v", v=97712)
 
 
 def test_int2vector_in(con):
@@ -543,63 +418,117 @@ def test_float8_array_out(con):
     assert f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]]
 
 
-def test_int_array_roundtrip_small(con):
-    """ send small int array, should be sent as INT2[]
-    """
-    retval = con.run("SELECT cast(:v as int2[])", v=[1, 2, 3])
-    assert retval[0][0], [1, 2, 3]
-
-    column_type_oid = con.columns[0]['type_oid']
-    assert column_type_oid == 1005, "type should be INT2[]"
-
-
-def test_int_array_roundtrip_multi(con):
-    """ test multi-dimensional array, should be sent as INT2[]
-    """
-    retval = con.run("SELECT cast(:v as int2[])", v=[[1, 2], [3, 4]])
-    assert retval[0][0] == [[1, 2], [3, 4]]
-
-    column_type_oid = con.columns[0]['type_oid']
-    assert column_type_oid == 1005, "type should be INT2[]"
-
-
-def test_int4_array_roundtrip(con):
-    """ a larger value should kick it up to INT4[]...
-    """
-    retval = con.run("SELECT cast(:v as int4[])", v=[70000, 2, 3])
-    assert retval[0][0] == [70000, 2, 3]
-    column_type_oid = con.columns[0]['type_oid']
-    assert column_type_oid == 1007, "type should be INT4[]"
-
-
-def test_int8_array_roundtrip(con):
-    """ a much larger value should kick it up to INT8[]...
-    """
-    retval = con.run("SELECT cast(:v as int8[])", v=[7000000000, 2, 3])
-    assert retval[0][0] == [7000000000, 2, 3], "retrieved value match failed"
-    column_type_oid = con.columns[0]['type_oid']
-    assert column_type_oid == 1016, "type should be INT8[]"
-
-
-def test_int_array_with_null_roundtrip(con):
-    retval = con.run("SELECT cast(:v as int[])", v=[1, None, 3])
-    assert retval[0][0] == [1, None, 3]
-
-    retval = con.run(
-        "SELECT cast(:v as double precision[])", v=[1.1, 2.2, 3.3])
-    assert retval[0][0] == [1.1, 2.2, 3.3]
-
-
 @pytest.mark.parametrize(
-    "test_input",
+    "test_input,oid",
     [
-        [True, False, None],  # BOOL[]
-        [IPv4Address('192.168.0.1')],  # INET[]
+        [[True, False, None], None],  # bool[]
+        [[IPv4Address('192.168.0.1')], None],  # inet[]
+        [[Date(2021, 3, 1)], None],  # date[]
+        [[Datetime(2001, 2, 3, 4, 5, 6)], None],  # timestamp[]
+        [[Datetime(2001, 2, 3, 4, 5, 6)], TIMESTAMP_ARRAY],  # timestamp[]
+        [  # timestamptz
+            [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], None
+        ],
+        [  # timestamptz[]
+            [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], TIMESTAMPTZ_ARRAY
+        ],
+        [
+            {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003},
+            # json
+            JSON
+        ],
+        [  # jsonb
+            {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003},
+            JSONB
+        ],
+        [  # jsonb
+            {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003},
+            None
+        ],
+        [[b'\x00\x01\x02\x03\x02\x01\x00'], None],  # bytea[]
+        [[IPv4Network('192.168.0.0/28')], CIDR_ARRAY],  # cidr[]
+        [[1, 2, 3], SMALLINT_ARRAY],  # int2[]
+        [[[1, 2], [3, 4]], SMALLINT_ARRAY],  # int2[] multidimensional
+        [[1, None, 3], INTEGER_ARRAY],  # int4[] with None
+        [[7000000000, 2, 3], BIGINT_ARRAY],  # int8[]
+        [[1.1, 2.2, 3.3], FLOAT_ARRAY],  # float8[]
+        [[Decimal("1.1"), None, Decimal("3.3")], None],  # numeric[]
+        [[Decimal("1.1"), None, Decimal("3.3")], NUMERIC_ARRAY],  # numeric[]
+        [["1.10", None, "3.30"], MONEY_ARRAY],  # money[]
+        [[UUID('911460f2-1f43-fea2-3e2c-e01fd5b5069d')], None],  # uuid[]
+        [[UUID('911460f2-1f43-fea2-3e2c-e01fd5b5069d')], UUID_ARRAY],  # uuid[]
+        [
+            [
+                "Hello!", "World!", "abcdefghijklmnopqrstuvwxyz", "",
+                "A bunch of random characters:",
+                " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t", None
+            ],
+            None
+        ],
+        [  # json[]
+            [{'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}],
+            JSON_ARRAY
+        ],
+        [  # jsonb[]
+            [{'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}],
+            JSONB_ARRAY
+        ],
+        [Timedelta(seconds=30), None],  # interval
+        [Time(4, 5, 6), None],  # time
+        [Time(4, 5, 6), TIME],  # time
+        [Date(2001, 2, 3), None],  # date
+        [Date(2001, 2, 3), DATE],  # date
+        [Datetime(2001, 2, 3, 4, 5, 6), None],  # timestamp
+        [Datetime(2001, 2, 3, 4, 5, 6), TIMESTAMP],  # timestamp
+        [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), None],  # timestamptz
+        [  # timestamptz
+            Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), TIMESTAMPTZ
+        ],
+        [True, None],  # bool
+        [True, BOOLEAN],  # bool
+        [None, BOOLEAN],  # null (needs a type on PostgreSQL 9.6)
+        [Decimal("1.1"), None],  # numeric
+        [Decimal("1.1"), NUMERIC],  # numeric
+        ["1.10", MONEY],  # money
+        [1.756e-12, None],  # float8
+        [float('inf'), None],  # float8
+        ["hello world", None],  # unknown
+        ["hello \u0173 world", None],  # unknown
+        [50000000000000, None],  # int8
+        [50000000000000, BIGINT],  # int8
+        [b"\x00\x01\x02\x03\x02\x01\x00", None],  # bytea
+        [bytearray(b'\x00\x01\x02\x03\x02\x01\x00'), None],  # bytea
+        [UUID('911460f2-1f43-fea2-3e2c-e01fd5b5069d'), None],  # uuid
+        [UUID('911460f2-1f43-fea2-3e2c-e01fd5b5069d'), UUID_TYPE],  # uuid
+        [IPv4Network('192.168.0.0/28'), None],  # inet
+        [IPv4Network('192.168.0.0/28'), INET],  # inet
+        [IPv4Address('192.168.0.1'), None],  # inet
+        [IPv4Address('192.168.0.1'), INET],  # inet
+        [86722, XID],  # xid
+        ['infinity', TIMESTAMP],  # timestamp
+        ['(2.3,1)', POINT],  # point
+        [  # json
+            {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003},
+            JSON
+        ],
+        [  # jsonb
+            {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003},
+            JSONB
+        ],
     ]
 )
-def test_array_roundtrip(con, test_input):
-    retval = con.run("SELECT :v", v=test_input)
+def test_roundtrip(con, pg_version, test_input, oid):
+    if oid is None and pg_version < 10:
+        return
+
+    types = None if oid is None else {'v': oid}
+
+    retval = con.run("SELECT :v", v=test_input, types=types)
     assert retval[0][0] == test_input
+
+    if types is not None:
+        column_type_oid = con.columns[0]['type_oid']
+        assert column_type_oid == types['v']
 
 
 @pytest.mark.parametrize(
@@ -625,21 +554,6 @@ def test_array_in(con, test_input, expected):
 def test_numeric_array_out(con):
     res = con.run("SELECT '{1.1,2.2,3.3}'::numeric[] AS f1")
     assert res[0][0] == [Decimal("1.1"), Decimal("2.2"), Decimal("3.3")]
-
-
-def test_numeric_array_roundtrip(con):
-    v = [Decimal("1.1"), None, Decimal("3.3")]
-    retval = con.run("SELECT cast(:v as numeric[])", v=v)
-    assert retval[0][0] == v
-
-
-def test_string_array_roundtrip(con):
-    v = [
-        "Hello!", "World!", "abcdefghijklmnopqrstuvwxyz", "",
-        "A bunch of random characters:",
-        " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t", None]
-    retval = con.run("SELECT cast(:v as varchar[])", v=v)
-    assert retval[0][0] == v
 
 
 def test_array_string_escape():
@@ -669,18 +583,6 @@ def test_tsvector_roundtrip(con):
 def test_hstore_roundtrip(con):
     val = '"a"=>"1"'
     retval = con.run("SELECT cast(:val as hstore)", val=val)
-    assert retval[0][0] == val
-
-
-def test_json_roundtrip(con):
-    val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
-    retval = con.run("SELECT cast(:v as jsonb)", v=dumps(val))
-    assert retval[0][0] == val
-
-
-def test_jsonb_roundtrip(con):
-    val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
-    retval = con.run("SELECT cast(:val as jsonb)", val=dumps(val))
     assert retval[0][0] == val
 
 
@@ -723,18 +625,6 @@ def test_jsonb_access_path(con):
     retval = con.run(
         "SELECT cast(:v1 as jsonb) #>> :v2", v1=dumps(j), v2=path)
     assert retval[0][0] == str(j[path[0]][int(path[1])])
-
-
-def test_infinity_timestamp_roundtrip(con):
-    v = 'infinity'
-    retval = con.run("SELECT cast(:v as timestamp) as f1", v=v)
-    assert retval[0][0] == v
-
-
-def test_point_roundtrip(con):
-    v = '(2.3,1)'
-    retval = con.run("SELECT cast(:v as point) as f1", v=v)
-    assert retval[0][0] == v
 
 
 def test_time_in():

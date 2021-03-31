@@ -6,7 +6,9 @@ from hashlib import md5
 from itertools import count
 from struct import Struct
 
-from pg8000 import converters
+from pg8000.converters import (
+    PG_PY_ENCODINGS, PG_TYPES, PY_TYPES, make_params, string_in
+)
 from pg8000.exceptions import DatabaseError, InterfaceError
 
 import scramp
@@ -271,9 +273,8 @@ class CoreConnection():
         self._write = sock_write
         self._backend_key_data = None
 
-        self.pg_types = defaultdict(
-            lambda: converters.text_in, converters.PG_TYPES)
-        self.py_types = dict(converters.PY_TYPES)
+        self.pg_types = defaultdict(lambda: string_in, PG_TYPES)
+        self.py_types = dict(PY_TYPES)
 
         self.message_types = {
             NOTICE_RESPONSE: self.handle_NOTICE_RESPONSE,
@@ -606,7 +607,7 @@ class CoreConnection():
             self._flush()
             self.handle_messages(context)
         else:
-            param_oids, params = converters.make_params(self.py_types, vals)
+            param_oids, params = make_params(self.py_types, vals)
             if input_oids is None:
                 oids = param_oids
             else:
@@ -802,8 +803,7 @@ class CoreConnection():
         self.parameter_statuses.append((key, value))
         if key == b"client_encoding":
             encoding = value.decode("ascii").lower()
-            self._client_encoding = converters.pg_to_py_encodings.get(
-                encoding, encoding)
+            self._client_encoding = PG_PY_ENCODINGS.get(encoding, encoding)
 
         elif key == b"integer_datetimes":
             if value == b'on':

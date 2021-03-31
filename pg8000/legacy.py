@@ -1,19 +1,20 @@
+from datetime import date as Date, time as Time
 from itertools import islice
 from warnings import warn
 
 import pg8000
 from pg8000.converters import (
-    BIGINTEGER, BINARY, BOOLEAN, BOOLEAN_ARRAY, BYTES, Binary, CHAR,
-    CHAR_ARRAY, DATE, DATETIME, DECIMAL, DECIMAL_ARRAY, Date, DateFromTicks,
-    FLOAT, FLOAT_ARRAY, INET, INT2VECTOR, INTEGER, INTEGER_ARRAY, INTERVAL,
-    JSON, JSONB, MACADDR, NAME, NAME_ARRAY, NULLTYPE, NUMBER, OID, PGInterval,
-    STRING, TEXT, TEXT_ARRAY, TIME, TIMEDELTA, TIMESTAMP, TIMESTAMPTZ, Time,
-    TimeFromTicks, Timestamp, TimestampFromTicks, UNKNOWN, UUID_TYPE, VARCHAR,
+    BIGINT, BOOLEAN, BOOLEAN_ARRAY, BYTES, CHAR, CHAR_ARRAY, DATE, FLOAT,
+    FLOAT_ARRAY, INET, INT2VECTOR, INTEGER, INTEGER_ARRAY, INTERVAL, JSON,
+    JSONB, MACADDR, NAME, NAME_ARRAY, NULLTYPE, NUMERIC, NUMERIC_ARRAY, OID,
+    PGInterval, STRING, TEXT, TEXT_ARRAY, TIME, TIMEDELTA, TIMESTAMP,
+    TIMESTAMPTZ, UNKNOWN, UUID_TYPE, VARCHAR,
     VARCHAR_ARRAY, XID, make_params)
 from pg8000.core import CoreConnection
 from pg8000.dbapi import (
-    DataError, IntegrityError, InternalError, NotSupportedError,
-    OperationalError, ProgrammingError, Warning, convert_paramstyle,
+    BINARY, Binary, DataError, DateFromTicks, IntegrityError, InternalError,
+    NotSupportedError, OperationalError, ProgrammingError, TimeFromTicks,
+    Timestamp, TimestampFromTicks, Warning, convert_paramstyle,
 )
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
@@ -53,6 +54,10 @@ del get_versions
 __author__ = "Mathieu Fenniak"
 
 
+BIGINTEGER = BIGINT
+DATETIME = TIMESTAMP
+NUMBER = DECIMAL = NUMERIC
+DECIMAL_ARRAY = NUMERIC_ARRAY
 ROWID = OID
 
 
