@@ -8,14 +8,16 @@ import pytest
 # Tests relating to the basic operation of the database driver, driven by the
 # pg8000 custom interface.
 
+
 @pytest.fixture
 def db_table(request, con):
     filterwarnings("ignore", "DB-API extension cursor.next()")
     filterwarnings("ignore", "DB-API extension cursor.__iter__()")
-    con.paramstyle = 'format'
+    con.paramstyle = "format"
     con.run(
         "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
-        "f2 bigint not null, f3 varchar(50) null) ")
+        "f2 bigint not null, f3 varchar(50) null) "
+    )
 
     def fin():
         try:
@@ -45,6 +47,7 @@ def test_alter(db_table):
 # Run a query on a table, drop then re-create the table, then run the
 # original query again.
 
+
 def test_create(db_table):
     db_table.run("select * from t1")
     db_table.run("drop table t1")
@@ -56,8 +59,7 @@ def test_insert_returning(db_table):
     db_table.run("CREATE TEMPORARY TABLE t2 (id serial, data text)")
 
     # Test INSERT ... RETURNING with one row...
-    res = db_table.run(
-        "INSERT INTO t2 (data) VALUES (:v) RETURNING id", v="test1")
+    res = db_table.run("INSERT INTO t2 (data) VALUES (:v) RETURNING id", v="test1")
     row_id = res[0][0]
     res = db_table.run("SELECT data FROM t2 WHERE id = :v", v=row_id)
     assert "test1" == res[0][0]
@@ -66,8 +68,11 @@ def test_insert_returning(db_table):
 
     # Test with multiple rows...
     res = db_table.run(
-        "INSERT INTO t2 (data) VALUES (:v1), (:v2), (:v3) "
-        "RETURNING id", v1="test2", v2="test3", v3="test4")
+        "INSERT INTO t2 (data) VALUES (:v1), (:v2), (:v3) " "RETURNING id",
+        v1="test2",
+        v2="test3",
+        v3="test4",
+    )
     assert db_table.row_count == 3
     ids = [x[0] for x in res]
     assert len(ids) == 3
@@ -77,8 +82,8 @@ def test_row_count(db_table):
     expected_count = 57
     for i in range(expected_count):
         db_table.run(
-            "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)",
-            v1=i, v2=i, v3=None)
+            "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=i, v2=i, v3=None
+        )
 
     db_table.run("SELECT * FROM t1")
 
@@ -92,20 +97,20 @@ def test_row_count(db_table):
 
 def test_row_count_update(db_table):
     db_table.run(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=1, v2=1,
-        v3=None)
+        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=1, v2=1, v3=None
+    )
     db_table.run(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=2, v2=10,
-        v3=None)
+        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=2, v2=10, v3=None
+    )
     db_table.run(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=3, v2=100,
-        v3=None)
+        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=3, v2=100, v3=None
+    )
     db_table.run(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=4, v2=1000,
-        v3=None)
+        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=4, v2=1000, v3=None
+    )
     db_table.run(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=5, v2=10000,
-        v3=None)
+        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=5, v2=10000, v3=None
+    )
     db_table.run("UPDATE t1 SET f3 = :v1 WHERE f2 > 101", v1="Hello!")
     assert db_table.row_count == 2
 
@@ -119,14 +124,15 @@ def test_unicode_query(con):
     con.run(
         "CREATE TEMPORARY TABLE \u043c\u0435\u0441\u0442\u043e "
         "(\u0438\u043c\u044f VARCHAR(50), "
-        "\u0430\u0434\u0440\u0435\u0441 VARCHAR(250))")
+        "\u0430\u0434\u0440\u0435\u0441 VARCHAR(250))"
+    )
 
 
 def test_transactions(db_table):
     db_table.run("start transaction")
     db_table.run(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=1, v2=1,
-        v3="Zombie")
+        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=1, v2=1, v3="Zombie"
+    )
     db_table.run("rollback")
     db_table.run("select * from t1")
 
@@ -134,9 +140,8 @@ def test_transactions(db_table):
 
 
 def test_in(con):
-    ret = con.run(
-        "SELECT typname FROM pg_type WHERE oid = any(:v)", v=[16, 23])
-    assert ret[0][0] == 'bool'
+    ret = con.run("SELECT typname FROM pg_type WHERE oid = any(:v)", v=[16, 23])
+    assert ret[0][0] == "bool"
 
 
 # An empty query should raise a ProgrammingError
@@ -157,7 +162,7 @@ def test_rollback_no_transaction(con):
     # 25P01 is the code for no_active_sql_tronsaction. It has
     # a message and severity name, but those might be
     # localized/depend on the server version.
-    assert con.notices.pop().get(b'C') == b'25P01'
+    assert con.notices.pop().get(b"C") == b"25P01"
 
 
 def test_close_prepared_statement(con):

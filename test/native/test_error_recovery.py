@@ -18,10 +18,8 @@ def test_py_value_fail(con, mocker):
     # Ensure that if types.py_value throws an exception, the original
     # exception is raised (PG8000TestException), and the connection is
     # still usable after the error.
-    mocker.patch.object(con, 'py_types')
-    con.py_types = {
-        datetime.time: (1083, raise_exception)
-    }
+    mocker.patch.object(con, "py_types")
+    con.py_types = {datetime.time: (1083, raise_exception)}
 
     with pytest.raises(PG8000TestException):
         con.run("SELECT :v as f1", v=datetime.time(10, 30))
@@ -35,7 +33,7 @@ def test_no_data_error_recovery(con):
     for i in range(1, 4):
         with pytest.raises(pg8000.DatabaseError) as e:
             con.run("DROP TABLE t1")
-        assert e.value.args[0]['C'] == '42P01'
+        assert e.value.args[0]["C"] == "42P01"
         con.run("ROLLBACK")
 
 

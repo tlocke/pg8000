@@ -5,18 +5,51 @@ from warnings import warn
 
 import pg8000
 from pg8000.converters import (
-    BIGINT, BOOLEAN, BOOLEAN_ARRAY, BYTES, CHAR, CHAR_ARRAY, DATE, DATETIME,
-    FLOAT, FLOAT_ARRAY, INET, INT2VECTOR, INTEGER, INTEGER_ARRAY, INTERVAL,
-    JSON, JSONB, MACADDR, NAME, NAME_ARRAY, NULLTYPE, NUMERIC, NUMERIC_ARRAY,
-    OID, PGInterval, STRING, TEXT, TEXT_ARRAY, TIME, TIMEDELTA, TIMESTAMP,
-    TIMESTAMPTZ, UNKNOWN, UUID_TYPE, VARCHAR, VARCHAR_ARRAY, XID
+    BIGINT,
+    BOOLEAN,
+    BOOLEAN_ARRAY,
+    BYTES,
+    CHAR,
+    CHAR_ARRAY,
+    DATE,
+    DATETIME,
+    FLOAT,
+    FLOAT_ARRAY,
+    INET,
+    INT2VECTOR,
+    INTEGER,
+    INTEGER_ARRAY,
+    INTERVAL,
+    JSON,
+    JSONB,
+    MACADDR,
+    NAME,
+    NAME_ARRAY,
+    NULLTYPE,
+    NUMERIC,
+    NUMERIC_ARRAY,
+    OID,
+    PGInterval,
+    STRING,
+    TEXT,
+    TEXT_ARRAY,
+    TIME,
+    TIMEDELTA,
+    TIMESTAMP,
+    TIMESTAMPTZ,
+    UNKNOWN,
+    UUID_TYPE,
+    VARCHAR,
+    VARCHAR_ARRAY,
+    XID,
 )
 from pg8000.core import CoreConnection
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
 
 from ._version import get_versions
-__version__ = get_versions()['version']
+
+__version__ = get_versions()["version"]
 del get_versions
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
@@ -69,7 +102,7 @@ This property is part of the `DBAPI 2.0 specification
 <http://www.python.org/dev/peps/pep-0249/>`_.
 """
 
-paramstyle = 'format'
+paramstyle = "format"
 
 
 BINARY = bytes
@@ -155,15 +188,34 @@ def Binary(value):
 
 
 def connect(
-        user, host='localhost', database=None, port=5432, password=None,
-        source_address=None, unix_sock=None, ssl_context=None, timeout=None,
-        tcp_keepalive=True, application_name=None, replication=None):
+    user,
+    host="localhost",
+    database=None,
+    port=5432,
+    password=None,
+    source_address=None,
+    unix_sock=None,
+    ssl_context=None,
+    timeout=None,
+    tcp_keepalive=True,
+    application_name=None,
+    replication=None,
+):
 
     return Connection(
-        user, host=host, database=database, port=port, password=password,
-        source_address=source_address, unix_sock=unix_sock,
-        ssl_context=ssl_context, timeout=timeout, tcp_keepalive=tcp_keepalive,
-        application_name=application_name, replication=replication)
+        user,
+        host=host,
+        database=database,
+        port=port,
+        password=password,
+        source_address=source_address,
+        unix_sock=unix_sock,
+        ssl_context=ssl_context,
+        timeout=timeout,
+        tcp_keepalive=tcp_keepalive,
+        application_name=application_name,
+        replication=replication,
+    )
 
 
 apilevel = "2.0"
@@ -183,14 +235,14 @@ This property is part of the `DBAPI 2.0 specification
 <http://www.python.org/dev/peps/pep-0249/>`_.
 """
 
-paramstyle = 'format'
+paramstyle = "format"
 
 
 def convert_paramstyle(style, query, args):
     # I don't see any way to avoid scanning the query string char by char,
     # so we might as well take that careful approach and create a
     # state-based scanner.  We'll use int variables for the state.
-    OUTSIDE = 0    # outside quoted string
+    OUTSIDE = 0  # outside quoted string
     INSIDE_SQ = 1  # inside single-quote string '...'
     INSIDE_QI = 2  # inside quoted identifier   "..."
     INSIDE_ES = 3  # inside escaped single-quote string, E'...'
@@ -213,34 +265,34 @@ def convert_paramstyle(style, query, args):
         if state == OUTSIDE:
             if c == "'":
                 output_query.append(c)
-                if prev_c == 'E':
+                if prev_c == "E":
                     state = INSIDE_ES
                 else:
                     state = INSIDE_SQ
             elif c == '"':
                 output_query.append(c)
                 state = INSIDE_QI
-            elif c == '-':
+            elif c == "-":
                 output_query.append(c)
-                if prev_c == '-':
+                if prev_c == "-":
                     state = INSIDE_CO
             elif style == "qmark" and c == "?":
                 output_query.append(next(param_idx))
-            elif style == "numeric" and c == ":" and next_c not in ':=' \
-                    and prev_c != ':':
+            elif (
+                style == "numeric" and c == ":" and next_c not in ":=" and prev_c != ":"
+            ):
                 # Treat : as beginning of parameter name if and only
                 # if it's the only : around
                 # Needed to properly process type conversions
                 # i.e. sum(x)::float
                 output_query.append("$")
-            elif style == "named" and c == ":" and next_c not in ':=' \
-                    and prev_c != ':':
+            elif style == "named" and c == ":" and next_c not in ":=" and prev_c != ":":
                 # Same logic for : as in numeric parameters
                 state = INSIDE_PN
-                placeholders.append('')
-            elif style == "pyformat" and c == '%' and next_c == "(":
+                placeholders.append("")
+            elif style == "pyformat" and c == "%" and next_c == "(":
                 state = INSIDE_PN
-                placeholders.append('')
+                placeholders.append("")
             elif style in ("format", "pyformat") and c == "%":
                 style = "format"
                 if in_param_escape:
@@ -254,7 +306,8 @@ def convert_paramstyle(style, query, args):
                         output_query.append(next(param_idx))
                     else:
                         raise InterfaceError(
-                            "Only %s and %% are supported in the query.")
+                            "Only %s and %% are supported in the query."
+                        )
             else:
                 output_query.append(c)
 
@@ -281,9 +334,9 @@ def convert_paramstyle(style, query, args):
             output_query.append(c)
 
         elif state == INSIDE_PN:
-            if style == 'named':
+            if style == "named":
                 placeholders[-1] += c
-                if next_c is None or (not next_c.isalnum() and next_c != '_'):
+                if next_c is None or (not next_c.isalnum() and next_c != "_"):
                     state = OUTSIDE
                     try:
                         pidx = placeholders.index(placeholders[-1], 0, -1)
@@ -291,8 +344,8 @@ def convert_paramstyle(style, query, args):
                         del placeholders[-1]
                     except ValueError:
                         output_query.append("$" + str(len(placeholders)))
-            elif style == 'pyformat':
-                if prev_c == ')' and c == "s":
+            elif style == "pyformat":
+                if prev_c == ")" and c == "s":
                     state = OUTSIDE
                     try:
                         pidx = placeholders.index(placeholders[-1], 0, -1)
@@ -304,25 +357,25 @@ def convert_paramstyle(style, query, args):
                     pass
                 else:
                     placeholders[-1] += c
-            elif style == 'format':
+            elif style == "format":
                 state = OUTSIDE
 
         elif state == INSIDE_CO:
             output_query.append(c)
-            if c == '\n':
+            if c == "\n":
                 state = OUTSIDE
 
         prev_c = c
 
-    if style in ('numeric', 'qmark', 'format'):
+    if style in ("numeric", "qmark", "format"):
         vals = args
     else:
         vals = tuple(args[p] for p in placeholders)
 
-    return ''.join(output_query), vals
+    return "".join(output_query), vals
 
 
-class Cursor():
+class Cursor:
     def __init__(self, connection):
         self._c = connection
         self.arraysize = 1
@@ -358,8 +411,7 @@ class Cursor():
             return None
         columns = []
         for col in row_desc:
-            columns.append(
-                (col["name"], col["type_oid"], None, None, None, None, None))
+            columns.append((col["name"], col["type_oid"], None, None, None, None, None))
         return columns
 
     ##
@@ -401,8 +453,8 @@ class Cursor():
             statement, vals = convert_paramstyle(paramstyle, operation, args)
 
             self._context = self._c.execute_unnamed(
-                statement, vals=vals, input_oids=self._input_oids,
-                stream=stream)
+                statement, vals=vals, input_oids=self._input_oids, stream=stream
+            )
 
             self._row_iter = iter(self._context.rows)
             self._input_oids = None
@@ -441,12 +493,11 @@ class Cursor():
 
     def callproc(self, procname, parameters=None):
         args = [] if parameters is None else parameters
-        operation = "CALL " + procname + "(" + \
-            ", ".join(['%s' for _ in args]) + ")"
+        operation = "CALL " + procname + "(" + ", ".join(["%s" for _ in args]) + ")"
 
         try:
 
-            statement, vals = convert_paramstyle('format', operation, args)
+            statement, vals = convert_paramstyle("format", operation, args)
 
             self._context = self._c.execute_unnamed(statement, vals=vals)
 
@@ -517,8 +568,7 @@ class Cursor():
             will be returned.
         """
         try:
-            return tuple(
-                islice(self, self.arraysize if num is None else num))
+            return tuple(islice(self, self.arraysize if num is None else num))
         except TypeError:
             raise ProgrammingError("attempting to use unexecuted cursor")
 
@@ -547,8 +597,7 @@ class Cursor():
         self._c = None
 
     def setinputsizes(self, *sizes):
-        """This method is part of the `DBAPI 2.0 specification
-        """
+        """This method is part of the `DBAPI 2.0 specification"""
         oids = []
         for size in sizes:
             if isinstance(size, int):
@@ -581,13 +630,10 @@ class Connection(CoreConnection):
     IntegrityError = property(lambda self: self._getError(IntegrityError))
     InternalError = property(lambda self: self._getError(InternalError))
     ProgrammingError = property(lambda self: self._getError(ProgrammingError))
-    NotSupportedError = property(
-        lambda self: self._getError(NotSupportedError))
+    NotSupportedError = property(lambda self: self._getError(NotSupportedError))
 
     def _getError(self, error):
-        warn(
-            "DB-API extension connection.%s used" %
-            error.__name__, stacklevel=3)
+        warn("DB-API extension connection.%s used" % error.__name__, stacklevel=3)
         return error
 
     def cursor(self):
@@ -677,14 +723,13 @@ class Connection(CoreConnection):
             xid = self._xid
 
         if xid is None:
-            raise ProgrammingError(
-                "Cannot tpc_commit() without a TPC transaction!")
+            raise ProgrammingError("Cannot tpc_commit() without a TPC transaction!")
 
         try:
             previous_autocommit_mode = self.autocommit
             self.autocommit = True
             if xid in self.tpc_recover():
-                self.execute_unnamed("COMMIT PREPARED '%s';" % (xid[1], ))
+                self.execute_unnamed("COMMIT PREPARED '%s';" % (xid[1],))
             else:
                 # a single-phase commit
                 self.commit()
@@ -711,7 +756,8 @@ class Connection(CoreConnection):
 
         if xid is None:
             raise ProgrammingError(
-                "Cannot tpc_rollback() without a TPC prepared transaction!")
+                "Cannot tpc_rollback() without a TPC prepared transaction!"
+            )
 
         try:
             previous_autocommit_mode = self.autocommit
@@ -738,7 +784,7 @@ class Connection(CoreConnection):
             self.autocommit = True
             curs = self.cursor()
             curs.execute("select gid FROM pg_prepared_xacts")
-            return [self.xid(0, row[0], '') for row in curs.fetchall()]
+            return [self.xid(0, row[0], "") for row in curs.fetchall()]
         finally:
             self.autocommit = previous_autocommit_mode
 
@@ -750,6 +796,7 @@ class Warning(Exception):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass
 
 
@@ -760,6 +807,7 @@ class DataError(DatabaseError):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass
 
 
@@ -772,6 +820,7 @@ class OperationalError(DatabaseError):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass
 
 
@@ -783,6 +832,7 @@ class IntegrityError(DatabaseError):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass
 
 
@@ -794,6 +844,7 @@ class InternalError(DatabaseError):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass
 
 
@@ -805,6 +856,7 @@ class ProgrammingError(DatabaseError):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass
 
 
@@ -815,6 +867,7 @@ class NotSupportedError(DatabaseError):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass
 
 
@@ -823,17 +876,68 @@ class ArrayContentNotSupportedError(NotSupportedError):
     Raised when attempting to transmit an array where the base type is not
     supported for binary data transfer by the interface.
     """
+
     pass
 
 
 __all__ = [
-    Warning, DataError, DatabaseError, connect, InterfaceError,
-    ProgrammingError, Error, OperationalError, IntegrityError, InternalError,
-    NotSupportedError, Connection, Cursor, Binary, Date, DateFromTicks, Time,
-    TimeFromTicks, Timestamp, TimestampFromTicks, BINARY, PGInterval, STRING,
-    DATETIME, TIME, BOOLEAN, INTEGER, BIGINT, INTERVAL, JSON, JSONB, NUMERIC,
-    NUMERIC_ARRAY, NULLTYPE, ROWID, BOOLEAN_ARRAY, BYTES, CHAR, CHAR_ARRAY,
-    DATE, FLOAT, FLOAT_ARRAY, INET, INT2VECTOR, INTEGER_ARRAY, MACADDR, NAME,
-    NAME_ARRAY, OID, TEXT, TEXT_ARRAY, TIMEDELTA, TIMESTAMP, TIMESTAMPTZ,
-    UNKNOWN, UUID_TYPE, VARCHAR, VARCHAR_ARRAY, XID
+    Warning,
+    DataError,
+    DatabaseError,
+    connect,
+    InterfaceError,
+    ProgrammingError,
+    Error,
+    OperationalError,
+    IntegrityError,
+    InternalError,
+    NotSupportedError,
+    Connection,
+    Cursor,
+    Binary,
+    Date,
+    DateFromTicks,
+    Time,
+    TimeFromTicks,
+    Timestamp,
+    TimestampFromTicks,
+    BINARY,
+    PGInterval,
+    STRING,
+    DATETIME,
+    TIME,
+    BOOLEAN,
+    INTEGER,
+    BIGINT,
+    INTERVAL,
+    JSON,
+    JSONB,
+    NUMERIC,
+    NUMERIC_ARRAY,
+    NULLTYPE,
+    ROWID,
+    BOOLEAN_ARRAY,
+    BYTES,
+    CHAR,
+    CHAR_ARRAY,
+    DATE,
+    FLOAT,
+    FLOAT_ARRAY,
+    INET,
+    INT2VECTOR,
+    INTEGER_ARRAY,
+    MACADDR,
+    NAME,
+    NAME_ARRAY,
+    OID,
+    TEXT,
+    TEXT_ARRAY,
+    TIMEDELTA,
+    TIMESTAMP,
+    TIMESTAMPTZ,
+    UNKNOWN,
+    UUID_TYPE,
+    VARCHAR,
+    VARCHAR_ARRAY,
+    XID,
 ]

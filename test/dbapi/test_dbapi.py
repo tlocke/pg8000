@@ -11,8 +11,8 @@ import pytest
 def has_tzset():
 
     # Neither Windows nor Jython 2.5.3 have a time.tzset() so skip
-    if hasattr(time, 'tzset'):
-        os.environ['TZ'] = "UTC"
+    if hasattr(time, "tzset"):
+        os.environ["TZ"] = "UTC"
         time.tzset()
         return True
     return False
@@ -25,17 +25,13 @@ def db_table(con, has_tzset):
     c.execute(
         "CREATE TEMPORARY TABLE t1 "
         "(f1 int primary key, f2 int not null, f3 varchar(50) null) "
-        "ON COMMIT DROP")
-    c.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
-    c.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
-    c.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
-    c.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
-    c.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
+        "ON COMMIT DROP"
+    )
+    c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
+    c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
+    c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
+    c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
+    c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
     return con
 
 
@@ -82,8 +78,7 @@ def test_numeric(mocker, db_table):
 def test_named(mocker, db_table):
     mocker.patch("pg8000.dbapi.paramstyle", "named")
     c1 = db_table.cursor()
-    c1.execute(
-        "SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
+    c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
     while 1:
         row = c1.fetchone()
         if row is None:
@@ -203,8 +198,8 @@ def test_vacuum(con):
 
 def test_prepared_statement(con):
     cursor = con.cursor()
-    cursor.execute('PREPARE gen_series AS SELECT generate_series(1, 10);')
-    cursor.execute('EXECUTE gen_series')
+    cursor.execute("PREPARE gen_series AS SELECT generate_series(1, 10);")
+    cursor.execute("EXECUTE gen_series")
 
 
 def test_cursor_type(cursor):

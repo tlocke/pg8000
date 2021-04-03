@@ -32,8 +32,8 @@ setup(
     author_email="biziqe@mathieu.fenniak.net",
     url="https://github.com/tlocke/pg8000",
     license="BSD",
-    python_requires='>=3.6',
-    install_requires=['scramp==1.3.0'],
+    python_requires=">=3.6",
+    install_requires=["scramp==1.3.0"],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
@@ -52,5 +52,5 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
     keywords="postgresql dbapi",
-    packages=("pg8000",)
+    packages=("pg8000",),
 )

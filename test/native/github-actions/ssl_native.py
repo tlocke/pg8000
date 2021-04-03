@@ -7,14 +7,14 @@ import pytest
 
 
 # Check if running in Jython
-if 'java' in sys.platform:
+if "java" in sys.platform:
     from javax.net.ssl import TrustManager, X509TrustManager
     from jarray import array
     from javax.net.ssl import SSLContext
 
     class TrustAllX509TrustManager(X509TrustManager):
-        '''Define a custom TrustManager which will blindly accept all
-        certificates'''
+        """Define a custom TrustManager which will blindly accept all
+        certificates"""
 
         def checkClientTrusted(self, chain, auth):
             pass
@@ -24,6 +24,7 @@ if 'java' in sys.platform:
 
         def getAcceptedIssuers(self):
             return None
+
     # Create a static reference to an SSLContext which will use
     # our custom TrustManager
     trust_managers = array([TrustAllX509TrustManager()], TrustManager)
@@ -36,13 +37,14 @@ if 'java' in sys.platform:
 
 @pytest.fixture
 def trust_all_certificates(request):
-    '''Decorator function that will make it so the context of the decorated
-    method will run with our TrustManager that accepts all certificates'''
+    """Decorator function that will make it so the context of the decorated
+    method will run with our TrustManager that accepts all certificates"""
     # Only do this if running under Jython
-    is_java = 'java' in sys.platform
+    is_java = "java" in sys.platform
 
     if is_java:
         from javax.net.ssl import SSLContext
+
         SSLContext.setDefault(TRUST_ALL_CONTEXT)
 
     def fin():

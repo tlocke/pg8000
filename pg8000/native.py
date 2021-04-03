@@ -1,11 +1,43 @@
 from collections import defaultdict
 
 from pg8000.converters import (
-    BIGINT, BOOLEAN, BOOLEAN_ARRAY, BYTES, CHAR, CHAR_ARRAY, DATE, FLOAT,
-    FLOAT_ARRAY, INET, INT2VECTOR, INTEGER, INTEGER_ARRAY, INTERVAL, JSON,
-    JSONB, MACADDR, NAME, NAME_ARRAY, NULLTYPE, NUMERIC, NUMERIC_ARRAY, OID,
-    PGInterval, STRING, TEXT, TEXT_ARRAY, TIME, TIMEDELTA, TIMESTAMP,
-    TIMESTAMPTZ, UNKNOWN, UUID_TYPE, VARCHAR, VARCHAR_ARRAY, XID, make_params,
+    BIGINT,
+    BOOLEAN,
+    BOOLEAN_ARRAY,
+    BYTES,
+    CHAR,
+    CHAR_ARRAY,
+    DATE,
+    FLOAT,
+    FLOAT_ARRAY,
+    INET,
+    INT2VECTOR,
+    INTEGER,
+    INTEGER_ARRAY,
+    INTERVAL,
+    JSON,
+    JSONB,
+    MACADDR,
+    NAME,
+    NAME_ARRAY,
+    NULLTYPE,
+    NUMERIC,
+    NUMERIC_ARRAY,
+    OID,
+    PGInterval,
+    STRING,
+    TEXT,
+    TEXT_ARRAY,
+    TIME,
+    TIMEDELTA,
+    TIMESTAMP,
+    TIMESTAMPTZ,
+    UNKNOWN,
+    UUID_TYPE,
+    VARCHAR,
+    VARCHAR_ARRAY,
+    XID,
+    make_params,
 )
 from pg8000.core import CoreConnection
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
@@ -41,7 +73,7 @@ from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
 
 def to_statement(query):
-    OUTSIDE = 0    # outside quoted string
+    OUTSIDE = 0  # outside quoted string
     INSIDE_SQ = 1  # inside single-quote string '...'
     INSIDE_QI = 2  # inside quoted identifier   "..."
     INSIDE_ES = 3  # inside escaped single-quote string, E'...'
@@ -62,20 +94,20 @@ def to_statement(query):
         if state == OUTSIDE:
             if c == "'":
                 output_query.append(c)
-                if prev_c == 'E':
+                if prev_c == "E":
                     state = INSIDE_ES
                 else:
                     state = INSIDE_SQ
             elif c == '"':
                 output_query.append(c)
                 state = INSIDE_QI
-            elif c == '-':
+            elif c == "-":
                 output_query.append(c)
-                if prev_c == '-':
+                if prev_c == "-":
                     state = INSIDE_CO
-            elif c == ":" and next_c not in ':=' and prev_c != ':':
+            elif c == ":" and next_c not in ":=" and prev_c != ":":
                 state = INSIDE_PN
-                placeholders.append('')
+                placeholders.append("")
             else:
                 output_query.append(c)
 
@@ -103,7 +135,7 @@ def to_statement(query):
 
         elif state == INSIDE_PN:
             placeholders[-1] += c
-            if next_c is None or (not next_c.isalnum() and next_c != '_'):
+            if next_c is None or (not next_c.isalnum() and next_c != "_"):
                 state = OUTSIDE
                 try:
                     pidx = placeholders.index(placeholders[-1], 0, -1)
@@ -114,16 +146,17 @@ def to_statement(query):
 
         elif state == INSIDE_CO:
             output_query.append(c)
-            if c == '\n':
+            if c == "\n":
                 state = OUTSIDE
 
         prev_c = c
 
-    for reserved in ('types', 'stream'):
+    for reserved in ("types", "stream"):
         if reserved in placeholders:
             raise InterfaceError(
                 "The name '" + reserved + "' can't be used as a placeholder "
-                "because it's used for another purpose.")
+                "because it's used for another purpose."
+            )
 
     def make_vals(args):
         vals = []
@@ -133,10 +166,11 @@ def to_statement(query):
             except KeyError:
                 raise InterfaceError(
                     "There's a placeholder '" + p + "' in the query, but "
-                    "no matching keyword argument.")
+                    "no matching keyword argument."
+                )
         return tuple(vals)
 
-    return ''.join(output_query), make_vals
+    return "".join(output_query), make_vals
 
 
 class Connection(CoreConnection):
@@ -166,14 +200,15 @@ class Connection(CoreConnection):
             oids = make_vals(defaultdict(lambda: None, types))
 
         self._context = self.execute_unnamed(
-            statement, make_vals(params), input_oids=oids, stream=stream)
+            statement, make_vals(params), input_oids=oids, stream=stream
+        )
         return self._context.rows
 
     def prepare(self, sql):
         return PreparedStatement(self, sql)
 
 
-class PreparedStatement():
+class PreparedStatement:
     def __init__(self, con, sql):
         self.con = con
         self.statement, self.make_vals = to_statement(sql)
@@ -189,11 +224,11 @@ class PreparedStatement():
         try:
             name_bin, columns, input_funcs = self.name_map[oids]
         except KeyError:
-            name_bin, columns, input_funcs = self.name_map[oids] = \
-                self.con.prepare_statement(self.statement, oids)
+            name_bin, columns, input_funcs = self.name_map[
+                oids
+            ] = self.con.prepare_statement(self.statement, oids)
 
-        self._context = self.con.execute_named(
-            name_bin, params, columns, input_funcs)
+        self._context = self.con.execute_named(name_bin, params, columns, input_funcs)
 
         return self._context.rows
 
@@ -205,10 +240,44 @@ class PreparedStatement():
 
 
 __all__ = [
-    BYTES, BOOLEAN, BIGINT, BOOLEAN_ARRAY, BYTES, CHAR, CHAR_ARRAY, DATE,
-    DatabaseError, Error, FLOAT, FLOAT_ARRAY, INET, INT2VECTOR, INTEGER,
-    INTEGER_ARRAY, INTERVAL, InterfaceError, JSON, JSONB, MACADDR, NAME,
-    NAME_ARRAY, NULLTYPE, NUMERIC, NUMERIC_ARRAY, OID, PGInterval, STRING,
-    TEXT, TEXT_ARRAY, TIME, TIMEDELTA, TIMESTAMP, TIMESTAMPTZ, UNKNOWN,
-    UUID_TYPE, VARCHAR, VARCHAR_ARRAY, XID
+    BYTES,
+    BOOLEAN,
+    BIGINT,
+    BOOLEAN_ARRAY,
+    BYTES,
+    CHAR,
+    CHAR_ARRAY,
+    DATE,
+    DatabaseError,
+    Error,
+    FLOAT,
+    FLOAT_ARRAY,
+    INET,
+    INT2VECTOR,
+    INTEGER,
+    INTEGER_ARRAY,
+    INTERVAL,
+    InterfaceError,
+    JSON,
+    JSONB,
+    MACADDR,
+    NAME,
+    NAME_ARRAY,
+    NULLTYPE,
+    NUMERIC,
+    NUMERIC_ARRAY,
+    OID,
+    PGInterval,
+    STRING,
+    TEXT,
+    TEXT_ARRAY,
+    TIME,
+    TIMEDELTA,
+    TIMESTAMP,
+    TIMESTAMPTZ,
+    UNKNOWN,
+    UUID_TYPE,
+    VARCHAR,
+    VARCHAR_ARRAY,
+    XID,
 ]

@@ -11,8 +11,8 @@ import pytest
 def has_tzset():
 
     # Neither Windows nor Jython 2.5.3 have a time.tzset() so skip
-    if hasattr(time, 'tzset'):
-        os.environ['TZ'] = "UTC"
+    if hasattr(time, "tzset"):
+        os.environ["TZ"] = "UTC"
         time.tzset()
         return True
     return False
@@ -25,18 +25,13 @@ def db_table(con, has_tzset):
         c.execute(
             "CREATE TEMPORARY TABLE t1 "
             "(f1 int primary key, f2 int not null, f3 varchar(50) null) "
-            "ON COMMIT DROP")
-        c.execute(
-            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
-        c.execute(
-            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
-        c.execute(
-            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
-        c.execute(
-            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
-        c.execute(
-            "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-            (5, 10000, None))
+            "ON COMMIT DROP"
+        )
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
+        c.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
     return con
 
 
@@ -92,8 +87,7 @@ def test_named(db_table):
     try:
         pg8000.paramstyle = "named"
         with db_table.cursor() as c1:
-            c1.execute(
-                "SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", {"f1": 3})
             while 1:
                 row = c1.fetchone()
                 if row is None:
@@ -123,8 +117,7 @@ def test_pyformat(db_table):
     try:
         pg8000.paramstyle = "pyformat"
         with db_table.cursor() as c1:
-            c1.execute(
-                "SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
+            c1.execute("SELECT f1, f2, f3 FROM t1 WHERE f1 > %(f1)s", {"f1": 3})
             while 1:
                 row = c1.fetchone()
                 if row is None:
@@ -224,8 +217,8 @@ def test_vacuum(con):
 
 def test_prepared_statement(con):
     with con.cursor() as cursor:
-        cursor.execute('PREPARE gen_series AS SELECT generate_series(1, 10);')
-        cursor.execute('EXECUTE gen_series')
+        cursor.execute("PREPARE gen_series AS SELECT generate_series(1, 10);")
+        cursor.execute("EXECUTE gen_series")
 
 
 def test_cursor_type(cursor):

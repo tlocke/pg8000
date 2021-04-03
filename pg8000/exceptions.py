@@ -5,6 +5,7 @@ class Error(Exception):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass
 
 
@@ -17,6 +18,7 @@ class InterfaceError(Error):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass
 
 
@@ -27,4 +29,5 @@ class DatabaseError(Error):
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
     """
+
     pass

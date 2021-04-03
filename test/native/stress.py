@@ -7,7 +7,8 @@ from pg8000.tests.connection_settings import db_connect
 with closing(pg8000.connect(**db_connect)) as db:
     for i in range(100):
         cursor = db.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
         SELECT n.nspname as "Schema",
           pg_catalog.format_type(t.oid, NULL) AS "Name",
             pg_catalog.obj_description(t.oid, 'pg_type') as "Description"
@@ -21,4 +22,5 @@ with closing(pg8000.connect(**db_connect)) as db:
                         SELECT 1 FROM pg_catalog.pg_type el
                         WHERE el.oid = t.typelem AND el.typarray = t.oid)
                      AND pg_catalog.pg_type_is_visible(t.oid)
-                     ORDER BY 1, 2;""")
+                     ORDER BY 1, 2;"""
+        )

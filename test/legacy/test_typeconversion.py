@@ -9,7 +9,8 @@ from datetime import (
     datetime as Datetime,
     time as Time,
     timedelta as Timedelta,
-    timezone as Timezone)
+    timezone as Timezone,
+)
 from enum import Enum
 from json import dumps
 
@@ -22,6 +23,7 @@ import pytz
 
 
 # Type conversion tests
+
 
 def test_time_roundtrip(con):
     retval = con.run("SELECT cast(:t as time) as f1", t=Time(4, 5, 6))
@@ -43,7 +45,7 @@ def test_null_roundtrip(con):
     retval = con.run("select current_setting('server_version')")
     version = retval[0][0][:2]
 
-    if version.startswith('9'):
+    if version.startswith("9"):
         # Prior to PostgreSQL version 10 We can't just "SELECT %s" and set
         # None as the parameter, since it has no type.  That would result
         # in a PG error, "could not determine data type of parameter %s".
@@ -51,10 +53,14 @@ def test_null_roundtrip(con):
         # back.
         con.run(
             "CREATE TEMPORARY TABLE TestNullWrite "
-            "(f1 int4, f2 timestamp, f3 varchar)")
+            "(f1 int4, f2 timestamp, f3 varchar)"
+        )
         con.run(
             "INSERT INTO TestNullWrite VALUES (:v1, :v2, :v3)",
-            v1=None, v2=None, v3=None)
+            v1=None,
+            v2=None,
+            v3=None,
+        )
         retval = con.run("SELECT * FROM TestNullWrite")
         assert retval[0] == [None, None, None]
 
@@ -66,9 +72,7 @@ def test_null_roundtrip(con):
 
 
 def test_decimal_roundtrip(cursor):
-    values = (
-        "1.1", "-1.1", "10000", "20000", "-1000000000.123456789", "1.0",
-        "12.44")
+    values = ("1.1", "-1.1", "10000", "20000", "-1000000000.123456789", "1.0", "12.44")
     for v in values:
         cursor.execute("SELECT %s as f1", (decimal.Decimal(v),))
         retval = cursor.fetchall()
@@ -82,15 +86,14 @@ def test_float_roundtrip(con):
 
 
 def test_float_plus_infinity_roundtrip(con):
-    v = float('inf')
+    v = float("inf")
     retval = con.run("SELECT cast(:v as double precision)", v=v)
     assert retval[0][0] == v
 
 
 def test_str_roundtrip(cursor):
     v = "hello world"
-    cursor.execute(
-        "create temporary table test_str (f character varying(255))")
+    cursor.execute("create temporary table test_str (f character varying(255))")
     cursor.execute("INSERT INTO test_str VALUES (%s)", (v,))
     retval = tuple(cursor.execute("SELECT * from test_str"))
     assert retval[0][0] == v
@@ -144,9 +147,9 @@ def test_int_roundtrip(con):
     int8 = 20
 
     MAP = {
-        int2: 'int2',
-        int4: 'int4',
-        int8: 'int8',
+        int2: "int2",
+        int4: "int4",
+        int8: "int8",
     }
 
     test_values = [
@@ -160,7 +163,8 @@ def test_int_roundtrip(con):
         (+2147483647, int4),
         (+2147483648, int8),
         (-9223372036854775807, int8),
-        (+9223372036854775807, int8)]
+        (+9223372036854775807, int8),
+    ]
 
     for value, typoid in test_values:
         retval = con.run("SELECT cast(:v as " + MAP[typoid] + ")", v=value)
@@ -171,13 +175,13 @@ def test_int_roundtrip(con):
 
 def test_bytea_roundtrip(con):
     retval = con.run(
-            "SELECT cast(:v as bytea)",
-            v=pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00"))
+        "SELECT cast(:v as bytea)", v=pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
+    )
     assert retval[0][0] == b"\x00\x01\x02\x03\x02\x01\x00"
 
 
 def test_bytearray_round_trip(con):
-    binary = b'\x00\x01\x02\x03\x02\x01\x00'
+    binary = b"\x00\x01\x02\x03\x02\x01\x00"
     retval = con.run("SELECT cast(:v as bytea)", v=bytearray(binary))
     assert retval[0][0] == binary
 
@@ -185,7 +189,8 @@ def test_bytearray_round_trip(con):
 def test_bytearray_subclass_round_trip(con):
     class BClass(bytearray):
         pass
-    binary = b'\x00\x01\x02\x03\x02\x01\x00'
+
+    binary = b"\x00\x01\x02\x03\x02\x01\x00"
     retval = con.run("SELECT cast(:v as bytea)", v=BClass(binary))
     assert retval[0][0] == binary
 
@@ -198,31 +203,31 @@ def test_timestamp_roundtrip(is_java, con):
     # Test that time zone doesn't affect it
     # Jython 2.5.3 doesn't have a time.tzset() so skip
     if not is_java:
-        orig_tz = os.environ.get('TZ')
-        os.environ['TZ'] = "America/Edmonton"
+        orig_tz = os.environ.get("TZ")
+        os.environ["TZ"] = "America/Edmonton"
         time.tzset()
 
         retval = con.run("SELECT cast(:v as timestamp)", v=v)
         assert retval[0][0] == v
 
         if orig_tz is None:
-            del os.environ['TZ']
+            del os.environ["TZ"]
         else:
-            os.environ['TZ'] = orig_tz
+            os.environ["TZ"] = orig_tz
         time.tzset()
 
 
 def test_interval_repr():
     v = pg8000.PGInterval(microseconds=123456789, days=2, months=24)
-    assert repr(v) == '<PGInterval 24 months 2 days 123456789 microseconds>'
+    assert repr(v) == "<PGInterval 24 months 2 days 123456789 microseconds>"
 
 
 def test_interval_in_1_year():
-    assert converters.pginterval_in('1 year') == pg8000.PGInterval(years=1)
+    assert converters.pginterval_in("1 year") == pg8000.PGInterval(years=1)
 
 
 def test_timedelta_in_2_months():
-    assert converters.timedelta_in('2 hours')
+    assert converters.timedelta_in("2 hours")
 
 
 def test_interval_roundtrip(con):
@@ -240,23 +245,23 @@ def test_timedelta_roundtrip(con):
 
 def test_enum_str_round_trip(cursor):
     try:
-        cursor.execute(
-            "create type lepton as enum ('electron', 'muon', 'tau')")
+        cursor.execute("create type lepton as enum ('electron', 'muon', 'tau')")
 
-        v = 'muon'
+        v = "muon"
         cursor.execute("SELECT cast(%s as lepton) as f1", (v,))
         retval = cursor.fetchall()
         assert retval[0][0] == v
         cursor.execute("CREATE TEMPORARY TABLE testenum (f1 lepton)")
         cursor.execute(
-            "INSERT INTO testenum VALUES (cast(%s as lepton))", ('electron',))
+            "INSERT INTO testenum VALUES (cast(%s as lepton))", ("electron",)
+        )
     finally:
         cursor.execute("drop table testenum")
         cursor.execute("drop type lepton")
 
 
 def test_enum_custom_round_trip(con):
-    class Lepton():
+    class Lepton:
         # Implements PEP 435 in the minimal fashion needed
         __members__ = OrderedDict()
 
@@ -274,11 +279,10 @@ def test_enum_custom_round_trip(con):
 
     try:
         con.run("create type lepton as enum ('1', '2', '3')")
-        lepton_oid = con.run(
-            "select oid from pg_type where typname = 'lepton'")[0][0]
+        lepton_oid = con.run("select oid from pg_type where typname = 'lepton'")[0][0]
         con.register_out_adapter(Lepton, lepton_oid, lepton_out)
 
-        v = Lepton('muon', '2')
+        v = Lepton("muon", "2")
         retval = con.run("SELECT :v", v=v)
         assert retval[0][0] == v.value
     finally:
@@ -287,9 +291,9 @@ def test_enum_custom_round_trip(con):
 
 def test_enum_py_round_trip(cursor):
     class Lepton(Enum):
-        electron = '1'
-        muon = '2'
-        tau = '3'
+        electron = "1"
+        muon = "2"
+        tau = "3"
 
     try:
         cursor.execute("create type lepton as enum ('1', '2', '3')")
@@ -300,33 +304,33 @@ def test_enum_py_round_trip(cursor):
 
         cursor.execute("CREATE TEMPORARY TABLE testenum (f1 lepton)")
         cursor.execute(
-            "INSERT INTO testenum VALUES (cast(%s as lepton))",
-            (Lepton.electron,))
+            "INSERT INTO testenum VALUES (cast(%s as lepton))", (Lepton.electron,)
+        )
     finally:
         cursor.execute("drop table testenum")
         cursor.execute("drop type lepton")
 
 
 def test_xml_roundtrip(cursor):
-    v = '<genome>gatccgagtac</genome>'
+    v = "<genome>gatccgagtac</genome>"
     retval = tuple(cursor.execute("select xmlparse(content %s) as f1", (v,)))
     assert retval[0][0] == v
 
 
 def test_uuid_roundtrip(con):
-    v = uuid.UUID('911460f2-1f43-fea2-3e2c-e01fd5b5069d')
+    v = uuid.UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")
     retval = con.run("select cast(:v as uuid)", v=v)
     assert retval[0][0] == v
 
 
 def test_inet_roundtrip_network(con):
-    v = ipaddress.ip_network('192.168.0.0/28')
+    v = ipaddress.ip_network("192.168.0.0/28")
     retval = con.run("select cast(:v as inet)", v=v)
     assert retval[0][0] == v
 
 
 def test_inet_roundtrip_address(con):
-    v = ipaddress.ip_address('192.168.0.1')
+    v = ipaddress.ip_address("192.168.0.1")
     retval = con.run("select cast(:v as inet)", v=v)
     assert retval[0][0] == v
 
@@ -352,14 +356,14 @@ def test_int2vector_in(cursor):
 
 def test_timestamp_tz_out(cursor):
     cursor.execute(
-        "SELECT '2001-02-03 04:05:06.17 America/Edmonton'"
-        "::timestamp with time zone")
+        "SELECT '2001-02-03 04:05:06.17 America/Edmonton'" "::timestamp with time zone"
+    )
     retval = cursor.fetchall()
     dt = retval[0][0]
     assert dt.tzinfo is not None, "no tzinfo returned"
     assert dt.astimezone(Timezone.utc) == Datetime(
-        2001, 2, 3, 11, 5, 6, 170000, Timezone.utc), \
-        "retrieved value match failed"
+        2001, 2, 3, 11, 5, 6, 170000, Timezone.utc
+    ), "retrieved value match failed"
 
 
 def test_timestamp_tz_roundtrip(is_java, con):
@@ -380,14 +384,17 @@ def test_timestamp_mismatch(is_java, cursor):
             cursor.execute(
                 "CREATE TEMPORARY TABLE TestTz "
                 "(f1 timestamp with time zone, "
-                "f2 timestamp without time zone)")
+                "f2 timestamp without time zone)"
+            )
             cursor.execute(
-                "INSERT INTO TestTz (f1, f2) VALUES (%s, %s)", (
+                "INSERT INTO TestTz (f1, f2) VALUES (%s, %s)",
+                (
                     # insert timestamp into timestamptz field (v1)
                     Datetime(2001, 2, 3, 4, 5, 6, 170000),
                     # insert timestamptz into timestamp field (v2)
-                    mst.localize(Datetime(
-                        2001, 2, 3, 4, 5, 6, 170000))))
+                    mst.localize(Datetime(2001, 2, 3, 4, 5, 6, 170000)),
+                ),
+            )
             cursor.execute("SELECT f1, f2 FROM TestTz")
             retval = cursor.fetchall()
 
@@ -427,7 +434,7 @@ def test_boolean_in(cursor):
 
 
 def test_numeric_out(cursor):
-    for num in ('5000', '50.34'):
+    for num in ("5000", "50.34"):
         retval = tuple(cursor.execute("SELECT " + num + "::numeric"))
         assert str(retval[0][0]) == num
 
@@ -475,10 +482,15 @@ def test_text_out(cursor):
 def test_interval_in(con):
     con.register_in_adapter(1186, pg8000.converters.pginterval_in)
     retval = con.run(
-        "SELECT '1 month 16 days 12 hours 32 minutes 64 seconds'::interval")
+        "SELECT '1 month 16 days 12 hours 32 minutes 64 seconds'::interval"
+    )
     expected_value = pg8000.PGInterval(
-        microseconds=(12 * 60 * 60 * 1000 * 1000) +
-        (32 * 60 * 1000 * 1000) + (64 * 1000 * 1000), days=16, months=1)
+        microseconds=(12 * 60 * 60 * 1000 * 1000)
+        + (32 * 60 * 1000 * 1000)
+        + (64 * 1000 * 1000),
+        days=16,
+        months=1,
+    )
     assert retval[0][0] == expected_value
 
 
@@ -501,7 +513,8 @@ def test_timestamp_out(cursor):
 def test_int4_array_out(cursor):
     cursor.execute(
         "SELECT '{1,2,3,4}'::INT[] AS f1, '{{1,2,3},{4,5,6}}'::INT[][] AS f2, "
-        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::INT[][][] AS f3")
+        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::INT[][][] AS f3"
+    )
     f1, f2, f3 = cursor.fetchone()
     assert f1 == [1, 2, 3, 4]
     assert f2 == [[1, 2, 3], [4, 5, 6]]
@@ -512,7 +525,8 @@ def test_int2_array_out(cursor):
     cursor.execute(
         "SELECT '{1,2,3,4}'::INT2[] AS f1, "
         "'{{1,2,3},{4,5,6}}'::INT2[][] AS f2, "
-        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::INT2[][][] AS f3")
+        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::INT2[][][] AS f3"
+    )
     f1, f2, f3 = cursor.fetchone()
     assert f1 == [1, 2, 3, 4]
     assert f2 == [[1, 2, 3], [4, 5, 6]]
@@ -523,7 +537,8 @@ def test_int8_array_out(cursor):
     cursor.execute(
         "SELECT '{1,2,3,4}'::INT8[] AS f1, "
         "'{{1,2,3},{4,5,6}}'::INT8[][] AS f2, "
-        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::INT8[][][] AS f3")
+        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::INT8[][][] AS f3"
+    )
     f1, f2, f3 = cursor.fetchone()
     assert f1 == [1, 2, 3, 4]
     assert f2 == [[1, 2, 3], [4, 5, 6]]
@@ -535,19 +550,20 @@ def test_bool_array_out(cursor):
         "SELECT '{TRUE,FALSE,FALSE,TRUE}'::BOOL[] AS f1, "
         "'{{TRUE,FALSE,TRUE},{FALSE,TRUE,FALSE}}'::BOOL[][] AS f2, "
         "'{{{TRUE,FALSE},{FALSE,TRUE}},{{NULL,TRUE},{FALSE,FALSE}}}'"
-        "::BOOL[][][] AS f3")
+        "::BOOL[][][] AS f3"
+    )
     f1, f2, f3 = cursor.fetchone()
     assert f1 == [True, False, False, True]
     assert f2 == [[True, False, True], [False, True, False]]
-    assert f3 == [
-        [[True, False], [False, True]], [[None, True], [False, False]]]
+    assert f3 == [[[True, False], [False, True]], [[None, True], [False, False]]]
 
 
 def test_float4_array_out(cursor):
     cursor.execute(
         "SELECT '{1,2,3,4}'::FLOAT4[] AS f1, "
         "'{{1,2,3},{4,5,6}}'::FLOAT4[][] AS f2, "
-        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::FLOAT4[][][] AS f3")
+        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::FLOAT4[][][] AS f3"
+    )
     f1, f2, f3 = cursor.fetchone()
     assert f1 == [1, 2, 3, 4]
     assert f2 == [[1, 2, 3], [4, 5, 6]]
@@ -558,7 +574,8 @@ def test_float8_array_out(cursor):
     cursor.execute(
         "SELECT '{1,2,3,4}'::FLOAT8[] AS f1, "
         "'{{1,2,3},{4,5,6}}'::FLOAT8[][] AS f2, "
-        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::FLOAT8[][][] AS f3")
+        "'{{{1,2},{3,4}},{{NULL,6},{7,8}}}'::FLOAT8[][][] AS f3"
+    )
     f1, f2, f3 = cursor.fetchone()
     assert f1 == [1, 2, 3, 4]
     assert f2 == [[1, 2, 3], [4, 5, 6]]
@@ -566,8 +583,7 @@ def test_float8_array_out(cursor):
 
 
 def test_int_array_roundtrip_small(con):
-    """ send small int array, should be sent as INT2[]
-    """
+    """send small int array, should be sent as INT2[]"""
     retval = con.run("SELECT cast(:v as int2[])", v=[1, 2, 3])
     assert retval[0][0], [1, 2, 3]
     column_name, column_typeoid = con.description[0][0:2]
@@ -575,8 +591,7 @@ def test_int_array_roundtrip_small(con):
 
 
 def test_int_array_roundtrip_multi(con):
-    """ test multi-dimensional array, should be sent as INT2[]
-    """
+    """test multi-dimensional array, should be sent as INT2[]"""
     retval = con.run("SELECT cast(:v as int2[])", v=[[1, 2], [3, 4]])
     assert retval[0][0] == [[1, 2], [3, 4]]
 
@@ -585,8 +600,7 @@ def test_int_array_roundtrip_multi(con):
 
 
 def test_int4_array_roundtrip(con):
-    """ a larger value should kick it up to INT4[]...
-    """
+    """a larger value should kick it up to INT4[]..."""
     retval = con.run("SELECT cast(:v as int4[])", v=[70000, 2, 3])
     assert retval[0][0] == [70000, 2, 3]
     column_name, column_typeoid = con.description[0][0:2]
@@ -594,8 +608,7 @@ def test_int4_array_roundtrip(con):
 
 
 def test_int8_array_roundtrip(con):
-    """ a much larger value should kick it up to INT8[]...
-    """
+    """a much larger value should kick it up to INT8[]..."""
     retval = con.run("SELECT cast(:v as int8[])", v=[7000000000, 2, 3])
     assert retval[0][0] == [7000000000, 2, 3], "retrieved value match failed"
     column_name, column_typeoid = con.description[0][0:2]
@@ -608,8 +621,7 @@ def test_int_array_with_null_roundtrip(con):
 
 
 def test_float_array_roundtrip(con):
-    retval = con.run(
-        "SELECT cast(:v as double precision[])", v=[1.1, 2.2, 3.3])
+    retval = con.run("SELECT cast(:v as double precision[])", v=[1.1, 2.2, 3.3])
     assert retval[0][0] == [1.1, 2.2, 3.3]
 
 
@@ -627,11 +639,8 @@ def test_bool_array_roundtrip(con):
         ("SELECT '{a,b,c}'::CSTRING[] AS f1", ["a", "b", "c"]),
         ("SELECT '{a,b,c}'::NAME[] AS f1", ["a", "b", "c"]),
         ("SELECT '{}'::text[];", []),
-        (
-            "SELECT '{NULL,\"NULL\",NULL,\"\"}'::text[];",
-            [None, 'NULL', None, ""]
-        )
-    ]
+        ('SELECT \'{NULL,"NULL",NULL,""}\'::text[];', [None, "NULL", None, ""]),
+    ],
 )
 def test_string_array_out(con, test_input, expected):
     result = con.run(test_input)
@@ -641,7 +650,10 @@ def test_string_array_out(con, test_input, expected):
 def test_numeric_array_out(cursor):
     cursor.execute("SELECT '{1.1,2.2,3.3}'::numeric[] AS f1")
     assert cursor.fetchone()[0] == [
-        decimal.Decimal("1.1"), decimal.Decimal("2.2"), decimal.Decimal("3.3")]
+        decimal.Decimal("1.1"),
+        decimal.Decimal("2.2"),
+        decimal.Decimal("3.3"),
+    ]
 
 
 def test_numeric_array_roundtrip(con):
@@ -652,15 +664,20 @@ def test_numeric_array_roundtrip(con):
 
 def test_string_array_roundtrip(con):
     v = [
-        "Hello!", "World!", "abcdefghijklmnopqrstuvwxyz", "",
+        "Hello!",
+        "World!",
+        "abcdefghijklmnopqrstuvwxyz",
+        "",
         "A bunch of random characters:",
-        " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t", None]
+        " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t",
+        None,
+    ]
     retval = con.run("SELECT cast(:v as varchar[])", v=v)
     assert retval[0][0] == v
 
 
 def test_array_string_escape():
-    v = "\""
+    v = '"'
     res = pg8000.converters.array_string_escape(v)
     assert res == '"\\""'
 
@@ -678,8 +695,8 @@ def test_macaddr(cursor):
 
 def test_tsvector_roundtrip(cursor):
     cursor.execute(
-        "SELECT cast(%s as tsvector)",
-        ('a fat cat sat on a mat and ate a fat rat',))
+        "SELECT cast(%s as tsvector)", ("a fat cat sat on a mat and ate a fat rat",)
+    )
     retval = cursor.fetchall()
     assert retval[0][0] == "'a' 'and' 'ate' 'cat' 'fat' 'mat' 'on' 'rat' 'sat'"
 
@@ -691,67 +708,65 @@ def test_hstore_roundtrip(cursor):
 
 
 def test_json_roundtrip(con):
-    val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
+    val = {"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}
     retval = con.run("SELECT cast(:v as jsonb)", v=dumps(val))
     assert retval[0][0] == val
 
 
 def test_jsonb_roundtrip(cursor):
-    val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
+    val = {"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}
     cursor.execute("SELECT cast(%s as jsonb)", (dumps(val),))
     retval = cursor.fetchall()
     assert retval[0][0] == val
 
 
 def test_json_access_object(cursor):
-    val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
-    cursor.execute("SELECT cast(%s as json) -> %s", (dumps(val), 'name'))
+    val = {"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}
+    cursor.execute("SELECT cast(%s as json) -> %s", (dumps(val), "name"))
     retval = cursor.fetchall()
-    assert retval[0][0] == 'Apollo 11 Cave'
+    assert retval[0][0] == "Apollo 11 Cave"
 
 
 def test_jsonb_access_object(cursor):
-    val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
-    cursor.execute("SELECT cast(%s as jsonb) -> %s", (dumps(val), 'name'))
+    val = {"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}
+    cursor.execute("SELECT cast(%s as jsonb) -> %s", (dumps(val), "name"))
     retval = cursor.fetchall()
-    assert retval[0][0] == 'Apollo 11 Cave'
+    assert retval[0][0] == "Apollo 11 Cave"
 
 
 def test_json_access_array(con):
     val = [-1, -2, -3, -4, -5]
     retval = con.run(
-        "SELECT cast(:v1 as json) -> cast(:v2 as int)",
-        v1=dumps(val), v2=2)
+        "SELECT cast(:v1 as json) -> cast(:v2 as int)", v1=dumps(val), v2=2
+    )
     assert retval[0][0] == -3
 
 
 def test_jsonb_access_array(con):
     val = [-1, -2, -3, -4, -5]
     retval = con.run(
-        "SELECT cast(:v1 as jsonb) -> cast(:v2 as int)", v1=dumps(val), v2=2)
+        "SELECT cast(:v1 as jsonb) -> cast(:v2 as int)", v1=dumps(val), v2=2
+    )
     assert retval[0][0] == -3
 
 
 def test_jsonb_access_path(con):
-    j = {
-        "a": [1, 2, 3],
-        "b": [4, 5, 6]}
+    j = {"a": [1, 2, 3], "b": [4, 5, 6]}
 
-    path = ['a', '2']
+    path = ["a", "2"]
 
-    retval = con.run(
-        "SELECT cast(:v1 as jsonb) #>> :v2", v1=dumps(j), v2=path)
+    retval = con.run("SELECT cast(:v1 as jsonb) #>> :v2", v1=dumps(j), v2=path)
     assert retval[0][0] == str(j[path[0]][int(path[1])])
 
 
 def test_infinity_timestamp_roundtrip(cursor):
-    v = 'infinity'
+    v = "infinity"
     retval = tuple(cursor.execute("SELECT cast(%s as timestamp) as f1", (v,)))
     assert retval[0][0] == v
 
 
 def test_point_roundtrip(cursor):
-    v = '(2.3,1)'
+    v = "(2.3,1)"
     retval = tuple(cursor.execute("SELECT cast(%s as point) as f1", (v,)))
     assert retval[0][0] == v
 

@@ -9,13 +9,15 @@ import pytest
 # Tests relating to the basic operation of the database driver, driven by the
 # pg8000 custom interface.
 
+
 @pytest.fixture
 def db_table(request, con):
-    con.paramstyle = 'format'
+    con.paramstyle = "format"
     cursor = con.cursor()
     cursor.execute(
         "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
-        "f2 bigint not null, f3 varchar(50) null) ")
+        "f2 bigint not null, f3 varchar(50) null) "
+    )
 
     def fin():
         try:
@@ -35,16 +37,11 @@ def test_database_error(cursor):
 
 def test_parallel_queries(db_table):
     cursor = db_table.cursor()
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
     c1 = db_table.cursor()
     c2 = db_table.cursor()
     c1.execute("SELECT f1, f2, f3 FROM t1")
@@ -85,6 +82,7 @@ def test_alter(db_table):
 # Run a query on a table, drop then re-create the table, then run the
 # original query again.
 
+
 def test_create(db_table):
     cursor = db_table.cursor()
     cursor.execute("select * from t1")
@@ -98,8 +96,7 @@ def test_insert_returning(db_table):
     cursor.execute("CREATE TEMPORARY TABLE t2 (id serial, data text)")
 
     # Test INSERT ... RETURNING with one row...
-    cursor.execute(
-        "INSERT INTO t2 (data) VALUES (%s) RETURNING id", ("test1",))
+    cursor.execute("INSERT INTO t2 (data) VALUES (%s) RETURNING id", ("test1",))
     row_id = cursor.fetchone()[0]
     cursor.execute("SELECT data FROM t2 WHERE id = %s", (row_id,))
     assert "test1" == cursor.fetchone()[0]
@@ -108,8 +105,9 @@ def test_insert_returning(db_table):
 
     # Test with multiple rows...
     cursor.execute(
-        "INSERT INTO t2 (data) VALUES (%s), (%s), (%s) "
-        "RETURNING id", ("test2", "test3", "test4"))
+        "INSERT INTO t2 (data) VALUES (%s), (%s), (%s) " "RETURNING id",
+        ("test2", "test3", "test4"),
+    )
     assert cursor.rowcount == 3
     ids = tuple([x[0] for x in cursor.fetchall()])
     assert len(ids) == 3
@@ -120,7 +118,8 @@ def test_row_count(db_table):
     expected_count = 57
     cursor.executemany(
         "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-        tuple((i, i, None) for i in range(expected_count)))
+        tuple((i, i, None) for i in range(expected_count)),
+    )
 
     # Check rowcount after executemany
     assert expected_count == cursor.rowcount
@@ -151,17 +150,11 @@ def test_row_count(db_table):
 
 def test_row_count_update(db_table):
     cursor = db_table.cursor()
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-        (5, 10000, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (2, 10, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (3, 100, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (4, 1000, None))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (5, 10000, None))
     cursor.execute("UPDATE t1 SET f3 = %s WHERE f2 > 101", ("Hello!",))
     assert cursor.rowcount == 2
 
@@ -175,34 +168,35 @@ def test_unicode_query(cursor):
     cursor.execute(
         "CREATE TEMPORARY TABLE \u043c\u0435\u0441\u0442\u043e "
         "(\u0438\u043c\u044f VARCHAR(50), "
-        "\u0430\u0434\u0440\u0435\u0441 VARCHAR(250))")
+        "\u0430\u0434\u0440\u0435\u0441 VARCHAR(250))"
+    )
 
 
 def test_executemany(db_table):
     cursor = db_table.cursor()
     cursor.executemany(
         "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-        ((1, 1, 'Avast ye!'), (2, 1, None)))
+        ((1, 1, "Avast ye!"), (2, 1, None)),
+    )
 
     cursor.executemany(
         "select %s",
-        (
-            (Datetime(2014, 5, 7, tzinfo=Timezone.utc), ),
-            (Datetime(2014, 5, 7),)))
+        ((Datetime(2014, 5, 7, tzinfo=Timezone.utc),), (Datetime(2014, 5, 7),)),
+    )
 
 
 def test_executemany_setinputsizes(cursor):
-    """ Make sure that setinputsizes works for all the parameter sets
-    """
+    """Make sure that setinputsizes works for all the parameter sets"""
 
     cursor.execute(
-        "CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 inet[] not null) ")
+        "CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 inet[] not null) "
+    )
 
     ARRAY_OID = converters.PG_ARRAY_TYPES[converters.INET]
     cursor.setinputsizes(converters.INTEGER, ARRAY_OID)
     cursor.executemany(
-        "INSERT INTO t1 (f1, f2) VALUES (%s, %s)",
-        ((1, ['1.1.1.1']), (2, ['0.0.0.0'])))
+        "INSERT INTO t1 (f1, f2) VALUES (%s, %s)", ((1, ["1.1.1.1"]), (2, ["0.0.0.0"]))
+    )
 
 
 # Check that autocommit stays off
@@ -211,9 +205,7 @@ def test_executemany_setinputsizes(cursor):
 def test_transactions(db_table):
     cursor = db_table.cursor()
     cursor.execute("commit")
-    cursor.execute(
-        "INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)",
-        (1, 1, "Zombie"))
+    cursor.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, "Zombie"))
     cursor.execute("rollback")
     cursor.execute("select * from t1")
 
@@ -221,14 +213,13 @@ def test_transactions(db_table):
 
 
 def test_in(cursor):
-    cursor.execute(
-        "SELECT typname FROM pg_type WHERE oid = any(%s)", ([16, 23],))
+    cursor.execute("SELECT typname FROM pg_type WHERE oid = any(%s)", ([16, 23],))
     ret = cursor.fetchall()
-    assert ret[0][0] == 'bool'
+    assert ret[0][0] == "bool"
 
 
 def test_no_previous_tpc(con):
-    con.tpc_begin('Stacey')
+    con.tpc_begin("Stacey")
     cursor = con.cursor()
     cursor.execute("SELECT * FROM pg_type")
     con.tpc_commit()
@@ -245,7 +236,7 @@ def test_tpc_recover(con):
 
 
 def test_tpc_prepare(con):
-    xid = 'Stacey'
+    xid = "Stacey"
     con.tpc_begin(xid)
     con.tpc_prepare()
     con.tpc_rollback(xid)
@@ -270,7 +261,7 @@ def test_rollback_no_transaction(con):
     # 25P01 is the code for no_active_sql_tronsaction. It has
     # a message and severity name, but those might be
     # localized/depend on the server version.
-    assert con.notices.pop().get(b'C') == b'25P01'
+    assert con.notices.pop().get(b"C") == b"25P01"
 
     # Now going through the rollback method doesn't produce
     # any notices because it knows we're not in a transaction.
@@ -301,15 +292,17 @@ def test_callproc(cursor):
     cursor.execute("select current_setting('server_version')")
     version = cursor.fetchall()[0][0].split()[0]
 
-    if not (version.startswith('9') or version.startswith('10')):
-        cursor.execute("""
+    if not (version.startswith("9") or version.startswith("10")):
+        cursor.execute(
+            """
 CREATE PROCEDURE echo(INOUT val text)
   LANGUAGE plpgsql AS
 $proc$
 BEGIN
 END
 $proc$;
-""")
+"""
+        )
 
-        cursor.callproc("echo", ['hello'])
-        assert cursor.fetchall() == (['hello'],)
+        cursor.callproc("echo", ["hello"])
+        assert cursor.fetchall() == (["hello"],)

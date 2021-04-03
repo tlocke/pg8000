@@ -4,23 +4,67 @@ from warnings import warn
 
 import pg8000
 from pg8000.converters import (
-    BIGINT, BOOLEAN, BOOLEAN_ARRAY, BYTES, CHAR, CHAR_ARRAY, DATE, FLOAT,
-    FLOAT_ARRAY, INET, INT2VECTOR, INTEGER, INTEGER_ARRAY, INTERVAL, JSON,
-    JSONB, MACADDR, NAME, NAME_ARRAY, NULLTYPE, NUMERIC, NUMERIC_ARRAY, OID,
-    PGInterval, STRING, TEXT, TEXT_ARRAY, TIME, TIMEDELTA, TIMESTAMP,
-    TIMESTAMPTZ, UNKNOWN, UUID_TYPE, VARCHAR,
-    VARCHAR_ARRAY, XID, make_params)
+    BIGINT,
+    BOOLEAN,
+    BOOLEAN_ARRAY,
+    BYTES,
+    CHAR,
+    CHAR_ARRAY,
+    DATE,
+    FLOAT,
+    FLOAT_ARRAY,
+    INET,
+    INT2VECTOR,
+    INTEGER,
+    INTEGER_ARRAY,
+    INTERVAL,
+    JSON,
+    JSONB,
+    MACADDR,
+    NAME,
+    NAME_ARRAY,
+    NULLTYPE,
+    NUMERIC,
+    NUMERIC_ARRAY,
+    OID,
+    PGInterval,
+    STRING,
+    TEXT,
+    TEXT_ARRAY,
+    TIME,
+    TIMEDELTA,
+    TIMESTAMP,
+    TIMESTAMPTZ,
+    UNKNOWN,
+    UUID_TYPE,
+    VARCHAR,
+    VARCHAR_ARRAY,
+    XID,
+    make_params,
+)
 from pg8000.core import CoreConnection
 from pg8000.dbapi import (
-    BINARY, Binary, DataError, DateFromTicks, IntegrityError, InternalError,
-    NotSupportedError, OperationalError, ProgrammingError, TimeFromTicks,
-    Timestamp, TimestampFromTicks, Warning, convert_paramstyle,
+    BINARY,
+    Binary,
+    DataError,
+    DateFromTicks,
+    IntegrityError,
+    InternalError,
+    NotSupportedError,
+    OperationalError,
+    ProgrammingError,
+    TimeFromTicks,
+    Timestamp,
+    TimestampFromTicks,
+    Warning,
+    convert_paramstyle,
 )
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
 
 from ._version import get_versions
-__version__ = get_versions()['version']
+
+__version__ = get_versions()["version"]
 del get_versions
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
@@ -62,15 +106,34 @@ ROWID = OID
 
 
 def connect(
-        user, host='localhost', database=None, port=5432, password=None,
-        source_address=None, unix_sock=None, ssl_context=None, timeout=None,
-        tcp_keepalive=True, application_name=None, replication=None):
+    user,
+    host="localhost",
+    database=None,
+    port=5432,
+    password=None,
+    source_address=None,
+    unix_sock=None,
+    ssl_context=None,
+    timeout=None,
+    tcp_keepalive=True,
+    application_name=None,
+    replication=None,
+):
 
     return Connection(
-        user, host=host, database=database, port=port, password=password,
-        source_address=source_address, unix_sock=unix_sock,
-        ssl_context=ssl_context, timeout=timeout, tcp_keepalive=tcp_keepalive,
-        application_name=application_name, replication=replication)
+        user,
+        host=host,
+        database=database,
+        port=port,
+        password=password,
+        source_address=source_address,
+        unix_sock=unix_sock,
+        ssl_context=ssl_context,
+        timeout=timeout,
+        tcp_keepalive=tcp_keepalive,
+        application_name=application_name,
+        replication=replication,
+    )
 
 
 apilevel = "2.0"
@@ -90,10 +153,10 @@ This property is part of the `DBAPI 2.0 specification
 <http://www.python.org/dev/peps/pep-0249/>`_.
 """
 
-paramstyle = 'format'
+paramstyle = "format"
 
 
-class Cursor():
+class Cursor:
     def __init__(self, connection, paramstyle=None):
         self._c = connection
         self.arraysize = 1
@@ -139,8 +202,7 @@ class Cursor():
             return None
         columns = []
         for col in row_desc:
-            columns.append(
-                (col["name"], col["type_oid"], None, None, None, None, None))
+            columns.append((col["name"], col["type_oid"], None, None, None, None, None))
         return columns
 
     ##
@@ -179,12 +241,11 @@ class Cursor():
             if not self._c.in_transaction and not self._c.autocommit:
                 self._c.execute_unnamed("begin transaction")
 
-            statement, vals = convert_paramstyle(
-                self.paramstyle, operation, args)
+            statement, vals = convert_paramstyle(self.paramstyle, operation, args)
 
             self._context = self._c.execute_unnamed(
-                statement, vals=vals, input_oids=self._input_oids,
-                stream=stream)
+                statement, vals=vals, input_oids=self._input_oids, stream=stream
+            )
             self._row_iter = iter(self._context.rows)
 
             self._input_oids = None
@@ -198,11 +259,11 @@ class Cursor():
         except DatabaseError as e:
             msg = e.args[0]
             if isinstance(msg, dict):
-                response_code = msg['C']
+                response_code = msg["C"]
 
-                if response_code == '28000':
+                if response_code == "28000":
                     cls = InterfaceError
-                elif response_code == '23505':
+                elif response_code == "23505":
                     cls = IntegrityError
                 else:
                     cls = ProgrammingError
@@ -275,8 +336,7 @@ class Cursor():
             will be returned.
         """
         try:
-            return tuple(
-                islice(self, self.arraysize if num is None else num))
+            return tuple(islice(self, self.arraysize if num is None else num))
         except TypeError:
             raise ProgrammingError("attempting to use unexecuted cursor")
 
@@ -312,8 +372,7 @@ class Cursor():
         return self
 
     def setinputsizes(self, *sizes):
-        """This method is part of the `DBAPI 2.0 specification
-        """
+        """This method is part of the `DBAPI 2.0 specification"""
         oids = []
         for size in sizes:
             if isinstance(size, int):
@@ -362,8 +421,7 @@ class Connection(CoreConnection):
     IntegrityError = property(lambda self: self._getError(IntegrityError))
     InternalError = property(lambda self: self._getError(InternalError))
     ProgrammingError = property(lambda self: self._getError(ProgrammingError))
-    NotSupportedError = property(
-        lambda self: self._getError(NotSupportedError))
+    NotSupportedError = property(lambda self: self._getError(NotSupportedError))
 
     def __init__(self, *args, **kwargs):
         try:
@@ -371,11 +429,11 @@ class Connection(CoreConnection):
         except DatabaseError as e:
             msg = e.args[0]
             if isinstance(msg, dict):
-                response_code = msg['C']
+                response_code = msg["C"]
 
-                if response_code == '28000':
+                if response_code == "28000":
                     cls = InterfaceError
-                elif response_code == '23505':
+                elif response_code == "23505":
                     cls = IntegrityError
                 else:
                     cls = ProgrammingError
@@ -384,12 +442,10 @@ class Connection(CoreConnection):
             else:
                 raise ProgrammingError(msg)
 
-        self._run_cursor = Cursor(self, paramstyle='named')
+        self._run_cursor = Cursor(self, paramstyle="named")
 
     def _getError(self, error):
-        warn(
-            "DB-API extension connection.%s used" %
-            error.__name__, stacklevel=3)
+        warn("DB-API extension connection.%s used" % error.__name__, stacklevel=3)
         return error
 
     def cursor(self):
@@ -491,14 +547,13 @@ class Connection(CoreConnection):
             xid = self._xid
 
         if xid is None:
-            raise ProgrammingError(
-                "Cannot tpc_commit() without a TPC transaction!")
+            raise ProgrammingError("Cannot tpc_commit() without a TPC transaction!")
 
         try:
             previous_autocommit_mode = self.autocommit
             self.autocommit = True
             if xid in self.tpc_recover():
-                self.execute_unnamed("COMMIT PREPARED '%s';" % (xid[1], ))
+                self.execute_unnamed("COMMIT PREPARED '%s';" % (xid[1],))
             else:
                 # a single-phase commit
                 self.commit()
@@ -525,7 +580,8 @@ class Connection(CoreConnection):
 
         if xid is None:
             raise ProgrammingError(
-                "Cannot tpc_rollback() without a TPC prepared transaction!")
+                "Cannot tpc_rollback() without a TPC prepared transaction!"
+            )
 
         try:
             previous_autocommit_mode = self.autocommit
@@ -552,13 +608,13 @@ class Connection(CoreConnection):
             self.autocommit = True
             curs = self.cursor()
             curs.execute("select gid FROM pg_prepared_xacts")
-            return [self.xid(0, row[0], '') for row in curs]
+            return [self.xid(0, row[0], "") for row in curs]
         finally:
             self.autocommit = previous_autocommit_mode
 
 
 def to_statement(query):
-    OUTSIDE = 0    # outside quoted string
+    OUTSIDE = 0  # outside quoted string
     INSIDE_SQ = 1  # inside single-quote string '...'
     INSIDE_QI = 2  # inside quoted identifier   "..."
     INSIDE_ES = 3  # inside escaped single-quote string, E'...'
@@ -579,20 +635,20 @@ def to_statement(query):
         if state == OUTSIDE:
             if c == "'":
                 output_query.append(c)
-                if prev_c == 'E':
+                if prev_c == "E":
                     state = INSIDE_ES
                 else:
                     state = INSIDE_SQ
             elif c == '"':
                 output_query.append(c)
                 state = INSIDE_QI
-            elif c == '-':
+            elif c == "-":
                 output_query.append(c)
-                if prev_c == '-':
+                if prev_c == "-":
                     state = INSIDE_CO
-            elif c == ":" and next_c not in ':=' and prev_c != ':':
+            elif c == ":" and next_c not in ":=" and prev_c != ":":
                 state = INSIDE_PN
-                placeholders.append('')
+                placeholders.append("")
             else:
                 output_query.append(c)
 
@@ -620,7 +676,7 @@ def to_statement(query):
 
         elif state == INSIDE_PN:
             placeholders[-1] += c
-            if next_c is None or (not next_c.isalnum() and next_c != '_'):
+            if next_c is None or (not next_c.isalnum() and next_c != "_"):
                 state = OUTSIDE
                 try:
                     pidx = placeholders.index(placeholders[-1], 0, -1)
@@ -631,7 +687,7 @@ def to_statement(query):
 
         elif state == INSIDE_CO:
             output_query.append(c)
-            if c == '\n':
+            if c == "\n":
                 state = OUTSIDE
 
         prev_c = c
@@ -639,10 +695,10 @@ def to_statement(query):
     def make_vals(args):
         return tuple(args[p] for p in placeholders)
 
-    return ''.join(output_query), make_vals
+    return "".join(output_query), make_vals
 
 
-class PreparedStatement():
+class PreparedStatement:
     def __init__(self, con, operation):
         self.con = con
         self.operation = operation
@@ -656,14 +712,16 @@ class PreparedStatement():
         try:
             name_bin, row_desc, input_funcs = self.name_map[oids]
         except KeyError:
-            name_bin, row_desc, input_funcs = self.name_map[oids] = \
-                self.con.prepare_statement(self.statement, oids)
+            name_bin, row_desc, input_funcs = self.name_map[
+                oids
+            ] = self.con.prepare_statement(self.statement, oids)
 
         try:
             if not self.con.in_transaction and not self.con.autocommit:
                 self.con.execute_unnamed("begin transaction")
             self._context = self.con.execute_named(
-                name_bin, params, row_desc, input_funcs)
+                name_bin, params, row_desc, input_funcs
+            )
         except AttributeError as e:
             if self.con is None:
                 raise InterfaceError("Cursor closed")
@@ -681,13 +739,64 @@ class PreparedStatement():
 
 
 __all__ = [
-    Warning, DataError, DatabaseError, connect, InterfaceError,
-    ProgrammingError, Error, OperationalError, IntegrityError, InternalError,
-    NotSupportedError, Connection, Cursor, Binary, Date, DateFromTicks, Time,
-    TimeFromTicks, Timestamp, TimestampFromTicks, BINARY, PGInterval, STRING,
-    NUMBER, DATETIME, TIME, BOOLEAN, INTEGER, BIGINTEGER, INTERVAL, JSON,
-    JSONB, UNKNOWN, NULLTYPE, ROWID, BOOLEAN_ARRAY, BYTES, CHAR, CHAR_ARRAY,
-    DATE, DECIMAL, DECIMAL_ARRAY, FLOAT, FLOAT_ARRAY, INET, INT2VECTOR,
-    INTEGER_ARRAY, MACADDR, NAME, NAME_ARRAY, OID, TEXT, TEXT_ARRAY, TIMEDELTA,
-    TIMESTAMP, TIMESTAMPTZ, UUID_TYPE, VARCHAR, VARCHAR_ARRAY, XID
+    Warning,
+    DataError,
+    DatabaseError,
+    connect,
+    InterfaceError,
+    ProgrammingError,
+    Error,
+    OperationalError,
+    IntegrityError,
+    InternalError,
+    NotSupportedError,
+    Connection,
+    Cursor,
+    Binary,
+    Date,
+    DateFromTicks,
+    Time,
+    TimeFromTicks,
+    Timestamp,
+    TimestampFromTicks,
+    BINARY,
+    PGInterval,
+    STRING,
+    NUMBER,
+    DATETIME,
+    TIME,
+    BOOLEAN,
+    INTEGER,
+    BIGINTEGER,
+    INTERVAL,
+    JSON,
+    JSONB,
+    UNKNOWN,
+    NULLTYPE,
+    ROWID,
+    BOOLEAN_ARRAY,
+    BYTES,
+    CHAR,
+    CHAR_ARRAY,
+    DATE,
+    DECIMAL,
+    DECIMAL_ARRAY,
+    FLOAT,
+    FLOAT_ARRAY,
+    INET,
+    INT2VECTOR,
+    INTEGER_ARRAY,
+    MACADDR,
+    NAME,
+    NAME_ARRAY,
+    OID,
+    TEXT,
+    TEXT_ARRAY,
+    TIMEDELTA,
+    TIMESTAMP,
+    TIMESTAMPTZ,
+    UUID_TYPE,
+    VARCHAR,
+    VARCHAR_ARRAY,
+    XID,
 ]
