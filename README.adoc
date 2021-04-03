@@ -676,6 +676,46 @@ import pg8000.native
 ----
 
 
+=== BLOBs (Binary Large Objects)
+
+There's a set of
+https://www.postgresql.org/docs/current/lo-funcs.html[SQL functions]
+for manipulating BLOBs. Here's an example:
+
+[source,python]
+----
+
+>>> # Create a BLOB and get its oid
+>>> data = b'hello'
+>>> res = con.run("SELECT lo_from_bytea(0, :data)", data=data)
+>>> oid = res[0][0]
+>>>
+>>> # Create a table and store the oid of the BLOB
+>>> con.run("CREATE TEMPORARY TABLE image (raster oid)")
+[]
+>>> con.run("INSERT INTO image (raster) VALUES (:oid)", oid=oid)
+[]
+>>> # Retrieve the data using the oid
+>>> con.run("SELECT lo_get(:oid)", oid=oid)
+[[b'hello']]
+>>>
+>>> # Add some data to the end of the BLOB
+>>> more_data = b' all'
+>>> offset = len(data)
+>>> con.run(
+...     "SELECT lo_put(:oid, :offset, :data)",
+...     oid=oid, offset=offset, data=more_data)
+[['']]
+>>> con.run("SELECT lo_get(:oid)", oid=oid)
+[[b'hello all']]
+>>>
+>>> # Download a part of the data
+>>> con.run("SELECT lo_get(:oid, 6, 3)", oid=oid)
+[[b'all']]
+
+----
+
+
 == DB-API 2 Interactive Examples
 
 These examples stick to the DB-API 2.0 standard.
