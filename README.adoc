@@ -2006,6 +2006,14 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.19.1, 2021-04-03
+
+* Fix bug where setinputsizes() was only used for the first parameter set of
+  executemany().
+
+* Support more PostgreSQL array types.
+
+
 === Version 1.19.0, 2021-03-28
 
 * Network error exceptions are now wrapped in an `InterfaceError`, with the
