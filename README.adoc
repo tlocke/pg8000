@@ -4,7 +4,7 @@
 pg8000 is a pure-link:http://www.python.org/[Python]
 http://www.postgresql.org/[PostgreSQL] driver that complies with
 http://www.python.org/dev/peps/pep-0249/[DB-API 2.0]. It is tested on Python
-versions 3.6+, on CPython and PyPy, and PostgreSQL versions 9.5+.
+versions 3.6+, on CPython and PyPy, and PostgreSQL versions 9.6+.
 pg8000's name comes from the belief that it is probably about the 8000th
 PostgreSQL interface for Python. pg8000 is distributed under the BSD 3-clause
 license.
