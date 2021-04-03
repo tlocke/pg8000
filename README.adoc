@@ -642,6 +642,40 @@ connection = pg8000.native.Connection(
 ----
 
 
+=== Server-Side Cursors
+
+You can use the SQL commands
+https://www.postgresql.org/docs/current/sql-declare.html[`DECLARE`],
+https://www.postgresql.org/docs/current/sql-fetch.html[`FETCH`],
+https://www.postgresql.org/docs/current/sql-move.html[`MOVE`] and
+https://www.postgresql.org/docs/current/sql-close.html[`CLOSE`] to manipulate
+server-side cursors. For example:
+
+[source,python]
+----
+
+import pg8000.native
+
+
+>>> con = pg8000.native.Connection(username, password="cpsnow")
+>>> con.run("START TRANSACTION")
+[]
+>>> con.run("DECLARE c SCROLL CURSOR FOR SELECT * FROM generate_series(1, 100)")
+[]
+>>> con.run("FETCH FORWARD 5 FROM c");
+[[1], [2], [3], [4], [5]]
+>>> con.run("MOVE FORWARD 50 FROM c");
+[]
+>>> con.run("FETCH BACKWARD 10 FROM c");
+[[54], [53], [52], [51], [50], [49], [48], [47], [46], [45]]
+>>> con.run("CLOSE c");
+[]
+>>> con.run("ROLLBACK")
+[]
+
+----
+
+
 == DB-API 2 Interactive Examples
 
 These examples stick to the DB-API 2.0 standard.
