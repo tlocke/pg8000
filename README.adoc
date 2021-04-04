@@ -654,9 +654,8 @@ server-side cursors. For example:
 [source,python]
 ----
 
-import pg8000.native
-
-
+>>> import pg8000.native
+>>>
 >>> con = pg8000.native.Connection(username, password="cpsnow")
 >>> con.run("START TRANSACTION")
 []
