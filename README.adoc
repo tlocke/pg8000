@@ -70,9 +70,19 @@ Here's how to run groups of SQL statements in a
 https://www.postgresql.org/docs/current/tutorial-transactions.html[transaction]:
 
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("START TRANSACTION")
 []
->>> con.run("INSERT INTO book (title) VALUES (:title)", title="Phineas Finn") 
+>>> # Create a temporary table
+>>> con.run("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
+[]
+>>> for title in ("Ender's Game", "The Magus", "Phineas Finn"):
+...     con.run("INSERT INTO book (title) VALUES (:title)", title=title)
+[]
+[]
 []
 >>> con.run("COMMIT")
 []
@@ -87,6 +97,19 @@ https://www.postgresql.org/docs/current/tutorial-transactions.html[transaction]:
 rolling back a transaction:
 
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
+>>> # Create a temporary table
+>>> con.run("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
+[]
+>>> for title in ("Ender's Game", "The Magus", "Phineas Finn"):
+...     con.run("INSERT INTO book (title) VALUES (:title)", title=title)
+[]
+[]
+[]
+>>>
 >>> con.run("START TRANSACTION")
 []
 >>> con.run("DELETE FROM book WHERE title = :title", title="Phineas Finn") 
@@ -108,6 +131,10 @@ Another query, using some PostgreSQL functions:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("SELECT extract(millennium from now())")
 [[3.0]]
 
@@ -120,6 +147,10 @@ A query that returns the PostgreSQL interval type:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> import datetime
 >>>
 >>> ts = datetime.date(1980, 4, 27)
@@ -137,6 +168,10 @@ point] type:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("SELECT CAST(:pt as point)", pt='(2.3,1)')
 [['(2.3,1)']]
 
@@ -154,6 +189,10 @@ encoding is by using an SQL command. For example:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("SET CLIENT_ENCODING TO 'UTF8'")
 []
 >>> con.run("SHOW CLIENT_ENCODING")
@@ -170,6 +209,10 @@ then you can just do:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
 >>> con.run("SELECT :apollo", apollo=val)
 [[{'age': 26.003, 'name': 'Apollo 11 Cave', 'zebra': True}]]
@@ -181,6 +224,10 @@ JSON can always be sent in serialized form to the server:
 [source,python]
 ----
 >>> import json
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>>
 >>> val = ['Apollo 11 Cave', True, 26.003]
 >>> con.run("SELECT CAST(:apollo as jsonb)", apollo=json.dumps(val))
@@ -195,6 +242,10 @@ Find the column metadata returned from a query:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("create temporary table quark (id serial, name text)")
 []
 >>> for name in ('Up', 'Down'):
@@ -230,6 +281,10 @@ Here's an example:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("LISTEN aliens_landed")
 []
 >>> con.run("NOTIFY aliens_landed")
@@ -248,6 +303,10 @@ You might think that the following would work, but in fact it fails:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("SELECT 'silo 1' LIMIT :lim", lim='ALL')
 Traceback (most recent call last):
 pg8000.exceptions.DatabaseError: ...
@@ -259,6 +318,10 @@ that you can send `null` as an alternative to `ALL`, which does work:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("SELECT 'silo 1' LIMIT :lim", lim=None)
 [['silo 1']]
 
@@ -272,6 +335,10 @@ like it:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("SELECT 'silo 1' WHERE 'a' IN :v", v=('a', 'b'))
 Traceback (most recent call last):
 pg8000.exceptions.DatabaseError: ...
@@ -284,6 +351,10 @@ function:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("SELECT 'silo 1' WHERE 'a' IN (SELECT unnest(:v))", v=('a', 'b'))
 [['silo 1']]
 
@@ -300,6 +371,10 @@ for example the following fails:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("CREATE USER juan WITH PASSWORD :password", password='quail')
 Traceback (most recent call last):
 pg8000.exceptions.DatabaseError: ...
@@ -320,9 +395,12 @@ using the CSV format:
 [source,python]
 ----
 
+>>> import pg8000.native
 >>> from io import BytesIO
 >>> import csv
 >>> import codecs
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
 >>> # Create a CSV file in memory
 >>>
@@ -367,6 +445,10 @@ can run them as expected:
 [source,python]
 ----
 
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> statements = "SELECT 5; SELECT 'Erich Fromm';"
 >>>
 >>> con.run(statements)
@@ -386,6 +468,10 @@ https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENT
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("select 'hello' as "My Column"")
 Traceback (most recent call last):
 SyntaxError: invalid syntax
@@ -399,6 +485,10 @@ to delimit the string instead:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run('''select 'hello' as "My Column"''')
 [['hello']]
 
@@ -419,7 +509,10 @@ register an adapter:
 
 [source,python]
 ----
-
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> class MyInterval(str):
 ...     pass
 >>>
@@ -452,7 +545,10 @@ we'd have to register an adapter:
 
 [source,python]
 ----
-
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> class MyInterval(str):
 ...     pass
 >>>
@@ -477,7 +573,10 @@ message from the server:
 
 [source,python]
 ----
-
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("SELECT :v IS NULL", v=None)
 Traceback (most recent call last):
 pg8000.exceptions.DatabaseError: {'S': 'ERROR', 'V': 'ERROR', 'C': '42P18', 'M': 'could not determine data type of parameter $1', 'F': 'postgres.c', 'L': '...', 'R': 'exec_parse_message'}
@@ -488,6 +587,10 @@ One way of solving it is to put a `cast` in the SQL:
 
 [source,python]
 ----
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 
 >>> con.run("SELECT cast(:v as TIMESTAMP) IS NULL", v=None)
 [[True]]
@@ -499,7 +602,10 @@ parameter:
 
 [source,python]
 ----
-
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> con.run("SELECT :v IS NULL", v=None, types={'v': pg8000.native.TIMESTAMP})
 [[True]]
 
@@ -515,7 +621,10 @@ executed repeatedly. Here's an example:
 
 [source,python]
 ----
-
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
 >>> # Create the prepared statement
 >>> ps = con.prepare("SELECT cast(:v as varchar)")
 >>>
@@ -539,8 +648,7 @@ You might want to use the current user as the database username for example:
 
 [source,python]
 ----
-
->>> import pg8000
+>>> import pg8000.native
 >>> import getpass
 >>>
 >>> # Connect to the database with current user name
@@ -558,8 +666,7 @@ that libpq uses]:
 
 [source,python]
 ----
-
->>> import pg8000
+>>> import pg8000.native
 >>> from os import environ
 >>>
 >>> username = environ.get('PGUSER', 'postgres')
@@ -683,7 +790,10 @@ for manipulating BLOBs. Here's an example:
 
 [source,python]
 ----
-
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection(username, password="cpsnow")
+>>>
 >>> # Create a BLOB and get its oid
 >>> data = b'hello'
 >>> res = con.run("SELECT lo_from_bytea(0, :data)", data=data)
@@ -727,7 +837,7 @@ query the table:
 
 [source,python]
 ----
->>> import pg8000
+>>> import pg8000.dbapi
 >>>
 >>> conn = pg8000.dbapi.connect(user="postgres", password="cpsnow")
 >>> cursor = conn.cursor()
@@ -752,6 +862,11 @@ Another query, using some PostgreSQL functions:
 
 [source,python]
 ----
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cursor = con.cursor()
+>>>
 >>> cursor.execute("SELECT extract(millennium from now())")
 >>> cursor.fetchone()
 [3.0]
@@ -766,6 +881,11 @@ A query that returns the PostgreSQL interval type:
 [source,python]
 ----
 >>> import datetime
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cursor = con.cursor()
+>>>
 >>> cursor.execute("SELECT timestamp '2013-12-01 16:06' - %s",
 ... (datetime.date(1980, 4, 27),))
 >>> cursor.fetchone()
@@ -782,6 +902,11 @@ point] type:
 
 [source,python]
 ----
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cursor = con.cursor()
+>>>
 >>> cursor.execute("SELECT cast(%s as point)", ('(2.3,1)',))
 >>> cursor.fetchone()
 ['(2.3,1)']
@@ -796,8 +921,12 @@ the 'numeric' parameter style:
 
 [source,python]
 ----
+>>> import pg8000.dbapi
+>>>
 >>> pg8000.dbapi.paramstyle = "numeric"
->>> cursor = conn.cursor()
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cursor = con.cursor()
+>>>
 >>> cursor.execute("SELECT array_prepend(:1, :2)", ( 500, [1, 2, 3, 4], ))
 >>> cursor.fetchone()
 [[500, 1, 2, 3, 4]]
@@ -814,8 +943,12 @@ turned on by using the autocommit property of the connection.
 
 [source,python]
 ----
->>> conn.autocommit = True
->>> cur = conn.cursor()
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> con.autocommit = True
+>>>
+>>> cur = con.cursor()
 >>> cur.execute("vacuum")
 >>> conn.autocommit = False
 >>> cur.close()
@@ -834,7 +967,10 @@ encoding is by using an SQL command. For example:
 
 [source,python]
 ----
->>> cur = conn.cursor()
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cur = con.cursor()
 >>> cur.execute("SET CLIENT_ENCODING TO 'UTF8'")
 >>> cur.execute("SHOW CLIENT_ENCODING")
 >>> cur.fetchone()
@@ -852,7 +988,10 @@ example:
 [source,python]
 ----
 >>> import json
->>> cur = conn.cursor()
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cur = con.cursor()
 >>> val = ['Apollo 11 Cave', True, 26.003]
 >>> cur.execute("SELECT cast(%s as json)", (json.dumps(val),))
 >>> cur.fetchone()
@@ -896,11 +1035,14 @@ Here's an example:
 
 [source,python]
 ----
->>> cur = conn.cursor()
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cur = con.cursor()
 >>> cur.execute("LISTEN aliens_landed")
 >>> cur.execute("NOTIFY aliens_landed")
->>> conn.commit()
->>> conn.notifications[0][1]
+>>> con.commit()
+>>> con.notifications[0][1]
 'aliens_landed'
 
 ----
@@ -913,8 +1055,11 @@ can be used to copy from and to a file or file-like object:
 
 [source,python]
 ----
-
 >>> from io import BytesIO
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cur = con.cursor()
 >>> #
 >>> # COPY from a stream to a table
 >>> #
@@ -944,8 +1089,10 @@ server-side cursors. For example:
 
 [source,python]
 ----
-
->>> cur = conn.cursor()
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cur = con.cursor()
 >>> cur.execute("START TRANSACTION")
 >>> cur.execute(
 ...    "DECLARE c SCROLL CURSOR FOR SELECT * FROM generate_series(1, 100)")
@@ -970,7 +1117,11 @@ for manipulating BLOBs. Here's an example:
 
 [source,python]
 ----
-
+>>> import pg8000.dbapi
+>>>
+>>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cur = con.cursor()
+>>>
 >>> # Create a BLOB and get its oid
 >>> data = b'hello'
 >>> cur = conn.cursor()
