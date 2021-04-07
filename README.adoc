@@ -2301,6 +2301,13 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.19.2, 2021-04-07
+
+* In version 1.19.1 we tried to parse the PostgreSQL `MONEY` type to return a `Decimal`
+  but since the format of `MONEY` is locale-dependent this is too difficult and
+  unreliable and so now we revert to returning a `str`.
+
+
 === Version 1.19.1, 2021-04-03
 
 * Fix bug where setinputsizes() was only used for the first parameter set of
