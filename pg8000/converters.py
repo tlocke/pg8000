@@ -155,14 +155,6 @@ def null_out(v):
     return None
 
 
-def money_in(data):
-    return data[1:]
-
-
-def money_out(m):
-    return str(m)
-
-
 def numeric_in(data):
     return Decimal(data)
 
@@ -525,7 +517,6 @@ inet_array_in = _array_in(inet_in)
 int_array_in = _array_in(int)
 json_array_in = _array_in(json_in)
 float_array_in = _array_in(float)
-money_array_in = _array_in(money_in)
 numeric_array_in = _array_in(numeric_in)
 string_array_in = _array_in(string_in)
 timestamp_array_in = _array_in(timestamp_in)
@@ -667,7 +658,6 @@ float_array_out = _array_out(float_out)
 inet_array_out = _array_out(inet_out)
 int_array_out = _array_out(int_out)
 numeric_array_out = _array_out(numeric_out)
-money_array_out = _array_out(money_out)
 timestamp_array_out = _array_out(timestamp_out)
 timestamptz_array_out = _array_out(timestamptz_out)
 uuid_array_out = _array_out(uuid_out)
@@ -747,7 +737,7 @@ PY_TYPES = {
     INTEGER_ARRAY: (INTEGER_ARRAY, int_array_out),  # int4[]
     JSON_ARRAY: (JSON_ARRAY, json_array_out),  # json[]
     JSONB_ARRAY: (JSONB_ARRAY, json_array_out),  # jsonb[]
-    MONEY: (MONEY, money_out),  # money[]
+    MONEY: (MONEY, string_array_out),  # money[]
     MONEY_ARRAY: (MONEY_ARRAY, numeric_array_out),  # money[]
     NUMERIC_ARRAY: (NUMERIC_ARRAY, numeric_array_out),  # numeric[]
     SMALLINT: (SMALLINT, int_out),  # int2
@@ -804,8 +794,8 @@ PG_TYPES = {
     JSONB: json_in,  # jsonb
     JSONB_ARRAY: json_array_in,  # jsonb[]
     MACADDR: string_in,  # MACADDR type
-    MONEY: money_in,  # money
-    MONEY_ARRAY: money_array_in,  # money[]
+    MONEY: string_in,  # money
+    MONEY_ARRAY: string_array_in,  # money[]
     NAME: string_in,  # name
     NAME_ARRAY: string_array_in,  # name[]
     NUMERIC: numeric_in,  # numeric

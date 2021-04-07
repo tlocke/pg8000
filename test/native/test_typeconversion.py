@@ -452,6 +452,14 @@ def test_float8_array_out(con):
     assert f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]]
 
 
+CURRENCIES = {
+    "en_GB.UTF-8": "£",
+    "C.UTF-8": "$",
+}
+LANG = os.environ["LANG"]
+CURRENCY = CURRENCIES[LANG]
+
+
 @pytest.mark.parametrize(
     "test_input,oid",
     [
@@ -481,7 +489,7 @@ def test_float8_array_out(con):
         [[1.1, 2.2, 3.3], FLOAT_ARRAY],  # float8[]
         [[Decimal("1.1"), None, Decimal("3.3")], None],  # numeric[]
         [[Decimal("1.1"), None, Decimal("3.3")], NUMERIC_ARRAY],  # numeric[]
-        [["1.10", None, "3.30"], MONEY_ARRAY],  # money[]
+        [[f"{CURRENCY}1.10", None, f"{CURRENCY}3.30"], MONEY_ARRAY],  # money[]
         [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], None],  # uuid[]
         [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], UUID_ARRAY],  # uuid[]
         [
@@ -518,7 +526,8 @@ def test_float8_array_out(con):
         [None, BOOLEAN],  # null (needs a type on PostgreSQL 9.6)
         [Decimal("1.1"), None],  # numeric
         [Decimal("1.1"), NUMERIC],  # numeric
-        ["1.10", MONEY],  # money
+        [f"{CURRENCY}1.10", MONEY],  # money
+        [f"-{CURRENCY}1.10", MONEY],  # money
         [1.756e-12, None],  # float8
         [float("inf"), None],  # float8
         ["hello world", None],  # unknown
