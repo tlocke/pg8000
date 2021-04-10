@@ -14,8 +14,16 @@ from datetime import (
 from enum import Enum
 from json import dumps
 
-import pg8000
-from pg8000 import converters
+import pg8000.converters
+from pg8000 import (
+    Binary,
+    INTERVAL,
+    PGInterval,
+    ProgrammingError,
+    pginterval_in,
+    pginterval_out,
+    timedelta_in,
+)
 
 import pytest
 
@@ -64,7 +72,7 @@ def test_null_roundtrip(con):
         retval = con.run("SELECT * FROM TestNullWrite")
         assert retval[0] == [None, None, None]
 
-        with pytest.raises(pg8000.ProgrammingError):
+        with pytest.raises(ProgrammingError):
             con.run("SELECT :v as f1", v=None)
     else:
         retval = con.run("SELECT :v", v=None)
@@ -175,7 +183,7 @@ def test_int_roundtrip(con):
 
 def test_bytea_roundtrip(con):
     retval = con.run(
-        "SELECT cast(:v as bytea)", v=pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
+        "SELECT cast(:v as bytea)", v=Binary(b"\x00\x01\x02\x03\x02\x01\x00")
     )
     assert retval[0][0] == b"\x00\x01\x02\x03\x02\x01\x00"
 
@@ -218,21 +226,22 @@ def test_timestamp_roundtrip(is_java, con):
 
 
 def test_interval_repr():
-    v = pg8000.PGInterval(microseconds=123456789, days=2, months=24)
+    v = PGInterval(microseconds=123456789, days=2, months=24)
     assert repr(v) == "<PGInterval 24 months 2 days 123456789 microseconds>"
 
 
 def test_interval_in_1_year():
-    assert converters.pginterval_in("1 year") == pg8000.PGInterval(years=1)
+    assert pginterval_in("1 year") == PGInterval(years=1)
 
 
 def test_timedelta_in_2_months():
-    assert converters.timedelta_in("2 hours")
+    assert timedelta_in("2 hours")
 
 
 def test_interval_roundtrip(con):
-    con.register_in_adapter(1186, converters.pginterval_in)
-    v = pg8000.PGInterval(microseconds=123456789, days=2, months=24)
+    con.register_in_adapter(INTERVAL, pginterval_in)
+    con.register_out_adapter(PGInterval, INTERVAL, pginterval_out)
+    v = PGInterval(microseconds=123456789, days=2, months=24)
     retval = con.run("SELECT cast(:v as interval)", v=v)
     assert retval[0][0] == v
 
@@ -480,11 +489,11 @@ def test_text_out(cursor):
 
 
 def test_interval_in(con):
-    con.register_in_adapter(1186, pg8000.converters.pginterval_in)
+    con.register_in_adapter(INTERVAL, pginterval_in)
     retval = con.run(
         "SELECT '1 month 16 days 12 hours 32 minutes 64 seconds'::interval"
     )
-    expected_value = pg8000.PGInterval(
+    expected_value = PGInterval(
         microseconds=(12 * 60 * 60 * 1000 * 1000)
         + (32 * 60 * 1000 * 1000)
         + (64 * 1000 * 1000),

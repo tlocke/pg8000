@@ -3,6 +3,7 @@ from decimal import Decimal
 from ipaddress import IPv4Address, IPv4Network
 
 from pg8000.converters import (
+    array_string_escape,
     BIGINT_ARRAY,
     BOOLEAN_ARRAY,
     BYTES_ARRAY,
@@ -18,6 +19,9 @@ from pg8000.converters import (
     numeric_out,
     string_in,
     string_out,
+    PGInterval,
+    pg_interval_in,
+    interval_in,
 )
 
 import pytest
@@ -99,3 +103,27 @@ def test_string_out(value):
 )
 def test_string_in(value):
     assert string_in(value) == value
+
+
+def test_pg_interval_repr():
+    v = PGInterval(microseconds=123456789, days=2, months=24)
+    assert repr(v) == "<PGInterval 24 months 2 days 123456789 microseconds>"
+
+
+def test_pg_interval_str():
+    v = PGInterval(microseconds=123456789, days=2, months=24)
+    assert str(v) == "24 months 2 days 123456789 microseconds"
+
+
+def test_pg_interval_in_1_year():
+    assert pg_interval_in("1 year") == PGInterval(years=1)
+
+
+def test_interval_in_2_months():
+    assert interval_in("2 hours")
+
+
+def test_array_string_escape():
+    v = '"'
+    res = array_string_escape(v)
+    assert res == '"\\""'

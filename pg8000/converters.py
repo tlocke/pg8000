@@ -45,6 +45,7 @@ INT2VECTOR = 22
 INTEGER = 23
 INTEGER_ARRAY = 1007
 INTERVAL = 1186
+INTERVAL_ARRAY = 1187
 OID = 26
 JSON = 114
 JSON_ARRAY = 199
@@ -69,7 +70,7 @@ STRING = 1043
 TEXT = 25
 TEXT_ARRAY = 1009
 TIME = 1083
-TIMEDELTA = 1186
+TIME_ARRAY = 1183
 TIMESTAMP = 1114
 TIMESTAMP_ARRAY = 1115
 TIMESTAMPTZ = 1184
@@ -143,52 +144,7 @@ def int_out(v):
     return str(v)
 
 
-def json_in(data):
-    return loads(data)
-
-
-def json_out(v):
-    return dumps(v)
-
-
-def null_out(v):
-    return None
-
-
-def numeric_in(data):
-    return Decimal(data)
-
-
-def numeric_out(d):
-    return str(d)
-
-
-def pginterval_in(data):
-    return PGInterval.from_str(data)
-
-
-def pginterval_out(v):
-    return str(v)
-
-
-def string_in(data):
-    return data
-
-
-def string_out(v):
-    return v
-
-
-def time_in(data):
-    pattern = "%H:%M:%S.%f" if "." in data else "%H:%M:%S"
-    return Datetime.strptime(data, pattern).time()
-
-
-def time_out(v):
-    return v.isoformat()
-
-
-def timedelta_in(data):
+def interval_in(data):
     t = {}
 
     curr_val = None
@@ -210,7 +166,7 @@ def timedelta_in(data):
     return Timedelta(**t)
 
 
-def timedelta_out(v):
+def interval_out(v):
     return " ".join(
         (
             str(v.days),
@@ -221,6 +177,51 @@ def timedelta_out(v):
             "microseconds",
         )
     )
+
+
+def json_in(data):
+    return loads(data)
+
+
+def json_out(v):
+    return dumps(v)
+
+
+def null_out(v):
+    return None
+
+
+def numeric_in(data):
+    return Decimal(data)
+
+
+def numeric_out(d):
+    return str(d)
+
+
+def pg_interval_in(data):
+    return PGInterval.from_str(data)
+
+
+def pg_interval_out(v):
+    return str(v)
+
+
+def string_in(data):
+    return data
+
+
+def string_out(v):
+    return v
+
+
+def time_in(data):
+    pattern = "%H:%M:%S.%f" if "." in data else "%H:%M:%S"
+    return Datetime.strptime(data, pattern).time()
+
+
+def time_out(v):
+    return v.isoformat()
 
 
 def timestamp_in(data):
@@ -515,10 +516,12 @@ cidr_array_in = _array_in(cidr_in)
 date_array_in = _array_in(date_in)
 inet_array_in = _array_in(inet_in)
 int_array_in = _array_in(int)
+interval_array_in = _array_in(interval_in)
 json_array_in = _array_in(json_in)
 float_array_in = _array_in(float)
 numeric_array_in = _array_in(numeric_in)
 string_array_in = _array_in(string_in)
+time_array_in = _array_in(time_in)
 timestamp_array_in = _array_in(timestamp_in)
 timestamptz_array_in = _array_in(timestamptz_in)
 uuid_array_in = _array_in(uuid_in)
@@ -551,6 +554,7 @@ PG_ARRAY_TYPES = {
     DATE: DATE_ARRAY,  # date[]
     FLOAT: FLOAT_ARRAY,  # float8[]
     INET: INET_ARRAY,  # inet[]
+    INTERVAL: INTERVAL_ARRAY,  # interval[]
     INTEGER: INTEGER_ARRAY,  # int4[]
     JSON: JSON_ARRAY,  # json[]
     JSONB: JSONB_ARRAY,  # jsonb[]
@@ -558,6 +562,7 @@ PG_ARRAY_TYPES = {
     NUMERIC: NUMERIC_ARRAY,  # numeric[]
     SMALLINT: SMALLINT_ARRAY,  # int2[]
     TEXT: TEXT_ARRAY,  # text[]
+    TIME: TIME_ARRAY,  # time[]
     TIMESTAMP: TIMESTAMP_ARRAY,  # timestamp[]
     TIMESTAMPTZ: TIMESTAMPTZ_ARRAY,  # timestamptz[]
     UUID_TYPE: UUID_ARRAY,  # uuid[]
@@ -657,7 +662,9 @@ date_array_out = _array_out(date_out)
 float_array_out = _array_out(float_out)
 inet_array_out = _array_out(inet_out)
 int_array_out = _array_out(int_out)
+interval_array_out = _array_out(interval_out)
 numeric_array_out = _array_out(numeric_out)
+time_array_out = _array_out(time_out)
 timestamp_array_out = _array_out(timestamp_out)
 timestamptz_array_out = _array_out(timestamptz_out)
 uuid_array_out = _array_out(uuid_out)
@@ -735,6 +742,7 @@ PY_TYPES = {
     INET_ARRAY: (INET_ARRAY, inet_array_out),  # inet[]
     INTEGER: (INTEGER, int_out),  # int4
     INTEGER_ARRAY: (INTEGER_ARRAY, int_array_out),  # int4[]
+    INTERVAL_ARRAY: (INTERVAL_ARRAY, interval_array_out),  # interval[]
     JSON_ARRAY: (JSON_ARRAY, json_array_out),  # json[]
     JSONB_ARRAY: (JSONB_ARRAY, json_array_out),  # jsonb[]
     MONEY: (MONEY, string_array_out),  # money[]
@@ -742,6 +750,7 @@ PY_TYPES = {
     NUMERIC_ARRAY: (NUMERIC_ARRAY, numeric_array_out),  # numeric[]
     SMALLINT: (SMALLINT, int_out),  # int2
     SMALLINT_ARRAY: (SMALLINT_ARRAY, int_array_out),  # int2[]
+    TIME_ARRAY: (TIME_ARRAY, time_array_out),  # time[]
     TIMESTAMP: (TIMESTAMP, timestamp_out),  # timestamp
     TIMESTAMP_ARRAY: (TIMESTAMP_ARRAY, timestamp_array_out),  # timestamp[]
     TIMESTAMPTZ: (TIMESTAMPTZ, timestamptz_out),  # timestamptz
@@ -755,9 +764,9 @@ PY_TYPES = {
     IPv6Address: (INET, inet_out),  # inet
     IPv4Network: (INET, inet_out),  # inet
     IPv6Network: (INET, inet_out),  # inet
-    PGInterval: (1186, pginterval_out),  # interval
+    PGInterval: (1186, interval_out),  # interval
     Time: (TIME, time_out),  # time
-    Timedelta: (1186, timedelta_out),  # interval
+    Timedelta: (1186, interval_out),  # interval
     UUID: (UUID_TYPE, uuid_out),  # uuid
     bool: (BOOLEAN, bool_out),  # bool
     bytearray: (BYTES, bytes_out),  # bytea
@@ -801,6 +810,8 @@ PG_TYPES = {
     NUMERIC: numeric_in,  # numeric
     NUMERIC_ARRAY: numeric_array_in,  # numeric[]
     OID: int,  # oid
+    INTERVAL: interval_in,  # interval
+    INTERVAL_ARRAY: interval_array_in,  # interval[]
     REAL: float,  # float4
     REAL_ARRAY: float_array_in,  # float4[]
     SMALLINT: int,  # int2
@@ -809,7 +820,8 @@ PG_TYPES = {
     TEXT: string_in,  # text
     TEXT_ARRAY: string_array_in,  # text[]
     TIME: time_in,  # time
-    TIMEDELTA: timedelta_in,  # interval
+    TIME_ARRAY: time_array_in,  # time[]
+    INTERVAL: interval_in,  # interval
     TIMESTAMP: timestamp_in,  # timestamp
     TIMESTAMP_ARRAY: timestamp_array_in,  # timestamp
     TIMESTAMPTZ: timestamptz_in,  # timestamptz

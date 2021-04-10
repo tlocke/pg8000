@@ -32,7 +32,6 @@ from pg8000.converters import (
     TEXT,
     TEXT_ARRAY,
     TIME,
-    TIMEDELTA,
     TIMESTAMP,
     TIMESTAMPTZ,
     UNKNOWN,
@@ -40,7 +39,10 @@ from pg8000.converters import (
     VARCHAR,
     VARCHAR_ARRAY,
     XID,
+    interval_in as timedelta_in,
     make_params,
+    pg_interval_in as pginterval_in,
+    pg_interval_out as pginterval_out,
 )
 from pg8000.core import CoreConnection
 from pg8000.dbapi import (
@@ -103,6 +105,7 @@ DATETIME = TIMESTAMP
 NUMBER = DECIMAL = NUMERIC
 DECIMAL_ARRAY = NUMERIC_ARRAY
 ROWID = OID
+TIMEDELTA = INTERVAL
 
 
 def connect(
@@ -799,4 +802,7 @@ __all__ = [
     VARCHAR,
     VARCHAR_ARRAY,
     XID,
+    pginterval_in,
+    pginterval_out,
+    timedelta_in,
 ]

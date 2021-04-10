@@ -1,20 +1,18 @@
 import os
 import time
 from collections import OrderedDict
-from datetime import (
-    date as Date,
-    datetime as Datetime,
-    time as Time,
-    timedelta as Timedelta,
-    timezone as Timezone,
-)
+from datetime import date as Date
+from datetime import datetime as Datetime
+from datetime import time as Time
+from datetime import timedelta as Timedelta
+from datetime import timezone as Timezone
 from decimal import Decimal
 from enum import Enum
 from ipaddress import IPv4Address, IPv4Network
 from json import dumps
 from uuid import UUID
 
-import pg8000
+
 from pg8000.converters import (
     BIGINT,
     BIGINT_ARRAY,
@@ -24,6 +22,7 @@ from pg8000.converters import (
     FLOAT_ARRAY,
     INET,
     INTEGER_ARRAY,
+    INTERVAL,
     JSON,
     JSONB,
     JSONB_ARRAY,
@@ -32,6 +31,7 @@ from pg8000.converters import (
     MONEY_ARRAY,
     NUMERIC,
     NUMERIC_ARRAY,
+    PGInterval,
     POINT,
     SMALLINT_ARRAY,
     TIME,
@@ -42,8 +42,9 @@ from pg8000.converters import (
     UUID_ARRAY,
     UUID_TYPE,
     XID,
-    pginterval_in,
-    timedelta_in,
+    pg_interval_in,
+    pg_interval_out,
+    time_in,
 )
 
 import pytest
@@ -132,22 +133,10 @@ def test_timestamp_roundtrip(is_java, con):
         time.tzset()
 
 
-def test_interval_repr():
-    v = pg8000.PGInterval(microseconds=123456789, days=2, months=24)
-    assert repr(v) == "<PGInterval 24 months 2 days 123456789 microseconds>"
-
-
-def test_interval_in_1_year():
-    assert pginterval_in("1 year") == pg8000.PGInterval(years=1)
-
-
-def test_timedelta_in_2_months():
-    assert timedelta_in("2 hours")
-
-
 def test_interval_roundtrip(con):
-    con.register_in_adapter(1186, pginterval_in)
-    v = pg8000.PGInterval(microseconds=123456789, days=2, months=24)
+    con.register_in_adapter(INTERVAL, pg_interval_in)
+    con.register_out_adapter(PGInterval, INTERVAL, pg_interval_out)
+    v = PGInterval(microseconds=123456789, days=2, months=24)
     retval = con.run("SELECT cast(:v as interval)", v=v)
     assert retval[0][0] == v
 
@@ -350,12 +339,12 @@ def test_text_out(con):
     assert retval[0][0] == "hello"
 
 
-def test_interval_in(con):
-    con.register_in_adapter(1186, pg8000.converters.pginterval_in)
+def test_pg_interval_in(con):
+    con.register_in_adapter(1186, pg_interval_in)
     retval = con.run(
-        "SELECT '1 month 16 days 12 hours 32 minutes 64 seconds'::interval"
+        "SELECT CAST('1 month 16 days 12 hours 32 minutes 64 seconds' as INTERVAL)"
     )
-    expected_value = pg8000.PGInterval(
+    expected_value = PGInterval(
         microseconds=(12 * 60 * 60 * 1000 * 1000)
         + (32 * 60 * 1000 * 1000)
         + (64 * 1000 * 1000),
@@ -564,6 +553,59 @@ def test_roundtrip(con, pg_version, test_input, oid):
 
 
 @pytest.mark.parametrize(
+    "test_input,required_version",
+    [
+        [[True, False, None], None],  # bool[]
+        [[IPv4Address("192.168.0.1")], None],  # inet[]
+        [[Date(2021, 3, 1)], None],  # date[]
+        [[Datetime(2001, 2, 3, 4, 5, 6)], None],  # timestamp[]
+        [[Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], None],  # timestamptz[]
+        [[Time(4, 5, 6)], None],  # time[]
+        [[Timedelta(seconds=30)], None],  # interval[]
+        [[{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}], None],  # jsonb[]
+        [[b"\x00\x01\x02\x03\x02\x01\x00"], None],  # bytea[]
+        [[Decimal("1.1"), None, Decimal("3.3")], None],  # numeric[]
+        [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], None],  # uuid[]
+        [  # varchar[]
+            [
+                "Hello!",
+                "World!",
+                "abcdefghijklmnopqrstuvwxyz",
+                "",
+                "A bunch of random characters:",
+                " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t",
+                None,
+            ],
+            None,
+        ],
+        [Timedelta(seconds=30), None],  # interval
+        [Time(4, 5, 6), None],  # time
+        [Date(2001, 2, 3), None],  # date
+        [Datetime(2001, 2, 3, 4, 5, 6), None],  # timestamp
+        [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), None],  # timestamptz
+        [True, 10],  # bool
+        [Decimal("1.1"), None],  # numeric
+        [1.756e-12, None],  # float8
+        [float("inf"), None],  # float8
+        ["hello world", None],  # unknown
+        ["hello \u0173 world", None],  # unknown
+        [50000000000000, None],  # int8
+        [b"\x00\x01\x02\x03\x02\x01\x00", None],  # bytea
+        [bytearray(b"\x00\x01\x02\x03\x02\x01\x00"), None],  # bytea
+        [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), None],  # uuid
+        [IPv4Network("192.168.0.0/28"), None],  # inet
+        [IPv4Address("192.168.0.1"), None],  # inet
+    ],
+)
+def test_roundtrip_bare(con, pg_version, test_input, required_version):
+    if required_version is not None and pg_version > required_version:
+        return
+
+    retval = con.run("SELECT :v", v=test_input)
+    assert retval[0][0] == test_input
+
+
+@pytest.mark.parametrize(
     "test_input,expected",
     [
         ("SELECT CAST('{a,b,c}' AS TEXT[])", ["a", "b", "c"]),
@@ -583,12 +625,6 @@ def test_array_in(con, test_input, expected):
 def test_numeric_array_out(con):
     res = con.run("SELECT '{1.1,2.2,3.3}'::numeric[] AS f1")
     assert res[0][0] == [Decimal("1.1"), Decimal("2.2"), Decimal("3.3")]
-
-
-def test_array_string_escape():
-    v = '"'
-    res = pg8000.converters.array_string_escape(v)
-    assert res == '"\\""'
 
 
 def test_empty_array(con):
@@ -653,5 +689,5 @@ def test_jsonb_access_path(con):
 
 
 def test_time_in():
-    actual = pg8000.converters.time_in("12:57:18.000396")
+    actual = time_in("12:57:18.000396")
     assert actual == Time(12, 57, 18, 396)

@@ -58,6 +58,9 @@ from pg8000.legacy import (
     VARCHAR_ARRAY,
     Warning,
     XID,
+    pginterval_in,
+    pginterval_out,
+    timedelta_in,
 )
 
 from ._version import get_versions
@@ -208,4 +211,7 @@ __all__ = [
     VARCHAR,
     VARCHAR_ARRAY,
     XID,
+    pginterval_in,
+    pginterval_out,
+    timedelta_in,
 ]
