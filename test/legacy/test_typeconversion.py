@@ -14,6 +14,10 @@ from datetime import (
 from enum import Enum
 from json import dumps
 
+import pytest
+
+import pytz
+
 import pg8000.converters
 from pg8000 import (
     Binary,
@@ -24,10 +28,6 @@ from pg8000 import (
     pginterval_out,
     timedelta_in,
 )
-
-import pytest
-
-import pytz
 
 
 # Type conversion tests

@@ -1,9 +1,9 @@
 import sys
 from os import environ
 
-import pg8000.dbapi
-
 import pytest
+
+import pg8000.dbapi
 
 
 @pytest.fixture(scope="class")

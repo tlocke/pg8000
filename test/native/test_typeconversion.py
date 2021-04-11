@@ -1,17 +1,22 @@
 import os
 import time
 from collections import OrderedDict
-from datetime import date as Date
-from datetime import datetime as Datetime
-from datetime import time as Time
-from datetime import timedelta as Timedelta
-from datetime import timezone as Timezone
+from datetime import (
+    date as Date,
+    datetime as Datetime,
+    time as Time,
+    timedelta as Timedelta,
+    timezone as Timezone,
+)
 from decimal import Decimal
 from enum import Enum
 from ipaddress import IPv4Address, IPv4Network
 from json import dumps
 from uuid import UUID
 
+import pytest
+
+import pytz
 
 from pg8000.converters import (
     BIGINT,
@@ -46,10 +51,6 @@ from pg8000.converters import (
     pg_interval_out,
     time_in,
 )
-
-import pytest
-
-import pytz
 
 
 def test_str_then_int(con):

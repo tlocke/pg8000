@@ -6,6 +6,8 @@ from hashlib import md5
 from itertools import count
 from struct import Struct
 
+import scramp
+
 from pg8000.converters import (
     PG_PY_ENCODINGS,
     PG_TYPES,
@@ -14,8 +16,6 @@ from pg8000.converters import (
     string_in,
 )
 from pg8000.exceptions import DatabaseError, InterfaceError
-
-import scramp
 
 
 def pack_funcs(fmt):

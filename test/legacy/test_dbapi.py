@@ -2,9 +2,9 @@ import datetime
 import os
 import time
 
-import pg8000
-
 import pytest
+
+import pg8000
 
 
 @pytest.fixture

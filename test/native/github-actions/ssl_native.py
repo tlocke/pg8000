@@ -1,9 +1,9 @@
 import ssl
 import sys
 
-import pg8000.dbapi
-
 import pytest
+
+import pg8000.dbapi
 
 
 # Check if running in Jython

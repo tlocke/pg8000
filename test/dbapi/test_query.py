@@ -1,9 +1,9 @@
 from datetime import datetime as Datetime, timezone as Timezone
 
+import pytest
+
 import pg8000.dbapi
 from pg8000 import converters
-
-import pytest
 
 
 # Tests relating to the basic operation of the database driver, driven by the

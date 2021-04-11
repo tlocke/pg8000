@@ -174,12 +174,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install black pyflakes
+          pip install black flake8
           python setup.py install
       - name: Lint check
         run: |
           black --check .
-          pyflakes pg8000 test versioneer.py
+          flake8 --ignore E203,W503 --max-line-length 88 pg8000 test versioneer.py setup.py
           python setup.py check
       - name: Doctest
         env:

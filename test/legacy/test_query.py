@@ -1,10 +1,10 @@
 from datetime import datetime as Datetime, timezone as Timezone
 from warnings import filterwarnings
 
+import pytest
+
 import pg8000
 from pg8000 import converters
-
-import pytest
 
 
 # Tests relating to the basic operation of the database driver, driven by the

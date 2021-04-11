@@ -1,9 +1,9 @@
 import ssl
 import sys
 
-import pg8000.native
-
 import pytest
+
+import pg8000.native
 
 
 def test_gss(db_kwargs):

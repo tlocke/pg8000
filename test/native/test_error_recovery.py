@@ -1,9 +1,9 @@
 import datetime
 import warnings
 
-import pg8000
-
 import pytest
+
+import pg8000
 
 
 class PG8000TestException(Exception):

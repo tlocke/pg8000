@@ -1,6 +1,6 @@
-import pg8000.dbapi
-
 import pytest
+
+import pg8000.dbapi
 
 
 # This requires a line in pg_hba.conf that requires md5 for the database

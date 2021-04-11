@@ -1,6 +1,6 @@
-import pg8000.dbapi
-
 import pytest
+
+import pg8000.dbapi
 
 
 def test_gss(db_kwargs):

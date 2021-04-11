@@ -14,6 +14,10 @@ from datetime import (
 from enum import Enum
 from json import dumps
 
+import pytest
+
+import pytz
+
 import pg8000.dbapi
 from pg8000.converters import (
     INTERVAL,
@@ -22,10 +26,6 @@ from pg8000.converters import (
     pg_interval_in,
     pg_interval_out,
 )
-
-import pytest
-
-import pytz
 
 
 # Type conversion tests

@@ -1,9 +1,9 @@
 import sys
 from os import environ
 
-import pg8000
-
 import pytest
+
+import pg8000
 
 
 @pytest.fixture(scope="class")

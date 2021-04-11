@@ -2,8 +2,9 @@ from datetime import date as Date
 from decimal import Decimal
 from ipaddress import IPv4Address, IPv4Network
 
+import pytest
+
 from pg8000.converters import (
-    array_string_escape,
     BIGINT_ARRAY,
     BOOLEAN_ARRAY,
     BYTES_ARRAY,
@@ -11,20 +12,19 @@ from pg8000.converters import (
     FLOAT_ARRAY,
     INET_ARRAY,
     INTEGER_ARRAY,
+    PGInterval,
     SMALLINT_ARRAY,
     VARCHAR_ARRAY,
     array_inspect,
+    array_string_escape,
+    interval_in,
     null_out,
     numeric_in,
     numeric_out,
+    pg_interval_in,
     string_in,
     string_out,
-    PGInterval,
-    pg_interval_in,
-    interval_in,
 )
-
-import pytest
 
 
 def test_null_out():

@@ -1,9 +1,9 @@
 import time
 import warnings
 
-import pg8000
-
 import pytest
+
+import pg8000
 
 """ Python DB API 2.0 driver compliance unit test suite.
 

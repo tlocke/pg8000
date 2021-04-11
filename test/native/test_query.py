@@ -1,8 +1,8 @@
 from warnings import filterwarnings
 
-import pg8000.native
-
 import pytest
+
+import pg8000.native
 
 
 # Tests relating to the basic operation of the database driver, driven by the

@@ -1,6 +1,6 @@
-import pg8000.native
-
 import pytest
+
+import pg8000.native
 
 
 def testUnixSocketMissing():
