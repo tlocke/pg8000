@@ -453,12 +453,7 @@ CURRENCY = CURRENCIES[LANG]
 @pytest.mark.parametrize(
     "test_input,oid",
     [
-        [[True, False, None], None],  # bool[]
-        [[IPv4Address("192.168.0.1")], None],  # inet[]
-        [[Date(2021, 3, 1)], None],  # date[]
-        [[Datetime(2001, 2, 3, 4, 5, 6)], None],  # timestamp[]
         [[Datetime(2001, 2, 3, 4, 5, 6)], TIMESTAMP_ARRAY],  # timestamp[]
-        [[Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], None],  # timestamptz
         [  # timestamptz[]
             [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)],
             TIMESTAMPTZ_ARRAY,
@@ -469,31 +464,15 @@ CURRENCY = CURRENCIES[LANG]
             JSON,
         ],
         [{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}, JSONB],  # jsonb
-        [{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}, None],  # jsonb
-        [[b"\x00\x01\x02\x03\x02\x01\x00"], None],  # bytea[]
         [[IPv4Network("192.168.0.0/28")], CIDR_ARRAY],  # cidr[]
         [[1, 2, 3], SMALLINT_ARRAY],  # int2[]
         [[[1, 2], [3, 4]], SMALLINT_ARRAY],  # int2[] multidimensional
         [[1, None, 3], INTEGER_ARRAY],  # int4[] with None
         [[7000000000, 2, 3], BIGINT_ARRAY],  # int8[]
         [[1.1, 2.2, 3.3], FLOAT_ARRAY],  # float8[]
-        [[Decimal("1.1"), None, Decimal("3.3")], None],  # numeric[]
         [[Decimal("1.1"), None, Decimal("3.3")], NUMERIC_ARRAY],  # numeric[]
         [[f"{CURRENCY}1.10", None, f"{CURRENCY}3.30"], MONEY_ARRAY],  # money[]
-        [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], None],  # uuid[]
         [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], UUID_ARRAY],  # uuid[]
-        [
-            [
-                "Hello!",
-                "World!",
-                "abcdefghijklmnopqrstuvwxyz",
-                "",
-                "A bunch of random characters:",
-                " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t",
-                None,
-            ],
-            None,
-        ],
         [  # json[]
             [{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}],
             JSON_ARRAY,
@@ -502,35 +481,18 @@ CURRENCY = CURRENCIES[LANG]
             [{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}],
             JSONB_ARRAY,
         ],
-        [Timedelta(seconds=30), None],  # interval
-        [Time(4, 5, 6), None],  # time
         [Time(4, 5, 6), TIME],  # time
-        [Date(2001, 2, 3), None],  # date
         [Date(2001, 2, 3), DATE],  # date
-        [Datetime(2001, 2, 3, 4, 5, 6), None],  # timestamp
         [Datetime(2001, 2, 3, 4, 5, 6), TIMESTAMP],  # timestamp
-        [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), None],  # timestamptz
         [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), TIMESTAMPTZ],  # timestamptz
-        [True, None],  # bool
         [True, BOOLEAN],  # bool
-        [None, BOOLEAN],  # null (needs a type on PostgreSQL 9.6)
-        [Decimal("1.1"), None],  # numeric
+        [None, BOOLEAN],  # null
         [Decimal("1.1"), NUMERIC],  # numeric
         [f"{CURRENCY}1.10", MONEY],  # money
         [f"-{CURRENCY}1.10", MONEY],  # money
-        [1.756e-12, None],  # float8
-        [float("inf"), None],  # float8
-        ["hello world", None],  # unknown
-        ["hello \u0173 world", None],  # unknown
-        [50000000000000, None],  # int8
         [50000000000000, BIGINT],  # int8
-        [b"\x00\x01\x02\x03\x02\x01\x00", None],  # bytea
-        [bytearray(b"\x00\x01\x02\x03\x02\x01\x00"), None],  # bytea
-        [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), None],  # uuid
         [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), UUID_TYPE],  # uuid
-        [IPv4Network("192.168.0.0/28"), None],  # inet
         [IPv4Network("192.168.0.0/28"), INET],  # inet
-        [IPv4Address("192.168.0.1"), None],  # inet
         [IPv4Address("192.168.0.1"), INET],  # inet
         [86722, XID],  # xid
         ["infinity", TIMESTAMP],  # timestamp
@@ -539,18 +501,12 @@ CURRENCY = CURRENCIES[LANG]
         [{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}, JSONB],  # jsonb
     ],
 )
-def test_roundtrip(con, pg_version, test_input, oid):
-    if oid is None and pg_version < 10:
-        return
+def test_roundtrip_oid(con, test_input, oid):
 
-    types = None if oid is None else {"v": oid}
-
-    retval = con.run("SELECT :v", v=test_input, types=types)
+    retval = con.run("SELECT :v", v=test_input, types={"v": oid})
     assert retval[0][0] == test_input
 
-    if types is not None:
-        column_type_oid = con.columns[0]["type_oid"]
-        assert column_type_oid == types["v"]
+    assert oid == con.columns[0]["type_oid"]
 
 
 @pytest.mark.parametrize(
@@ -588,8 +544,8 @@ def test_roundtrip(con, pg_version, test_input, oid):
         [Decimal("1.1"), None],  # numeric
         [1.756e-12, None],  # float8
         [float("inf"), None],  # float8
-        ["hello world", None],  # unknown
-        ["hello \u0173 world", None],  # unknown
+        ["hello world", 10],  # unknown
+        ["hello \u0173 world", 10],  # varchar
         [50000000000000, None],  # int8
         [b"\x00\x01\x02\x03\x02\x01\x00", None],  # bytea
         [bytearray(b"\x00\x01\x02\x03\x02\x01\x00"), None],  # bytea
@@ -599,7 +555,7 @@ def test_roundtrip(con, pg_version, test_input, oid):
     ],
 )
 def test_roundtrip_bare(con, pg_version, test_input, required_version):
-    if required_version is not None and pg_version > required_version:
+    if required_version is not None and pg_version < required_version:
         return
 
     retval = con.run("SELECT :v", v=test_input)
