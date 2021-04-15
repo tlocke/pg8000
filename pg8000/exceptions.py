@@ -24,7 +24,6 @@ class InterfaceError(Error):
 
 class DatabaseError(Error):
     """Generic exception raised for errors that are related to the database.
-    This exception is currently never raised by pg8000.
 
     This exception is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.

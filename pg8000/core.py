@@ -187,9 +187,7 @@ class CoreConnection:
             elif v is None:
                 del init_params[k]
             elif not isinstance(v, (bytes, bytearray)):
-                raise InterfaceError(
-                    "The parameter " + k + " can't be of type " + str(type(v)) + "."
-                )
+                raise InterfaceError(f"The parameter {k} can't be of type {type(v)}.")
 
         self.user = init_params["user"]
 
@@ -211,16 +209,15 @@ class CoreConnection:
                 )
             except socket.error as e:
                 raise InterfaceError(
-                    f"Can't create a connection to host {host} and port "
-                    f"{port} (timeout is {timeout} and source_address is "
-                    f"{source_address})."
+                    f"Can't create a connection to host {host} and port {port} "
+                    f"(timeout is {timeout} and source_address is {source_address})."
                 ) from e
 
         elif unix_sock is not None:
             try:
                 if not hasattr(socket, "AF_UNIX"):
                     raise InterfaceError(
-                        "attempt to connect to unix socket on unsupported " "platform"
+                        "attempt to connect to unix socket on unsupported platform"
                     )
                 self._usock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self._usock.settimeout(timeout)
@@ -504,8 +501,8 @@ class CoreConnection:
         elif auth_code == 3:
             if self.password is None:
                 raise InterfaceError(
-                    "server requesting password authentication, but no "
-                    "password was provided"
+                    "server requesting password authentication, but no password was "
+                    "provided"
                 )
             self._send_message(PASSWORD, self.password + NULL_BYTE)
             self._flush()
@@ -520,8 +517,8 @@ class CoreConnection:
             salt = b"".join(cccc_unpack(data, 4))
             if self.password is None:
                 raise InterfaceError(
-                    "server requesting MD5 password authentication, but no "
-                    "password was provided"
+                    "server requesting MD5 password authentication, but no password "
+                    "was provided"
                 )
             pwd = b"md5" + md5(
                 md5(self.password + self.user).hexdigest().encode("ascii") + salt
