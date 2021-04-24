@@ -621,35 +621,19 @@ def array_inspect(array):
         oid = BOOLEAN
 
     elif isinstance(first_element, int):
-        int2_ok, int4_ok, int8_ok = True, True, True
+        int_oids = [SMALLINT, INTEGER, BIGINT, NUMERIC]
         for v in flattened:
             if v is None:
                 continue
 
             v_oid = int_oid(v)
-            if v_oid == SMALLINT:
-                continue
+            try:
+                oid_idx = int_oids.index(v_oid)
+                int_oids = int_oids[oid_idx:]
+            except ValueError:
+                pass
 
-            int2_ok = False
-
-            if v_oid == INTEGER:
-                continue
-
-            int4_ok = False
-
-            if v_oid == BIGINT:
-                continue
-
-            int8_ok = False
-
-        if int2_ok:
-            oid = SMALLINT  # INT2[]
-        elif int4_ok:
-            oid = INTEGER  # INT4[]
-        elif int8_ok:
-            oid = BIGINT  # INT8[]
-        else:
-            oid = NUMERIC  # NUMERIC[]
+        oid = int_oids[0]
 
     else:
         oid, _ = make_param(PY_TYPES, first_element)
