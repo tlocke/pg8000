@@ -629,9 +629,11 @@ def array_inspect(array):
             v_oid = int_oid(v)
             try:
                 oid_idx = int_oids.index(v_oid)
-                int_oids = int_oids[oid_idx:]
             except ValueError:
-                pass
+                continue
+
+            if oid_idx > 0:
+                int_oids = int_oids[oid_idx:]
 
         oid = int_oids[0]
 
