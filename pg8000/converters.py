@@ -577,26 +577,23 @@ def inspect_datetime(value):
         return PY_TYPES[TIMESTAMPTZ]
 
 
-min_int2, max_int2 = -(2 ** 15), 2 ** 15
-min_int4, max_int4 = -(2 ** 31), 2 ** 31
-min_int8, max_int8 = -(2 ** 63), 2 ** 63
+def int_oid(value):
+    oid = NUMERIC
+
+    if MIN_INT2 < value < MAX_INT2:
+        oid = SMALLINT
+
+    elif MIN_INT4 < value < MAX_INT4:
+        oid = INTEGER
+
+    elif MIN_INT8 < value < MAX_INT8:
+        oid = BIGINT
+
+    return oid
 
 
 def inspect_int(value):
-    if min_int2 < value < max_int2:
-        return PY_TYPES[SMALLINT]
-    if min_int4 < value < max_int4:
-        return PY_TYPES[INTEGER]
-    if min_int8 < value < max_int8:
-        return PY_TYPES[BIGINT]
-    return PY_TYPES[Decimal]
-
-
-def array_find_first_element(arr):
-    for v in array_flatten(arr):
-        if v is not None:
-            return v
-    return None
+    return PY_TYPES[int_oid(value)]
 
 
 def array_flatten(arr):
@@ -610,13 +607,50 @@ def array_flatten(arr):
 
 def array_inspect(array):
     first_element = None
-    for v in array_flatten(array):
+    flattened = list(array_flatten(array))
+
+    for v in flattened:
         if v is not None:
             first_element = v
             break
 
     if first_element is None:
         oid = VARCHAR
+
+    elif isinstance(first_element, bool):
+        oid = BOOLEAN
+
+    elif isinstance(first_element, int):
+        int2_ok, int4_ok, int8_ok = True, True, True
+        for v in flattened:
+            if v is None:
+                continue
+
+            v_oid = int_oid(v)
+            if v_oid == SMALLINT:
+                continue
+
+            int2_ok = False
+
+            if v_oid == INTEGER:
+                continue
+
+            int4_ok = False
+
+            if v_oid == BIGINT:
+                continue
+
+            int8_ok = False
+
+        if int2_ok:
+            oid = SMALLINT  # INT2[]
+        elif int4_ok:
+            oid = INTEGER  # INT4[]
+        elif int8_ok:
+            oid = BIGINT  # INT8[]
+        else:
+            oid = NUMERIC  # NUMERIC[]
+
     else:
         oid, _ = make_param(PY_TYPES, first_element)
 
@@ -746,6 +780,7 @@ PY_TYPES = {
     JSONB_ARRAY: (JSONB_ARRAY, json_array_out),  # jsonb[]
     MONEY: (MONEY, string_array_out),  # money[]
     MONEY_ARRAY: (MONEY_ARRAY, numeric_array_out),  # money[]
+    NUMERIC: (NUMERIC, numeric_out),  # numeric
     NUMERIC_ARRAY: (NUMERIC_ARRAY, numeric_array_out),  # numeric[]
     SMALLINT: (SMALLINT, int_out),  # int2
     SMALLINT_ARRAY: (SMALLINT_ARRAY, int_array_out),  # int2[]
@@ -757,7 +792,7 @@ PY_TYPES = {
     UUID_ARRAY: (UUID_ARRAY, uuid_array_out),  # uuid
     VARCHAR_ARRAY: (VARCHAR_ARRAY, string_array_out),  # varchar[]
     Date: (DATE, date_out),  # date
-    Decimal: (1700, numeric_out),  # numeric
+    Decimal: (NUMERIC, numeric_out),  # numeric
     Enum: (UNKNOWN, enum_out),  # enum
     IPv4Address: (INET, inet_out),  # inet
     IPv6Address: (INET, inet_out),  # inet

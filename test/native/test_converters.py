@@ -44,6 +44,7 @@ def test_null_out():
         [[[1, 2], [3, 4]], SMALLINT_ARRAY],  # int2[] multidimensional
         [[70000, 2, 3], INTEGER_ARRAY],  # int4[]
         [[7000000000, 2, 3], BIGINT_ARRAY],  # int8[]
+        [[0, 7000000000, 2], BIGINT_ARRAY],  # int8[]
         [[1.1, 2.2, 3.3], FLOAT_ARRAY],  # float8[]
         [["Veni", "vidi", "vici"], VARCHAR_ARRAY],  # varchar[]
     ],

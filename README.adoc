@@ -2301,6 +2301,12 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.19.3, 2021-04-24
+
+* The type (oid) of integer arrays wasn't being detected correctly. It was only going
+  by the first element, but it should look at all the items. That's fixed now.
+
+
 === Version 1.19.2, 2021-04-07
 
 * In version 1.19.1 we tried to parse the PostgreSQL `MONEY` type to return a `Decimal`
