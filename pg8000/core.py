@@ -713,7 +713,8 @@ class CoreConnection:
             self._write(code)
             self._write(i_pack(len(data) + 4))
             self._write(data)
-            self._write(FLUSH_MSG)
+            if (code != PASSWORD):
+                self._write(FLUSH_MSG)
         except ValueError as e:
             if str(e) == "write to closed file":
                 raise InterfaceError("connection is closed")
