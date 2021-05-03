@@ -82,7 +82,7 @@ def testUnicodeDatabaseName(db_kwargs):
 
 
 def testBytesDatabaseName(db_kwargs):
-    """ Should only raise an exception saying db doesn't exist """
+    """Should only raise an exception saying db doesn't exist"""
 
     db_kwargs["database"] = bytes("pg8000_sn\uFF6Fw", "utf8")
     with pytest.raises(pg8000.native.DatabaseError, match="3D000"):

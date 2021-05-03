@@ -614,9 +614,11 @@ class CoreConnection:
             val.extend(i_pack(0 if oid == -1 else oid))
 
         self._send_message(PARSE, val)
+        self._write(FLUSH_MSG)
 
     def send_DESCRIBE_STATEMENT(self, statement_name_bin):
         self._send_message(DESCRIBE, STATEMENT + statement_name_bin)
+        self._write(FLUSH_MSG)
 
     def send_QUERY(self, sql):
         data = sql.encode(self._client_encoding) + NULL_BYTE
@@ -713,7 +715,6 @@ class CoreConnection:
             self._write(code)
             self._write(i_pack(len(data) + 4))
             self._write(data)
-            self._write(FLUSH_MSG)
         except ValueError as e:
             if str(e) == "write to closed file":
                 raise InterfaceError("connection is closed")
@@ -754,6 +755,7 @@ class CoreConnection:
         retval.extend(h_pack(0))
 
         self._send_message(BIND, retval)
+        self._write(FLUSH_MSG)
 
     def send_EXECUTE(self):
         # Byte1('E') - Identifies the message as an execute message.
@@ -813,6 +815,7 @@ class CoreConnection:
     # String - The name of the item to close.
     def close_prepared_statement(self, statement_name_bin):
         self._send_message(CLOSE, STATEMENT + statement_name_bin)
+        self._write(FLUSH_MSG)
         self._write(SYNC_MSG)
         self._flush()
         context = Context()

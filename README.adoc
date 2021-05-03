@@ -2301,6 +2301,12 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.19.4, 2021-05-03
+
+* A FLUSH message should only be send after an extended-query message, but pg8000 was
+  sending it at other times as well. This affected AWS RDS Proxy.
+
+
 === Version 1.19.3, 2021-04-24
 
 * The type (oid) of integer arrays wasn't being detected correctly. It was only going
