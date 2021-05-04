@@ -1283,7 +1283,7 @@ ____
 pg8000 is designed to be used with one thread per connection.
 
 Pg8000 communicates with the database using the
-http://www.postgresql.org/docs/current/static/protocol.html[PostgreSQL
+https://www.postgresql.org/docs/current/protocol.html[PostgreSQL
 Frontend/Backend Protocol] (FEBE). By default, pg8000 uses unnamed prepared
 statements. It uses the Extended Query feature of the FEBE. So the steps are:
 

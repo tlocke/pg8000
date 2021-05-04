@@ -101,15 +101,15 @@ TERMINATE = b"X"
 CLOSE = b"C"
 
 
-def create_message(code, data=b""):
+def _create_message(code, data=b""):
     return code + i_pack(len(data) + 4) + data
 
 
-FLUSH_MSG = create_message(FLUSH)
-SYNC_MSG = create_message(SYNC)
-TERMINATE_MSG = create_message(TERMINATE)
-COPY_DONE_MSG = create_message(COPY_DONE)
-EXECUTE_MSG = create_message(EXECUTE, NULL_BYTE + i_pack(0))
+FLUSH_MSG = _create_message(FLUSH)
+SYNC_MSG = _create_message(SYNC)
+TERMINATE_MSG = _create_message(TERMINATE)
+COPY_DONE_MSG = _create_message(COPY_DONE)
+EXECUTE_MSG = _create_message(EXECUTE, NULL_BYTE + i_pack(0))
 
 # DESCRIBE constants
 STATEMENT = b"S"
@@ -375,25 +375,7 @@ class CoreConnection:
         pass
 
     def handle_PARAMETER_DESCRIPTION(self, data, context):
-        """
-        ParameterDescription (B)
-
-            Byte1('t')
-
-                Identifies the message as a parameter description.
-            Int32
-
-                Length of message contents in bytes, including self.
-            Int16
-
-                The number of parameters used by the statement (can be zero).
-
-            Then, for each parameter, there is the following:
-
-            Int32
-
-                Specifies the object ID of the parameter data type.
-        """
+        """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
 
         # count = h_unpack(data)[0]
         # context.parameter_oids = unpack_from("!" + "i" * count, data, 2)
@@ -402,9 +384,7 @@ class CoreConnection:
         self._copy_done = True
 
     def handle_COPY_OUT_RESPONSE(self, data, ps):
-        # Int8(1) - 0 textual, 1 binary
-        # Int16(2) - Number of columns
-        # Int16(N) - Format codes for each column (0 text, 1 binary)
+        """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
 
         is_binary, num_cols = bh_unpack(data)
         # column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
@@ -417,8 +397,7 @@ class CoreConnection:
         results.stream.write(data)
 
     def handle_COPY_IN_RESPONSE(self, data, results):
-        # Int16(2) - Number of columns
-        # Int16(N) - Format codes for each column (0 text, 1 binary)
+        """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
         is_binary, num_cols = bh_unpack(data)
         # column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
         if results.stream is None:
@@ -436,20 +415,12 @@ class CoreConnection:
             self._flush()
 
         # Send CopyDone
-        # Byte1('c') - Identifier.
-        # Int32(4) - Message length, including self.
         self._write(COPY_DONE_MSG)
         self._write(SYNC_MSG)
         self._flush()
 
     def handle_NOTIFICATION_RESPONSE(self, data, results):
-        ##
-        # A message sent if this connection receives a NOTIFY that it was
-        # LISTENing for.
-        # <p>
-        # Stability: Added in pg8000 v1.03.  When limited to accessing
-        # properties from a notification event dispatch, stability is
-        # guaranteed for v1.xx.
+        """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
         backend_pid = i_unpack(data)[0]
         idx = 4
         null_idx = data.find(NULL_BYTE, idx)
@@ -465,8 +436,6 @@ class CoreConnection:
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
         try:
-            # Byte1('X') - Identifies the message as a terminate message.
-            # Int32(4) - Message length, including self.
             self._write(TERMINATE_MSG)
             self._flush()
             self._sock.close()
@@ -481,20 +450,8 @@ class CoreConnection:
             self._sock = None
 
     def handle_AUTHENTICATION_REQUEST(self, data, context):
-        # Int32 -   An authentication code that represents different
-        #           authentication messages:
-        #               0 = AuthenticationOk
-        #               5 = MD5 pwd
-        #               2 = Kerberos v5 (not supported by pg8000)
-        #               3 = Cleartext pwd
-        #               4 = crypt() pwd (not supported by pg8000)
-        #               6 = SCM credential (not supported by pg8000)
-        #               7 = GSSAPI (not supported by pg8000)
-        #               8 = GSSAPI data (not supported by pg8000)
-        #               9 = SSPI (not supported by pg8000)
-        # Some authentication messages have additional data following the
-        # authentication code.  That data is documented in the appropriate
-        # class.
+        """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
+
         auth_code = i_unpack(data)[0]
         if auth_code == 0:
             pass
@@ -506,14 +463,8 @@ class CoreConnection:
                 )
             self._send_message(PASSWORD, self.password + NULL_BYTE)
             self._flush()
-        elif auth_code == 5:
-            ##
-            # A message representing the backend requesting an MD5 hashed
-            # password response.  The response will be sent as
-            # md5(md5(pwd + login) + salt).
 
-            # Additional message data:
-            #  Byte4 - Hash salt.
+        elif auth_code == 5:
             salt = b"".join(cccc_unpack(data, 4))
             if self.password is None:
                 raise InterfaceError(
@@ -523,9 +474,6 @@ class CoreConnection:
             pwd = b"md5" + md5(
                 md5(self.password + self.user).hexdigest().encode("ascii") + salt
             ).hexdigest().encode("ascii")
-            # Byte1('p') - Identifies the message as a password message.
-            # Int32 - Message length including self.
-            # String - The password.  Password may be encrypted.
             self._send_message(PASSWORD, pwd + NULL_BYTE)
             self._flush()
 
@@ -544,7 +492,7 @@ class CoreConnection:
             mech = self.auth.mechanism_name.encode("ascii") + NULL_BYTE
 
             # SASLInitialResponse
-            self._write(create_message(PASSWORD, mech + i_pack(len(init)) + init))
+            self._send_message(PASSWORD, mech + i_pack(len(init)) + init)
             self._flush()
 
         elif auth_code == 11:
@@ -553,7 +501,7 @@ class CoreConnection:
 
             # SASLResponse
             msg = self.auth.get_client_final().encode("utf8")
-            self._write(create_message(PASSWORD, msg))
+            self._send_message(PASSWORD, msg)
             self._flush()
 
         elif auth_code == 12:
@@ -570,7 +518,6 @@ class CoreConnection:
             )
 
     def handle_READY_FOR_QUERY(self, data, ps):
-        # Byte1 -   Status indicator.
         self.in_transaction = data != IDLE
 
     def handle_BACKEND_KEY_DATA(self, data, ps):
@@ -724,23 +671,8 @@ class CoreConnection:
             raise InterfaceError("connection is closed")
 
     def send_BIND(self, statement_name_bin, params):
+        """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
 
-        # Byte1('B') - Identifies the Bind command.
-        # Int32 - Message length, including self.
-        # String - Name of the destination portal.
-        # String - Name of the source prepared statement.
-        # Int16 - Number of parameter format codes.
-        # For each parameter format code:
-        #   Int16 - The parameter format code.
-        # Int16 - Number of parameter values.
-        # For each parameter value:
-        #   Int32 - The length of the parameter value, in bytes, not
-        #           including this length.  -1 indicates a NULL parameter
-        #           value, in which no value bytes follow.
-        #   Byte[n] - Value of the parameter.
-        # Int16 - The number of result-column format codes.
-        # For each result-column format code:
-        #   Int16 - The format code.
         retval = bytearray(
             NULL_BYTE + statement_name_bin + h_pack(0) + h_pack(len(params))
         )
@@ -758,12 +690,7 @@ class CoreConnection:
         self._write(FLUSH_MSG)
 
     def send_EXECUTE(self):
-        # Byte1('E') - Identifies the message as an execute message.
-        # Int32 -   Message length, including self.
-        # String -  The name of the portal to execute.
-        # Int32 -   Maximum number of rows to return, if portal
-        #           contains a query # that returns rows.
-        #           0 = no limit.
+        """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
         self._write(EXECUTE_MSG)
         self._write(FLUSH_MSG)
 
@@ -809,11 +736,8 @@ class CoreConnection:
         if self.error is not None:
             raise self.error
 
-    # Byte1('C') - Identifies the message as a close command.
-    # Int32 - Message length, including self.
-    # Byte1 - 'S' for prepared statement, 'P' for portal.
-    # String - The name of the item to close.
     def close_prepared_statement(self, statement_name_bin):
+        """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
         self._send_message(CLOSE, STATEMENT + statement_name_bin)
         self._write(FLUSH_MSG)
         self._write(SYNC_MSG)
@@ -822,12 +746,8 @@ class CoreConnection:
         self.handle_messages(context)
         self._statement_nums.remove(statement_name_bin)
 
-    # Byte1('N') - Identifier
-    # Int32 - Message length
-    # Any number of these, followed by a zero byte:
-    #   Byte1 - code identifying the field type (see responseKeys)
-    #   String - field value
     def handle_NOTICE_RESPONSE(self, data, ps):
+        """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
         self.notices.append(dict((s[0:1], s[1:]) for s in data.split(NULL_BYTE)))
 
     def handle_PARAMETER_STATUS(self, data, ps):
