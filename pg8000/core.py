@@ -568,18 +568,7 @@ class CoreConnection:
         self._write(FLUSH_MSG)
 
     def send_QUERY(self, sql):
-        data = sql.encode(self._client_encoding) + NULL_BYTE
-        try:
-            self._write(QUERY)
-            self._write(i_pack(len(data) + 4))
-            self._write(data)
-        except ValueError as e:
-            if str(e) == "write to closed file":
-                raise InterfaceError("connection is closed")
-            else:
-                raise e
-        except AttributeError:
-            raise InterfaceError("connection is closed")
+        self._send_message(QUERY, sql.encode(self._client_encoding) + NULL_BYTE)
 
     def execute_unnamed(self, statement, vals=(), input_oids=None, stream=None):
         context = Context(stream=stream)
