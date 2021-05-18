@@ -26,3 +26,13 @@ def test_handle_AUTHENTICATION_3(mocker):
 def test_create_message():
     msg = _create_message(PASSWORD, "barbour".encode("utf8") + NULL_BYTE)
     assert msg == b"p\x00\x00\x00\x0cbarbour\x00"
+
+
+def test_handle_ERROR_RESPONSE(mocker):
+    """Check it handles invalid encodings in the error messages"""
+
+    mocker.patch.object(CoreConnection, "__init__", lambda x: None)
+    con = CoreConnection()
+    con._client_encoding = "utf8"
+    CoreConnection.handle_ERROR_RESPONSE(con, b"S\xc2err" + NULL_BYTE + NULL_BYTE, None)
+    assert str(con.error) == "{'S': '�err'}"

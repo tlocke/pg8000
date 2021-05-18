@@ -350,7 +350,10 @@ class CoreConnection:
 
     def handle_ERROR_RESPONSE(self, data, ps):
         msg = dict(
-            (s[:1].decode(self._client_encoding), s[1:].decode(self._client_encoding))
+            (
+                s[:1].decode("ascii"),
+                s[1:].decode(self._client_encoding, errors="replace"),
+            )
             for s in data.split(NULL_BYTE)
             if s != b""
         )

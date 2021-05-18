@@ -2301,6 +2301,11 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.19.5, 2021-05-18
+
+* Handle invalid character encodings in error strings from the server.
+
+
 === Version 1.19.4, 2021-05-03
 
 * A FLUSH message should only be send after an extended-query message, but pg8000 was
