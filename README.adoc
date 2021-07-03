@@ -2301,6 +2301,13 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.20.0, 2021-07-03
+
+* Allow text stream as 'stream' parameter in run(). Previously we only allowed a bytes 
+  stream, but now the stream can be a text stream, in which case pg8000 handles the 
+  encodings.
+
+
 === Version 1.19.5, 2021-05-18
 
 * Handle invalid character encodings in error strings from the server.
