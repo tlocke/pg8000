@@ -1,8 +1,10 @@
+import codecs
 import socket
 import struct
 from collections import defaultdict, deque
 from distutils.version import LooseVersion
 from hashlib import md5
+from io import TextIOBase
 from itertools import count
 from struct import Struct
 
@@ -348,7 +350,7 @@ class CoreConnection:
     def register_in_adapter(self, oid, in_func):
         self.pg_types[oid] = in_func
 
-    def handle_ERROR_RESPONSE(self, data, ps):
+    def handle_ERROR_RESPONSE(self, data, context):
         msg = dict(
             (
                 s[:1].decode("ascii"),
@@ -360,18 +362,18 @@ class CoreConnection:
 
         self.error = DatabaseError(msg)
 
-    def handle_EMPTY_QUERY_RESPONSE(self, data, ps):
+    def handle_EMPTY_QUERY_RESPONSE(self, data, context):
         self.error = DatabaseError("query was empty")
 
-    def handle_CLOSE_COMPLETE(self, data, ps):
+    def handle_CLOSE_COMPLETE(self, data, context):
         pass
 
-    def handle_PARSE_COMPLETE(self, data, ps):
+    def handle_PARSE_COMPLETE(self, data, context):
         # Byte1('1') - Identifier.
         # Int32(4) - Message length, including self.
         pass
 
-    def handle_BIND_COMPLETE(self, data, ps):
+    def handle_BIND_COMPLETE(self, data, context):
         pass
 
     def handle_PORTAL_SUSPENDED(self, data, context):
@@ -383,37 +385,73 @@ class CoreConnection:
         # count = h_unpack(data)[0]
         # context.parameter_oids = unpack_from("!" + "i" * count, data, 2)
 
-    def handle_COPY_DONE(self, data, ps):
-        self._copy_done = True
+    def handle_COPY_DONE(self, data, context):
+        pass
 
-    def handle_COPY_OUT_RESPONSE(self, data, ps):
+    def handle_COPY_OUT_RESPONSE(self, data, context):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
 
         is_binary, num_cols = bh_unpack(data)
         # column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
-        if ps.stream is None:
+
+        if context.stream is None:
             raise InterfaceError(
                 "An output stream is required for the COPY OUT response."
             )
 
-    def handle_COPY_DATA(self, data, results):
-        results.stream.write(data)
+        elif isinstance(context.stream, TextIOBase):
+            if is_binary:
+                raise InterfaceError(
+                    "The COPY OUT stream is binary, but the stream parameter is text."
+                )
+            else:
+                decode = codecs.getdecoder(self._client_encoding)
 
-    def handle_COPY_IN_RESPONSE(self, data, results):
+                def w(data):
+                    context.stream.write(decode(data)[0])
+
+                context.stream_write = w
+
+        else:
+            context.stream_write = context.stream.write
+
+    def handle_COPY_DATA(self, data, context):
+        context.stream_write(data)
+
+    def handle_COPY_IN_RESPONSE(self, data, context):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
         is_binary, num_cols = bh_unpack(data)
         # column_formats = unpack_from('!' + 'h' * num_cols, data, 3)
-        if results.stream is None:
+
+        if context.stream is None:
             raise InterfaceError(
                 "An input stream is required for the COPY IN response."
             )
 
+        elif isinstance(context.stream, TextIOBase):
+            if is_binary:
+                raise InterfaceError(
+                    "The COPY IN stream is binary, but the stream parameter is text."
+                )
+
+            else:
+
+                def ri(bffr):
+                    bffr.clear()
+                    bffr.extend(context.stream.read(4096).encode(self._client_encoding))
+                    return len(bffr)
+
+                readinto = ri
+        else:
+            readinto = context.stream.readinto
+
         bffr = bytearray(8192)
         while True:
-            bytes_read = results.stream.readinto(bffr)
+            bytes_read = readinto(bffr)
             if bytes_read == 0:
                 break
-            self._write(COPY_DATA + i_pack(bytes_read + 4))
+            self._write(COPY_DATA)
+            self._write(i_pack(bytes_read + 4))
             self._write(bffr[:bytes_read])
             self._flush()
 
@@ -422,7 +460,7 @@ class CoreConnection:
         self._write(SYNC_MSG)
         self._flush()
 
-    def handle_NOTIFICATION_RESPONSE(self, data, results):
+    def handle_NOTIFICATION_RESPONSE(self, data, context):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
         backend_pid = i_unpack(data)[0]
         idx = 4
@@ -520,10 +558,10 @@ class CoreConnection:
                 f"Authentication method {auth_code} not recognized by pg8000."
             )
 
-    def handle_READY_FOR_QUERY(self, data, ps):
+    def handle_READY_FOR_QUERY(self, data, context):
         self.in_transaction = data != IDLE
 
-    def handle_BACKEND_KEY_DATA(self, data, ps):
+    def handle_BACKEND_KEY_DATA(self, data, context):
         self._backend_key_data = data
 
     def handle_ROW_DESCRIPTION(self, data, context):
@@ -699,10 +737,10 @@ class CoreConnection:
             else:
                 context.row_count += row_count
 
-    def handle_DATA_ROW(self, data, results):
+    def handle_DATA_ROW(self, data, context):
         idx = 2
         row = []
-        for func in results.input_funcs:
+        for func in context.input_funcs:
             vlen = i_unpack(data, idx)[0]
             idx += 4
             if vlen == -1:
@@ -711,7 +749,7 @@ class CoreConnection:
                 v = func(str(data[idx : idx + vlen], encoding=self._client_encoding))
                 idx += vlen
             row.append(v)
-        results.rows.append(row)
+        context.rows.append(row)
 
     def handle_messages(self, context):
         code = self.error = None
@@ -738,11 +776,11 @@ class CoreConnection:
         self.handle_messages(context)
         self._statement_nums.remove(statement_name_bin)
 
-    def handle_NOTICE_RESPONSE(self, data, ps):
+    def handle_NOTICE_RESPONSE(self, data, context):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
         self.notices.append(dict((s[0:1], s[1:]) for s in data.split(NULL_BYTE)))
 
-    def handle_PARAMETER_STATUS(self, data, ps):
+    def handle_PARAMETER_STATUS(self, data, context):
         pos = data.find(NULL_BYTE)
         key, value = data[:pos], data[pos + 1 : -1]
         self.parameter_statuses.append((key, value))

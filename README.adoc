@@ -396,20 +396,21 @@ using the CSV format:
 ----
 
 >>> import pg8000.native
->>> from io import BytesIO
+>>> from io import StringIO
 >>> import csv
->>> import codecs
 >>>
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
 >>> # Create a CSV file in memory
 >>>
->>> stream_in = BytesIO()
->>> StreamWriter = codecs.getwriter('utf-8')
->>> csv_writer = csv.writer(StreamWriter(stream_in))
+>>> stream_in = StringIO()
+>>> csv_writer = csv.writer(stream_in)
 >>> csv_writer.writerow([1, "electron"])
+12
 >>> csv_writer.writerow([2, "muon"])
+8
 >>> csv_writer.writerow([3, "tau"])
+7
 >>> stream_in.seek(0)
 0
 >>>
@@ -422,13 +423,12 @@ using the CSV format:
 >>>
 >>> # COPY from a table to a stream
 >>>
->>> stream_out = BytesIO()
+>>> stream_out = StringIO()
 >>> con.run("COPY lepton TO STDOUT WITH (FORMAT CSV)", stream=stream_out)
 []
 >>> stream_out.seek(0)
 0
->>> StreamReader = codecs.getreader('utf-8')
->>> for row in csv.reader(StreamReader(stream_out)):
+>>> for row in csv.reader(stream_out):
 ...     print(row)
 ['1', 'electron']
 ['2', 'muon']
@@ -1055,7 +1055,7 @@ can be used to copy from and to a file or file-like object:
 
 [source,python]
 ----
->>> from io import BytesIO
+>>> from io import StringIO
 >>> import pg8000.dbapi
 >>>
 >>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
@@ -1063,17 +1063,17 @@ can be used to copy from and to a file or file-like object:
 >>> #
 >>> # COPY from a stream to a table
 >>> #
->>> stream_in = BytesIO(b'1\telectron\n2\tmuon\n3\ttau\n')
+>>> stream_in = StringIO('1\telectron\n2\tmuon\n3\ttau\n')
 >>> cur = conn.cursor()
 >>> cur.execute("create temporary table lepton (id serial, name text)")
 >>> cur.execute("COPY lepton FROM stdin", stream=stream_in)
 >>> #
 >>> # Now COPY from a table to a stream
 >>> #
->>> stream_out = BytesIO()
+>>> stream_out = StringIO()
 >>> cur.execute("copy lepton to stdout", stream=stream_out)
 >>> stream_out.getvalue()
-b'1\telectron\n2\tmuon\n3\ttau\n'
+'1\telectron\n2\tmuon\n3\ttau\n'
 
 ----
 

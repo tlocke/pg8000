@@ -1,4 +1,4 @@
-from io import BytesIO
+from io import BytesIO, StringIO
 
 import pytest
 
@@ -25,21 +25,40 @@ def test_copy_to_with_table(db_table):
     assert db_table.row_count == 3
 
 
-def test_copy_to_with_query(db_table):
+def test_copy_to_with_query(con):
     stream = BytesIO()
-    db_table.run(
+    con.run(
         "COPY (SELECT 1 as One, 2 as Two) TO STDOUT WITH DELIMITER "
         "'X' CSV HEADER QUOTE AS 'Y' FORCE QUOTE Two",
         stream=stream,
     )
     assert stream.getvalue() == b"oneXtwo\n1XY2Y\n"
-    assert db_table.row_count == 1
+    assert con.row_count == 1
+
+
+def test_copy_to_with_text_stream(con):
+    stream = StringIO()
+    con.run(
+        "COPY (SELECT 1 as One, 2 as Two) TO STDOUT WITH DELIMITER "
+        "'X' CSV HEADER QUOTE AS 'Y' FORCE QUOTE Two",
+        stream=stream,
+    )
+    assert stream.getvalue() == "oneXtwo\n1XY2Y\n"
+    assert con.row_count == 1
 
 
 def test_copy_from_with_table(db_table):
     stream = BytesIO(b"1\t1\t1\n2\t2\t2\n3\t3\t3\n")
     db_table.run("copy t1 from STDIN", stream=stream)
     assert db_table.row_count == 3
+
+    retval = db_table.run("SELECT * FROM t1 ORDER BY f1")
+    assert retval == [[1, 1, "1"], [2, 2, "2"], [3, 3, "3"]]
+
+
+def test_copy_from_with_text_stream(db_table):
+    stream = StringIO("1\t1\t1\n2\t2\t2\n3\t3\t3\n")
+    db_table.run("copy t1 from STDIN", stream=stream)
 
     retval = db_table.run("SELECT * FROM t1 ORDER BY f1")
     assert retval == [[1, 1, "1"], [2, 2, "2"], [3, 3, "3"]]
