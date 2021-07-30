@@ -177,6 +177,15 @@ def test_close_prepared_statement(con):
     assert res[0][0] == 0  # Should have no prepared statements
 
 
+def test_no_data(con):
+    assert con.run("START TRANSACTION") is None
+
+
+def test_multiple_statements(con):
+    statements = "SELECT 5; SELECT 'Erich Fromm';"
+    assert con.run(statements) == [[5], ["Erich Fromm"]]
+
+
 def test_unexecuted_connection_row_count(con):
     assert con.row_count is None
 

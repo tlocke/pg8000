@@ -45,14 +45,11 @@ query the table:
 >>> # Create a temporary table
 >>>
 >>> con.run("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
-[]
 >>>
 >>> # Populate the table
 >>>
 >>> for title in ("Ender's Game", "The Magus"):
 ...     con.run("INSERT INTO book (title) VALUES (:title)", title=title)
-[]
-[]
 >>>
 >>> # Print all the rows in the table
 >>>
@@ -75,17 +72,13 @@ https://www.postgresql.org/docs/current/tutorial-transactions.html[transaction]:
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
 >>> con.run("START TRANSACTION")
-[]
+>>>
 >>> # Create a temporary table
 >>> con.run("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
-[]
+>>>
 >>> for title in ("Ender's Game", "The Magus", "Phineas Finn"):
 ...     con.run("INSERT INTO book (title) VALUES (:title)", title=title)
-[]
-[]
-[]
 >>> con.run("COMMIT")
-[]
 >>> for row in con.run("SELECT * FROM book"):
 ...     print(row)
 [1, "Ender's Game"]
@@ -103,19 +96,13 @@ rolling back a transaction:
 >>>
 >>> # Create a temporary table
 >>> con.run("CREATE TEMPORARY TABLE book (id SERIAL, title TEXT)")
-[]
+>>>
 >>> for title in ("Ender's Game", "The Magus", "Phineas Finn"):
 ...     con.run("INSERT INTO book (title) VALUES (:title)", title=title)
-[]
-[]
-[]
 >>>
 >>> con.run("START TRANSACTION")
-[]
 >>> con.run("DELETE FROM book WHERE title = :title", title="Phineas Finn") 
-[]
 >>> con.run("ROLLBACK")
-[]
 >>> for row in con.run("SELECT * FROM book"):
 ...     print(row)
 [1, "Ender's Game"]
@@ -194,7 +181,6 @@ encoding is by using an SQL command. For example:
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
 >>> con.run("SET CLIENT_ENCODING TO 'UTF8'")
-[]
 >>> con.run("SHOW CLIENT_ENCODING")
 [['UTF8']]
 
@@ -247,11 +233,8 @@ Find the column metadata returned from a query:
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
 >>> con.run("create temporary table quark (id serial, name text)")
-[]
 >>> for name in ('Up', 'Down'):
 ...     con.run("INSERT INTO quark (name) VALUES (:name)", name=name)
-[]
-[]
 >>> # Now execute the query
 >>>
 >>> con.run("SELECT * FROM quark")
@@ -286,9 +269,7 @@ Here's an example:
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
 >>> con.run("LISTEN aliens_landed")
-[]
 >>> con.run("NOTIFY aliens_landed")
-[]
 >>> # A notification is a tuple containing (backend_pid, channel, payload)
 >>>
 >>> con.notifications[0]
@@ -417,15 +398,12 @@ using the CSV format:
 >>> # Create a table and then copy the CSV into it
 >>>
 >>> con.run("CREATE TEMPORARY TABLE lepton (id SERIAL, name TEXT)")
-[]
 >>> con.run("COPY lepton FROM STDIN WITH (FORMAT CSV)", stream=stream_in)
-[]
 >>>
 >>> # COPY from a table to a stream
 >>>
 >>> stream_out = StringIO()
 >>> con.run("COPY lepton TO STDOUT WITH (FORMAT CSV)", stream=stream_out)
-[]
 >>> stream_out.seek(0)
 0
 >>> for row in csv.reader(stream_out):
@@ -765,19 +743,14 @@ server-side cursors. For example:
 >>>
 >>> con = pg8000.native.Connection(username, password="cpsnow")
 >>> con.run("START TRANSACTION")
-[]
 >>> con.run("DECLARE c SCROLL CURSOR FOR SELECT * FROM generate_series(1, 100)")
-[]
 >>> con.run("FETCH FORWARD 5 FROM c")
 [[1], [2], [3], [4], [5]]
 >>> con.run("MOVE FORWARD 50 FROM c")
-[]
 >>> con.run("FETCH BACKWARD 10 FROM c")
 [[54], [53], [52], [51], [50], [49], [48], [47], [46], [45]]
 >>> con.run("CLOSE c")
-[]
 >>> con.run("ROLLBACK")
-[]
 
 ----
 
@@ -801,9 +774,8 @@ for manipulating BLOBs. Here's an example:
 >>>
 >>> # Create a table and store the oid of the BLOB
 >>> con.run("CREATE TEMPORARY TABLE image (raster oid)")
-[]
+>>>
 >>> con.run("INSERT INTO image (raster) VALUES (:oid)", oid=oid)
-[]
 >>> # Retrieve the data using the oid
 >>> con.run("SELECT lo_get(:oid)", oid=oid)
 [[b'hello']]
@@ -2273,6 +2245,10 @@ host    pg8000_password all             127.0.0.1/32            password
 host    pg8000_scram_sha_256 all        127.0.0.1/32            scram-sha-256
 host    all             all             127.0.0.1/32            trust
 ....
+
+set password encryption to `scram-sha-256` in `postgresql.conf`:
+
+`password_encryption = 'scram-sha-256'`
 
 then run `tox` from the `pg8000` directory:
 

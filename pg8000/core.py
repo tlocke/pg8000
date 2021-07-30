@@ -2,7 +2,6 @@ import codecs
 import socket
 import struct
 from collections import defaultdict, deque
-from distutils.version import LooseVersion
 from hashlib import md5
 from io import TextIOBase
 from itertools import count
@@ -592,6 +591,8 @@ class CoreConnection:
 
         context.columns = columns
         context.input_funcs = input_funcs
+        if context.rows is None:
+            context.rows = []
 
     def send_PARSE(self, statement_name_bin, statement, oids):
 
@@ -725,17 +726,18 @@ class CoreConnection:
         self._write(FLUSH_MSG)
 
     def handle_NO_DATA(self, msg, context):
-        context.columns = []
+        pass
 
     def handle_COMMAND_COMPLETE(self, data, context):
         values = data[:-1].split(b" ")
-        command = values[0]
-        if command in self._commands_with_count:
+        try:
             row_count = int(values[-1])
             if context.row_count == -1:
                 context.row_count = row_count
             else:
                 context.row_count += row_count
+        except ValueError:
+            pass
 
     def handle_DATA_ROW(self, data, context):
         idx = 2
@@ -796,24 +798,13 @@ class CoreConnection:
                 pass
 
         elif key == b"server_version":
-            self._server_version = LooseVersion(value.decode("ascii"))
-            if self._server_version < LooseVersion("8.2.0"):
-                self._commands_with_count = (b"INSERT", b"DELETE", b"UPDATE", b"MOVE")
-            elif self._server_version < LooseVersion("9.0.0"):
-                self._commands_with_count = (
-                    b"INSERT",
-                    b"DELETE",
-                    b"UPDATE",
-                    b"MOVE",
-                    b"FETCH",
-                    b"COPY",
-                )
+            pass
 
 
 class Context:
     def __init__(self, stream=None, columns=None, input_funcs=None):
-        self.rows = []
+        self.rows = None if columns is None else []
         self.row_count = -1
-        self.columns = [] if columns is None else columns
+        self.columns = columns
         self.stream = stream
         self.input_funcs = [] if input_funcs is None else input_funcs

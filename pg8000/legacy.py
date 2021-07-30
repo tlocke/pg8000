@@ -249,7 +249,9 @@ class Cursor:
             self._context = self._c.execute_unnamed(
                 statement, vals=vals, input_oids=self._input_oids, stream=stream
             )
-            self._row_iter = iter(self._context.rows)
+
+            rows = [] if self._context.rows is None else self._context.rows
+            self._row_iter = iter(rows)
 
             self._input_oids = None
         except AttributeError as e:
@@ -484,7 +486,10 @@ class Connection(CoreConnection):
 
     def run(self, sql, stream=None, **params):
         self._run_cursor.execute(sql, params, stream=stream)
-        return tuple(self._run_cursor._context.rows)
+        if self._run_cursor._context.rows is None:
+            return tuple()
+        else:
+            return tuple(self._run_cursor._context.rows)
 
     def prepare(self, operation):
         return PreparedStatement(self, operation)

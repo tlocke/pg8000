@@ -306,3 +306,10 @@ $proc$;
 
         cursor.callproc("echo", ["hello"])
         assert cursor.fetchall() == (["hello"],)
+
+
+def test_null_result(db_table):
+    cur = db_table.cursor()
+    cur.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, "a"))
+    with pytest.raises(pg8000.dbapi.ProgrammingError):
+        cur.fetchall()

@@ -453,8 +453,10 @@ class Cursor:
             self._context = self._c.execute_unnamed(
                 statement, vals=vals, input_oids=self._input_oids, stream=stream
             )
-
-            self._row_iter = iter(self._context.rows)
+            if self._context.rows is None:
+                self._row_iter = None
+            else:
+                self._row_iter = iter(self._context.rows)
             self._input_oids = None
         except AttributeError as e:
             if self._c is None:
@@ -499,7 +501,11 @@ class Cursor:
 
             self._context = self._c.execute_unnamed(statement, vals=vals)
 
-            self._row_iter = iter(self._context.rows)
+            if self._context.rows is None:
+                self._row_iter = None
+            else:
+                self._row_iter = iter(self._context.rows)
+
         except AttributeError as e:
             if self._c is None:
                 raise InterfaceError("Cursor closed")
