@@ -2277,6 +2277,16 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.21.0, 2021-07-31
+
+* For some SQL statements the server doesn't send back a result set (note that no
+  result set is different from a result set with zero rows). Previously we didn't
+  distinguish between no results and zero rows, but now we do. For `pg8000.dbapi` it
+  means that an exception is raised if `fetchall()` is called when no results have been
+  returned, bringing pg8000 into line with the DBAPI 2 standard. For `pg8000.native`
+  this means that `run()` returns None if there is no result.
+
+
 === Version 1.20.0, 2021-07-03
 
 * Allow text stream as 'stream' parameter in run(). Previously we only allowed a bytes 

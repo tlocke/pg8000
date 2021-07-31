@@ -1,30 +1,32 @@
+from datetime import time as Time
+
 import pytest
 
-import pg8000.native
+from pg8000.native import Connection, DatabaseError, InterfaceError
 
 
-def testUnixSocketMissing():
+def test_unix_socket_missing():
     conn_params = {"unix_sock": "/file-does-not-exist", "user": "doesn't-matter"}
 
-    with pytest.raises(pg8000.native.InterfaceError):
-        pg8000.native.Connection(**conn_params)
+    with pytest.raises(InterfaceError):
+        Connection(**conn_params)
 
 
 def test_internet_socket_connection_refused():
     conn_params = {"port": 0, "user": "doesn't-matter"}
 
     with pytest.raises(
-        pg8000.native.InterfaceError,
+        InterfaceError,
         match="Can't create a connection to host localhost and port 0 "
         "\\(timeout is None and source_address is None\\).",
     ):
-        pg8000.native.Connection(**conn_params)
+        Connection(**conn_params)
 
 
-def testDatabaseMissing(db_kwargs):
+def test_database_missing(db_kwargs):
     db_kwargs["database"] = "missing-db"
-    with pytest.raises(pg8000.native.DatabaseError):
-        pg8000.native.Connection(**db_kwargs)
+    with pytest.raises(DatabaseError):
+        Connection(**db_kwargs)
 
 
 def test_notify(con):
@@ -53,43 +55,43 @@ def test_notify_with_payload(con):
 # pg8000_md5
 
 
-def testMd5(db_kwargs):
+def test_md5(db_kwargs):
     db_kwargs["database"] = "pg8000_md5"
 
     # Should only raise an exception saying db doesn't exist
-    with pytest.raises(pg8000.native.DatabaseError, match="3D000"):
-        pg8000.native.Connection(**db_kwargs)
+    with pytest.raises(DatabaseError, match="3D000"):
+        Connection(**db_kwargs)
 
 
 # This requires a line in pg_hba.conf that requires 'password' for the
 # database pg8000_password
 
 
-def testPassword(db_kwargs):
+def test_password(db_kwargs):
     db_kwargs["database"] = "pg8000_password"
 
     # Should only raise an exception saying db doesn't exist
-    with pytest.raises(pg8000.native.DatabaseError, match="3D000"):
-        pg8000.native.Connection(**db_kwargs)
+    with pytest.raises(DatabaseError, match="3D000"):
+        Connection(**db_kwargs)
 
 
-def testUnicodeDatabaseName(db_kwargs):
+def test_unicode_databaseName(db_kwargs):
     db_kwargs["database"] = "pg8000_sn\uFF6Fw"
 
     # Should only raise an exception saying db doesn't exist
-    with pytest.raises(pg8000.native.DatabaseError, match="3D000"):
-        pg8000.native.Connection(**db_kwargs)
+    with pytest.raises(DatabaseError, match="3D000"):
+        Connection(**db_kwargs)
 
 
-def testBytesDatabaseName(db_kwargs):
+def test_bytes_databaseName(db_kwargs):
     """Should only raise an exception saying db doesn't exist"""
 
     db_kwargs["database"] = bytes("pg8000_sn\uFF6Fw", "utf8")
-    with pytest.raises(pg8000.native.DatabaseError, match="3D000"):
-        pg8000.native.Connection(**db_kwargs)
+    with pytest.raises(DatabaseError, match="3D000"):
+        Connection(**db_kwargs)
 
 
-def testBytesPassword(con, db_kwargs):
+def test_bytes_password(con, db_kwargs):
     # Create user
     username = "boltzmann"
     password = "cha\uFF6Fs"
@@ -98,19 +100,19 @@ def testBytesPassword(con, db_kwargs):
     db_kwargs["user"] = username
     db_kwargs["password"] = password.encode("utf8")
     db_kwargs["database"] = "pg8000_md5"
-    with pytest.raises(pg8000.native.DatabaseError, match="3D000"):
-        pg8000.native.Connection(**db_kwargs)
+    with pytest.raises(DatabaseError, match="3D000"):
+        Connection(**db_kwargs)
 
     con.run("drop role " + username)
 
 
 def test_broken_pipe_read(con, db_kwargs):
-    db1 = pg8000.Connection(**db_kwargs)
+    db1 = Connection(**db_kwargs)
     res = db1.run("select pg_backend_pid()")
     pid1 = res[0][0]
 
     con.run("select pg_terminate_backend(:v)", v=pid1)
-    with pytest.raises(pg8000.exceptions.InterfaceError, match="network error on read"):
+    with pytest.raises(InterfaceError, match="network error on read"):
         db1.run("select 1")
 
 
@@ -118,12 +120,12 @@ def test_broken_pipe_unpack(con):
     res = con.run("select pg_backend_pid()")
     pid1 = res[0][0]
 
-    with pytest.raises(pg8000.native.InterfaceError, match="network error"):
+    with pytest.raises(InterfaceError, match="network error"):
         con.run("select pg_terminate_backend(:v)", v=pid1)
 
 
 def test_broken_pipe_flush(con, db_kwargs):
-    db1 = pg8000.native.Connection(**db_kwargs)
+    db1 = Connection(**db_kwargs)
     res = db1.run("select pg_backend_pid()")
     pid1 = res[0][0]
 
@@ -136,14 +138,14 @@ def test_broken_pipe_flush(con, db_kwargs):
     # Sometimes raises and sometime doesn't
     try:
         db1.close()
-    except pg8000.exceptions.InterfaceError as e:
+    except InterfaceError as e:
         assert str(e) == "network error on flush"
 
 
-def testApplicatioName(db_kwargs):
+def test_application_name(db_kwargs):
     app_name = "my test application name"
     db_kwargs["application_name"] = app_name
-    with pg8000.native.Connection(**db_kwargs) as db:
+    with Connection(**db_kwargs) as db:
         res = db.run(
             "select application_name from pg_stat_activity "
             " where pid = pg_backend_pid()"
@@ -156,12 +158,49 @@ def testApplicatioName(db_kwargs):
 def test_application_name_integer(db_kwargs):
     db_kwargs["application_name"] = 1
     with pytest.raises(
-        pg8000.native.InterfaceError,
-        match="The parameter application_name can't be of type " "<class 'int'>.",
+        InterfaceError,
+        match="The parameter application_name can't be of type <class 'int'>.",
     ):
-        pg8000.native.Connection(**db_kwargs)
+        Connection(**db_kwargs)
 
 
 def test_application_name_bytearray(db_kwargs):
     db_kwargs["application_name"] = bytearray(b"Philby")
-    pg8000.native.Connection(**db_kwargs)
+    Connection(**db_kwargs)
+
+
+class PG8000TestException(Exception):
+    pass
+
+
+def raise_exception(val):
+    raise PG8000TestException("oh noes!")
+
+
+def test_py_value_fail(con, mocker):
+    # Ensure that if types.py_value throws an exception, the original
+    # exception is raised (PG8000TestException), and the connection is
+    # still usable after the error.
+    mocker.patch.object(con, "py_types")
+    con.py_types = {Time: (1083, raise_exception)}
+
+    with pytest.raises(PG8000TestException):
+        con.run("SELECT :v as f1", v=Time(10, 30))
+
+        # ensure that the connection is still usable for a new query
+        res = con.run("VALUES ('hw3'::text)")
+        assert res[0][0] == "hw3"
+
+
+def test_no_data_error_recovery(con):
+    for i in range(1, 4):
+        with pytest.raises(DatabaseError) as e:
+            con.run("DROP TABLE t1")
+        assert e.value.args[0]["C"] == "42P01"
+        con.run("ROLLBACK")
+
+
+def test_closed_connection(con):
+    con.close()
+    with pytest.raises(InterfaceError, match="connection is closed"):
+        con.run("VALUES ('hw1'::text)")

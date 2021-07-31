@@ -71,14 +71,15 @@ from pg8000.exceptions import DatabaseError, Error, InterfaceError
 # POSSIBILITY OF SUCH DAMAGE.
 
 
-def to_statement(query):
-    OUTSIDE = 0  # outside quoted string
-    INSIDE_SQ = 1  # inside single-quote string '...'
-    INSIDE_QI = 2  # inside quoted identifier   "..."
-    INSIDE_ES = 3  # inside escaped single-quote string, E'...'
-    INSIDE_PN = 4  # inside parameter name eg. :name
-    INSIDE_CO = 5  # inside inline comment eg. --
+OUTSIDE = 0  # outside quoted string
+INSIDE_SQ = 1  # inside single-quote string '...'
+INSIDE_QI = 2  # inside quoted identifier   "..."
+INSIDE_ES = 3  # inside escaped single-quote string, E'...'
+INSIDE_PN = 4  # inside parameter name eg. :name
+INSIDE_CO = 5  # inside inline comment eg. --
 
+
+def to_statement(query):
     in_quote_escape = False
     placeholders = []
     output_query = []
@@ -114,11 +115,10 @@ def to_statement(query):
             if c == "'":
                 if in_quote_escape:
                     in_quote_escape = False
+                elif next_c == "'":
+                    in_quote_escape = True
                 else:
-                    if next_c == "'":
-                        in_quote_escape = True
-                    else:
-                        state = OUTSIDE
+                    state = OUTSIDE
             output_query.append(c)
 
         elif state == INSIDE_QI:
@@ -138,10 +138,10 @@ def to_statement(query):
                 state = OUTSIDE
                 try:
                     pidx = placeholders.index(placeholders[-1], 0, -1)
-                    output_query.append("$" + str(pidx + 1))
+                    output_query.append(f"${pidx + 1}")
                     del placeholders[-1]
                 except ValueError:
-                    output_query.append("$" + str(len(placeholders)))
+                    output_query.append(f"${len(placeholders)}")
 
         elif state == INSIDE_CO:
             output_query.append(c)
@@ -153,8 +153,8 @@ def to_statement(query):
     for reserved in ("types", "stream"):
         if reserved in placeholders:
             raise InterfaceError(
-                "The name '" + reserved + "' can't be used as a placeholder "
-                "because it's used for another purpose."
+                f"The name '{reserved}' can't be used as a placeholder because it's "
+                f"used for another purpose."
             )
 
     def make_vals(args):
@@ -164,8 +164,8 @@ def to_statement(query):
                 vals.append(args[p])
             except KeyError:
                 raise InterfaceError(
-                    "There's a placeholder '" + p + "' in the query, but "
-                    "no matching keyword argument."
+                    f"There's a placeholder '{p}' in the query, but no matching "
+                    f"keyword argument."
                 )
         return tuple(vals)
 

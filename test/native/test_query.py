@@ -1,8 +1,6 @@
-from warnings import filterwarnings
-
 import pytest
 
-import pg8000.native
+from pg8000.native import DatabaseError, to_statement
 
 
 # Tests relating to the basic operation of the database driver, driven by the
@@ -11,8 +9,6 @@ import pg8000.native
 
 @pytest.fixture
 def db_table(request, con):
-    filterwarnings("ignore", "DB-API extension cursor.next()")
-    filterwarnings("ignore", "DB-API extension cursor.__iter__()")
     con.paramstyle = "format"
     con.run(
         "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
@@ -22,7 +18,7 @@ def db_table(request, con):
     def fin():
         try:
             con.run("drop table t1")
-        except pg8000.native.DatabaseError:
+        except DatabaseError:
             pass
 
     request.addfinalizer(fin)
@@ -30,7 +26,7 @@ def db_table(request, con):
 
 
 def test_database_error(con):
-    with pytest.raises(pg8000.native.DatabaseError):
+    with pytest.raises(DatabaseError):
         con.run("INSERT INTO t99 VALUES (1, 2, 3)")
 
 
@@ -53,6 +49,12 @@ def test_create(db_table):
     db_table.run("drop table t1")
     db_table.run("create temporary table t1 (f1 int primary key)")
     db_table.run("select * from t1")
+
+
+def test_parametrized(db_table):
+    res = db_table.run("SELECT f1, f2, f3 FROM t1 WHERE f1 > :f1", f1=3)
+    for row in res:
+        f1, f2, f3 = row
 
 
 def test_insert_returning(db_table):
@@ -78,7 +80,7 @@ def test_insert_returning(db_table):
     assert len(ids) == 3
 
 
-def test_row_count(db_table):
+def test_row_count_select(db_table):
     expected_count = 57
     for i in range(expected_count):
         db_table.run(
@@ -93,6 +95,14 @@ def test_row_count(db_table):
     # Should be -1 for a command with no results
     db_table.run("DROP TABLE t1")
     assert -1 == db_table.row_count
+
+
+def test_row_count_delete(db_table):
+    db_table.run(
+        "INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v2, :v3)", v1=1, v2=1, v3=None
+    )
+    db_table.run("DELETE FROM t1")
+    assert db_table.row_count == 1
 
 
 def test_row_count_update(db_table):
@@ -146,7 +156,7 @@ def test_in(con):
 
 # An empty query should raise a ProgrammingError
 def test_empty_query(con):
-    with pytest.raises(pg8000.native.DatabaseError):
+    with pytest.raises(DatabaseError):
         con.run("")
 
 
@@ -192,3 +202,16 @@ def test_unexecuted_connection_row_count(con):
 
 def test_unexecuted_connection_columns(con):
     assert con.columns is None
+
+
+def test_sql_prepared_statement(con):
+    con.run("PREPARE gen_series AS SELECT generate_series(1, 10);")
+    con.run("EXECUTE gen_series")
+
+
+def test_to_statement():
+    new_query, _ = to_statement(
+        "SELECT sum(x)::decimal(5, 2) :f_2, :f1 FROM t WHERE a=:f_2"
+    )
+    expected = "SELECT sum(x)::decimal(5, 2) $1, $2 FROM t WHERE a=$1"
+    assert new_query == expected

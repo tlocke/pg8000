@@ -106,7 +106,14 @@ def test_string_in(value):
     assert string_in(value) == value
 
 
-def test_pg_interval_repr():
+def test_PGInterval_init():
+    i = PGInterval(days=1)
+    assert i.months is None
+    assert i.days == 1
+    assert i.microseconds is None
+
+
+def test_PGInterval_repr():
     v = PGInterval(microseconds=123456789, days=2, months=24)
     assert repr(v) == "<PGInterval 24 months 2 days 123456789 microseconds>"
 
