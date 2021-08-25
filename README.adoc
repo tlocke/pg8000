@@ -2277,6 +2277,12 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.21.1, 2021-08-25
+
+* Require Scramp version 1.4.1 or higher so that pg8000 can cope with SCRAM with
+  channel binding with certificates using a `sha512` hash algorithm.
+
+
 === Version 1.21.0, 2021-07-31
 
 * For some SQL statements the server doesn't send back a result set (note that no
