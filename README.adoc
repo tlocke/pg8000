@@ -2228,31 +2228,23 @@ being raised.
 
 == Tests
 
-Install http://testrun.org/tox/latest/[tox]:
-
- pip install tox
-
-Enable the PostgreSQL hstore extension by running the SQL command:
-
- create extension hstore;
-
-and add a line to pg_hba.conf for the various authentication options:
+* Install http://testrun.org/tox/latest/[tox]: `pip install tox`
+* Enable the PostgreSQL hstore extension by running the SQL command:
+  `create extension hstore;`
+* Add a line to pg_hba.conf for the various authentication options:
 
 ....
-host    pg8000_md5      all             127.0.0.1/32            md5
-host    pg8000_gss      all             127.0.0.1/32            gss
-host    pg8000_password all             127.0.0.1/32            password
+host    pg8000_md5           all        127.0.0.1/32            md5
+host    pg8000_gss           all        127.0.0.1/32            gss
+host    pg8000_password      all        127.0.0.1/32            password
 host    pg8000_scram_sha_256 all        127.0.0.1/32            scram-sha-256
-host    all             all             127.0.0.1/32            trust
+host    all                  all        127.0.0.1/32            trust
 ....
 
-set password encryption to `scram-sha-256` in `postgresql.conf`:
-
-`password_encryption = 'scram-sha-256'`
-
-then run `tox` from the `pg8000` directory:
-
-`tox`
+* Set password encryption to `scram-sha-256` in `postgresql.conf`:
+  `password_encryption = 'scram-sha-256'`
+* Set the password for the postgres user: `ALTER USER postgresql WITH PASSWORD 'pw';`
+* Run `tox` from the `pg8000` directory: `tox`
 
 This will run the tests against the Python version of the virtual environment,
 on the machine, and the installed PostgreSQL version listening on port 5432, or
