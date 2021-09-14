@@ -9,7 +9,6 @@ from pg8000.native import DatabaseError, to_statement
 
 @pytest.fixture
 def db_table(request, con):
-    con.paramstyle = "format"
     con.run(
         "CREATE TEMPORARY TABLE t1 (f1 int primary key, "
         "f2 bigint not null, f3 varchar(50) null) "
