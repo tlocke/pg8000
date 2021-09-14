@@ -44,7 +44,7 @@ from pg8000.converters import (
     pg_interval_in as pginterval_in,
     pg_interval_out as pginterval_out,
 )
-from pg8000.core import CoreConnection
+from pg8000.core import Context, CoreConnection
 from pg8000.dbapi import (
     BINARY,
     Binary,
@@ -301,7 +301,13 @@ class Cursor:
             self.execute(operation, parameters)
             rowcounts.append(self._context.row_count)
 
-        self._context.row_count = -1 if -1 in rowcounts else sum(rowcounts)
+        if len(rowcounts) == 0:
+            self._context = Context()
+        elif -1 in rowcounts:
+            self._context.row_count = -1
+        else:
+            self._context.row_count = sum(rowcounts)
+
         return self
 
     def fetchone(self):

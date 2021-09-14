@@ -41,7 +41,7 @@ from pg8000.converters import (
     VARCHAR_ARRAY,
     XID,
 )
-from pg8000.core import CoreConnection
+from pg8000.core import Context, CoreConnection
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
 
@@ -489,7 +489,12 @@ class Cursor:
             self.execute(operation, parameters)
             rowcounts.append(self._context.row_count)
 
-        self._context.row_count = -1 if -1 in rowcounts else sum(rowcounts)
+        if len(rowcounts) == 0:
+            self._context = Context()
+        elif -1 in rowcounts:
+            self._context.row_count = -1
+        else:
+            self._context.row_count = sum(rowcounts)
 
     def callproc(self, procname, parameters=None):
         args = [] if parameters is None else parameters

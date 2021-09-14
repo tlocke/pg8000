@@ -199,6 +199,11 @@ def test_executemany_setinputsizes(cursor):
     )
 
 
+def test_executemany_no_param_sets(cursor):
+    cursor.executemany("INSERT INTO t1 (f1, f2) VALUES (%s, %s)", [])
+    assert cursor.rowcount == -1
+
+
 # Check that autocommit stays off
 # We keep track of whether we're in a transaction or not by using the
 # READY_FOR_QUERY message.
