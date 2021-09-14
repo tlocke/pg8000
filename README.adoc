@@ -2269,6 +2269,12 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.21.2, 2021-09-14
+
+* The `executemany()` method fails if the `param_sets` parameter is empty. Thanks to
+  https://github.com/GKTheOne for reporting this.
+
+
 === Version 1.21.1, 2021-08-25
 
 * Require Scramp version 1.4.1 or higher so that pg8000 can cope with SCRAM with
