@@ -744,7 +744,7 @@ class PreparedStatement:
             else:
                 raise e
 
-        return tuple(self._context.rows)
+        return tuple() if self._context.rows is None else tuple(self._context.rows)
 
     def close(self):
         for statement_name_bin, _, _ in self.name_map.values():
