@@ -66,6 +66,7 @@ query the table:
 Here's how to run groups of SQL statements in a
 https://www.postgresql.org/docs/current/tutorial-transactions.html[transaction]:
 
+[source,python]
 ----
 >>> import pg8000.native
 >>>
@@ -89,6 +90,7 @@ https://www.postgresql.org/docs/current/tutorial-transactions.html[transaction]:
 
 rolling back a transaction:
 
+[source,python]
 ----
 >>> import pg8000.native
 >>>
