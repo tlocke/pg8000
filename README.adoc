@@ -125,7 +125,7 @@ Another query, using some PostgreSQL functions:
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
 >>> con.run("SELECT extract(millennium from now())")
-[[3.0]]
+[[Decimal('3')]]
 
 ----
 
@@ -454,7 +454,7 @@ https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENT
 >>>
 >>> con.run("select 'hello' as "My Column"")
 Traceback (most recent call last):
-SyntaxError: invalid syntax
+SyntaxError: invalid syntax. Perhaps you forgot a comma?
 
 ----
 
@@ -843,7 +843,7 @@ Another query, using some PostgreSQL functions:
 >>>
 >>> cursor.execute("SELECT extract(millennium from now())")
 >>> cursor.fetchone()
-[3.0]
+[Decimal('3')]
 
 ----
 

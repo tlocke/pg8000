@@ -8,8 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8]
-        postgresql-version: [13, 12, 11, 10, 9.6]
+        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+        postgresql-version: [14, 13, 12, 11, 10, 9.6]
 
     container: python:${{ matrix.python-version }}
 
@@ -53,15 +53,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8]
-        postgresql-version: [13, 9.6]
+        python-version: ["3.10"]
+        postgresql-version: ["14", "9.6"]
         auth-type: [md5, gss, password, scram-sha-256]
         exclude:
-          - python-version: 3.8
-            postgresql-version: 9.6
+          - python-version: "3.10"
+            postgresql-version: "9.6"
             auth-type: scram-sha-256
-          - python-version: 3.8
-            postgresql-version: 9.6
+          - python-version: "3.10"
+            postgresql-version: "9.6"
             auth-type: scram-sha-256
 
     container: python:${{ matrix.python-version }}
@@ -135,7 +135,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: "3.10"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -170,7 +170,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: "3.10"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
