@@ -2271,6 +2271,14 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.21.3, 2021-10-10
+
+* Legacy prepared statement fails if the result is null. Thanks to Carlos
+  https://github.com/carlkid1499 for reporting this.
+
+* For the currency part of the pg8000 test suite, add `C.UTF8` as a supported `LANG`.
+
+
 === Version 1.21.2, 2021-09-14
 
 * The `executemany()` method fails if the `param_sets` parameter is empty. Thanks to
