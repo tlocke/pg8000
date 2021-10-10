@@ -445,6 +445,7 @@ def test_float8_array_out(con):
 CURRENCIES = {
     "en_GB.UTF-8": "£",
     "C.UTF-8": "$",
+    "C.UTF8": "$",
 }
 LANG = os.environ["LANG"]
 CURRENCY = CURRENCIES[LANG]
