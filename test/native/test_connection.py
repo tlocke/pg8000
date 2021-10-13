@@ -182,10 +182,10 @@ def test_py_value_fail(con, mocker):
     # exception is raised (PG8000TestException), and the connection is
     # still usable after the error.
     mocker.patch.object(con, "py_types")
-    con.py_types = {Time: (1083, raise_exception)}
+    con.py_types = {Time: raise_exception}
 
     with pytest.raises(PG8000TestException):
-        con.run("SELECT :v as f1", v=Time(10, 30))
+        con.run("SELECT CAST(:v AS TIME)", v=Time(10, 30))
 
         # ensure that the connection is still usable for a new query
         res = con.run("VALUES ('hw3'::text)")

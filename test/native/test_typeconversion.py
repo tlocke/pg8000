@@ -136,7 +136,7 @@ def test_timestamp_roundtrip(is_java, con):
 
 def test_interval_roundtrip(con):
     con.register_in_adapter(INTERVAL, pg_interval_in)
-    con.register_out_adapter(PGInterval, INTERVAL, pg_interval_out)
+    con.register_out_adapter(PGInterval, pg_interval_out)
     v = PGInterval(microseconds=123456789, days=2, months=24)
     retval = con.run("SELECT cast(:v as interval)", v=v)
     assert retval[0][0] == v
@@ -175,11 +175,10 @@ def test_enum_custom_round_trip(con):
 
     try:
         con.run("create type lepton as enum ('1', '2', '3')")
-        lepton_oid = con.run("select oid from pg_type where typname = 'lepton'")[0][0]
-        con.register_out_adapter(Lepton, lepton_oid, lepton_out)
+        con.register_out_adapter(Lepton, lepton_out)
 
         v = Lepton("muon", "2")
-        retval = con.run("SELECT :v", v=v)
+        retval = con.run("SELECT CAST(:v AS lepton)", v=v)
         assert retval[0][0] == v.value
     finally:
         con.run("drop type lepton")
@@ -246,8 +245,7 @@ def test_timestamp_mismatch(is_java, con):
         con.run("SET SESSION TIME ZONE 'America/Edmonton'")
         try:
             con.run(
-                "CREATE TEMPORARY TABLE TestTz "
-                "(f1 timestamp with time zone, "
+                "CREATE TEMPORARY TABLE TestTz (f1 timestamp with time zone, "
                 "f2 timestamp without time zone)"
             )
             con.run(
@@ -267,13 +265,10 @@ def test_timestamp_mismatch(is_java, con):
             f1 = retval[0][0]
             assert f1 == Datetime(2001, 2, 3, 11, 5, 6, 170000, Timezone.utc)
 
-            # inserting the timestamptz into a timestamp field, pg8000
-            # converts the value into UTC, and then the PG server converts
-            # it into local time for insertion into the field. When we
-            # query for it, we get the same time back, like the tz was
-            # dropped.
+            # inserting the timestamptz into a timestamp field, pg8000 converts the
+            # value into UTC, and then the PG server sends that time back
             f2 = retval[0][1]
-            assert f2 == Datetime(2001, 2, 3, 4, 5, 6, 170000)
+            assert f2 == Datetime(2001, 2, 3, 11, 5, 6, 170000)
         finally:
             con.run("SET SESSION TIME ZONE DEFAULT")
 
@@ -511,20 +506,20 @@ def test_roundtrip_oid(con, test_input, oid):
 
 
 @pytest.mark.parametrize(
-    "test_input,required_version",
+    "test_input,typ,required_version",
     [
-        [[True, False, None], None],  # bool[]
-        [[IPv4Address("192.168.0.1")], None],  # inet[]
-        [[Date(2021, 3, 1)], None],  # date[]
-        [[Datetime(2001, 2, 3, 4, 5, 6)], None],  # timestamp[]
-        [[Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], None],  # timestamptz[]
-        [[Time(4, 5, 6)], None],  # time[]
-        [[Timedelta(seconds=30)], None],  # interval[]
-        [[{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}], None],  # jsonb[]
-        [[b"\x00\x01\x02\x03\x02\x01\x00"], None],  # bytea[]
-        [[Decimal("1.1"), None, Decimal("3.3")], None],  # numeric[]
-        [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], None],  # uuid[]
-        [  # varchar[]
+        [[True, False, None], "bool[]", None],
+        [[IPv4Address("192.168.0.1")], "inet[]", None],
+        [[Date(2021, 3, 1)], "date[]", None],
+        [[Datetime(2001, 2, 3, 4, 5, 6)], "timestamp[]", None],
+        [[Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], "timestamptz[]", None],
+        [[Time(4, 5, 6)], "time[]", None],
+        [[Timedelta(seconds=30)], "interval[]", None],
+        [[{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}], "jsonb[]", None],
+        [[b"\x00\x01\x02\x03\x02\x01\x00"], "bytea[]", None],
+        [[Decimal("1.1"), None, Decimal("3.3")], "numeric[]", None],
+        [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], "uuid[]", None],
+        [
             [
                 "Hello!",
                 "World!",
@@ -534,32 +529,33 @@ def test_roundtrip_oid(con, test_input, oid):
                 " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t",
                 None,
             ],
+            "varchar[]",
             None,
         ],
-        [Timedelta(seconds=30), None],  # interval
-        [Time(4, 5, 6), None],  # time
-        [Date(2001, 2, 3), None],  # date
-        [Datetime(2001, 2, 3, 4, 5, 6), None],  # timestamp
-        [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), None],  # timestamptz
-        [True, 10],  # bool
-        [Decimal("1.1"), None],  # numeric
-        [1.756e-12, None],  # float8
-        [float("inf"), None],  # float8
-        ["hello world", 10],  # unknown
-        ["hello \u0173 world", 10],  # varchar
-        [50000000000000, None],  # int8
-        [b"\x00\x01\x02\x03\x02\x01\x00", None],  # bytea
-        [bytearray(b"\x00\x01\x02\x03\x02\x01\x00"), None],  # bytea
-        [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), None],  # uuid
-        [IPv4Network("192.168.0.0/28"), None],  # inet
-        [IPv4Address("192.168.0.1"), None],  # inet
+        [Timedelta(seconds=30), "interval", None],
+        [Time(4, 5, 6), "time", None],
+        [Date(2001, 2, 3), "date", None],
+        [Datetime(2001, 2, 3, 4, 5, 6), "timestamp", None],
+        [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), "timestamptz", None],
+        [True, "bool", 10],
+        [Decimal("1.1"), "numeric", None],
+        [1.756e-12, "float8", None],
+        [float("inf"), "float8", None],
+        ["hello world", "unknown", 10],
+        ["hello \u0173 world", "varchar", 10],
+        [50000000000000, "int8", None],
+        [b"\x00\x01\x02\x03\x02\x01\x00", "bytea", None],
+        [bytearray(b"\x00\x01\x02\x03\x02\x01\x00"), "bytea", None],
+        [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), "uuid", None],
+        [IPv4Network("192.168.0.0/28"), "inet", None],
+        [IPv4Address("192.168.0.1"), "inet", None],
     ],
 )
-def test_roundtrip_bare(con, pg_version, test_input, required_version):
+def test_roundtrip_cast(con, pg_version, test_input, typ, required_version):
     if required_version is not None and pg_version < required_version:
         return
 
-    retval = con.run("SELECT :v", v=test_input)
+    retval = con.run(f"SELECT CAST(:v AS {typ})", v=test_input)
     assert retval[0][0] == test_input
 
 

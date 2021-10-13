@@ -15,9 +15,9 @@ def db_table(request, con):
 
 
 def test_copy_to_with_table(db_table):
-    db_table.run("INSERT INTO t1 (f1, f2, f3) VALUES (:v, :v, :v)", v=1)
-    db_table.run("INSERT INTO t1 (f1, f2, f3) VALUES (:v, :v, :v)", v=2)
-    db_table.run("INSERT INTO t1 (f1, f2, f3) VALUES (:v, :v, :v)", v=3)
+    db_table.run("INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v1, :v2)", v1=1, v2="1")
+    db_table.run("INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v1, :v2)", v1=2, v2="2")
+    db_table.run("INSERT INTO t1 (f1, f2, f3) VALUES (:v1, :v1, :v2)", v1=3, v2="3")
 
     stream = BytesIO()
     db_table.run("copy t1 to stdout", stream=stream)

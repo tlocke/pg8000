@@ -381,7 +381,7 @@ class Cursor:
         self._context = None
         self._row_iter = None
 
-        self._input_oids = None
+        self._input_oids = ()
 
     @property
     def connection(self):
@@ -451,13 +451,13 @@ class Cursor:
             statement, vals = convert_paramstyle(paramstyle, operation, args)
 
             self._context = self._c.execute_unnamed(
-                statement, vals=vals, input_oids=self._input_oids, stream=stream
+                statement, vals=vals, oids=self._input_oids, stream=stream
             )
             if self._context.rows is None:
                 self._row_iter = None
             else:
                 self._row_iter = iter(self._context.rows)
-            self._input_oids = None
+            self._input_oids = ()
         except AttributeError as e:
             if self._c is None:
                 raise InterfaceError("Cursor closed")
@@ -498,7 +498,7 @@ class Cursor:
 
     def callproc(self, procname, parameters=None):
         args = [] if parameters is None else parameters
-        operation = "CALL " + procname + "(" + ", ".join(["%s" for _ in args]) + ")"
+        operation = f"CALL {procname}(" + ", ".join(["%s" for _ in args]) + ")"
 
         try:
 
@@ -642,7 +642,7 @@ class Connection(CoreConnection):
     NotSupportedError = property(lambda self: self._getError(NotSupportedError))
 
     def _getError(self, error):
-        warn("DB-API extension connection.%s used" % error.__name__, stacklevel=3)
+        warn(f"DB-API extension connection.{error.__name__} used", stacklevel=3)
         return error
 
     def cursor(self):

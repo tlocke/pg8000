@@ -1,5 +1,5 @@
 def test_prepare(con):
-    con.prepare("SELECT :v")
+    con.prepare("SELECT CAST(:v AS INTEGER)")
 
 
 def test_run(con):

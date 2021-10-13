@@ -19,10 +19,10 @@ def test_py_value_fail(con, mocker):
     # exception is raised (PG8000TestException), and the connection is
     # still usable after the error.
     mocker.patch.object(con, "py_types")
-    con.py_types = {datetime.time: (1083, raise_exception)}
+    con.py_types = {datetime.time: raise_exception}
 
     with con.cursor() as c, pytest.raises(PG8000TestException):
-        c.execute("SELECT %s as f1", (datetime.time(10, 30),))
+        c.execute("SELECT CAST(%s AS TIME)", (datetime.time(10, 30),))
         c.fetchall()
 
         # ensure that the connection is still usable for a new query

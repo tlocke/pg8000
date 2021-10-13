@@ -202,7 +202,7 @@ then you can just do:
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
 >>> val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
->>> con.run("SELECT :apollo", apollo=val)
+>>> con.run("SELECT CAST(:apollo as jsonb)", apollo=val)
 [[{'age': 26.003, 'name': 'Apollo 11 Cave', 'zebra': True}]]
 
 ----
@@ -338,7 +338,9 @@ function:
 >>>
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
->>> con.run("SELECT 'silo 1' WHERE 'a' IN (SELECT unnest(:v))", v=('a', 'b'))
+>>> con.run(
+...     "SELECT 'silo 1' WHERE 'a' IN (SELECT unnest(CAST(:v as varchar[])))",
+...     v=('a', 'b'))
 [['silo 1']]
 
 ----
@@ -499,8 +501,8 @@ register an adapter:
 >>> def my_interval_out(my_interval):
 ...     return my_interval  # Must return a str
 >>>
->>> con.register_out_adapter(MyInterval, 1186, my_interval_out)
->>> con.run("SELECT :interval", interval=MyInterval("2 hours"))
+>>> con.register_out_adapter(MyInterval, my_interval_out)
+>>> con.run("SELECT CAST(:interval as interval)", interval=MyInterval("2 hours"))
 [[datetime.timedelta(seconds=7200)]]
 
 ----
@@ -901,7 +903,7 @@ the 'numeric' parameter style:
 >>> con = pg8000.dbapi.connect(user="postgres", password="cpsnow")
 >>> cursor = con.cursor()
 >>>
->>> cursor.execute("SELECT array_prepend(:1, :2)", ( 500, [1, 2, 3, 4], ))
+>>> cursor.execute("SELECT array_prepend(:1, CAST(:2 AS int[]))", (500, [1, 2, 3, 4],))
 >>> cursor.fetchone()
 [[500, 1, 2, 3, 4]]
 >>> pg8000.dbapi.paramstyle = "format"
@@ -1257,39 +1259,39 @@ ____
 pg8000 is designed to be used with one thread per connection.
 
 Pg8000 communicates with the database using the
-https://www.postgresql.org/docs/current/protocol.html[PostgreSQL
-Frontend/Backend Protocol] (FEBE). By default, pg8000 uses unnamed prepared
-statements. It uses the Extended Query feature of the FEBE. So the steps are:
+https://www.postgresql.org/docs/current/protocol.html[PostgreSQL Frontend/Backend
+Protocol] (FEBE). If a query has no parameters, pg8000 uses the
+'simple query protocol'. If a query does have parameters, pg8000 uses the
+'extended query protocol' with unnamed prepared statements. The steps for a query with
+parameters are:
 
 . Query comes in.
 . Send a PARSE message to the server to create an unnamed prepared statement.
-. Send a BIND message to run against the unnamed prepared statement, resulting
-  in an unnamed portal on the server.
+. Send a BIND message to run against the unnamed prepared statement, resulting in an
+  unnamed portal on the server.
 . Send an EXECUTE message to read all the results from the portal.
 
-It's also possible to use named prepared statements. In which case the
-prepared statement persists on the server, and represented in pg8000 using a
-PreparedStatement object. This means that the PARSE step gets executed once up
-front, and then only the BIND and EXECUTE steps are repeated subsequently.
+It's also possible to use named prepared statements. In which case the prepared
+statement persists on the server, and represented in pg8000 using a PreparedStatement
+object. This means that the PARSE step gets executed once up front, and then only the
+BIND and EXECUTE steps are repeated subsequently.
 
-There are a lot of PostgreSQL data types, but few primitive data types in
-Python. A PostgreSQL data type has to be assigned to each query parameter,
-which is impossible to work out in all cases. In these cases an adapter can be
-used for the parameter to indicate its type, or sometimes an
+There are a lot of PostgreSQL data types, but few primitive data types in Python. By
+default, pg8000 doesn't send PostgreSQL data type information in the PARSE step, in
+which case PostgreSQL assumes the types implied by the SQL statement. In some cases
+PostgreSQL can't work out a parameter type and so an
 https://www.postgresql.org/docs/current/static/sql-expressions.html#SQL-SYNTAX-TYPE-CASTS[explicit cast] can be used in the SQL.
 
-In the FEBE protocol, each query parameter can be sent to the server either as
-binary or text according to the format code. In pg8000 the parameters are
-always sent as text.
+In the FEBE protocol, each query parameter can be sent to the server either as binary
+or text according to the format code. In pg8000 the parameters are always sent as text.
 
-* PostgreSQL has +/-infinity values for dates and timestamps, but Python does
-  not. Pg8000 handles this by returning +/-infinity strings in results, and in
-  parameters the strings +/- infinity can be used.
+* PostgreSQL has +/-infinity values for dates and timestamps, but Python does not.
+  Pg8000 handles this by returning +/-infinity strings in results, and in parameters
+  the strings +/- infinity can be used.
 
-* PostgreSQL dates/timestamps can have values outside the range of Python
-  datetimes. These are handled using the underlying PostgreSQL storage method.
-  I don't know of any users of pg8000 that use this feature, so get in touch if
-  it affects you.
+* PostgreSQL dates/timestamps can have values outside the range of Python datetimes.
+  These are handled using the underlying PostgreSQL storage method. I don't know of any
+  users of pg8000 that use this feature, so get in touch if it affects you.
 
 * Occasionally, the network connection between pg8000 and the server may go
   down. If pg8000 encounters a network problem it'll raise an `InterfaceError`
@@ -2270,6 +2272,15 @@ twine upload dist/*
 
 
 == Release Notes
+
+
+=== Version 1.22.0, 2021-10-13
+
+* Rather than specifying the oids in the `Parse` step of the Postgres protocol, pg8000
+  now omits them, and so Postgres will use the oids it determines from the query. This
+  makes the pg8000 code simplier and also it should also make the nuances of type
+  matching more straightforward.
+
 
 === Version 1.21.3, 2021-10-10
 

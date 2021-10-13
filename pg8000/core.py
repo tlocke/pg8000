@@ -343,8 +343,8 @@ class CoreConnection:
 
         self.in_transaction = False
 
-    def register_out_adapter(self, typ, oid, out_func):
-        self.py_types[typ] = (oid, out_func)
+    def register_out_adapter(self, typ, out_func):
+        self.py_types[typ] = out_func
 
     def register_in_adapter(self, oid, in_func):
         self.pg_types[oid] = in_func
@@ -594,7 +594,7 @@ class CoreConnection:
         if context.rows is None:
             context.rows = []
 
-    def send_PARSE(self, statement_name_bin, statement, oids):
+    def send_PARSE(self, statement_name_bin, statement, oids=()):
 
         val = bytearray(statement_name_bin)
         val.extend(statement.encode(self._client_encoding) + NULL_BYTE)
@@ -612,20 +612,15 @@ class CoreConnection:
     def send_QUERY(self, sql):
         self._send_message(QUERY, sql.encode(self._client_encoding) + NULL_BYTE)
 
-    def execute_unnamed(self, statement, vals=(), input_oids=None, stream=None):
+    def execute_unnamed(self, statement, vals=(), oids=(), stream=None):
         context = Context(stream=stream)
 
         if len(vals) == 0 and stream is None:
             self.send_QUERY(statement)
             self._flush()
             self.handle_messages(context)
-        else:
-            param_oids, params = make_params(self.py_types, vals)
-            if input_oids is None:
-                oids = param_oids
-            else:
-                oids = [(p if i is None else i) for p, i in zip(param_oids, input_oids)]
 
+        else:
             self.send_PARSE(NULL_BYTE, statement, oids)
             self._write(SYNC_MSG)
             self._flush()
@@ -641,7 +636,7 @@ class CoreConnection:
                     raise InterfaceError("connection is closed")
                 else:
                     raise e
-
+            params = make_params(self.py_types, vals)
             self.send_BIND(NULL_BYTE, params)
             self.handle_messages(context)
             self.send_EXECUTE()
@@ -652,10 +647,10 @@ class CoreConnection:
 
         return context
 
-    def prepare_statement(self, statement, oids):
+    def prepare_statement(self, statement, oids=None):
 
         for i in count():
-            statement_name = "_".join(("pg8000", "statement", str(i)))
+            statement_name = f"pg8000_statement_{i}"
             statement_name_bin = statement_name.encode("ascii") + NULL_BYTE
             if statement_name_bin not in self._statement_nums:
                 self._statement_nums.add(statement_name_bin)

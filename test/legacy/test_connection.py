@@ -168,7 +168,7 @@ def test_application_name_integer(db_kwargs):
     db_kwargs["application_name"] = 1
     with pytest.raises(
         pg8000.InterfaceError,
-        match="The parameter application_name can't be of type " "<class 'int'>.",
+        match="The parameter application_name can't be of type <class 'int'>.",
     ):
         pg8000.connect(**db_kwargs)
 

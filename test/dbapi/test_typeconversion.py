@@ -79,7 +79,7 @@ def test_null_roundtrip(cursor):
 def test_decimal_roundtrip(cursor):
     values = ("1.1", "-1.1", "10000", "20000", "-1000000000.123456789", "1.0", "12.44")
     for v in values:
-        cursor.execute("SELECT %s as f1", (decimal.Decimal(v),))
+        cursor.execute("SELECT CAST(%s AS NUMERIC)", (decimal.Decimal(v),))
         retval = cursor.fetchall()
         assert str(retval[0][0]) == v
 
@@ -127,7 +127,7 @@ def test_long_roundtrip(cursor):
 
 
 def test_int_execute_many_select(cursor):
-    cursor.executemany("SELECT %s", ((1,), (40000,)))
+    cursor.executemany("SELECT CAST(%s AS INTEGER)", ((1,), (40000,)))
     cursor.fetchall()
 
 
@@ -238,7 +238,7 @@ def test_interval_in_2_months():
 
 def test_pg_interval_roundtrip(con, cursor):
     con.register_in_adapter(INTERVAL, pg_interval_in)
-    con.register_out_adapter(PGInterval, INTERVAL, pg_interval_out)
+    con.register_out_adapter(PGInterval, pg_interval_out)
     v = PGInterval(microseconds=123456789, days=2, months=24)
     cursor.execute("SELECT cast(%s as interval)", (v,))
     assert cursor.fetchall()[0][0] == v
@@ -286,12 +286,10 @@ def test_enum_custom_round_trip(con, cursor):
 
     try:
         cursor.execute("create type lepton as enum ('1', '2', '3')")
-        cursor.execute("select oid from pg_type where typname = 'lepton'")
-        lepton_oid = cursor.fetchall()[0][0]
-        con.register_out_adapter(Lepton, lepton_oid, lepton_out)
+        con.register_out_adapter(Lepton, lepton_out)
 
         v = Lepton("muon", "2")
-        cursor.execute("SELECT %s", (v,))
+        cursor.execute("SELECT CAST(%s AS lepton)", (v,))
         assert cursor.fetchall()[0][0] == v.value
     finally:
         cursor.execute("drop type lepton")
@@ -421,7 +419,7 @@ def test_timestamp_mismatch(is_java, cursor):
             # query for it, we get the same time back, like the tz was
             # dropped.
             f2 = retval[0][1]
-            assert f2 == Datetime(2001, 2, 3, 4, 5, 6, 170000)
+            assert f2 == Datetime(2001, 2, 3, 11, 5, 6, 170000)
         finally:
             cursor.execute("SET SESSION TIME ZONE DEFAULT")
 

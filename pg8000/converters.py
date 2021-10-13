@@ -119,6 +119,13 @@ def date_out(v):
     return v.isoformat()
 
 
+def datetime_out(v):
+    if v.tzinfo is None:
+        return v.isoformat()
+    else:
+        return v.astimezone(Timezone.utc).isoformat()
+
+
 def enum_out(v):
     return str(v.value)
 
@@ -166,16 +173,7 @@ def interval_in(data):
 
 
 def interval_out(v):
-    return " ".join(
-        (
-            str(v.days),
-            "days",
-            str(v.seconds),
-            "seconds",
-            str(v.microseconds),
-            "microseconds",
-        )
-    )
+    return f"{v.days} days {v.seconds} seconds {v.microseconds} microseconds"
 
 
 def json_in(data):
@@ -229,16 +227,6 @@ def timestamp_in(data):
 
     pattern = "%Y-%m-%d %H:%M:%S.%f" if "." in data else "%Y-%m-%d %H:%M:%S"
     return Datetime.strptime(data, pattern)
-
-
-def timestamp_out(v):
-    return v.isoformat()
-
-
-def timestamptz_out(v):
-    # timestamps should be sent as UTC.  If they have zone info,
-    # convert them.
-    return v.astimezone(Timezone.utc).isoformat()
 
 
 def timestamptz_in(data):
@@ -540,261 +528,81 @@ def array_string_escape(v):
         or val == "NULL"
         or any([c in val for c in ("{", "}", ",", " ", "\\")])
     ):
-        val = '"' + val + '"'
+        val = f'"{val}"'
     return val
 
 
-# pg element oid -> pg array typeoid
-PG_ARRAY_TYPES = {
-    BOOLEAN: BOOLEAN_ARRAY,  # bool[]
-    BIGINT: BIGINT_ARRAY,  # int8[]
-    BYTES: BYTES_ARRAY,  # bytea[]
-    CIDR: CIDR_ARRAY,  # cidr[]
-    DATE: DATE_ARRAY,  # date[]
-    FLOAT: FLOAT_ARRAY,  # float8[]
-    INET: INET_ARRAY,  # inet[]
-    INTERVAL: INTERVAL_ARRAY,  # interval[]
-    INTEGER: INTEGER_ARRAY,  # int4[]
-    JSON: JSON_ARRAY,  # json[]
-    JSONB: JSONB_ARRAY,  # jsonb[]
-    MONEY: MONEY_ARRAY,  # money[]
-    NUMERIC: NUMERIC_ARRAY,  # numeric[]
-    SMALLINT: SMALLINT_ARRAY,  # int2[]
-    TEXT: TEXT_ARRAY,  # text[]
-    TIME: TIME_ARRAY,  # time[]
-    TIMESTAMP: TIMESTAMP_ARRAY,  # timestamp[]
-    TIMESTAMPTZ: TIMESTAMPTZ_ARRAY,  # timestamptz[]
-    UUID_TYPE: UUID_ARRAY,  # uuid[]
-    VARCHAR: VARCHAR_ARRAY,  # varchar[]
-    UNKNOWN: VARCHAR_ARRAY,  # any[]
-}
-
-
-def inspect_datetime(value):
-    if value.tzinfo is None:
-        return PY_TYPES[TIMESTAMP]
-    else:
-        return PY_TYPES[TIMESTAMPTZ]
-
-
-def int_oid(value):
-    oid = NUMERIC
-
-    if MIN_INT2 < value < MAX_INT2:
-        oid = SMALLINT
-
-    elif MIN_INT4 < value < MAX_INT4:
-        oid = INTEGER
-
-    elif MIN_INT8 < value < MAX_INT8:
-        oid = BIGINT
-
-    return oid
-
-
-def inspect_int(value):
-    return PY_TYPES[int_oid(value)]
-
-
-def array_flatten(arr):
-    for v in arr:
-        if isinstance(v, list):
-            for v2 in array_flatten(v):
-                yield v2
-        else:
-            yield v
-
-
-def array_inspect(array):
-    first_element = None
-    flattened = list(array_flatten(array))
-
-    for v in flattened:
-        if v is not None:
-            first_element = v
-            break
-
-    if first_element is None:
-        oid = VARCHAR
-
-    elif isinstance(first_element, bool):
-        oid = BOOLEAN
-
-    elif isinstance(first_element, int):
-        int_oids = [SMALLINT, INTEGER, BIGINT, NUMERIC]
-        for v in flattened:
-            if v is None:
-                continue
-
-            v_oid = int_oid(v)
-            try:
-                oid_idx = int_oids.index(v_oid)
-            except ValueError:
-                continue
-
-            if oid_idx > 0:
-                int_oids = int_oids[oid_idx:]
-
-        oid = int_oids[0]
-
-    else:
-        oid, _ = make_param(PY_TYPES, first_element)
-
-    try:
-        array_oid = PG_ARRAY_TYPES[oid]
-    except KeyError:
-        raise InterfaceError(f"oid {oid} not supported as array contents")
-
-    try:
-        return PY_TYPES[array_oid]
-    except KeyError:
-        raise InterfaceError(f"array oid {array_oid} not supported")
-
-
-def _make_array_out(ar, adapter_f):
+def array_out(ar):
     result = []
     for v in ar:
 
-        if isinstance(v, list):
-            val = _make_array_out(v, adapter_f)
+        if isinstance(v, (list, tuple)):
+            val = array_out(v)
 
         elif v is None:
             val = "NULL"
 
-        else:
-            val = adapter_f(v)
-
-        result.append(val)
-
-    return "{" + ",".join(result) + "}"
-
-
-def _array_out(adapter):
-    def f(data):
-        return _make_array_out(data, adapter)
-
-    return f
-
-
-bool_array_out = _array_out(bool_out)
-date_array_out = _array_out(date_out)
-float_array_out = _array_out(float_out)
-inet_array_out = _array_out(inet_out)
-int_array_out = _array_out(int_out)
-interval_array_out = _array_out(interval_out)
-numeric_array_out = _array_out(numeric_out)
-time_array_out = _array_out(time_out)
-timestamp_array_out = _array_out(timestamp_out)
-timestamptz_array_out = _array_out(timestamptz_out)
-uuid_array_out = _array_out(uuid_out)
-
-
-def bytes_array_out(ar):
-    result = []
-    for v in ar:
-
-        if isinstance(v, list):
-            val = bytes_array_out(v)
-
-        elif v is None:
-            val = "NULL"
-
-        else:
-            val = f'"\\{bytes_out(v)}"'
-
-        result.append(val)
-
-    return "{" + ",".join(result) + "}"
-
-
-def json_array_out(ar):
-    result = []
-    for v in ar:
-
-        if isinstance(v, list):
-            val = json_array_out(v)
-
-        elif v is None:
-            val = "NULL"
-
-        else:
+        elif isinstance(v, dict):
             val = array_string_escape(json_out(v))
 
-        result.append(val)
+        elif isinstance(v, (bytes, bytearray)):
+            val = f'"\\{bytes_out(v)}"'
 
-    return "{" + ",".join(result) + "}"
-
-
-def string_array_out(ar):
-    result = []
-    for v in ar:
-
-        if isinstance(v, list):
-            val = string_array_out(v)
-
-        elif v is None:
-            val = "NULL"
-
-        else:
+        elif isinstance(v, str):
             val = array_string_escape(v)
 
+        else:
+            val = make_param(PY_TYPES, v)
+
         result.append(val)
 
     return "{" + ",".join(result) + "}"
 
 
-INSPECT_FUNCS = {
-    Datetime: inspect_datetime,
-    list: array_inspect,
-    tuple: array_inspect,
-    int: inspect_int,
+PY_PG = {
+    Date: DATE,
+    Decimal: NUMERIC,
+    IPv4Address: INET,
+    IPv6Address: INET,
+    IPv4Network: INET,
+    IPv6Network: INET,
+    PGInterval: INTERVAL,
+    Time: TIME,
+    Timedelta: INTERVAL,
+    UUID: UUID_TYPE,
+    bool: BOOLEAN,
+    bytearray: BYTES,
+    dict: JSONB,
+    float: FLOAT,
+    type(None): NULLTYPE,
+    bytes: BYTES,
+    str: TEXT,
 }
 
 
 PY_TYPES = {
-    BOOLEAN_ARRAY: (BOOLEAN_ARRAY, bool_array_out),  # bool[]
-    BIGINT: (BIGINT, int_out),  # int8
-    BIGINT_ARRAY: (BIGINT_ARRAY, int_array_out),  # int8[]
-    BYTES_ARRAY: (BYTES_ARRAY, bytes_array_out),  # bytes[]
-    DATE_ARRAY: (DATE_ARRAY, date_array_out),  # date[]
-    FLOAT_ARRAY: (FLOAT_ARRAY, float_array_out),  # float8[]
-    INET_ARRAY: (INET_ARRAY, inet_array_out),  # inet[]
-    INTEGER: (INTEGER, int_out),  # int4
-    INTEGER_ARRAY: (INTEGER_ARRAY, int_array_out),  # int4[]
-    INTERVAL_ARRAY: (INTERVAL_ARRAY, interval_array_out),  # interval[]
-    JSON_ARRAY: (JSON_ARRAY, json_array_out),  # json[]
-    JSONB_ARRAY: (JSONB_ARRAY, json_array_out),  # jsonb[]
-    MONEY: (MONEY, string_array_out),  # money[]
-    MONEY_ARRAY: (MONEY_ARRAY, numeric_array_out),  # money[]
-    NUMERIC: (NUMERIC, numeric_out),  # numeric
-    NUMERIC_ARRAY: (NUMERIC_ARRAY, numeric_array_out),  # numeric[]
-    SMALLINT: (SMALLINT, int_out),  # int2
-    SMALLINT_ARRAY: (SMALLINT_ARRAY, int_array_out),  # int2[]
-    TIME_ARRAY: (TIME_ARRAY, time_array_out),  # time[]
-    TIMESTAMP: (TIMESTAMP, timestamp_out),  # timestamp
-    TIMESTAMP_ARRAY: (TIMESTAMP_ARRAY, timestamp_array_out),  # timestamp[]
-    TIMESTAMPTZ: (TIMESTAMPTZ, timestamptz_out),  # timestamptz
-    TIMESTAMPTZ_ARRAY: (TIMESTAMPTZ_ARRAY, timestamptz_array_out),  # timestamptz[]
-    UUID_ARRAY: (UUID_ARRAY, uuid_array_out),  # uuid
-    VARCHAR_ARRAY: (VARCHAR_ARRAY, string_array_out),  # varchar[]
-    Date: (DATE, date_out),  # date
-    Decimal: (NUMERIC, numeric_out),  # numeric
-    Enum: (UNKNOWN, enum_out),  # enum
-    IPv4Address: (INET, inet_out),  # inet
-    IPv6Address: (INET, inet_out),  # inet
-    IPv4Network: (INET, inet_out),  # inet
-    IPv6Network: (INET, inet_out),  # inet
-    PGInterval: (1186, interval_out),  # interval
-    Time: (TIME, time_out),  # time
-    Timedelta: (1186, interval_out),  # interval
-    UUID: (UUID_TYPE, uuid_out),  # uuid
-    bool: (BOOLEAN, bool_out),  # bool
-    bytearray: (BYTES, bytes_out),  # bytea
-    dict: (JSONB, json_out),  # jsonb
-    float: (FLOAT, float_out),  # float8
-    type(None): (NULLTYPE, null_out),  # null
-    bytes: (BYTES, bytes_out),  # bytea
-    str: (UNKNOWN, string_out),  # unknown
+    Date: date_out,  # date
+    Datetime: datetime_out,
+    Decimal: numeric_out,  # numeric
+    Enum: enum_out,  # enum
+    IPv4Address: inet_out,  # inet
+    IPv6Address: inet_out,  # inet
+    IPv4Network: inet_out,  # inet
+    IPv6Network: inet_out,  # inet
+    PGInterval: interval_out,  # interval
+    Time: time_out,  # time
+    Timedelta: interval_out,  # interval
+    UUID: uuid_out,  # uuid
+    bool: bool_out,  # bool
+    bytearray: bytes_out,  # bytea
+    dict: json_out,  # jsonb
+    float: float_out,  # float8
+    type(None): null_out,  # null
+    bytes: bytes_out,  # bytea
+    str: string_out,  # unknown
+    int: int_out,
+    list: array_out,
+    tuple: array_out,
 }
 
 
@@ -911,44 +719,20 @@ PG_PY_ENCODINGS = {
 
 
 def make_param(py_types, value):
-    typ = type(value)
     try:
-        oid, func = py_types[typ]
+        func = py_types[type(value)]
     except KeyError:
-        try:
-            oid, func = INSPECT_FUNCS[typ](value)
-        except KeyError:
-            oid, func = None, None
-            for k, v in py_types.items():
-                try:
-                    if isinstance(value, k):
-                        oid, func = v
-                        break
-                except TypeError:
-                    pass
+        func = str
+        for k, v in py_types.items():
+            try:
+                if isinstance(value, k):
+                    func = v
+                    break
+            except TypeError:
+                pass
 
-            if oid is None:
-                for k, v in INSPECT_FUNCS.items():
-                    try:
-                        if isinstance(value, k):
-                            oid, func = v(value)
-                            break
-                    except TypeError:
-                        pass
-                    except KeyError:
-                        pass
-
-            if oid is None:
-                oid, func = UNKNOWN, string_out
-
-    return oid, func(value)
+    return func(value)
 
 
 def make_params(py_types, values):
-    oids, params = [], []
-    for v in values:
-        oid, param = make_param(py_types, v)
-        oids.append(oid)
-        params.append(param)
-
-    return tuple(oids), tuple(params)
+    return tuple([make_param(py_types, v) for v in values])

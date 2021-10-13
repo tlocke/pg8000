@@ -4,7 +4,7 @@ from warnings import filterwarnings
 import pytest
 
 import pg8000
-from pg8000 import converters
+from pg8000.converters import INET_ARRAY, INTEGER
 
 
 # Tests relating to the basic operation of the database driver, driven by the
@@ -193,7 +193,7 @@ def test_executemany(db_table):
         )
 
         cursor.executemany(
-            "select %s",
+            "SELECT CAST(%s AS TIMESTAMP)",
             ((Datetime(2014, 5, 7, tzinfo=Timezone.utc),), (Datetime(2014, 5, 7),)),
         )
 
@@ -205,8 +205,7 @@ def test_executemany_setinputsizes(cursor):
         "CREATE TEMPORARY TABLE t1 (f1 int primary key, f2 inet[] not null) "
     )
 
-    ARRAY_OID = converters.PG_ARRAY_TYPES[converters.INET]
-    cursor.setinputsizes(converters.INTEGER, ARRAY_OID)
+    cursor.setinputsizes(INTEGER, INET_ARRAY)
     cursor.executemany(
         "INSERT INTO t1 (f1, f2) VALUES (%s, %s)", ((1, ["1.1.1.1"]), (2, ["0.0.0.0"]))
     )
@@ -313,6 +312,14 @@ def test_close_prepared_statement(con):
 def test_setinputsizes(con):
     cursor = con.cursor()
     cursor.setinputsizes(20)
+    cursor.execute("select %s", (None,))
+    retval = cursor.fetchall()
+    assert retval[0][0] is None
+
+
+def test_setinputsizes_class(con):
+    cursor = con.cursor()
+    cursor.setinputsizes(bytes)
     cursor.execute("select %s", (None,))
     retval = cursor.fetchall()
     assert retval[0][0] is None

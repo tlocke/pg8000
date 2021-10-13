@@ -193,13 +193,10 @@ class Connection(CoreConnection):
 
     def run(self, sql, stream=None, types=None, **params):
         statement, make_vals = to_statement(sql)
-        if types is None:
-            oids = None
-        else:
-            oids = make_vals(defaultdict(lambda: None, types))
+        oids = () if types is None else make_vals(defaultdict(lambda: None, types))
 
         self._context = self.execute_unnamed(
-            statement, make_vals(params), input_oids=oids, stream=stream
+            statement, make_vals(params), oids=oids, stream=stream
         )
         return self._context.rows
 
@@ -208,34 +205,29 @@ class Connection(CoreConnection):
 
 
 class PreparedStatement:
-    def __init__(self, con, sql):
+    def __init__(self, con, sql, types=None):
         self.con = con
-        self.statement, self.make_vals = to_statement(sql)
-        self.name_map = {}
+        statement, self.make_vals = to_statement(sql)
+        oids = () if types is None else self.make_vals(defaultdict(lambda: None, types))
+        self.name_bin, self.cols, self.input_funcs = con.prepare_statement(
+            statement, oids
+        )
 
     @property
     def columns(self):
         return self._context.columns
 
     def run(self, stream=None, **params):
-        oids, params = make_params(self.con.py_types, self.make_vals(params))
+        params = make_params(self.con.py_types, self.make_vals(params))
 
-        try:
-            name_bin, columns, input_funcs = self.name_map[oids]
-        except KeyError:
-            name_bin, columns, input_funcs = self.name_map[
-                oids
-            ] = self.con.prepare_statement(self.statement, oids)
-
-        self._context = self.con.execute_named(name_bin, params, columns, input_funcs)
+        self._context = self.con.execute_named(
+            self.name_bin, params, self.cols, self.input_funcs
+        )
 
         return self._context.rows
 
     def close(self):
-        for statement_name_bin, _, _ in self.name_map.values():
-            self.con.close_prepared_statement(statement_name_bin)
-
-        self.name_map.clear()
+        self.con.close_prepared_statement(self.name_bin)
 
 
 __all__ = [

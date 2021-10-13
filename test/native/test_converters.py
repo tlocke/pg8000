@@ -5,19 +5,12 @@ from ipaddress import IPv4Address, IPv4Network
 import pytest
 
 from pg8000.converters import (
-    BIGINT_ARRAY,
-    BOOLEAN_ARRAY,
-    BYTES_ARRAY,
-    DATE_ARRAY,
-    FLOAT_ARRAY,
-    INET_ARRAY,
-    INTEGER_ARRAY,
     PGInterval,
-    SMALLINT_ARRAY,
-    VARCHAR_ARRAY,
-    array_inspect,
+    PY_TYPES,
+    array_out,
     array_string_escape,
     interval_in,
+    make_param,
     null_out,
     numeric_in,
     numeric_out,
@@ -32,26 +25,25 @@ def test_null_out():
 
 
 @pytest.mark.parametrize(
-    "array,oid",
+    "array,out",
     [
-        [[True, False, None], BOOLEAN_ARRAY],  # bool[]
-        [[IPv4Address("192.168.0.1")], INET_ARRAY],  # inet[]
-        [[Date(2021, 3, 1)], DATE_ARRAY],  # date[]
-        [[b"\x00\x01\x02\x03\x02\x01\x00"], BYTES_ARRAY],  # bytea[]
-        [[IPv4Network("192.168.0.0/28")], INET_ARRAY],  # inet[]
-        [[1, 2, 3], SMALLINT_ARRAY],  # int2[]
-        [[1, None, 3], SMALLINT_ARRAY],  # int2[] with None
-        [[[1, 2], [3, 4]], SMALLINT_ARRAY],  # int2[] multidimensional
-        [[70000, 2, 3], INTEGER_ARRAY],  # int4[]
-        [[7000000000, 2, 3], BIGINT_ARRAY],  # int8[]
-        [[0, 7000000000, 2], BIGINT_ARRAY],  # int8[]
-        [[1.1, 2.2, 3.3], FLOAT_ARRAY],  # float8[]
-        [["Veni", "vidi", "vici"], VARCHAR_ARRAY],  # varchar[]
+        [[True, False, None], "{true,false,NULL}"],  # bool[]
+        [[IPv4Address("192.168.0.1")], "{192.168.0.1}"],  # inet[]
+        [[Date(2021, 3, 1)], "{2021-03-01}"],  # date[]
+        [[b"\x00\x01\x02\x03\x02\x01\x00"], '{"\\\\x00010203020100"}'],  # bytea[]
+        [[IPv4Network("192.168.0.0/28")], "{192.168.0.0/28}"],  # inet[]
+        [[1, 2, 3], "{1,2,3}"],  # int2[]
+        [[1, None, 3], "{1,NULL,3}"],  # int2[] with None
+        [[[1, 2], [3, 4]], "{{1,2},{3,4}}"],  # int2[] multidimensional
+        [[70000, 2, 3], "{70000,2,3}"],  # int4[]
+        [[7000000000, 2, 3], "{7000000000,2,3}"],  # int8[]
+        [[0, 7000000000, 2], "{0,7000000000,2}"],  # int8[]
+        [[1.1, 2.2, 3.3], "{1.1,2.2,3.3}"],  # float8[]
+        [["Veni", "vidi", "vici"], "{Veni,vidi,vici}"],  # varchar[]
     ],
 )
-def test_array_inspect(con, array, oid):
-    array_oid, _ = array_inspect(array)
-    assert array_oid == oid
+def test_array_out(con, array, out):
+    assert array_out(array) == out
 
 
 @pytest.mark.parametrize(
@@ -135,3 +127,11 @@ def test_array_string_escape():
     v = '"'
     res = array_string_escape(v)
     assert res == '"\\""'
+
+
+def test_make_param():
+    class BClass(bytearray):
+        pass
+
+    val = BClass(b"\x00\x01\x02\x03\x02\x01\x00")
+    assert make_param(PY_TYPES, val) == "\\x00010203020100"

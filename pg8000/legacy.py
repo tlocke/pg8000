@@ -28,6 +28,7 @@ from pg8000.converters import (
     NUMERIC_ARRAY,
     OID,
     PGInterval,
+    PY_PG,
     STRING,
     TEXT,
     TEXT_ARRAY,
@@ -171,7 +172,7 @@ class Cursor:
         self._context = None
         self._row_iter = None
 
-        self._input_oids = None
+        self._input_oids = ()
 
     def __enter__(self):
         return self
@@ -247,13 +248,13 @@ class Cursor:
             statement, vals = convert_paramstyle(self.paramstyle, operation, args)
 
             self._context = self._c.execute_unnamed(
-                statement, vals=vals, input_oids=self._input_oids, stream=stream
+                statement, vals=vals, oids=self._input_oids, stream=stream
             )
 
             rows = [] if self._context.rows is None else self._context.rows
             self._row_iter = iter(rows)
 
-            self._input_oids = None
+            self._input_oids = ()
         except AttributeError as e:
             if self._c is None:
                 raise InterfaceError("Cursor closed")
@@ -390,9 +391,9 @@ class Cursor:
                 oid = size
             else:
                 try:
-                    oid, _ = self._c.py_types[size]
+                    oid = PY_PG[size]
                 except KeyError:
-                    oid = pg8000.converters.UNKNOWN
+                    oid = UNKNOWN
             oids.append(oid)
 
         self._input_oids = oids
@@ -716,25 +717,20 @@ class PreparedStatement:
     def __init__(self, con, operation):
         self.con = con
         self.operation = operation
-        self.statement, self.make_args = to_statement(operation)
-        self.name_map = {}
+        statement, self.make_args = to_statement(operation)
+        self.name_bin, self.row_desc, self.input_funcs = con.prepare_statement(
+            statement, ()
+        )
 
     def run(self, **vals):
 
-        oids, params = make_params(self.con.py_types, self.make_args(vals))
-
-        try:
-            name_bin, row_desc, input_funcs = self.name_map[oids]
-        except KeyError:
-            name_bin, row_desc, input_funcs = self.name_map[
-                oids
-            ] = self.con.prepare_statement(self.statement, oids)
+        params = make_params(self.con.py_types, self.make_args(vals))
 
         try:
             if not self.con.in_transaction and not self.con.autocommit:
                 self.con.execute_unnamed("begin transaction")
             self._context = self.con.execute_named(
-                name_bin, params, row_desc, input_funcs
+                self.name_bin, params, self.row_desc, self.input_funcs
             )
         except AttributeError as e:
             if self.con is None:
@@ -747,8 +743,7 @@ class PreparedStatement:
         return tuple() if self._context.rows is None else tuple(self._context.rows)
 
     def close(self):
-        for statement_name_bin, _, _ in self.name_map.values():
-            self.con.close_prepared_statement(statement_name_bin)
+        self.con.close_prepared_statement(self.name_bin)
         self.con = None
 
 
