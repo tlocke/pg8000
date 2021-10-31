@@ -360,8 +360,8 @@ class PGInterval:
     def __str__(self):
         res = []
         if self.millennia is not None:
-            res.append(str(self.millenia))
-            res.append("millenia")
+            res.append(str(self.millennia))
+            res.append("millennia")
 
         if self.centuries is not None:
             res.append(str(self.centuries))
