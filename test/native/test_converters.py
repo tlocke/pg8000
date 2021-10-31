@@ -110,9 +110,9 @@ def test_PGInterval_repr():
     assert repr(v) == "<PGInterval 24 months 2 days 123456789 microseconds>"
 
 
-def test_pg_interval_str():
-    v = PGInterval(microseconds=123456789, days=2, months=24)
-    assert str(v) == "24 months 2 days 123456789 microseconds"
+def test_PGInterval_str():
+    v = PGInterval(microseconds=123456789, days=2, months=24, millennia=2)
+    assert str(v) == "2 millennia 24 months 2 days 123456789 microseconds"
 
 
 def test_pg_interval_in_1_year():

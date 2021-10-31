@@ -337,8 +337,10 @@ class PGInterval:
         self.microseconds = microseconds
 
     def __repr__(self):
-        res = ["<PGInterval"]
-        for name, value in (
+        return f"<PGInterval {self}>"
+
+    def __str__(self):
+        pairs = (
             ("millennia", self.millennia),
             ("centuries", self.centuries),
             ("decades", self.decades),
@@ -350,60 +352,8 @@ class PGInterval:
             ("minutes", self.minutes),
             ("seconds", self.seconds),
             ("microseconds", self.microseconds),
-        ):
-            if value is not None:
-                res.append(str(value))
-                res.append(name)
-
-        return " ".join(res) + ">"
-
-    def __str__(self):
-        res = []
-        if self.millennia is not None:
-            res.append(str(self.millenia))
-            res.append("millenia")
-
-        if self.centuries is not None:
-            res.append(str(self.centuries))
-            res.append("centuries")
-
-        if self.decades is not None:
-            res.append(str(self.decades))
-            res.append("decades")
-
-        if self.years is not None:
-            res.append(str(self.years))
-            res.append("years")
-
-        if self.months is not None:
-            res.append(str(self.months))
-            res.append("months")
-
-        if self.weeks is not None:
-            res.append(str(self.weeks))
-            res.append("weeks")
-
-        if self.days is not None:
-            res.append(str(self.days))
-            res.append("days")
-
-        if self.hours is not None:
-            res.append(str(self.hours))
-            res.append("hours")
-
-        if self.minutes is not None:
-            res.append(str(self.minutes))
-            res.append("minutes")
-
-        if self.seconds is not None:
-            res.append(str(self.seconds))
-            res.append("seconds")
-
-        if self.microseconds is not None:
-            res.append(str(self.microseconds))
-            res.append("microseconds")
-
-        return " ".join(res)
+        )
+        return " ".join(f"{v} {n}" for n, v in pairs if v is not None)
 
     def normalize(self):
         months = 0
