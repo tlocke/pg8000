@@ -2274,6 +2274,11 @@ twine upload dist/*
 == Release Notes
 
 
+=== Version 1.22.1, 2021-11-10
+
+* Fix bug in PGInterval type where `str()` failed for a millennia value.
+
+
 === Version 1.22.0, 2021-10-13
 
 * Rather than specifying the oids in the `Parse` step of the Postgres protocol, pg8000
