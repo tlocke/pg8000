@@ -2273,6 +2273,12 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.23.0, 2021-11-13
+
+* If a query has no parameters, then the query will no longer be parsed. Although there
+  are performance benefits for doing this, the main reason is to avoid query rewriting,
+  which can introduce errors.
+
 
 === Version 1.22.1, 2021-11-10
 
