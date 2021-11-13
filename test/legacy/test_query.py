@@ -333,3 +333,9 @@ def test_unexecuted_cursor_rowcount(con):
 def test_unexecuted_cursor_description(con):
     cursor = con.cursor()
     assert cursor.description is None
+
+
+def test_not_parsed_if_no_params(mocker, cursor):
+    mock_convert_paramstyle = mocker.patch("pg8000.legacy.convert_paramstyle")
+    cursor.execute("ROLLBACK")
+    mock_convert_paramstyle.assert_not_called()

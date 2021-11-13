@@ -192,12 +192,14 @@ class Connection(CoreConnection):
         return context.row_count
 
     def run(self, sql, stream=None, types=None, **params):
-        statement, make_vals = to_statement(sql)
-        oids = () if types is None else make_vals(defaultdict(lambda: None, types))
-
-        self._context = self.execute_unnamed(
-            statement, make_vals(params), oids=oids, stream=stream
-        )
+        if len(params) == 0 and stream is None:
+            self._context = self.execute_simple(sql)
+        else:
+            statement, make_vals = to_statement(sql)
+            oids = () if types is None else make_vals(defaultdict(lambda: None, types))
+            self._context = self.execute_unnamed(
+                statement, make_vals(params), oids=oids, stream=stream
+            )
         return self._context.rows
 
     def prepare(self, sql):

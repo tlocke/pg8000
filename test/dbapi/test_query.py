@@ -317,3 +317,9 @@ def test_null_result(db_table):
     cur.execute("INSERT INTO t1 (f1, f2, f3) VALUES (%s, %s, %s)", (1, 1, "a"))
     with pytest.raises(pg8000.dbapi.ProgrammingError):
         cur.fetchall()
+
+
+def test_not_parsed_if_no_params(mocker, cursor):
+    mock_convert_paramstyle = mocker.patch("pg8000.dbapi.convert_paramstyle")
+    cursor.execute("ROLLBACK")
+    mock_convert_paramstyle.assert_not_called()

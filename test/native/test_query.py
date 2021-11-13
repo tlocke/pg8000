@@ -214,3 +214,9 @@ def test_to_statement():
     )
     expected = "SELECT sum(x)::decimal(5, 2) $1, $2 FROM t WHERE a=$1"
     assert new_query == expected
+
+
+def test_not_parsed_if_no_params(mocker, con):
+    mock_to_statement = mocker.patch("pg8000.native.to_statement")
+    con.run("ROLLBACK")
+    mock_to_statement.assert_not_called()

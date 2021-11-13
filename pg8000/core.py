@@ -612,38 +612,41 @@ class CoreConnection:
     def send_QUERY(self, sql):
         self._send_message(QUERY, sql.encode(self._client_encoding) + NULL_BYTE)
 
+    def execute_simple(self, statement):
+        context = Context()
+
+        self.send_QUERY(statement)
+        self._flush()
+        self.handle_messages(context)
+
+        return context
+
     def execute_unnamed(self, statement, vals=(), oids=(), stream=None):
         context = Context(stream=stream)
 
-        if len(vals) == 0 and stream is None:
-            self.send_QUERY(statement)
+        self.send_PARSE(NULL_BYTE, statement, oids)
+        self._write(SYNC_MSG)
+        self._flush()
+        self.handle_messages(context)
+        self.send_DESCRIBE_STATEMENT(NULL_BYTE)
+
+        self._write(SYNC_MSG)
+
+        try:
             self._flush()
-            self.handle_messages(context)
+        except AttributeError as e:
+            if self._sock is None:
+                raise InterfaceError("connection is closed")
+            else:
+                raise e
+        params = make_params(self.py_types, vals)
+        self.send_BIND(NULL_BYTE, params)
+        self.handle_messages(context)
+        self.send_EXECUTE()
 
-        else:
-            self.send_PARSE(NULL_BYTE, statement, oids)
-            self._write(SYNC_MSG)
-            self._flush()
-            self.handle_messages(context)
-            self.send_DESCRIBE_STATEMENT(NULL_BYTE)
-
-            self._write(SYNC_MSG)
-
-            try:
-                self._flush()
-            except AttributeError as e:
-                if self._sock is None:
-                    raise InterfaceError("connection is closed")
-                else:
-                    raise e
-            params = make_params(self.py_types, vals)
-            self.send_BIND(NULL_BYTE, params)
-            self.handle_messages(context)
-            self.send_EXECUTE()
-
-            self._write(SYNC_MSG)
-            self._flush()
-            self.handle_messages(context)
+        self._write(SYNC_MSG)
+        self._flush()
+        self.handle_messages(context)
 
         return context
 

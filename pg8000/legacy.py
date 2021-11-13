@@ -243,13 +243,15 @@ class Cursor:
         """
         try:
             if not self._c.in_transaction and not self._c.autocommit:
-                self._c.execute_unnamed("begin transaction")
+                self._c.execute_simple("begin transaction")
 
-            statement, vals = convert_paramstyle(self.paramstyle, operation, args)
-
-            self._context = self._c.execute_unnamed(
-                statement, vals=vals, oids=self._input_oids, stream=stream
-            )
+            if len(args) == 0 and stream is None:
+                self._context = self._c.execute_simple(operation)
+            else:
+                statement, vals = convert_paramstyle(self.paramstyle, operation, args)
+                self._context = self._c.execute_unnamed(
+                    statement, vals=vals, oids=self._input_oids, stream=stream
+                )
 
             rows = [] if self._context.rows is None else self._context.rows
             self._row_iter = iter(rows)
