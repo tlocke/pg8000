@@ -36,6 +36,8 @@ from pg8000.converters import (
     VARCHAR,
     VARCHAR_ARRAY,
     XID,
+    identifier,
+    literal,
     make_params,
 )
 from pg8000.core import CoreConnection
@@ -271,4 +273,6 @@ __all__ = [
     "VARCHAR",
     "VARCHAR_ARRAY",
     "XID",
+    "identifier",
+    "literal",
 ]

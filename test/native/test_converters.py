@@ -1,4 +1,9 @@
-from datetime import date as Date
+from datetime import (
+    date as Date,
+    datetime as DateTime,
+    time as Time,
+    timedelta as TimeDelta,
+)
 from decimal import Decimal
 from ipaddress import IPv4Address, IPv4Network
 
@@ -9,7 +14,9 @@ from pg8000.converters import (
     PY_TYPES,
     array_out,
     array_string_escape,
+    identifier,
     interval_in,
+    literal,
     make_param,
     null_out,
     numeric_in,
@@ -18,6 +25,7 @@ from pg8000.converters import (
     string_in,
     string_out,
 )
+from pg8000.native import InterfaceError
 
 
 def test_null_out():
@@ -135,3 +143,100 @@ def test_make_param():
 
     val = BClass(b"\x00\x01\x02\x03\x02\x01\x00")
     assert make_param(PY_TYPES, val) == "\\x00010203020100"
+
+
+def test_identifier():
+    val = "top_secret"
+    assert identifier(val) == val
+
+
+def test_identifier_int():
+    with pytest.raises(InterfaceError, match="identifier must be a str"):
+        identifier(9)
+
+
+def test_identifier_empty():
+    with pytest.raises(
+        InterfaceError, match="identifier must be > 0 characters in length"
+    ):
+        identifier("")
+
+
+def test_identifier_quoted_null():
+    with pytest.raises(
+        InterfaceError, match="identifier cannot contain the code zero character"
+    ):
+        identifier("tabl\u0000e")
+
+
+def test_identifier_quoted_first_char():
+    assert identifier(" Table") == '" Table"'
+
+
+def test_identifier_quoted_space():
+    assert identifier("A Table") == '"A Table"'
+
+
+def test_identifier_quoted_double_quote():
+    assert identifier('A " Table') == '"A "" Table"'
+
+
+def test_identifier_dollar():
+    assert identifier("Table$") == "Table$"
+
+
+def test_literal():
+    val = "top_secret"
+    assert literal(val) == f"'{val}'"
+
+
+def test_literal_quote():
+    assert literal("bob's") == "'bob''s'"
+
+
+def test_literal_int():
+    assert literal(7) == "7"
+
+
+def test_literal_float():
+    assert literal(7.9) == "7.9"
+
+
+def test_literal_decimal():
+    assert literal(Decimal("0.1")) == "0.1"
+
+
+def test_literal_bytes():
+    assert literal(b"\x03") == "X'03'"
+
+
+def test_literal_boolean():
+    assert literal(True) == "TRUE"
+
+
+def test_literal_None():
+    assert literal(None) == "NULL"
+
+
+def test_literal_Time():
+    assert literal(Time(22, 13, 2)) == "'22:13:02'"
+
+
+def test_literal_Date():
+    assert literal(Date(2063, 11, 2)) == "'2063-11-02'"
+
+
+def test_literal_TimeDelta():
+    assert literal(TimeDelta(22, 13, 2)) == "'22 days 13 seconds 2 microseconds'"
+
+
+def test_literal_Datetime():
+    assert literal(DateTime(2063, 3, 31, 22, 13, 2)) == "'2063-03-31T22:13:02'"
+
+
+def test_literal_Trojan():
+    class Trojan:
+        def __str__(self):
+            return "A Gift"
+
+    assert literal(Trojan()) == "'A Gift'"

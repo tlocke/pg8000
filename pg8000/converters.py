@@ -686,3 +686,50 @@ def make_param(py_types, value):
 
 def make_params(py_types, values):
     return tuple([make_param(py_types, v) for v in values])
+
+
+def identifier(sql):
+    if not isinstance(sql, str):
+        raise InterfaceError("identifier must be a str")
+
+    if len(sql) == 0:
+        raise InterfaceError("identifier must be > 0 characters in length")
+
+    quote = not sql[0].isalpha()
+
+    for c in sql[1:]:
+        if not (c.isalpha() or c.isdecimal() or c in "_$"):
+            if c == "\u0000":
+                raise InterfaceError(
+                    "identifier cannot contain the code zero character"
+                )
+            quote = True
+            break
+
+    if quote:
+        sql = sql.replace('"', '""')
+        return f'"{sql}"'
+    else:
+        return sql
+
+
+def literal(value):
+    if value is None:
+        return "NULL"
+    elif isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    elif isinstance(value, (int, float, Decimal)):
+        return str(value)
+    elif isinstance(value, (bytes, bytearray)):
+        return f"X'{value.hex()}'"
+    elif isinstance(value, Date):
+        return f"'{date_out(value)}'"
+    elif isinstance(value, Time):
+        return f"'{time_out(value)}'"
+    elif isinstance(value, Datetime):
+        return f"'{datetime_out(value)}'"
+    elif isinstance(value, Timedelta):
+        return f"'{interval_out(value)}'"
+    else:
+        val = str(value).replace("'", "''")
+        return f"'{val}'"

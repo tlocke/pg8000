@@ -242,7 +242,7 @@ Find the column metadata returned from a query:
 >>> con.run("SELECT * FROM quark")
 [[1, 'Up'], [2, 'Down']]
 >>>
->>> # and retried the metadata
+>>> # and retrieve the metadata
 >>>
 >>> con.columns
 [{'table_oid': ..., 'column_attrnum': 1, 'type_oid': 23, 'type_size': 4, 'type_modifier': -1, 'format': 0, 'name': 'id'}, {'table_oid': ..., 'column_attrnum': 2, 'type_oid': 25, 'type_size': -1, 'type_modifier': -1, 'format': 0, 'name': 'name'}]
@@ -360,7 +360,9 @@ for example the following fails:
 >>>
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
->>> con.run("CREATE USER juan WITH PASSWORD :password", password='quail')
+>>> channel = 'top_secret'
+>>>
+>>> con.run("LISTEN :channel", channel=channel)
 Traceback (most recent call last):
 pg8000.exceptions.DatabaseError: ...
 
@@ -368,7 +370,25 @@ pg8000.exceptions.DatabaseError: ...
 
 It fails because the PostgreSQL server doesn't allow this statement to have
 any parameters. There are many SQL statements that one might think would have
-parameters, but don't.
+parameters, but don't. For these cases the SQL has to be created manually, being
+careful to use the `identifier()` and `literal()` functions to escape the values to
+avoid https://en.wikipedia.org/wiki/SQL_injection[SQL injection attacks]:
+
+[source,python]
+----
+>>> from pg8000.native import Connection, identifier, literal
+>>>
+>>> con = Connection("postgres", password="cpsnow")
+>>>
+>>> channel = 'top_secret'
+>>> payload = 'Aliens Landed!'
+>>> con.run(f"LISTEN {identifier(channel)}")
+>>> con.run(f"NOTIFY {identifier(channel)}, {literal(payload)}")
+>>>
+>>> con.notifications[0]
+(..., 'top_secret', 'Aliens Landed!')
+
+----
 
 
 === COPY from and to a file
@@ -471,10 +491,32 @@ to delimit the string instead:
 >>>
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
->>> con.run('''select 'hello' as "My Column"''')
+>>> con.run('''SELECT 'hello' AS "My Column"''')
 [['hello']]
 
 ----
+
+another solution, that's especially useful if the identifier comes from an untrusted
+source, is to use the `identifier()` function, which correctly quotes and escapes the
+identifier as needed:
+
+[source,python]
+----
+>>> from pg8000.native import Connection, identifier
+>>>
+>>> con = Connection("postgres", password="cpsnow")
+>>>
+>>> sql = f"SELECT 'hello' as {identifier('My Column')}"
+>>> print(sql)
+SELECT 'hello' as "My Column"
+>>>
+>>> con.run(sql)
+[['hello']]
+
+----
+
+this approach guards against https://en.wikipedia.org/wiki/SQL_injection[SQL injection
+attacks].
 
 
 === Custom adapter from a Python type to a PostgreSQL type
@@ -1302,6 +1344,20 @@ or text according to the format code. In pg8000 the parameters are always sent a
 
 == Native API Docs
 
+=== pg8000.native.Error
+
+Generic exception that is the base exception of the other error exceptions.
+
+
+=== pg8000.native.InterfaceError
+
+For errors that originate within pg8000.
+
+
+=== pg8000.native.DatabaseError
+
+For errors that originate from the server.
+
 === pg8000.native.Connection(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None)
 
 Creates a connection to a PostgreSQL database.
@@ -1384,20 +1440,6 @@ replication::
   provide values as bytes, eg. `'database'.encode('EUC-JP')`.
 
 
-=== pg8000.native.Error
-
-Generic exception that is the base exception of the other error exceptions.
-
-
-=== pg8000.native.InterfaceError
-
-For errors that originate within pg8000.
-
-
-=== pg8000.native.DatabaseError
-
-For errors that originate from the server.
-
 === pg8000.native.Connection.notifications
 
 A deque of server-side
@@ -1474,17 +1516,12 @@ following keys:
 Closes the database connection.
 
 
-=== pg8000.native.Connection.register_out_adapter(typ, oid, out_func)
+=== pg8000.native.Connection.register_out_adapter(typ, out_func)
 
 Register a type adapter for types going out from pg8000 to the server.
 
 typ::
   The Python class that the adapter is for.
-
-oid::
-  The PostgreSQL type identifier found in the
-  https://www.postgresql.org/docs/current/catalog-pg-type.html[pg_type system
-  calalog].
 
 out_func::
   A function that takes the Python object and returns its string representation
@@ -1536,6 +1573,26 @@ kwargs::
 
 Closes the prepared statement, releasing the prepared statement held on the
 server.
+
+
+=== pg8000.native.identifier(ident)
+
+Correctly quotes and escapes a string to be used as an
+https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS[SQL
+identifier].
+
+ident::
+  The `str` to be used as an SQL identifier.
+
+
+=== pg8000.native.literal(value)
+
+Correctly quotes and escapes a value to be used as an
+https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-CONSTANTS[SQL
+literal].
+
+value::
+  The value to be used as an SQL literal.
 
 
 == DB-API 2 Docs
