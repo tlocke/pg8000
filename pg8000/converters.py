@@ -82,9 +82,9 @@ VARCHAR_ARRAY = 1015
 XID = 28
 
 
-MIN_INT2, MAX_INT2 = -(2 ** 15), 2 ** 15
-MIN_INT4, MAX_INT4 = -(2 ** 31), 2 ** 31
-MIN_INT8, MAX_INT8 = -(2 ** 63), 2 ** 63
+MIN_INT2, MAX_INT2 = -(2**15), 2**15
+MIN_INT4, MAX_INT4 = -(2**31), 2**31
+MIN_INT8, MAX_INT8 = -(2**63), 2**63
 
 
 def bool_in(data):
