@@ -350,14 +350,11 @@ class CoreConnection:
         self.pg_types[oid] = in_func
 
     def handle_ERROR_RESPONSE(self, data, context):
-        msg = dict(
-            (
-                s[:1].decode("ascii"),
-                s[1:].decode(self._client_encoding, errors="replace"),
-            )
+        msg = {
+            s[:1].decode("ascii"): s[1:].decode(self._client_encoding, errors="replace")
             for s in data.split(NULL_BYTE)
             if s != b""
-        )
+        }
 
         self.error = DatabaseError(msg)
 
@@ -778,7 +775,7 @@ class CoreConnection:
 
     def handle_NOTICE_RESPONSE(self, data, context):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
-        self.notices.append(dict((s[0:1], s[1:]) for s in data.split(NULL_BYTE)))
+        self.notices.append({s[0:1]: s[1:] for s in data.split(NULL_BYTE)})
 
     def handle_PARAMETER_STATUS(self, data, context):
         pos = data.find(NULL_BYTE)
