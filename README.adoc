@@ -2321,6 +2321,12 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.24.1, 2022-03-02
+
+* Return pg +/-infinity dates as `str`. Previously +/-infinity pg values would cause
+  an error when returned, but now we return +/-infinity as strings.
+
+
 === Version 1.24.0, 2022-02-06
 
 * Add SQL escape functions identifier() and literal() to the native API. For use when a
