@@ -14,6 +14,7 @@ from pg8000.converters import (
     PY_TYPES,
     array_out,
     array_string_escape,
+    date_in,
     identifier,
     interval_in,
     literal,
@@ -26,6 +27,18 @@ from pg8000.converters import (
     string_out,
 )
 from pg8000.native import InterfaceError
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ["2022-03-02", Date(2022, 3, 2)],
+        ["infinity", "infinity"],
+        ["-infinity", "-infinity"],
+    ],
+)
+def test_date_in(value, expected):
+    assert date_in(value) == expected
 
 
 def test_null_out():

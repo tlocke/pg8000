@@ -1212,15 +1212,15 @@ examples).
 
 | datetime.datetime (without tzinfo)
 | timestamp without timezone
-| See note below.
+| +/-infinity PostgreSQL values are represented as Python `str` values.
 
 | datetime.datetime (with tzinfo)
 | timestamp with timezone
-| See note below.
+| +/-infinity PostgreSQL values are represented as Python `str` values.
 
 | datetime.date
 | date
-| See note below.
+| +/-infinity PostgreSQL values are represented as Python `str` values.
 
 | datetime.time
 | time without time zone
@@ -1327,19 +1327,10 @@ https://www.postgresql.org/docs/current/static/sql-expressions.html#SQL-SYNTAX-T
 In the FEBE protocol, each query parameter can be sent to the server either as binary
 or text according to the format code. In pg8000 the parameters are always sent as text.
 
-* PostgreSQL has +/-infinity values for dates and timestamps, but Python does not.
-  Pg8000 handles this by returning +/-infinity strings in results, and in parameters
-  the strings +/- infinity can be used.
-
-* PostgreSQL dates/timestamps can have values outside the range of Python datetimes.
-  These are handled using the underlying PostgreSQL storage method. I don't know of any
-  users of pg8000 that use this feature, so get in touch if it affects you.
-
-* Occasionally, the network connection between pg8000 and the server may go
-  down. If pg8000 encounters a network problem it'll raise an `InterfaceError`
-  with an error message starting with `network error` and with the original
-  exception set as the
-  https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement[cause].
+Occasionally, the network connection between pg8000 and the server may go down. If
+pg8000 encounters a network problem it'll raise an `InterfaceError` with an error
+message starting with `network error` and with the original exception set as the
+https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement[cause].
 
 
 == Native API Docs

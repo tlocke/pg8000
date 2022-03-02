@@ -112,7 +112,10 @@ def cidr_in(data):
 
 
 def date_in(data):
-    return Datetime.strptime(data, "%Y-%m-%d").date()
+    if data in ("infinity", "-infinity"):
+        return data
+    else:
+        return Datetime.strptime(data, "%Y-%m-%d").date()
 
 
 def date_out(v):
