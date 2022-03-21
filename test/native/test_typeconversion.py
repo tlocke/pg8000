@@ -535,6 +535,7 @@ def test_roundtrip_oid(con, test_input, oid):
         [Timedelta(seconds=30), "interval", None],
         [Time(4, 5, 6), "time", None],
         [Date(2001, 2, 3), "date", None],
+        ["infinity", "date", None],
         [Datetime(2001, 2, 3, 4, 5, 6), "timestamp", None],
         [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), "timestamptz", None],
         [True, "bool", 10],
