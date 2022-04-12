@@ -339,6 +339,7 @@ class CoreConnection:
             code, data_len = ci_unpack(self._read(5))
             self.message_types[code](self._read(data_len - 4), None)
         if self.error is not None:
+            self.close()
             raise self.error
 
         self.in_transaction = False
