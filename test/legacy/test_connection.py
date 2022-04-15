@@ -1,30 +1,30 @@
 import pytest
 
-import pg8000
+from pg8000 import InterfaceError, ProgrammingError, connect
 
 
 def testUnixSocketMissing():
     conn_params = {"unix_sock": "/file-does-not-exist", "user": "doesn't-matter"}
 
-    with pytest.raises(pg8000.InterfaceError):
-        pg8000.connect(**conn_params)
+    with pytest.raises(InterfaceError):
+        connect(**conn_params)
 
 
 def test_internet_socket_connection_refused():
     conn_params = {"port": 0, "user": "doesn't-matter"}
 
     with pytest.raises(
-        pg8000.InterfaceError,
+        InterfaceError,
         match="Can't create a connection to host localhost and port 0 "
         "\\(timeout is None and source_address is None\\).",
     ):
-        pg8000.connect(**conn_params)
+        connect(**conn_params)
 
 
 def testDatabaseMissing(db_kwargs):
     db_kwargs["database"] = "missing-db"
-    with pytest.raises(pg8000.ProgrammingError):
-        pg8000.connect(**db_kwargs)
+    with pytest.raises(ProgrammingError):
+        connect(**db_kwargs)
 
 
 def test_notify(con):
@@ -59,8 +59,8 @@ def testMd5(db_kwargs):
     db_kwargs["database"] = "pg8000_md5"
 
     # Should only raise an exception saying db doesn't exist
-    with pytest.raises(pg8000.ProgrammingError, match="3D000"):
-        pg8000.connect(**db_kwargs)
+    with pytest.raises(ProgrammingError, match="3D000"):
+        connect(**db_kwargs)
 
 
 # This requires a line in pg_hba.conf that requires 'password' for the
@@ -71,24 +71,24 @@ def testPassword(db_kwargs):
     db_kwargs["database"] = "pg8000_password"
 
     # Should only raise an exception saying db doesn't exist
-    with pytest.raises(pg8000.ProgrammingError, match="3D000"):
-        pg8000.connect(**db_kwargs)
+    with pytest.raises(ProgrammingError, match="3D000"):
+        connect(**db_kwargs)
 
 
 def testUnicodeDatabaseName(db_kwargs):
     db_kwargs["database"] = "pg8000_sn\uFF6Fw"
 
     # Should only raise an exception saying db doesn't exist
-    with pytest.raises(pg8000.ProgrammingError, match="3D000"):
-        pg8000.connect(**db_kwargs)
+    with pytest.raises(ProgrammingError, match="3D000"):
+        connect(**db_kwargs)
 
 
 def testBytesDatabaseName(db_kwargs):
     """Should only raise an exception saying db doesn't exist"""
 
     db_kwargs["database"] = bytes("pg8000_sn\uFF6Fw", "utf8")
-    with pytest.raises(pg8000.ProgrammingError, match="3D000"):
-        pg8000.connect(**db_kwargs)
+    with pytest.raises(ProgrammingError, match="3D000"):
+        connect(**db_kwargs)
 
 
 def testBytesPassword(con, db_kwargs):
@@ -102,27 +102,32 @@ def testBytesPassword(con, db_kwargs):
         db_kwargs["user"] = username
         db_kwargs["password"] = password.encode("utf8")
         db_kwargs["database"] = "pg8000_md5"
-        with pytest.raises(pg8000.ProgrammingError, match="3D000"):
-            pg8000.connect(**db_kwargs)
+        with pytest.raises(ProgrammingError, match="3D000"):
+            connect(**db_kwargs)
 
         cur.execute("drop role " + username)
         con.commit()
 
 
 def test_broken_pipe_read(con, db_kwargs):
-    db1 = pg8000.legacy.connect(**db_kwargs)
+    db1 = connect(**db_kwargs)
     cur1 = db1.cursor()
     cur2 = con.cursor()
     cur1.execute("select pg_backend_pid()")
     pid1 = cur1.fetchone()[0]
 
     cur2.execute("select pg_terminate_backend(%s)", (pid1,))
-    with pytest.raises(pg8000.exceptions.InterfaceError, match="network error on read"):
+    with pytest.raises(InterfaceError, match="network error"):
         cur1.execute("select 1")
+
+    try:
+        db1.close()
+    except InterfaceError:
+        pass
 
 
 def test_broken_pipe_flush(con, db_kwargs):
-    db1 = pg8000.legacy.connect(**db_kwargs)
+    db1 = connect(**db_kwargs)
     cur1 = db1.cursor()
     cur2 = con.cursor()
     cur1.execute("select pg_backend_pid()")
@@ -137,8 +142,8 @@ def test_broken_pipe_flush(con, db_kwargs):
     # Can do an assert_raises when we're on 3.8 or above
     try:
         db1.close()
-    except pg8000.exceptions.InterfaceError as e:
-        assert str(e) == "network error on flush"
+    except InterfaceError as e:
+        assert str(e) == "network error"
 
 
 def test_broken_pipe_unpack(con):
@@ -146,14 +151,14 @@ def test_broken_pipe_unpack(con):
     cur.execute("select pg_backend_pid()")
     pid1 = cur.fetchone()[0]
 
-    with pytest.raises(pg8000.legacy.InterfaceError, match="network error"):
+    with pytest.raises(InterfaceError, match="network error"):
         cur.execute("select pg_terminate_backend(%s)", (pid1,))
 
 
 def testApplicatioName(db_kwargs):
     app_name = "my test application name"
     db_kwargs["application_name"] = app_name
-    with pg8000.connect(**db_kwargs) as db:
+    with connect(**db_kwargs) as db:
         cur = db.cursor()
         cur.execute(
             "select application_name from pg_stat_activity "
@@ -167,15 +172,16 @@ def testApplicatioName(db_kwargs):
 def test_application_name_integer(db_kwargs):
     db_kwargs["application_name"] = 1
     with pytest.raises(
-        pg8000.InterfaceError,
+        InterfaceError,
         match="The parameter application_name can't be of type <class 'int'>.",
     ):
-        pg8000.connect(**db_kwargs)
+        connect(**db_kwargs)
 
 
 def test_application_name_bytearray(db_kwargs):
     db_kwargs["application_name"] = bytearray(b"Philby")
-    pg8000.connect(**db_kwargs)
+    with connect(**db_kwargs):
+        pass
 
 
 # This requires a line in pg_hba.conf that requires scram-sha-256 for the
@@ -186,5 +192,5 @@ def test_scram_sha_256(db_kwargs):
     db_kwargs["database"] = "pg8000_scram_sha_256"
 
     # Should only raise an exception saying db doesn't exist
-    with pytest.raises(pg8000.ProgrammingError, match="3D000"):
-        pg8000.connect(**db_kwargs)
+    with pytest.raises(ProgrammingError, match="3D000"):
+        connect(**db_kwargs)

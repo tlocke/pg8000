@@ -1,4 +1,3 @@
-import sys
 from os import environ
 
 import pytest
@@ -51,8 +50,3 @@ def cursor(request, con):
 
     request.addfinalizer(fin)
     return cursor
-
-
-@pytest.fixture
-def is_java():
-    return "java" in sys.platform.lower()

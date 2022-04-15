@@ -107,13 +107,14 @@ def test_bytes_password(con, db_kwargs):
 
 
 def test_broken_pipe_read(con, db_kwargs):
-    db1 = Connection(**db_kwargs)
-    res = db1.run("select pg_backend_pid()")
-    pid1 = res[0][0]
+    with pytest.raises(InterfaceError, match="network error"):
+        with Connection(**db_kwargs) as db1:
+            res = db1.run("select pg_backend_pid()")
+            pid1 = res[0][0]
 
-    con.run("select pg_terminate_backend(:v)", v=pid1)
-    with pytest.raises(InterfaceError, match="network error on read"):
-        db1.run("select 1")
+            con.run("select pg_terminate_backend(:v)", v=pid1)
+            with pytest.raises(InterfaceError, match="network error"):
+                db1.run("select 1")
 
 
 def test_broken_pipe_unpack(con):
@@ -139,7 +140,7 @@ def test_broken_pipe_flush(con, db_kwargs):
     try:
         db1.close()
     except InterfaceError as e:
-        assert str(e) == "network error on flush"
+        assert str(e) == "network error"
 
 
 def test_application_name(db_kwargs):
@@ -166,7 +167,8 @@ def test_application_name_integer(db_kwargs):
 
 def test_application_name_bytearray(db_kwargs):
     db_kwargs["application_name"] = bytearray(b"Philby")
-    Connection(**db_kwargs)
+    with Connection(**db_kwargs):
+        pass
 
 
 class PG8000TestException(Exception):

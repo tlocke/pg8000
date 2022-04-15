@@ -1,4 +1,3 @@
-import sys
 from os import environ
 
 import pytest
@@ -48,8 +47,3 @@ def pg_version(con):
     version = retval[0][0]
     idx = version.index(".")
     return int(version[:idx])
-
-
-@pytest.fixture(scope="module")
-def is_java():
-    return "java" in sys.platform.lower()

@@ -1,5 +1,7 @@
 import pytest
 
+from pg8000.dbapi import connect
+
 
 @pytest.mark.parametrize(
     "txt",
@@ -15,13 +17,14 @@ import pytest
         "timestamp '2001-09-28'",
     ),
 )
-def test_round_trips(con, benchmark, txt):
+def test_round_trips(db_kwargs, benchmark, txt):
     def torun():
-        query = f"""SELECT {txt}, {txt}, {txt}, {txt}, {txt}, {txt}, {txt}
-            FROM (SELECT generate_series(1, 10000) AS id) AS tbl"""
-        cursor = con.cursor()
-        cursor.execute(query)
-        cursor.fetchall()
-        cursor.close()
+        with connect(**db_kwargs) as con:
+            query = f"""SELECT {txt}, {txt}, {txt}, {txt}, {txt}, {txt}, {txt}
+                FROM (SELECT generate_series(1, 10000) AS id) AS tbl"""
+            cursor = con.cursor()
+            cursor.execute(query)
+            cursor.fetchall()
+            cursor.close()
 
     benchmark(torun)

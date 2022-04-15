@@ -57,6 +57,8 @@ query the table:
 ...     print(row)
 [1, "Ender's Game"]
 [2, 'The Magus']
+>>>
+>>> con.close()
 
 ----
 
@@ -85,6 +87,8 @@ https://www.postgresql.org/docs/current/tutorial-transactions.html[transaction]:
 [1, "Ender's Game"]
 [2, 'The Magus']
 [3, 'Phineas Finn']
+>>>
+>>> con.close()
 
 ----
 
@@ -110,6 +114,8 @@ rolling back a transaction:
 [1, "Ender's Game"]
 [2, 'The Magus']
 [3, 'Phineas Finn']
+>>>
+>>> con.close()
 
 ----
 
@@ -126,6 +132,8 @@ Another query, using some PostgreSQL functions:
 >>>
 >>> con.run("SELECT TO_CHAR(TIMESTAMP '2021-10-10', 'YYYY BC')")
 [['2021 AD']]
+>>>
+>>> con.close()
 
 ----
 
@@ -145,6 +153,8 @@ A query that returns the PostgreSQL interval type:
 >>> ts = datetime.date(1980, 4, 27)
 >>> con.run("SELECT timestamp '2013-12-01 16:06' - :ts", ts=ts)
 [[datetime.timedelta(days=12271, seconds=57960)]]
+>>>
+>>> con.close()
 
 ----
 
@@ -163,6 +173,8 @@ point] type:
 >>>
 >>> con.run("SELECT CAST(:pt as point)", pt='(2.3,1)')
 [['(2.3,1)']]
+>>>
+>>> con.close()
 
 ----
 
@@ -185,6 +197,8 @@ encoding is by using an SQL command. For example:
 >>> con.run("SET CLIENT_ENCODING TO 'UTF8'")
 >>> con.run("SHOW CLIENT_ENCODING")
 [['UTF8']]
+>>>
+>>> con.close()
 
 ----
 
@@ -204,6 +218,8 @@ then you can just do:
 >>> val = {'name': 'Apollo 11 Cave', 'zebra': True, 'age': 26.003}
 >>> con.run("SELECT CAST(:apollo as jsonb)", apollo=val)
 [[{'age': 26.003, 'name': 'Apollo 11 Cave', 'zebra': True}]]
+>>>
+>>> con.close()
 
 ----
 
@@ -220,6 +236,8 @@ JSON can always be sent in serialized form to the server:
 >>> val = ['Apollo 11 Cave', True, 26.003]
 >>> con.run("SELECT CAST(:apollo as jsonb)", apollo=json.dumps(val))
 [[['Apollo 11 Cave', True, 26.003]]]
+>>>
+>>> con.close()
 
 ----
 
@@ -251,6 +269,8 @@ Find the column metadata returned from a query:
 >>>
 >>> [c['name'] for c in con.columns]
 ['id', 'name']
+>>>
+>>> con.close()
 
 ----
 
@@ -276,6 +296,8 @@ Here's an example:
 >>>
 >>> con.notifications[0]
 (..., 'aliens_landed', '')
+>>>
+>>> con.close()
 
 ----
 
@@ -293,6 +315,8 @@ You might think that the following would work, but in fact it fails:
 >>> con.run("SELECT 'silo 1' LIMIT :lim", lim='ALL')
 Traceback (most recent call last):
 pg8000.exceptions.DatabaseError: ...
+>>>
+>>> con.close()
 
 ----
 
@@ -307,6 +331,8 @@ that you can send `null` as an alternative to `ALL`, which does work:
 >>>
 >>> con.run("SELECT 'silo 1' LIMIT :lim", lim=None)
 [['silo 1']]
+>>>
+>>> con.close()
 
 ----
 
@@ -325,6 +351,8 @@ like it:
 >>> con.run("SELECT 'silo 1' WHERE 'a' IN :v", v=('a', 'b'))
 Traceback (most recent call last):
 pg8000.exceptions.DatabaseError: ...
+>>>
+>>> con.close()
 
 ----
 
@@ -342,6 +370,7 @@ function:
 ...     "SELECT 'silo 1' WHERE 'a' IN (SELECT unnest(CAST(:v as varchar[])))",
 ...     v=('a', 'b'))
 [['silo 1']]
+>>> con.close()
 
 ----
 
@@ -365,6 +394,8 @@ for example the following fails:
 >>> con.run("LISTEN :channel", channel=channel)
 Traceback (most recent call last):
 pg8000.exceptions.DatabaseError: ...
+>>>
+>>> con.close()
 
 ----
 
@@ -387,6 +418,8 @@ avoid https://en.wikipedia.org/wiki/SQL_injection[SQL injection attacks]:
 >>>
 >>> con.notifications[0]
 (..., 'top_secret', 'Aliens Landed!')
+>>>
+>>> con.close()
 
 ----
 
@@ -435,6 +468,8 @@ using the CSV format:
 ['1', 'electron']
 ['2', 'muon']
 ['3', 'tau']
+>>>
+>>> con.close()
 
 ----
 
@@ -455,6 +490,8 @@ can run them as expected:
 >>>
 >>> con.run(statements)
 [[5], ['Erich Fromm']]
+>>>
+>>> con.close()
 
 ----
 
@@ -477,6 +514,8 @@ https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENT
 >>> con.run("select 'hello' as "My Column"")
 Traceback (most recent call last):
 SyntaxError: invalid syntax...
+>>>
+>>> con.close()
 
 ----
 
@@ -493,6 +532,8 @@ to delimit the string instead:
 >>>
 >>> con.run('''SELECT 'hello' AS "My Column"''')
 [['hello']]
+>>>
+>>> con.close()
 
 ----
 
@@ -512,6 +553,8 @@ SELECT 'hello' as "My Column"
 >>>
 >>> con.run(sql)
 [['hello']]
+>>>
+>>> con.close()
 
 ----
 
@@ -546,6 +589,8 @@ register an adapter:
 >>> con.register_out_adapter(MyInterval, my_interval_out)
 >>> con.run("SELECT CAST(:interval as interval)", interval=MyInterval("2 hours"))
 [[datetime.timedelta(seconds=7200)]]
+>>>
+>>> con.close()
 
 ----
 
@@ -582,6 +627,8 @@ we'd have to register an adapter:
 >>> con.register_in_adapter(1186, my_interval_in)
 >>> con.run("SELECT \'2 years'")
 [['2 years']]
+>>>
+>>> con.close()
 
 ----
 
@@ -604,6 +651,8 @@ message from the server:
 >>> con.run("SELECT :v IS NULL", v=None)
 Traceback (most recent call last):
 pg8000.exceptions.DatabaseError: {'S': 'ERROR', 'V': 'ERROR', 'C': '42P18', 'M': 'could not determine data type of parameter $1', 'F': 'postgres.c', 'L': '...', 'R': 'exec_parse_message'}
+>>>
+>>> con.close()
 
 ----
 
@@ -615,9 +664,10 @@ One way of solving it is to put a `cast` in the SQL:
 >>>
 >>> con = pg8000.native.Connection("postgres", password="cpsnow")
 >>>
-
 >>> con.run("SELECT cast(:v as TIMESTAMP) IS NULL", v=None)
 [[True]]
+>>>
+>>> con.close()
 
 ----
 
@@ -632,6 +682,8 @@ parameter:
 >>>
 >>> con.run("SELECT :v IS NULL", v=None, types={'v': pg8000.native.TIMESTAMP})
 [[True]]
+>>>
+>>> con.close()
 
 ----
 
@@ -662,6 +714,8 @@ executed repeatedly. Here's an example:
 >>>
 >>> # Close the prepared statement, releasing resources on the server
 >>> ps.close()
+>>>
+>>> con.close()
 
 ----
 
@@ -681,6 +735,8 @@ You might want to use the current user as the database username for example:
 >>>
 >>> connection.run("SELECT 'pilau'")
 [['pilau']]
+>>>
+>>> connection.close()
 
 ----
 
@@ -704,6 +760,8 @@ that libpq uses]:
 >>>
 >>> connection.run("SELECT 'Mr Cairo'")
 [['Mr Cairo']]
+>>>
+>>> connection.close()
 
 ----
 
@@ -745,7 +803,7 @@ import pg8000.native
 import ssl
 
 
-ssl_context = ssl.SSLContext()
+ssl_context = ssl.create_default_context()
 ssl_context.verify_mode = ssl.CERT_REQUIRED
 ssl_context.load_verify_locations('root.pem')        
 connection = pg8000.native.Connection(
@@ -765,7 +823,7 @@ import pg8000.native
 import ssl
 
 
-ssl_context = ssl.SSLContext()
+ssl_context = ssl.create_default_context()
 ssl_context.request_ssl = False
 connection = pg8000.native.Connection(
     username, password="cpsnow", ssl_context=ssl_context)
@@ -797,6 +855,8 @@ server-side cursors. For example:
 [[54], [53], [52], [51], [50], [49], [48], [47], [46], [45]]
 >>> con.run("CLOSE c")
 >>> con.run("ROLLBACK")
+>>>
+>>> con.close()
 
 ----
 
@@ -839,6 +899,8 @@ for manipulating BLOBs. Here's an example:
 >>> # Download a part of the data
 >>> con.run("SELECT lo_get(:oid, 6, 3)", oid=oid)
 [[b'all']]
+>>>
+>>> con.close()
 
 ----
 
@@ -870,6 +932,8 @@ query the table:
 id = 1, title = Ender's Game
 id = 2, title = Speaker for the Dead
 >>> conn.commit()
+>>>
+>>> conn.close()
 
 ----
 
@@ -888,6 +952,8 @@ Another query, using some PostgreSQL functions:
 >>> cursor.execute("SELECT TO_CHAR(TIMESTAMP '2021-10-10', 'YYYY BC')")
 >>> cursor.fetchone()
 ['2021 AD']
+>>>
+>>> con.close()
 
 ----
 
@@ -908,6 +974,8 @@ A query that returns the PostgreSQL interval type:
 ... (datetime.date(1980, 4, 27),))
 >>> cursor.fetchone()
 [datetime.timedelta(days=12271, seconds=57960)]
+>>>
+>>> con.close()
 
 ----
 
@@ -928,6 +996,8 @@ point] type:
 >>> cursor.execute("SELECT cast(%s as point)", ('(2.3,1)',))
 >>> cursor.fetchone()
 ['(2.3,1)']
+>>>
+>>> con.close()
 
 ----
 
@@ -949,7 +1019,8 @@ the 'numeric' parameter style:
 >>> cursor.fetchone()
 [[500, 1, 2, 3, 4]]
 >>> pg8000.dbapi.paramstyle = "format"
->>> conn.rollback()
+>>>
+>>> con.close()
 
 ----
 
@@ -970,6 +1041,8 @@ turned on by using the autocommit property of the connection.
 >>> cur.execute("vacuum")
 >>> conn.autocommit = False
 >>> cur.close()
+>>>
+>>> con.close()
 
 ----
 
@@ -994,6 +1067,8 @@ encoding is by using an SQL command. For example:
 >>> cur.fetchone()
 ['UTF8']
 >>> cur.close()
+>>>
+>>> con.close()
 
 ----
 
@@ -1015,6 +1090,8 @@ example:
 >>> cur.fetchone()
 [['Apollo 11 Cave', True, 26.003]]
 >>> cur.close()
+>>>
+>>> con.close()
 
 ----
 
@@ -1038,6 +1115,8 @@ Use the columns names retrieved from a query:
 >>> keys = [k[0] for k in c.description]
 >>> results = [dict(zip(keys, row)) for row in rows]
 >>> assert results == [{'id': 1, 'name': 'Up'}, {'id': 2, 'name': 'Down'}]
+>>>
+>>> conn.close()
 
 ----
 
@@ -1062,6 +1141,8 @@ Here's an example:
 >>> con.commit()
 >>> con.notifications[0][1]
 'aliens_landed'
+>>>
+>>> con.close()
 
 ----
 
@@ -1082,7 +1163,7 @@ can be used to copy from and to a file or file-like object:
 >>> # COPY from a stream to a table
 >>> #
 >>> stream_in = StringIO('1\telectron\n2\tmuon\n3\ttau\n')
->>> cur = conn.cursor()
+>>> cur = con.cursor()
 >>> cur.execute("create temporary table lepton (id serial, name text)")
 >>> cur.execute("COPY lepton FROM stdin", stream=stream_in)
 >>> #
@@ -1092,6 +1173,8 @@ can be used to copy from and to a file or file-like object:
 >>> cur.execute("copy lepton to stdout", stream=stream_out)
 >>> stream_out.getvalue()
 '1\telectron\n2\tmuon\n3\ttau\n'
+>>>
+>>> con.close()
 
 ----
 
@@ -1123,6 +1206,8 @@ server-side cursors. For example:
 ([54], [53], [52], [51], [50], [49], [48], [47], [46], [45])
 >>> cur.execute("CLOSE c")
 >>> cur.execute("ROLLBACK")
+>>>
+>>> con.close()
 
 ----
 
@@ -1142,7 +1227,7 @@ for manipulating BLOBs. Here's an example:
 >>>
 >>> # Create a BLOB and get its oid
 >>> data = b'hello'
->>> cur = conn.cursor()
+>>> cur = con.cursor()
 >>> cur.execute("SELECT lo_from_bytea(0, %s)", [data])
 >>> oid = cur.fetchone()[0]
 >>>
@@ -1167,6 +1252,8 @@ for manipulating BLOBs. Here's an example:
 >>> cur.execute("SELECT lo_get(%s, 6, 3)", [oid])
 >>> cur.fetchall()
 ([b'all'],)
+>>>
+>>> con.close()
 
 ----
 
@@ -2320,6 +2407,15 @@ twine upload dist/*
 
 
 == Release Notes
+
+=== Version 1.25.0, 2022-04-17
+
+* Fix more cases where a `ResourceWarning` would be raise because of a socket that had
+  been left open.
+
+* We now have a single `InterfaceError` with the message 'network error' for all
+  network errors, with the underlying exception held in the `cause` of the exception.
+
 
 === Version 1.24.2, 2022-04-15
 

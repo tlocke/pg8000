@@ -203,26 +203,24 @@ def test_bytearray_subclass_round_trip(con):
     assert retval[0][0] == binary
 
 
-def test_timestamp_roundtrip(is_java, con):
+def test_timestamp_roundtrip(con):
     v = Datetime(2001, 2, 3, 4, 5, 6, 170000)
     retval = con.run("SELECT cast(:v as timestamp)", v=v)
     assert retval[0][0] == v
 
     # Test that time zone doesn't affect it
-    # Jython 2.5.3 doesn't have a time.tzset() so skip
-    if not is_java:
-        orig_tz = os.environ.get("TZ")
-        os.environ["TZ"] = "America/Edmonton"
-        time.tzset()
+    orig_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "America/Edmonton"
+    time.tzset()
 
-        retval = con.run("SELECT cast(:v as timestamp)", v=v)
-        assert retval[0][0] == v
+    retval = con.run("SELECT cast(:v as timestamp)", v=v)
+    assert retval[0][0] == v
 
-        if orig_tz is None:
-            del os.environ["TZ"]
-        else:
-            os.environ["TZ"] = orig_tz
-        time.tzset()
+    if orig_tz is None:
+        del os.environ["TZ"]
+    else:
+        os.environ["TZ"] = orig_tz
+    time.tzset()
 
 
 def test_interval_repr():
@@ -374,55 +372,53 @@ def test_timestamp_tz_out(cursor):
     ), "retrieved value match failed"
 
 
-def test_timestamp_tz_roundtrip(is_java, con):
-    if not is_java:
-        mst = pytz.timezone("America/Edmonton")
-        v1 = mst.localize(Datetime(2001, 2, 3, 4, 5, 6, 170000))
-        retval = con.run("SELECT cast(:v as timestamptz)", v=v1)
-        v2 = retval[0][0]
-        assert v2.tzinfo is not None
-        assert v1 == v2
+def test_timestamp_tz_roundtrip(con):
+    mst = pytz.timezone("America/Edmonton")
+    v1 = mst.localize(Datetime(2001, 2, 3, 4, 5, 6, 170000))
+    retval = con.run("SELECT cast(:v as timestamptz)", v=v1)
+    v2 = retval[0][0]
+    assert v2.tzinfo is not None
+    assert v1 == v2
 
 
-def test_timestamp_mismatch(is_java, cursor):
-    if not is_java:
-        mst = pytz.timezone("America/Edmonton")
-        cursor.execute("SET SESSION TIME ZONE 'America/Edmonton'")
-        try:
-            cursor.execute(
-                "CREATE TEMPORARY TABLE TestTz "
-                "(f1 timestamp with time zone, "
-                "f2 timestamp without time zone)"
-            )
-            cursor.execute(
-                "INSERT INTO TestTz (f1, f2) VALUES (%s, %s)",
-                (
-                    # insert timestamp into timestamptz field (v1)
-                    Datetime(2001, 2, 3, 4, 5, 6, 170000),
-                    # insert timestamptz into timestamp field (v2)
-                    mst.localize(Datetime(2001, 2, 3, 4, 5, 6, 170000)),
-                ),
-            )
-            cursor.execute("SELECT f1, f2 FROM TestTz")
-            retval = cursor.fetchall()
+def test_timestamp_mismatch(cursor):
+    mst = pytz.timezone("America/Edmonton")
+    cursor.execute("SET SESSION TIME ZONE 'America/Edmonton'")
+    try:
+        cursor.execute(
+            "CREATE TEMPORARY TABLE TestTz "
+            "(f1 timestamp with time zone, "
+            "f2 timestamp without time zone)"
+        )
+        cursor.execute(
+            "INSERT INTO TestTz (f1, f2) VALUES (%s, %s)",
+            (
+                # insert timestamp into timestamptz field (v1)
+                Datetime(2001, 2, 3, 4, 5, 6, 170000),
+                # insert timestamptz into timestamp field (v2)
+                mst.localize(Datetime(2001, 2, 3, 4, 5, 6, 170000)),
+            ),
+        )
+        cursor.execute("SELECT f1, f2 FROM TestTz")
+        retval = cursor.fetchall()
 
-            # when inserting a timestamp into a timestamptz field,
-            # postgresql assumes that it is in local time. So the value
-            # that comes out will be the server's local time interpretation
-            # of v1. We've set the server's TZ to MST, the time should
-            # be...
-            f1 = retval[0][0]
-            assert f1 == Datetime(2001, 2, 3, 11, 5, 6, 170000, Timezone.utc)
+        # when inserting a timestamp into a timestamptz field,
+        # postgresql assumes that it is in local time. So the value
+        # that comes out will be the server's local time interpretation
+        # of v1. We've set the server's TZ to MST, the time should
+        # be...
+        f1 = retval[0][0]
+        assert f1 == Datetime(2001, 2, 3, 11, 5, 6, 170000, Timezone.utc)
 
-            # inserting the timestamptz into a timestamp field, pg8000
-            # converts the value into UTC, and then the PG server converts
-            # it into local time for insertion into the field. When we
-            # query for it, we get the same time back, like the tz was
-            # dropped.
-            f2 = retval[0][1]
-            assert f2 == Datetime(2001, 2, 3, 11, 5, 6, 170000)
-        finally:
-            cursor.execute("SET SESSION TIME ZONE DEFAULT")
+        # inserting the timestamptz into a timestamp field, pg8000
+        # converts the value into UTC, and then the PG server converts
+        # it into local time for insertion into the field. When we
+        # query for it, we get the same time back, like the tz was
+        # dropped.
+        f2 = retval[0][1]
+        assert f2 == Datetime(2001, 2, 3, 11, 5, 6, 170000)
+    finally:
+        cursor.execute("SET SESSION TIME ZONE DEFAULT")
 
 
 def test_name_out(cursor):

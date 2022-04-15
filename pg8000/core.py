@@ -16,7 +16,7 @@ from pg8000.converters import (
     make_params,
     string_in,
 )
-from pg8000.exceptions import DatabaseError, InterfaceError
+from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
 
 def pack_funcs(fmt):
@@ -271,7 +271,7 @@ class CoreConnection:
             try:
                 self._sock.flush()
             except OSError as e:
-                raise InterfaceError("network error on flush") from e
+                raise InterfaceError("network error") from e
 
         self._flush = sock_flush
 
@@ -279,7 +279,7 @@ class CoreConnection:
             try:
                 return self._sock.read(b)
             except OSError as e:
-                raise InterfaceError("network error on read") from e
+                raise InterfaceError("network error") from e
 
         self._read = sock_read
 
@@ -287,7 +287,7 @@ class CoreConnection:
             try:
                 self._sock.write(d)
             except OSError as e:
-                raise InterfaceError("network error on write") from e
+                raise InterfaceError("network error") from e
 
         self._write = sock_write
         self._backend_key_data = None
@@ -334,13 +334,18 @@ class CoreConnection:
         self._write(val)
         self._flush()
 
-        code = self.error = None
-        while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
-            code, data_len = ci_unpack(self._read(5))
-            self.message_types[code](self._read(data_len - 4), None)
-        if self.error is not None:
+        try:
+
+            code = self.error = None
+            while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
+                code, data_len = ci_unpack(self._read(5))
+                self.message_types[code](self._read(data_len - 4), None)
+            if self.error is not None:
+                raise self.error
+
+        except Error as e:
             self.close()
-            raise self.error
+            raise e
 
         self.in_transaction = False
 
@@ -473,19 +478,21 @@ class CoreConnection:
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
+
+        if self._usock is None:
+            raise InterfaceError("connection is closed")
+
         try:
             self._write(TERMINATE_MSG)
             self._flush()
-            self._sock.close()
-        except AttributeError:
-            raise InterfaceError("connection is closed")
-        except ValueError:
-            raise InterfaceError("connection is closed")
-        except socket.error:
-            pass
         finally:
-            self._usock.close()
-            self._sock = None
+            try:
+                self._usock.close()
+            except socket.error as e:
+                raise InterfaceError("network error") from e
+            finally:
+                self._sock = None
+                self._usock = None
 
     def handle_AUTHENTICATION_REQUEST(self, data, context):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
@@ -757,7 +764,7 @@ class CoreConnection:
             try:
                 code, data_len = ci_unpack(self._read(5))
             except struct.error as e:
-                raise InterfaceError("network error on read") from e
+                raise InterfaceError("network error") from e
 
             self.message_types[code](self._read(data_len - 4), context)
 
