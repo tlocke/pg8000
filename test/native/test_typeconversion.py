@@ -442,8 +442,15 @@ CURRENCIES = {
     "C.UTF-8": "$",
     "C.UTF8": "$",
 }
-LANG = os.environ["LANG"]
-CURRENCY = CURRENCIES[LANG]
+
+# Find the currency string
+for LC in ("LC_CTYPE", "LANG"):
+    try:
+        LC_VAL = os.environ[LC]
+        CURRENCY = CURRENCIES[LC_VAL]
+        break
+    except KeyError:
+        pass
 
 
 @pytest.mark.parametrize(
