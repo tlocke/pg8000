@@ -338,8 +338,14 @@ class CoreConnection:
 
             code = self.error = None
             while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
-                code, data_len = ci_unpack(self._read(5))
+
+                try:
+                    code, data_len = ci_unpack(self._read(5))
+                except struct.error as e:
+                    raise InterfaceError("network error") from e
+
                 self.message_types[code](self._read(data_len - 4), None)
+
             if self.error is not None:
                 raise self.error
 

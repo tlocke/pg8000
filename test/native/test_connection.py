@@ -1,3 +1,5 @@
+import struct
+
 from datetime import time as Time
 
 import pytest
@@ -107,14 +109,18 @@ def test_bytes_password(con, db_kwargs):
 
 
 def test_broken_pipe_read(con, db_kwargs):
-    with pytest.raises(InterfaceError, match="network error"):
-        with Connection(**db_kwargs) as db1:
-            res = db1.run("select pg_backend_pid()")
-            pid1 = res[0][0]
+    db1 = Connection(**db_kwargs)
+    res = db1.run("select pg_backend_pid()")
+    pid1 = res[0][0]
 
-            con.run("select pg_terminate_backend(:v)", v=pid1)
-            with pytest.raises(InterfaceError, match="network error"):
-                db1.run("select 1")
+    con.run("select pg_terminate_backend(:v)", v=pid1)
+    with pytest.raises(InterfaceError, match="network error"):
+        db1.run("select 1")
+
+    try:
+        db1.close()
+    except InterfaceError:
+        pass
 
 
 def test_broken_pipe_unpack(con):
@@ -206,3 +212,9 @@ def test_closed_connection(con):
     con.close()
     with pytest.raises(InterfaceError, match="connection is closed"):
         con.run("VALUES ('hw1'::text)")
+
+
+def test_network_error_on_connect(db_kwargs, mocker):
+    mocker.patch("pg8000.core.ci_unpack", side_effect=struct.error())
+    with pytest.raises(InterfaceError, match="network error"):
+        Connection(**db_kwargs)
