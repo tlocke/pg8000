@@ -2408,6 +2408,17 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.26.0, 2022-04-18
+
+* When connecting, raise an `InterfaceError('network error')` rather than let the
+  underlying `struct.error` float up.
+
+* Make licence text the same as that used by the OSI. Previously the licence wording
+  differed slightly from the BSD 3 Clause licence at
+  https://opensource.org/licenses/BSD-3-Clause. This meant that automated tools didn't
+  pick it up as being Open Source. The changes are believed to not alter the meaning of   the license at all.
+
+
 === Version 1.25.0, 2022-04-17
 
 * Fix more cases where a `ResourceWarning` would be raise because of a socket that had
