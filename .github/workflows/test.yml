@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
-        postgresql-version: [14, 13, 12, 11, 10, 9.6]
+        postgresql-version: [14, 13, 12, 11, 10]
 
     container: python:${{ matrix.python-version }}
 
@@ -54,15 +54,8 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10"]
-        postgresql-version: ["14", "9.6"]
+        postgresql-version: ["14", "10"]
         auth-type: [md5, gss, password, scram-sha-256]
-        exclude:
-          - python-version: "3.10"
-            postgresql-version: "9.6"
-            auth-type: scram-sha-256
-          - python-version: "3.10"
-            postgresql-version: "9.6"
-            auth-type: scram-sha-256
 
     container: python:${{ matrix.python-version }}
 

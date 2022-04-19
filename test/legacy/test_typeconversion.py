@@ -23,7 +23,6 @@ from pg8000 import (
     Binary,
     INTERVAL,
     PGInterval,
-    ProgrammingError,
     pginterval_in,
     pginterval_out,
     timedelta_in,
@@ -50,33 +49,8 @@ def test_bool_roundtrip(con):
 
 
 def test_null_roundtrip(con):
-    retval = con.run("select current_setting('server_version')")
-    version = retval[0][0][:2]
-
-    if version.startswith("9"):
-        # Prior to PostgreSQL version 10 We can't just "SELECT %s" and set
-        # None as the parameter, since it has no type.  That would result
-        # in a PG error, "could not determine data type of parameter %s".
-        # So we create a temporary table, insert null values, and read them
-        # back.
-        con.run(
-            "CREATE TEMPORARY TABLE TestNullWrite "
-            "(f1 int4, f2 timestamp, f3 varchar)"
-        )
-        con.run(
-            "INSERT INTO TestNullWrite VALUES (:v1, :v2, :v3)",
-            v1=None,
-            v2=None,
-            v3=None,
-        )
-        retval = con.run("SELECT * FROM TestNullWrite")
-        assert retval[0] == [None, None, None]
-
-        with pytest.raises(ProgrammingError):
-            con.run("SELECT :v as f1", v=None)
-    else:
-        retval = con.run("SELECT :v", v=None)
-        assert retval[0][0] is None
+    retval = con.run("SELECT :v", v=None)
+    assert retval[0][0] is None
 
 
 def test_decimal_roundtrip(cursor):

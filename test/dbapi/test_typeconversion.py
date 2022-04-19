@@ -50,30 +50,8 @@ def test_bool_roundtrip(cursor):
 
 
 def test_null_roundtrip(cursor):
-    cursor.execute("select current_setting('server_version')")
-    version = cursor.fetchall()[0][0][:2]
-
-    if version.startswith("9"):
-        # Prior to PostgreSQL version 10 We can't just "SELECT %s" and set
-        # None as the parameter, since it has no type.  That would result
-        # in a PG error, "could not determine data type of parameter %s".
-        # So we create a temporary table, insert null values, and read them
-        # back.
-        cursor.execute(
-            "CREATE TEMPORARY TABLE TestNullWrite "
-            "(f1 int4, f2 timestamp, f3 varchar)"
-        )
-        cursor.execute(
-            "INSERT INTO TestNullWrite VALUES (%s, %s, %s)", (None, None, None)
-        )
-        cursor.execute("SELECT * FROM TestNullWrite")
-        assert cursor.fetchall()[0] == [None, None, None]
-
-        with pytest.raises(pg8000.exceptions.DatabaseError):
-            cursor.execute("SELECT %s as f1", (None,))
-    else:
-        cursor.execute("SELECT %s", (None,))
-        assert cursor.fetchall()[0][0] is None
+    cursor.execute("SELECT %s", (None,))
+    assert cursor.fetchall()[0][0] is None
 
 
 def test_decimal_roundtrip(cursor):

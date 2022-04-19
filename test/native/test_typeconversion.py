@@ -509,19 +509,19 @@ def test_roundtrip_oid(con, test_input, oid):
 
 
 @pytest.mark.parametrize(
-    "test_input,typ,required_version",
+    "test_input,typ",
     [
-        [[True, False, None], "bool[]", None],
-        [[IPv4Address("192.168.0.1")], "inet[]", None],
-        [[Date(2021, 3, 1)], "date[]", None],
-        [[Datetime(2001, 2, 3, 4, 5, 6)], "timestamp[]", None],
-        [[Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], "timestamptz[]", None],
-        [[Time(4, 5, 6)], "time[]", None],
-        [[Timedelta(seconds=30)], "interval[]", None],
-        [[{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}], "jsonb[]", None],
-        [[b"\x00\x01\x02\x03\x02\x01\x00"], "bytea[]", None],
-        [[Decimal("1.1"), None, Decimal("3.3")], "numeric[]", None],
-        [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], "uuid[]", None],
+        [[True, False, None], "bool[]"],
+        [[IPv4Address("192.168.0.1")], "inet[]"],
+        [[Date(2021, 3, 1)], "date[]"],
+        [[Datetime(2001, 2, 3, 4, 5, 6)], "timestamp[]"],
+        [[Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], "timestamptz[]"],
+        [[Time(4, 5, 6)], "time[]"],
+        [[Timedelta(seconds=30)], "interval[]"],
+        [[{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}], "jsonb[]"],
+        [[b"\x00\x01\x02\x03\x02\x01\x00"], "bytea[]"],
+        [[Decimal("1.1"), None, Decimal("3.3")], "numeric[]"],
+        [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], "uuid[]"],
         [
             [
                 "Hello!",
@@ -533,32 +533,28 @@ def test_roundtrip_oid(con, test_input, oid):
                 None,
             ],
             "varchar[]",
-            None,
         ],
-        [Timedelta(seconds=30), "interval", None],
-        [Time(4, 5, 6), "time", None],
-        [Date(2001, 2, 3), "date", None],
-        ["infinity", "date", None],
-        [Datetime(2001, 2, 3, 4, 5, 6), "timestamp", None],
-        [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), "timestamptz", None],
-        [True, "bool", 10],
-        [Decimal("1.1"), "numeric", None],
-        [1.756e-12, "float8", None],
-        [float("inf"), "float8", None],
-        ["hello world", "unknown", 10],
-        ["hello \u0173 world", "varchar", 10],
-        [50000000000000, "int8", None],
-        [b"\x00\x01\x02\x03\x02\x01\x00", "bytea", None],
-        [bytearray(b"\x00\x01\x02\x03\x02\x01\x00"), "bytea", None],
-        [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), "uuid", None],
-        [IPv4Network("192.168.0.0/28"), "inet", None],
-        [IPv4Address("192.168.0.1"), "inet", None],
+        [Timedelta(seconds=30), "interval"],
+        [Time(4, 5, 6), "time"],
+        [Date(2001, 2, 3), "date"],
+        ["infinity", "date"],
+        [Datetime(2001, 2, 3, 4, 5, 6), "timestamp"],
+        [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), "timestamptz"],
+        [True, "bool"],
+        [Decimal("1.1"), "numeric"],
+        [1.756e-12, "float8"],
+        [float("inf"), "float8"],
+        ["hello world", "unknown"],
+        ["hello \u0173 world", "varchar"],
+        [50000000000000, "int8"],
+        [b"\x00\x01\x02\x03\x02\x01\x00", "bytea"],
+        [bytearray(b"\x00\x01\x02\x03\x02\x01\x00"), "bytea"],
+        [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), "uuid"],
+        [IPv4Network("192.168.0.0/28"), "inet"],
+        [IPv4Address("192.168.0.1"), "inet"],
     ],
 )
-def test_roundtrip_cast(con, pg_version, test_input, typ, required_version):
-    if required_version is not None and pg_version < required_version:
-        return
-
+def test_roundtrip_cast(con, test_input, typ):
     retval = con.run(f"SELECT CAST(:v AS {typ})", v=test_input)
     assert retval[0][0] == test_input
 

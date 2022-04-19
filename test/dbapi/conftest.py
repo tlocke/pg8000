@@ -50,3 +50,12 @@ def cursor(request, con):
 
     request.addfinalizer(fin)
     return cursor
+
+
+@pytest.fixture
+def pg_version(cursor):
+    cursor.execute("select current_setting('server_version')")
+    retval = cursor.fetchall()
+    version = retval[0][0]
+    idx = version.index(".")
+    return int(version[:idx])

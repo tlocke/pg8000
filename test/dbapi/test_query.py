@@ -292,11 +292,8 @@ def test_unexecuted_cursor_description(con):
     assert cursor.description is None
 
 
-def test_callproc(cursor):
-    cursor.execute("select current_setting('server_version')")
-    version = cursor.fetchall()[0][0].split()[0]
-
-    if not (version.startswith("9") or version.startswith("10")):
+def test_callproc(pg_version, cursor):
+    if pg_version > 10:
         cursor.execute(
             """
 CREATE PROCEDURE echo(INOUT val text)
