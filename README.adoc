@@ -1415,8 +1415,8 @@ In the FEBE protocol, each query parameter can be sent to the server either as b
 or text according to the format code. In pg8000 the parameters are always sent as text.
 
 Occasionally, the network connection between pg8000 and the server may go down. If
-pg8000 encounters a network problem it'll raise an `InterfaceError` with an error
-message starting with `network error` and with the original exception set as the
+pg8000 encounters a network problem it'll raise an `InterfaceError` with the message
+`network error` and with the original exception set as the
 https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement[cause].
 
 
@@ -2538,7 +2538,7 @@ twine upload dist/*
 === Version 1.19.0, 2021-03-28
 
 * Network error exceptions are now wrapped in an `InterfaceError`, with the
-  original exception as the cause. The error message for network errors allways
+  original exception as the cause. The error message for network errors always
   start with the string `network error`.
 
 * Upgraded to version 1.3.0 of Scramp, which has better error handling.
