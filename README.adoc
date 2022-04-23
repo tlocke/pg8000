@@ -2407,6 +2407,11 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.26.1, 2022-04-23
+
+* Make sure all tests are run by the GitHub Actions tests on commit.
+
+
 === Version 1.26.0, 2022-04-18
 
 * When connecting, raise an `InterfaceError('network error')` rather than let the
