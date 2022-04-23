@@ -47,7 +47,7 @@ jobs:
           PGHOST: postgres
           PGPASSWORD: postgres
         run: |
-          python -m pytest -x -v -W error --ignore=test/dbapi/test_auth.py --ignore=test/legacy/test_auth.py --ignore=test/native/test_auth.py test --ignore=test/test_readme.py
+          python -m pytest -x -v -W error --ignore=test/dbapi/auth/ --ignore=test/legacy/auth/ --ignore=test/native/auth/ test --ignore=test/test_readme.py
 
   auth-test:
     runs-on: ubuntu-latest
@@ -85,7 +85,7 @@ jobs:
           PGHOST: postgres
           PGPASSWORD: postgres
         run: |
-          python -m pytest -x -v -W error test/dbapi/github-actions/${{ matrix.auth-type }}_dbapi.py test/native/github-actions/${{ matrix.auth-type }}_native.py test/legacy/github-actions/${{ matrix.auth-type }}_legacy.py
+          python -m pytest -x -v -W error test/dbapi/auth/test_${{ matrix.auth-type }}.py test/native/auth/test_${{ matrix.auth-type }}.py test/legacy/auth/test_${{ matrix.auth-type }}.py
 
   ssl-test:
     runs-on: ubuntu-latest
@@ -139,7 +139,7 @@ jobs:
           PGPASSWORD: postgres
           USER: postgres
         run: |
-          python -m pytest -x -v -W error test/dbapi/github-actions/ssl_dbapi.py test/native/github-actions/ssl_native.py test/legacy/github-actions/ssl_legacy.py
+          python -m pytest -x -v -W error test/dbapi/auth/test_${{ matrix.auth-type}}_ssl.py test/native/auth/test_${{ matrix.auth-type}}_ssl.py test/legacy/auth/test_${{ matrix.auth-type}}_ssl.py
 
   static-test:
     runs-on: ubuntu-latest

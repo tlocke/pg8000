@@ -1,6 +1,6 @@
 import ssl
 
-import pg8000.dbapi
+from pg8000 import connect
 
 
 def test_ssl(db_kwargs):
@@ -10,5 +10,5 @@ def test_ssl(db_kwargs):
 
     db_kwargs["ssl_context"] = context
 
-    with pg8000.dbapi.connect(**db_kwargs):
+    with connect(**db_kwargs):
         pass
