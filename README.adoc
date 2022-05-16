@@ -2407,6 +2407,17 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.27.0, 2022-05-16
+
+* It used to be that by default, if pg8000 received an `interval` type from the server
+  and it was too big to fit into a `datetime.timedelta` then an exception would be
+  raised. Now if an interval is too big for `datetime.timedelta` a `PGInterval` is
+  returned.
+
+* pg8000 now supports all the output formats for an `interval` (`postgres`,
+  `postgres_verbose`, `iso_8601` and `sql_standard`).
+
+
 === Version 1.26.1, 2022-04-23
 
 * Make sure all tests are run by the GitHub Actions tests on commit.

@@ -154,25 +154,11 @@ def int_out(v):
 
 
 def interval_in(data):
-    t = {}
-
-    curr_val = None
-    for k in data.split():
-        if ":" in k:
-            t["hours"], t["minutes"], t["seconds"] = map(float, k.split(":"))
-        else:
-            try:
-                curr_val = float(k)
-            except ValueError:
-                t[PGInterval.UNIT_MAP[k]] = curr_val
-
-    for n in ["weeks", "months", "years", "decades", "centuries", "millennia"]:
-        if n in t:
-            raise InterfaceError(
-                f"Can't fit the interval {t} into a datetime.timedelta."
-            )
-
-    return Timedelta(**t)
+    pg_interval = PGInterval.from_str(data)
+    try:
+        return pg_interval.to_timedelta()
+    except ValueError:
+        return pg_interval
 
 
 def interval_out(v):
@@ -242,7 +228,7 @@ def unknown_out(v):
 
 
 def vector_in(data):
-    return eval("[" + data.replace(" ", ",") + "]")
+    return [int(v) for v in data.split()]
 
 
 def uuid_out(v):
@@ -255,8 +241,6 @@ def uuid_in(data):
 
 class PGInterval:
     UNIT_MAP = {
-        "year": "years",
-        "years": "years",
         "millennia": "millennia",
         "millenium": "millennia",
         "centuries": "centuries",
@@ -277,14 +261,49 @@ class PGInterval:
         "hour": "hours",
         "minutes": "minutes",
         "minute": "minutes",
+        "mins": "minutes",
+        "secs": "seconds",
         "seconds": "seconds",
         "second": "seconds",
         "microseconds": "microseconds",
         "microsecond": "microseconds",
     }
 
-    @staticmethod
-    def from_str(interval_str):
+    ISO_LOOKUP = {
+        True: {
+            "Y": "years",
+            "M": "months",
+            "D": "days",
+        },
+        False: {
+            "H": "hours",
+            "M": "minutes",
+            "S": "seconds",
+        },
+    }
+
+    @classmethod
+    def from_str_iso_8601(cls, interval_str):
+        # P[n]Y[n]M[n]DT[n]H[n]M[n]S
+        kwargs = {}
+        lookup = cls.ISO_LOOKUP[True]
+        val = []
+
+        for c in interval_str[1:]:
+            if c == "T":
+                lookup = cls.ISO_LOOKUP[False]
+            elif c.isdigit() or c == "-":
+                val.append(c)
+            else:
+                kwargs[lookup[c]] = int("".join(val))
+                val.clear()
+
+        return cls(**kwargs)
+
+    @classmethod
+    def from_str_postgres(cls, interval_str):
+        """Parses both the postgres and postgres_verbose formats"""
+
         t = {}
 
         curr_val = None
@@ -305,13 +324,84 @@ class PGInterval:
                 if seconds != 0:
                     t["seconds"] = seconds
 
+            elif k == "@":
+                continue
+
+            elif k == "ago":
+                for k, v in tuple(t.items()):
+                    t[k] = -1 * v
+
             else:
                 try:
                     curr_val = int(k)
                 except ValueError:
-                    t[PGInterval.UNIT_MAP[k]] = curr_val
+                    t[cls.UNIT_MAP[k]] = curr_val
 
-        return PGInterval(**t)
+        return cls(**t)
+
+    @classmethod
+    def from_str_sql_standard(cls, interval_str):
+        """YYYY-MM
+        or
+        DD HH:MM:SS.F
+        or
+        YYYY-MM DD HH:MM:SS.F
+        """
+        month_part = None
+        day_parts = None
+        parts = interval_str.split()
+
+        if len(parts) == 1:
+            month_part = parts[0]
+        elif len(parts) == 2:
+            day_parts = parts
+        else:
+            month_part = parts[0]
+            day_parts = parts[1:]
+
+        kwargs = {}
+
+        if month_part is not None:
+            if month_part.startswith("-"):
+                sign = -1
+                p = month_part[1:]
+            else:
+                sign = 1
+                p = month_part
+
+            kwargs["years"], kwargs["months"] = [int(v) * sign for v in p.split("-")]
+
+        if day_parts is not None:
+            kwargs["days"] = int(day_parts[0])
+            time_part = day_parts[1]
+
+            if time_part.startswith("-"):
+                sign = -1
+                p = time_part[1:]
+            else:
+                sign = 1
+                p = time_part
+
+            kwargs["hours"], kwargs["minutes"], kwargs["seconds"] = [
+                int(v) * sign for v in p.split(":")
+            ]
+
+        return cls(**kwargs)
+
+    @classmethod
+    def from_str(cls, interval_str):
+        if interval_str.startswith("P"):
+            return cls.from_str_iso_8601(interval_str)
+        elif interval_str.startswith("@"):
+            return cls.from_str_postgres(interval_str)
+        else:
+            parts = interval_str.split()
+            if (len(parts) > 1 and parts[1][0].isalpha()) or (
+                len(parts) == 1 and ":" in parts[0]
+            ):
+                return cls.from_str_postgres(interval_str)
+            else:
+                return cls.from_str_sql_standard(interval_str)
 
     def __init__(
         self,
@@ -342,21 +432,27 @@ class PGInterval:
     def __repr__(self):
         return f"<PGInterval {self}>"
 
+    def _value_dict(self):
+        return {
+            k: v
+            for k, v in (
+                ("millennia", self.millennia),
+                ("centuries", self.centuries),
+                ("decades", self.decades),
+                ("years", self.years),
+                ("months", self.months),
+                ("weeks", self.weeks),
+                ("days", self.days),
+                ("hours", self.hours),
+                ("minutes", self.minutes),
+                ("seconds", self.seconds),
+                ("microseconds", self.microseconds),
+            )
+            if v is not None
+        }
+
     def __str__(self):
-        pairs = (
-            ("millennia", self.millennia),
-            ("centuries", self.centuries),
-            ("decades", self.decades),
-            ("years", self.years),
-            ("months", self.months),
-            ("weeks", self.weeks),
-            ("days", self.days),
-            ("hours", self.hours),
-            ("minutes", self.minutes),
-            ("seconds", self.seconds),
-            ("microseconds", self.microseconds),
-        )
-        return " ".join(f"{v} {n}" for n, v in pairs if v is not None)
+        return " ".join(f"{v} {n}" for n, v in self._value_dict().items())
 
     def normalize(self):
         months = 0
@@ -390,6 +486,23 @@ class PGInterval:
             return s.months == o.months and s.days == o.days and s.seconds == o.seconds
         else:
             return False
+
+    def to_timedelta(self):
+        pairs = self._value_dict()
+        overlap = pairs.keys() & {
+            "weeks",
+            "months",
+            "years",
+            "decades",
+            "centuries",
+            "millennia",
+        }
+        if len(overlap) > 0:
+            raise ValueError(
+                "Can't fit the interval fields {overlap} into a datetime.timedelta."
+            )
+
+        return Timedelta(**pairs)
 
 
 class ArrayState(Enum):

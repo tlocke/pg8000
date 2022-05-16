@@ -136,12 +136,96 @@ def test_PGInterval_str():
     assert str(v) == "2 millennia 24 months 2 days 123456789 microseconds"
 
 
-def test_pg_interval_in_1_year():
-    assert pg_interval_in("1 year") == PGInterval(years=1)
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("P1Y2M", PGInterval(years=1, months=2)),
+        ("P12DT30S", PGInterval(days=12, seconds=30)),
+        (
+            "P-1Y-2M3DT-4H-5M-6S",
+            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
+        ),
+    ],
+)
+def test_PGInterval_from_str_iso_8601(value, expected):
+    interval = PGInterval.from_str_iso_8601(value)
+    assert interval == expected
 
 
-def test_interval_in_2_months():
-    assert interval_in("2 hours")
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("@ 1 year 2 mons", PGInterval(years=1, months=2)),
+        (
+            "@ 3 days 4 hours 5 mins 6 secs",
+            PGInterval(days=3, hours=4, minutes=5, seconds=6),
+        ),
+        (
+            "@ 1 year 2 mons -3 days 4 hours 5 mins 6 secs ago",
+            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
+        ),
+    ],
+)
+def test_PGInterval_from_str_postgres(value, expected):
+    interval = PGInterval.from_str_postgres(value)
+    assert interval == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ["1-2", PGInterval(years=1, months=2)],
+        ["3 4:05:06", PGInterval(days=3, hours=4, minutes=5, seconds=6)],
+        [
+            "-1-2 +3 -4:05:06",
+            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
+        ],
+    ],
+)
+def test_PGInterval_from_str_sql_standard(value, expected):
+    interval = PGInterval.from_str_sql_standard(value)
+    assert interval == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("P12DT30S", PGInterval(days=12, seconds=30)),
+        ("@ 1 year 2 mons", PGInterval(years=1, months=2)),
+        ("1-2", PGInterval(years=1, months=2)),
+        ("3 4:05:06", PGInterval(days=3, hours=4, minutes=5, seconds=6)),
+        (
+            "-1-2 +3 -4:05:06",
+            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
+        ),
+        ("00:00:30", PGInterval(seconds=30)),
+    ],
+)
+def test_PGInterval_from_str(value, expected):
+    interval = PGInterval.from_str(value)
+    assert interval == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("1 year", PGInterval(years=1)),
+        ("2 hours", PGInterval(hours=2)),
+    ],
+)
+def test_pg_interval_in(value, expected):
+    assert pg_interval_in(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("2 hours", TimeDelta(hours=2)),
+        ("00:00:30", TimeDelta(seconds=30)),
+    ],
+)
+def test_interval_in(value, expected):
+    assert interval_in(value) == expected
 
 
 def test_array_string_escape():

@@ -346,14 +346,71 @@ def test_pg_interval_in(con):
     assert retval[0][0] == expected_value
 
 
-def test_interval_in_30_seconds(con):
-    retval = con.run("select interval '30 seconds'")
-    assert retval[0][0] == Timedelta(seconds=30)
+@pytest.mark.parametrize(
+    "test_input,test_output",
+    [
+        ["12 days 30 seconds", Timedelta(days=12, seconds=30)],
+        ["30 seconds", Timedelta(seconds=30)],
+    ],
+)
+def test_interval_in_postgres(con, test_input, test_output):
+    con.run("SET intervalstyle TO 'postgres'")
+    retval = con.run(f"SELECT CAST('{test_input}' AS INTERVAL)")
+    assert retval[0][0] == test_output
 
 
-def test_interval_in_12_days_30_seconds(con):
-    retval = con.run("select interval '12 days 30 seconds'")
-    assert retval[0][0] == Timedelta(days=12, seconds=30)
+@pytest.mark.parametrize(
+    "iso_8601,output",
+    [
+        ["P12DT30S", Timedelta(days=12, seconds=30)],
+        ["PT30S", Timedelta(seconds=30)],
+        [
+            "P-1Y-2M3DT-4H-5M-6S",
+            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
+        ],
+    ],
+)
+def test_interval_in_iso_8601(con, iso_8601, output):
+    con.run("SET intervalstyle TO 'iso_8601'")
+    retval = con.run(f"SELECT CAST('{iso_8601}' AS INTERVAL)")
+    assert retval[0][0] == output
+
+
+@pytest.mark.parametrize(
+    "postgres_verbose,output",
+    [
+        ["@ 1 year 2 mons", PGInterval(years=1, months=2)],
+        [
+            "@ 3 days 4 hours 5 mins 6 secs",
+            Timedelta(days=3, hours=4, minutes=5, seconds=6),
+        ],
+        [
+            "@ 1 year 2 mons -3 days 4 hours 5 mins 6 secs ago",
+            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
+        ],
+    ],
+)
+def test_interval_in_postgres_verbose(con, postgres_verbose, output):
+    con.run("SET intervalstyle TO 'postgres_verbose'")
+    retval = con.run(f"SELECT CAST('{postgres_verbose}' AS INTERVAL)")
+    assert retval[0][0] == output
+
+
+@pytest.mark.parametrize(
+    "sql_standard,output",
+    [
+        ["1-2", PGInterval(years=1, months=2)],
+        ["3 4:05:06", Timedelta(days=3, hours=4, minutes=5, seconds=6)],
+        [
+            "-1-2 +3 -4:05:06",
+            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
+        ],
+    ],
+)
+def test_interval_in_sql_standard(con, sql_standard, output):
+    con.run("SET intervalstyle TO 'sql_standard'")
+    retval = con.run(f"SELECT CAST('{sql_standard}' AS INTERVAL)")
+    assert retval[0][0] == output
 
 
 def test_timestamp_out(con):
