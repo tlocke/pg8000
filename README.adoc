@@ -1512,7 +1512,7 @@ application_name::
   that the server will set the application name.
 
 replication::
-  Used to run in https://www.postgresql.org/docs/12/protocol-replication.html[streaming replication mode].
+  Used to run in https://www.postgresql.org/docs/current/protocol-replication.html[streaming replication mode].
   If your server character encoding is not `ascii` or `utf8`, then you need to
   provide values as bytes, eg. `'database'.encode('EUC-JP')`.
 
@@ -1827,7 +1827,7 @@ application_name::
   that the server will set the application name.
 
 replication::
-  Used to run in https://www.postgresql.org/docs/12/protocol-replication.html[streaming replication mode].
+  Used to run in https://www.postgresql.org/docs/current/protocol-replication.html[streaming replication mode].
   If your server character encoding is not `ascii` or `utf8`, then you need to
   provide values as bytes, eg. `'database'.encode('EUC-JP')`.
 
