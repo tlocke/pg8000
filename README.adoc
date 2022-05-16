@@ -2407,6 +2407,15 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.27.1, 2022-05-16
+
+* The `seconds` attribute of `PGInterval` is now always a `float`, to cope with
+  fractional seconds.
+
+* Updated the `interval` parsers for `iso_8601` and `sql_standard` to take account of 
+  fractional seconds.
+
+
 === Version 1.27.0, 2022-05-16
 
 * It used to be that by default, if pg8000 received an `interval` type from the server

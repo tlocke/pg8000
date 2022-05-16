@@ -292,10 +292,13 @@ class PGInterval:
         for c in interval_str[1:]:
             if c == "T":
                 lookup = cls.ISO_LOOKUP[False]
-            elif c.isdigit() or c == "-":
+            elif c.isdigit() or c in ("-", "."):
                 val.append(c)
             else:
-                kwargs[lookup[c]] = int("".join(val))
+                val_str = "".join(val)
+                name = lookup[c]
+                v = float(val_str) if name == "seconds" else int(val_str)
+                kwargs[name] = v
                 val.clear()
 
         return cls(**kwargs)
@@ -316,10 +319,8 @@ class PGInterval:
                 minutes = int(minutes_str)
                 if minutes != 0:
                     t["minutes"] = minutes
-                try:
-                    seconds = int(seconds_str)
-                except ValueError:
-                    seconds = float(seconds_str)
+
+                seconds = float(seconds_str)
 
                 if seconds != 0:
                     t["seconds"] = seconds
@@ -382,9 +383,10 @@ class PGInterval:
                 sign = 1
                 p = time_part
 
-            kwargs["hours"], kwargs["minutes"], kwargs["seconds"] = [
-                int(v) * sign for v in p.split(":")
-            ]
+            hours, minutes, seconds = p.split(":")
+            kwargs["hours"] = int(hours) * sign
+            kwargs["minutes"] = int(minutes) * sign
+            kwargs["seconds"] = float(seconds) * sign
 
         return cls(**kwargs)
 
