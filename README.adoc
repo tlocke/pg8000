@@ -1314,7 +1314,7 @@ examples).
 
 | datetime.timedelta
 | interval
-|
+| If an `interval` is too big for `datetime.timedelta` then a `PGInterval` is used.
 
 | None
 | NULL
