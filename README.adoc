@@ -2450,6 +2450,12 @@ twine upload dist/*
 
 == Release Notes
 
+=== Version 1.28.0, 2022-05-17
+
+* When using the `COPY FROM` SQL statement, allow the `stream` parameter to be an
+  iterable.
+
+
 === Version 1.27.1, 2022-05-16
 
 * The `seconds` attribute of `PGInterval` is now always a `float`, to cope with
