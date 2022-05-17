@@ -103,7 +103,7 @@ def test_copy_from_with_error(db_table):
 
 
 def test_copy_from_with_text_iterable(db_table):
-    stream = ["1\t1\t1", "2\t2\t2", "3\t3\t3"]
+    stream = ["1\t1\t1\n", "2\t2\t2\n", "3\t3\t3\n"]
     db_table.run("copy t1 from STDIN", stream=stream)
 
     retval = db_table.run("SELECT * FROM t1 ORDER BY f1")

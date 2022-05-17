@@ -486,7 +486,7 @@ creating rows programmatically:
 >>> # Generator function for creating rows
 >>> def row_gen():
 ...     for i, name in ((1, "electron"), (2, "muon"), (3, "tau")):
-...         yield f"{i},{name}"
+...         yield f"{i},{name}\n"
 >>>
 >>> # Create a table and then copy the CSV into it
 >>>
@@ -1590,8 +1590,7 @@ http://www.postgresql.org/docs/current/static/sql-copy.html[COPY] command. The
   `COPY TO`.
   `COPY FROM`:::
     The stream parameter must be a readable file-like object or an iterable. If
-    it's an iterable then the items can be `str` or binary, if they're `str`
-    then each item must be a line, with the newline omitted from the end.
+    it's an iterable then the items can be `str` or binary.
   `COPY TO`:::
     The stream parameter must be a writable file-like object.
 
@@ -2449,6 +2448,12 @@ twine upload dist/*
 
 
 == Release Notes
+
+=== Version 1.28.1, 2022-05-17
+
+* If when doing a `COPY FROM` the `stream` parameter is an iterator of `str`, pg8000
+  used to silently append a newline to the end. That no longer happens.
+
 
 === Version 1.28.0, 2022-05-17
 

@@ -476,7 +476,7 @@ class CoreConnection:
                             "The COPY IN stream is binary, but the stream parameter "
                             "is an iterable with str type items."
                         )
-                    b = (k + "\n").encode(self._client_encoding)
+                    b = k.encode(self._client_encoding)
                 else:
                     b = k
 
