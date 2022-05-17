@@ -1,0 +1,30 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "versioningit >= 1.1.1",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.versioningit]
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+isolated_build = True
+envlist = py
+
+[testenv]
+passenv = PGPORT
+commands =
+    black --check .
+    flake8 .
+    python -m pytest -x -v -W error test
+deps =
+    pytest
+    pytest-mock
+    pytest-benchmark
+    black
+    flake8
+    flake8-alphabetize
+    pytz
+"""

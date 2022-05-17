@@ -2439,15 +2439,19 @@ Run `tox` to make sure all tests pass, then update the release notes, then do:
 
 ....
 git tag -a x.y.z -m "version x.y.z"
-rm -r build
-rm -r dist
-python setup.py sdist bdist_wheel --python-tag py3
+rm -r build; rm -r dist
+python -m build
 for f in dist/*; do gpg --detach-sign -a $f; done
 twine upload dist/*
 ....
 
 
 == Release Notes
+
+=== Version 1.28.2, 2022-05-17
+
+* Use a build system that's compliant with PEP517.
+
 
 === Version 1.28.1, 2022-05-17
 

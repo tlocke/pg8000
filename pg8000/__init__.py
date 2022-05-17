@@ -63,11 +63,6 @@ from pg8000.legacy import (
     timedelta_in,
 )
 
-from ._version import get_versions
-
-__version__ = get_versions()["version"]
-del get_versions
-
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # Copyright (c) The Contributors
 # All rights reserved.
