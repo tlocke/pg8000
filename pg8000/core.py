@@ -3,7 +3,7 @@ import socket
 import struct
 from collections import defaultdict, deque
 from hashlib import md5
-from io import TextIOBase
+from io import IOBase, TextIOBase
 from itertools import count
 from struct import Struct
 
@@ -433,35 +433,55 @@ class CoreConnection:
 
         if context.stream is None:
             raise InterfaceError(
-                "An input stream is required for the COPY IN response."
+                "The 'stream' parameter is required for the COPY IN response. The "
+                "'stream' parameter can be an I/O stream or an iterable."
             )
 
-        elif isinstance(context.stream, TextIOBase):
-            if is_binary:
-                raise InterfaceError(
-                    "The COPY IN stream is binary, but the stream parameter is text."
-                )
+        if isinstance(context.stream, IOBase):
+            if isinstance(context.stream, TextIOBase):
+                if is_binary:
+                    raise InterfaceError(
+                        "The COPY IN stream is binary, but the stream parameter is a "
+                        "text stream."
+                    )
 
+                else:
+
+                    def ri(bffr):
+                        bffr.clear()
+                        bffr.extend(
+                            context.stream.read(4096).encode(self._client_encoding)
+                        )
+                        return len(bffr)
+
+                    readinto = ri
             else:
+                readinto = context.stream.readinto
 
-                def ri(bffr):
-                    bffr.clear()
-                    bffr.extend(context.stream.read(4096).encode(self._client_encoding))
-                    return len(bffr)
+            bffr = bytearray(8192)
+            while True:
+                bytes_read = readinto(bffr)
+                if bytes_read == 0:
+                    break
+                self._write(COPY_DATA)
+                self._write(i_pack(bytes_read + 4))
+                self._write(bffr[:bytes_read])
+                self._flush()
 
-                readinto = ri
         else:
-            readinto = context.stream.readinto
+            for k in context.stream:
+                if isinstance(k, str):
+                    if is_binary:
+                        raise InterfaceError(
+                            "The COPY IN stream is binary, but the stream parameter "
+                            "is an iterable with str type items."
+                        )
+                    b = (k + "\n").encode(self._client_encoding)
+                else:
+                    b = k
 
-        bffr = bytearray(8192)
-        while True:
-            bytes_read = readinto(bffr)
-            if bytes_read == 0:
-                break
-            self._write(COPY_DATA)
-            self._write(i_pack(bytes_read + 4))
-            self._write(bffr[:bytes_read])
-            self._flush()
+                self._send_message(COPY_DATA, b)
+                self._flush()
 
         # Send CopyDone
         self._write(COPY_DONE_MSG)

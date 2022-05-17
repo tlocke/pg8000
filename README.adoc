@@ -423,7 +423,7 @@ avoid https://en.wikipedia.org/wiki/SQL_injection[SQL injection attacks]:
 ----
 
 
-=== COPY from and to a file
+=== COPY FROM And TO A Stream
 
 The SQL https://www.postgresql.org/docs/current/sql-copy.html[COPY] statement
 can be used to copy from and to a file or file-like object. Here' an example
@@ -455,6 +455,43 @@ using the CSV format:
 >>>
 >>> con.run("CREATE TEMPORARY TABLE lepton (id SERIAL, name TEXT)")
 >>> con.run("COPY lepton FROM STDIN WITH (FORMAT CSV)", stream=stream_in)
+>>>
+>>> # COPY from a table to a stream
+>>>
+>>> stream_out = StringIO()
+>>> con.run("COPY lepton TO STDOUT WITH (FORMAT CSV)", stream=stream_out)
+>>> stream_out.seek(0)
+0
+>>> for row in csv.reader(stream_out):
+...     print(row)
+['1', 'electron']
+['2', 'muon']
+['3', 'tau']
+>>>
+>>> con.close()
+
+----
+
+
+It's also possible to COPY FROM an iterable, which is useful if you're
+creating rows programmatically:
+
+[source,python]
+----
+
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
+>>> # Generator function for creating rows
+>>> def row_gen():
+...     for i, name in ((1, "electron"), (2, "muon"), (3, "tau")):
+...         yield f"{i},{name}"
+>>>
+>>> # Create a table and then copy the CSV into it
+>>>
+>>> con.run("CREATE TEMPORARY TABLE lepton (id SERIAL, name TEXT)")
+>>> con.run("COPY lepton FROM STDIN WITH (FORMAT CSV)", stream=row_gen())
 >>>
 >>> # COPY from a table to a stream
 >>>
@@ -1548,9 +1585,15 @@ sql::
 
 stream::
   For use with the PostgreSQL
-http://www.postgresql.org/docs/current/static/sql-copy.html[COPY] command. For
-a `COPY FROM` the parameter must be a readable file-like object, and for
-`COPY TO` it must be writable.
+http://www.postgresql.org/docs/current/static/sql-copy.html[COPY] command. The
+  nature of the parameter depends on whether the SQL command is `COPY FROM` or
+  `COPY TO`.
+  `COPY FROM`:::
+    The stream parameter must be a readable file-like object or an iterable. If
+    it's an iterable then the items can be `str` or binary, if they're `str`
+    then each item must be a line, with the newline omitted from the end.
+  `COPY TO`:::
+    The stream parameter must be a writable file-like object.
 
 types::
   A dictionary of oids. A key corresponds to a parameter. 

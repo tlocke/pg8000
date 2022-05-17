@@ -100,3 +100,11 @@ def test_copy_from_with_error(db_table):
     earg = e.value.args[0]
     for k, v in arg.items():
         assert earg[k] in v
+
+
+def test_copy_from_with_text_iterable(db_table):
+    stream = ["1\t1\t1", "2\t2\t2", "3\t3\t3"]
+    db_table.run("copy t1 from STDIN", stream=stream)
+
+    retval = db_table.run("SELECT * FROM t1 ORDER BY f1")
+    assert retval == [[1, 1, "1"], [2, 2, "2"], [3, 3, "3"]]
