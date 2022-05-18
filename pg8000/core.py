@@ -18,6 +18,13 @@ from pg8000.converters import (
 )
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
+try:
+    from importlib.metadata import version
+except ImportError:
+    from importlib_metadata import version
+
+ver = version("pg8000")
+
 
 def pack_funcs(fmt):
     struc = Struct(f"!{fmt}")

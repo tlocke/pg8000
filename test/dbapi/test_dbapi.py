@@ -4,7 +4,16 @@ import time
 
 import pytest
 
-import pg8000
+from pg8000.dbapi import (
+    BINARY,
+    Binary,
+    Date,
+    DateFromTicks,
+    Time,
+    TimeFromTicks,
+    Timestamp,
+    TimestampFromTicks,
+)
 
 
 @pytest.fixture
@@ -117,42 +126,42 @@ def test_arraysize(db_table):
 
 
 def test_date():
-    val = pg8000.Date(2001, 2, 3)
+    val = Date(2001, 2, 3)
     assert val == datetime.date(2001, 2, 3)
 
 
 def test_time():
-    val = pg8000.Time(4, 5, 6)
+    val = Time(4, 5, 6)
     assert val == datetime.time(4, 5, 6)
 
 
 def test_timestamp():
-    val = pg8000.Timestamp(2001, 2, 3, 4, 5, 6)
+    val = Timestamp(2001, 2, 3, 4, 5, 6)
     assert val == datetime.datetime(2001, 2, 3, 4, 5, 6)
 
 
 def test_date_from_ticks(has_tzset):
     if has_tzset:
-        val = pg8000.DateFromTicks(1173804319)
+        val = DateFromTicks(1173804319)
         assert val == datetime.date(2007, 3, 13)
 
 
 def testTimeFromTicks(has_tzset):
     if has_tzset:
-        val = pg8000.TimeFromTicks(1173804319)
+        val = TimeFromTicks(1173804319)
         assert val == datetime.time(16, 45, 19)
 
 
 def test_timestamp_from_ticks(has_tzset):
     if has_tzset:
-        val = pg8000.TimestampFromTicks(1173804319)
+        val = TimestampFromTicks(1173804319)
         assert val == datetime.datetime(2007, 3, 13, 16, 45, 19)
 
 
 def test_binary():
-    v = pg8000.Binary(b"\x00\x01\x02\x03\x02\x01\x00")
+    v = Binary(b"\x00\x01\x02\x03\x02\x01\x00")
     assert v == b"\x00\x01\x02\x03\x02\x01\x00"
-    assert isinstance(v, pg8000.BINARY)
+    assert isinstance(v, BINARY)
 
 
 def test_row_count(db_table):

@@ -45,7 +45,7 @@ from pg8000.converters import (
     pg_interval_in as pginterval_in,
     pg_interval_out as pginterval_out,
 )
-from pg8000.core import Context, CoreConnection
+from pg8000.core import Context, CoreConnection, ver
 from pg8000.dbapi import (
     BINARY,
     Binary,
@@ -64,11 +64,7 @@ from pg8000.dbapi import (
 )
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
-
-from ._version import get_versions
-
-__version__ = get_versions()["version"]
-del get_versions
+__version__ = ver
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # Copyright (c) The Contributors

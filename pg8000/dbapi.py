@@ -3,7 +3,6 @@ from itertools import count, islice
 from time import localtime
 from warnings import warn
 
-import pg8000
 from pg8000.converters import (
     BIGINT,
     BOOLEAN,
@@ -41,14 +40,11 @@ from pg8000.converters import (
     VARCHAR_ARRAY,
     XID,
 )
-from pg8000.core import Context, CoreConnection
+from pg8000.core import Context, CoreConnection, ver
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
 
-from ._version import get_versions
-
-__version__ = get_versions()["version"]
-del get_versions
+__version__ = ver
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # Copyright (c) The Contributors
@@ -618,7 +614,7 @@ class Cursor:
                 try:
                     oid, _ = self._c.py_types[size]
                 except KeyError:
-                    oid = pg8000.converters.UNKNOWN
+                    oid = UNKNOWN
             oids.append(oid)
 
         self._input_oids = oids

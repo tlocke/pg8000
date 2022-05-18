@@ -2441,12 +2441,16 @@ Run `tox` to make sure all tests pass, then update the release notes, then do:
 git tag -a x.y.z -m "version x.y.z"
 rm -r build; rm -r dist
 python -m build
-for f in dist/*; do gpg --detach-sign -a $f; done
-twine upload dist/*
+twine upload --sign dist/*
 ....
 
 
 == Release Notes
+
+=== Version 1.28.3, 2022-05-18
+
+* Put back `__version__` attributes that were inadvertently removed.
+
 
 === Version 1.28.2, 2022-05-17
 

@@ -40,9 +40,10 @@ from pg8000.converters import (
     literal,
     make_params,
 )
-from pg8000.core import CoreConnection
+from pg8000.core import CoreConnection, ver
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
 
+__version__ = ver
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
 # Copyright (c) The Contributors

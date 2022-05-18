@@ -3,7 +3,7 @@ import warnings
 
 import pytest
 
-from pg8000.dbapi import DatabaseError, InterfaceError, connect
+from pg8000.dbapi import DatabaseError, InterfaceError, __version__, connect
 
 
 def test_unix_socket_missing():
@@ -211,3 +211,14 @@ def test_closed_connection(db_kwargs):
         cursor.execute("VALUES ('hw1'::text)")
 
     warnings.resetwarnings()
+
+
+def test_version():
+    try:
+        from importlib.metadata import version
+    except ImportError:
+        from importlib_metadata import version
+
+    ver = version("pg8000")
+
+    assert __version__ == ver

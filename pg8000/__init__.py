@@ -58,6 +58,7 @@ from pg8000.legacy import (
     VARCHAR_ARRAY,
     Warning,
     XID,
+    __version__,
     pginterval_in,
     pginterval_out,
     timedelta_in,
@@ -90,8 +91,6 @@ from pg8000.legacy import (
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
-
-__author__ = "Mathieu Fenniak"
 
 
 def connect(
@@ -205,6 +204,7 @@ __all__ = [
     "VARCHAR_ARRAY",
     "Warning",
     "XID",
+    "__version__",
     "connect",
     "pginterval_in",
     "pginterval_out",

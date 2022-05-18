@@ -4,7 +4,7 @@ from datetime import time as Time
 
 import pytest
 
-from pg8000.native import Connection, DatabaseError, InterfaceError
+from pg8000.native import Connection, DatabaseError, InterfaceError, __version__
 
 
 def test_unix_socket_missing():
@@ -218,3 +218,14 @@ def test_network_error_on_connect(db_kwargs, mocker):
     mocker.patch("pg8000.core.ci_unpack", side_effect=struct.error())
     with pytest.raises(InterfaceError, match="network error"):
         Connection(**db_kwargs)
+
+
+def test_version():
+    try:
+        from importlib.metadata import version
+    except ImportError:
+        from importlib_metadata import version
+
+    v = version("pg8000")
+
+    assert __version__ == v
