@@ -1,4 +1,4 @@
-include README.adoc
+include README.rst
 include LICENSE
 graft test
 global-exclude *.py[cod]
