@@ -595,7 +595,29 @@ SELECT 'hello' as "My Column"
 ----
 
 this approach guards against https://en.wikipedia.org/wiki/SQL_injection[SQL injection
-attacks].
+attacks]. One thing to note if you're using explicit schemas (eg.
+`pg_catalog.pg_language`) is that the schema name and table name are both separate
+identifiers. So to escape them you'd do:
+
+[source,python]
+----
+>>> from pg8000.native import Connection, identifier
+>>>
+>>> con = Connection("postgres", password="cpsnow")
+>>>
+>>> query = (
+...     f"SELECT lanname FROM {identifier('pg_catalog')}.{identifier('pg_language')} "
+...     f"WHERE lanname = 'sql'"
+... )
+>>> print(query)
+SELECT lanname FROM pg_catalog.pg_language WHERE lanname = 'sql'
+>>>
+>>> con.run(query)
+[['sql']]
+>>>
+>>> con.close()
+
+----
 
 
 === Custom adapter from a Python type to a PostgreSQL type

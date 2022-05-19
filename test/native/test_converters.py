@@ -244,11 +244,6 @@ def test_make_param():
     assert make_param(PY_TYPES, val) == "\\x00010203020100"
 
 
-def test_identifier():
-    val = "top_secret"
-    assert identifier(val) == val
-
-
 def test_identifier_int():
     with pytest.raises(InterfaceError, match="identifier must be a str"):
         identifier(9)
@@ -268,20 +263,18 @@ def test_identifier_quoted_null():
         identifier("tabl\u0000e")
 
 
-def test_identifier_quoted_first_char():
-    assert identifier(" Table") == '" Table"'
-
-
-def test_identifier_quoted_space():
-    assert identifier("A Table") == '"A Table"'
-
-
-def test_identifier_quoted_double_quote():
-    assert identifier('A " Table') == '"A "" Table"'
-
-
-def test_identifier_dollar():
-    assert identifier("Table$") == "Table$"
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("top_secret", "top_secret"),
+        (" Table", '" Table"'),
+        ("A Table", '"A Table"'),
+        ('A " Table', '"A "" Table"'),
+        ("Table$", "Table$"),
+    ],
+)
+def test_identifier_success(value, expected):
+    assert identifier(value) == expected
 
 
 def test_literal():
