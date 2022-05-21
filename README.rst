@@ -2125,6 +2125,16 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.29.0, 2022-05-21
+``````````````````````````
+
+- Implement a workaround for the `silent failed commit
+  <https://github.com/tlocke/pg8000/issues/36>`_ bug.
+
+- Previously if an empty string was sent as the query an exception would be raised, but
+  that isn't done now.
+
+
 Version 1.28.3, 2022-05-18
 ``````````````````````````
 
