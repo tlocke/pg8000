@@ -153,10 +153,9 @@ def test_in(con):
     assert ret[0][0] == "bool"
 
 
-# An empty query should raise a ProgrammingError
 def test_empty_query(con):
-    with pytest.raises(DatabaseError):
-        con.run("")
+    """No exception thrown"""
+    con.run("")
 
 
 def test_rollback_no_transaction(con):

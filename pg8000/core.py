@@ -379,7 +379,7 @@ class CoreConnection:
         context.error = DatabaseError(msg)
 
     def handle_EMPTY_QUERY_RESPONSE(self, data, context):
-        context.error = DatabaseError("query was empty")
+        pass
 
     def handle_CLOSE_COMPLETE(self, data, context):
         pass

@@ -246,10 +246,9 @@ def test_tpc_prepare(con):
     con.tpc_rollback(xid)
 
 
-# An empty query should raise a ProgrammingError
 def test_empty_query(cursor):
-    with pytest.raises(pg8000.dbapi.DatabaseError):
-        cursor.execute("")
+    """No exception thrown"""
+    cursor.execute("")
 
 
 # rolling back when not in a transaction doesn't generate a warning
