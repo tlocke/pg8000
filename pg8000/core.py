@@ -139,8 +139,8 @@ RESPONSE_LINE = "L"
 RESPONSE_ROUTINE = "R"
 
 IDLE = b"I"
-IDLE_IN_TRANSACTION = b"T"
-IDLE_IN_FAILED_TRANSACTION = b"E"
+IN_TRANSACTION = b"T"
+IN_FAILED_TRANSACTION = b"E"
 
 
 class CoreConnection:
@@ -360,7 +360,7 @@ class CoreConnection:
             self.close()
             raise e
 
-        self.in_transaction = False
+        self._transaction_status = None
 
     def register_out_adapter(self, typ, out_func):
         self.py_types[typ] = out_func
@@ -596,7 +596,7 @@ class CoreConnection:
             )
 
     def handle_READY_FOR_QUERY(self, data, context):
-        self.in_transaction = data != IDLE
+        self._transaction_status = data
 
     def handle_BACKEND_KEY_DATA(self, data, context):
         self._backend_key_data = data
@@ -651,7 +651,7 @@ class CoreConnection:
         self._send_message(QUERY, sql.encode(self._client_encoding) + NULL_BYTE)
 
     def execute_simple(self, statement):
-        context = Context()
+        context = Context(statement)
 
         self.send_QUERY(statement)
         self._flush()
@@ -660,7 +660,7 @@ class CoreConnection:
         return context
 
     def execute_unnamed(self, statement, vals=(), oids=(), stream=None):
-        context = Context(stream=stream)
+        context = Context(statement, stream=stream)
 
         self.send_PARSE(NULL_BYTE, statement, oids)
         self._write(SYNC_MSG)
@@ -709,13 +709,15 @@ class CoreConnection:
             else:
                 raise e
 
-        context = Context()
+        context = Context(statement)
         self.handle_messages(context)
 
         return statement_name_bin, context.columns, context.input_funcs
 
-    def execute_named(self, statement_name_bin, params, columns, input_funcs):
-        context = Context(columns=columns, input_funcs=input_funcs)
+    def execute_named(
+        self, statement_name_bin, params, columns, input_funcs, statement
+    ):
+        context = Context(columns=columns, input_funcs=input_funcs, statement=statement)
 
         self.send_BIND(statement_name_bin, params)
         self.send_EXECUTE()
@@ -765,6 +767,11 @@ class CoreConnection:
         pass
 
     def handle_COMMAND_COMPLETE(self, data, context):
+        if self._transaction_status == IN_FAILED_TRANSACTION and self.error is None:
+            sql = context.statement.strip().rstrip(";").rstrip().upper()
+            if sql != "ROLLBACK":
+                self.error = InterfaceError("in failed transaction block")
+
         values = data[:-1].split(b" ")
         try:
             row_count = int(values[-1])
@@ -810,7 +817,7 @@ class CoreConnection:
         self._write(FLUSH_MSG)
         self._write(SYNC_MSG)
         self._flush()
-        context = Context()
+        context = Context(None)
         self.handle_messages(context)
         self._statement_nums.remove(statement_name_bin)
 
@@ -838,7 +845,8 @@ class CoreConnection:
 
 
 class Context:
-    def __init__(self, stream=None, columns=None, input_funcs=None):
+    def __init__(self, statement, stream=None, columns=None, input_funcs=None):
+        self.statement = statement
         self.rows = None if columns is None else []
         self.row_count = -1
         self.columns = columns

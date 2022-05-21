@@ -45,7 +45,13 @@ from pg8000.converters import (
     pg_interval_in as pginterval_in,
     pg_interval_out as pginterval_out,
 )
-from pg8000.core import Context, CoreConnection, ver
+from pg8000.core import (
+    Context,
+    CoreConnection,
+    IN_FAILED_TRANSACTION,
+    IN_TRANSACTION,
+    ver,
+)
 from pg8000.dbapi import (
     BINARY,
     Binary,
@@ -238,7 +244,7 @@ class Cursor:
             .. versionadded:: 1.9.11
         """
         try:
-            if not self._c.in_transaction and not self._c.autocommit:
+            if not self._c._in_transaction and not self._c.autocommit:
                 self._c.execute_simple("begin transaction")
 
             if len(args) == 0 and stream is None:
@@ -301,7 +307,7 @@ class Cursor:
             rowcounts.append(self._context.row_count)
 
         if len(rowcounts) == 0:
-            self._context = Context()
+            self._context = Context(None)
         elif -1 in rowcounts:
             self._context.row_count = -1
         else:
@@ -471,6 +477,10 @@ class Connection(CoreConnection):
     def description(self):
         return self._run_cursor._getDescription()
 
+    @property
+    def _in_transaction(self):
+        return self._transaction_status in (IN_TRANSACTION, IN_FAILED_TRANSACTION)
+
     def commit(self):
         """Commits the current database transaction.
 
@@ -485,7 +495,7 @@ class Connection(CoreConnection):
         This function is part of the `DBAPI 2.0 specification
         <http://www.python.org/dev/peps/pep-0249/>`_.
         """
-        if not self.in_transaction:
+        if not self._in_transaction:
             return
         self.execute_unnamed("rollback")
 
@@ -725,10 +735,10 @@ class PreparedStatement:
         params = make_params(self.con.py_types, self.make_args(vals))
 
         try:
-            if not self.con.in_transaction and not self.con.autocommit:
+            if not self.con._in_transaction and not self.con.autocommit:
                 self.con.execute_unnamed("begin transaction")
             self._context = self.con.execute_named(
-                self.name_bin, params, self.row_desc, self.input_funcs
+                self.name_bin, params, self.row_desc, self.input_funcs, self.operation
             )
         except AttributeError as e:
             if self.con is None:

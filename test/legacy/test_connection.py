@@ -1,6 +1,6 @@
 import pytest
 
-from pg8000 import InterfaceError, ProgrammingError, connect
+from pg8000 import DatabaseError, InterfaceError, ProgrammingError, connect
 
 
 def testUnixSocketMissing():
@@ -194,3 +194,64 @@ def test_scram_sha_256(db_kwargs):
     # Should only raise an exception saying db doesn't exist
     with pytest.raises(ProgrammingError, match="3D000"):
         connect(**db_kwargs)
+
+
+@pytest.mark.parametrize(
+    "commit",
+    [
+        "commit",
+        "COMMIT;",
+    ],
+)
+def test_failed_transaction_commit_sql(cursor, commit):
+    cursor.execute("create temporary table tt (f1 int primary key)")
+    cursor.execute("begin")
+    try:
+        cursor.execute("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    with pytest.raises(InterfaceError):
+        cursor.execute(commit)
+
+
+def test_failed_transaction_commit_method(con, cursor):
+    cursor.execute("create temporary table tt (f1 int primary key)")
+    cursor.execute("begin")
+    try:
+        cursor.execute("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    with pytest.raises(InterfaceError):
+        con.commit()
+
+
+@pytest.mark.parametrize(
+    "rollback",
+    [
+        "rollback",
+        "rollback;",
+        "ROLLBACK ;",
+    ],
+)
+def test_failed_transaction_rollback_sql(cursor, rollback):
+    cursor.execute("create temporary table tt (f1 int primary key)")
+    cursor.execute("begin")
+    try:
+        cursor.execute("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    cursor.execute(rollback)
+
+
+def test_failed_transaction_rollback_method(cursor, con):
+    cursor.execute("create temporary table tt (f1 int primary key)")
+    cursor.execute("begin")
+    try:
+        cursor.execute("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    con.rollback()

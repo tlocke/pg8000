@@ -229,3 +229,60 @@ def test_version():
     v = version("pg8000")
 
     assert __version__ == v
+
+
+@pytest.mark.parametrize(
+    "commit",
+    [
+        "commit",
+        "COMMIT;",
+    ],
+)
+def test_failed_transaction_commit(con, commit):
+    con.run("create temporary table tt (f1 int primary key)")
+    con.run("begin")
+    try:
+        con.run("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    with pytest.raises(InterfaceError):
+        con.run(commit)
+
+
+@pytest.mark.parametrize(
+    "rollback",
+    [
+        "rollback",
+        "rollback;",
+        "ROLLBACK ;",
+    ],
+)
+def test_failed_transaction_rollback(con, rollback):
+    con.run("create temporary table tt (f1 int primary key)")
+    con.run("begin")
+    try:
+        con.run("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    con.run(rollback)
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "BEGIN",
+        "select * from tt;",
+    ],
+)
+def test_failed_transaction_sql(con, sql):
+    con.run("create temporary table tt (f1 int primary key)")
+    con.run("begin")
+    try:
+        con.run("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    with pytest.raises(DatabaseError):
+        con.run(sql)

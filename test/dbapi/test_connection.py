@@ -222,3 +222,83 @@ def test_version():
     ver = version("pg8000")
 
     assert __version__ == ver
+
+
+@pytest.mark.parametrize(
+    "commit",
+    [
+        "commit",
+        "COMMIT;",
+    ],
+)
+def test_failed_transaction_commit_sql(cursor, commit):
+    cursor.execute("create temporary table tt (f1 int primary key)")
+    cursor.execute("begin")
+    try:
+        cursor.execute("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    with pytest.raises(InterfaceError):
+        cursor.execute(commit)
+
+
+def test_failed_transaction_commit_method(con, cursor):
+    cursor.execute("create temporary table tt (f1 int primary key)")
+    cursor.execute("begin")
+    try:
+        cursor.execute("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    with pytest.raises(InterfaceError):
+        con.commit()
+
+
+@pytest.mark.parametrize(
+    "rollback",
+    [
+        "rollback",
+        "rollback;",
+        "ROLLBACK ;",
+    ],
+)
+def test_failed_transaction_rollback_sql(cursor, rollback):
+    cursor.execute("create temporary table tt (f1 int primary key)")
+    cursor.execute("begin")
+    try:
+        cursor.execute("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    cursor.execute(rollback)
+
+
+def test_failed_transaction_rollback_method(cursor, con):
+    cursor.execute("create temporary table tt (f1 int primary key)")
+    cursor.execute("begin")
+    try:
+        cursor.execute("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    con.rollback()
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "BEGIN",
+        "select * from tt;",
+    ],
+)
+def test_failed_transaction_sql(cursor, sql):
+    cursor.execute("create temporary table tt (f1 int primary key)")
+    cursor.execute("begin")
+    try:
+        cursor.execute("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    with pytest.raises(DatabaseError):
+        cursor.execute(sql)

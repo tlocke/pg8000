@@ -121,6 +121,12 @@ rolling back a transaction:
 >>>
 >>> con.close()
 
+NB. There is `a longstanding bug <https://github.com/tlocke/pg8000/issues/36>`_
+in the PostgreSQL server whereby if a `COMMIT` is issued against a failed
+transaction, the transaction is silently rolled back, rather than an error being
+returned. pg8000 attempts to detect when this has happened and raise an
+`InterfaceError`.
+
 
 Query Using Fuctions
 ````````````````````

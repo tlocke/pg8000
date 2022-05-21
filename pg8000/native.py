@@ -212,10 +212,10 @@ class Connection(CoreConnection):
 class PreparedStatement:
     def __init__(self, con, sql, types=None):
         self.con = con
-        statement, self.make_vals = to_statement(sql)
+        self.statement, self.make_vals = to_statement(sql)
         oids = () if types is None else self.make_vals(defaultdict(lambda: None, types))
         self.name_bin, self.cols, self.input_funcs = con.prepare_statement(
-            statement, oids
+            self.statement, oids
         )
 
     @property
@@ -226,7 +226,7 @@ class PreparedStatement:
         params = make_params(self.con.py_types, self.make_vals(params))
 
         self._context = self.con.execute_named(
-            self.name_bin, params, self.cols, self.input_funcs
+            self.name_bin, params, self.cols, self.input_funcs, self.statement
         )
 
         return self._context.rows
