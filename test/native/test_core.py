@@ -1,6 +1,7 @@
 from io import BytesIO
 
 from pg8000.core import (
+    Context,
     CoreConnection,
     NULL_BYTE,
     PASSWORD,
@@ -20,7 +21,6 @@ def test_handle_AUTHENTICATION_3(mocker):
     con._write = buf.write
     CoreConnection.handle_AUTHENTICATION_REQUEST(con, b"\x00\x00\x00\x03", None)
     assert buf.getvalue() == _create_message(PASSWORD, password + NULL_BYTE)
-    # assert buf.getvalue() == b"p\x00\x00\x00\x0cbarbour\x00"
 
 
 def test_create_message():
@@ -34,5 +34,7 @@ def test_handle_ERROR_RESPONSE(mocker):
     mocker.patch.object(CoreConnection, "__init__", lambda x: None)
     con = CoreConnection()
     con._client_encoding = "utf8"
-    CoreConnection.handle_ERROR_RESPONSE(con, b"S\xc2err" + NULL_BYTE + NULL_BYTE, None)
-    assert str(con.error) == "{'S': '�err'}"
+    data = b"S\xc2err" + NULL_BYTE + NULL_BYTE
+    context = Context(None)
+    CoreConnection.handle_ERROR_RESPONSE(con, data, context)
+    assert str(context.error) == "{'S': '�err'}"

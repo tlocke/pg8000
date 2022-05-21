@@ -343,7 +343,8 @@ class CoreConnection:
 
         try:
 
-            code = self.error = None
+            code = None
+            context = Context(None)
             while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
 
                 try:
@@ -351,10 +352,10 @@ class CoreConnection:
                 except struct.error as e:
                     raise InterfaceError("network error") from e
 
-                self.message_types[code](self._read(data_len - 4), None)
+                self.message_types[code](self._read(data_len - 4), context)
 
-            if self.error is not None:
-                raise self.error
+            if context.error is not None:
+                raise context.error
 
         except Error as e:
             self.close()
@@ -375,10 +376,10 @@ class CoreConnection:
             if s != b""
         }
 
-        self.error = DatabaseError(msg)
+        context.error = DatabaseError(msg)
 
     def handle_EMPTY_QUERY_RESPONSE(self, data, context):
-        self.error = DatabaseError("query was empty")
+        context.error = DatabaseError("query was empty")
 
     def handle_CLOSE_COMPLETE(self, data, context):
         pass
@@ -767,10 +768,10 @@ class CoreConnection:
         pass
 
     def handle_COMMAND_COMPLETE(self, data, context):
-        if self._transaction_status == IN_FAILED_TRANSACTION and self.error is None:
+        if self._transaction_status == IN_FAILED_TRANSACTION and context.error is None:
             sql = context.statement.strip().rstrip(";").rstrip().upper()
             if sql != "ROLLBACK":
-                self.error = InterfaceError("in failed transaction block")
+                context.error = InterfaceError("in failed transaction block")
 
         values = data[:-1].split(b" ")
         try:
@@ -797,7 +798,7 @@ class CoreConnection:
         context.rows.append(row)
 
     def handle_messages(self, context):
-        code = self.error = None
+        code = None
 
         while code != READY_FOR_QUERY:
 
@@ -808,8 +809,8 @@ class CoreConnection:
 
             self.message_types[code](self._read(data_len - 4), context)
 
-        if self.error is not None:
-            raise self.error
+        if context.error is not None:
+            raise context.error
 
     def close_prepared_statement(self, statement_name_bin):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
@@ -852,3 +853,4 @@ class Context:
         self.columns = columns
         self.stream = stream
         self.input_funcs = [] if input_funcs is None else input_funcs
+        self.error = None
