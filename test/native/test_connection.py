@@ -270,6 +270,27 @@ def test_failed_transaction_rollback(con, rollback):
 
 
 @pytest.mark.parametrize(
+    "rollback",
+    [
+        "rollback to sp",
+        "rollback to sp;",
+        "ROLLBACK TO sp ;",
+    ],
+)
+def test_failed_transaction_rollback_to_savepoint(con, rollback):
+    con.run("create temporary table tt (f1 int primary key)")
+    con.run("begin")
+    con.run("SAVEPOINT sp;")
+
+    try:
+        con.run("insert into tt(f1) values(null)")
+    except DatabaseError:
+        pass
+
+    con.run(rollback)
+
+
+@pytest.mark.parametrize(
     "sql",
     [
         "BEGIN",

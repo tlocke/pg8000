@@ -2125,6 +2125,13 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.29.1, 2022-05-23
+``````````````````````````
+
+- In trying to determine if there's been a failed commit, check for ``ROLLBACK TO
+  SAVEPOINT``.
+
+
 Version 1.29.0, 2022-05-21
 ``````````````````````````
 

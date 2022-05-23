@@ -769,7 +769,7 @@ class CoreConnection:
 
     def handle_COMMAND_COMPLETE(self, data, context):
         if self._transaction_status == IN_FAILED_TRANSACTION and context.error is None:
-            sql = context.statement.strip().rstrip(";").rstrip().upper()
+            sql = context.statement.split()[0].rstrip(";").upper()
             if sql != "ROLLBACK":
                 context.error = InterfaceError("in failed transaction block")
 
