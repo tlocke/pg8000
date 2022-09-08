@@ -594,7 +594,8 @@ def array_string_escape(v):
     if (
         len(val) == 0
         or val == "NULL"
-        or any([c in val for c in ("{", "}", ",", " ", "\\")])
+        or any(c.isspace() for c in val)
+        or any(c in val for c in ("{", "}", ",", "\\"))
     ):
         val = f'"{val}"'
     return val

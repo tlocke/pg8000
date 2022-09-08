@@ -63,7 +63,7 @@ def test_null_out():
         [["Veni", "vidi", "vici"], "{Veni,vidi,vici}"],  # varchar[]
     ],
 )
-def test_array_out(con, array, out):
+def test_array_out(array, out):
     assert array_out(array) == out
 
 
@@ -230,10 +230,18 @@ def test_interval_in(value, expected):
     assert interval_in(value) == expected
 
 
-def test_array_string_escape():
-    v = '"'
-    res = array_string_escape(v)
-    assert res == '"\\""'
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ('"', '"\\""'),
+        ("\r", '"\r"'),
+        ("\n", '"\n"'),
+        ("\t", '"\t"'),
+    ],
+)
+def test_array_string_escape(value, expected):
+    res = array_string_escape(value)
+    assert res == expected
 
 
 def test_make_param():

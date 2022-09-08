@@ -651,6 +651,10 @@ def test_string_array_roundtrip(cursor):
         "",
         "A bunch of random characters:",
         " ~!@#$%^&*()_+`1234567890-=[]\\{}|{;':\",./<>?\t",
+        "\n",
+        "\r",
+        "\t",
+        "\b",
         None,
     ]
     cursor.execute("SELECT cast(%s as varchar[])", (v,))
