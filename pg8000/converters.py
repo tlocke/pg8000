@@ -220,7 +220,16 @@ def timestamp_in(data):
 
 def timestamptz_in(data):
     patt = "%Y-%m-%d %H:%M:%S.%f%z" if "." in data else "%Y-%m-%d %H:%M:%S%z"
-    return Datetime.strptime(data + "00", patt)
+    tz_sign = '+' if '+' in data else ('-' if data.count('-') == 3 else None)
+    if tz_sign is None:
+        tz_sign = '+'
+        timestamp, tz = data, "0000"
+    else:
+        tz_sign_index = data.rfind(tz_sign)
+        timestamp, tz = data[:tz_sign_index], data[tz_sign_index+1:]
+    tz = tz.replace(':', '').ljust(4, '0')
+    data = "{:s}{:s}{:s}".format(timestamp, tz_sign, tz)
+    return Datetime.strptime(data, patt)
 
 
 def unknown_out(v):
