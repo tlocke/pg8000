@@ -216,15 +216,42 @@ def test_int2vector_in(con):
     con.run("select indkey from pg_index")
 
 
-def test_timestamp_tz_out(con):
-    retval = con.run(
-        "SELECT '2001-02-03 04:05:06.17 America/Edmonton'" "::timestamp with time zone"
-    )
+@pytest.mark.parametrize(
+    "tz, test_input,test_output",
+    [
+        [
+            "UTC",
+            "2001-02-03 04:05:06.17 America/Edmonton",
+            Datetime(2001, 2, 3, 11, 5, 6, 170000, Timezone.utc),
+        ],
+        [
+            "UTC",
+            "2001-02-03 04:05:06.17+01:30",
+            Datetime(2001, 2, 3, 2, 35, 6, 170000, Timezone.utc),
+        ],
+        [
+            "01:30",
+            "2001-02-03 04:05:06.17+01:30",
+            Datetime(2001, 2, 3, 2, 35, 6, 170000, Timezone.utc),
+        ],
+        [
+            "UTC",
+            "infinity",
+            "infinity",
+        ],
+        [
+            "UTC",
+            "-infinity",
+            "-infinity",
+        ],
+    ],
+)
+def test_timestamptz_in(con, tz, test_input, test_output):
+    con.run(f"SET TIME ZONE '{tz}'")
+    retval = con.run(f"SELECT CAST('{test_input}' AS timestamp with time zone)")
     dt = retval[0][0]
-    assert dt.tzinfo is not None, "no tzinfo returned"
-    assert dt.astimezone(Timezone.utc) == Datetime(
-        2001, 2, 3, 11, 5, 6, 170000, Timezone.utc
-    ), "retrieved value match failed"
+
+    assert dt == test_output
 
 
 def test_timestamp_tz_roundtrip(con):

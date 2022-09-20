@@ -3,6 +3,7 @@ from datetime import (
     datetime as DateTime,
     time as Time,
     timedelta as TimeDelta,
+    timezone as TimeZone,
 )
 from decimal import Decimal
 from ipaddress import IPv4Address, IPv4Network
@@ -25,6 +26,7 @@ from pg8000.converters import (
     pg_interval_in,
     string_in,
     string_out,
+    timestamptz_in,
 )
 from pg8000.native import InterfaceError
 
@@ -243,6 +245,79 @@ def test_interval_in(value, expected):
 def test_array_string_escape(value, expected):
     res = array_string_escape(value)
     assert res == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        [
+            "2022-10-08 15:01:39+01:30",
+            DateTime(
+                2022, 10, 8, 15, 1, 39, tzinfo=TimeZone(TimeDelta(hours=1, minutes=30))
+            ),
+        ],
+        [
+            "2022-10-08 15:01:39-01:30",
+            DateTime(
+                2022,
+                10,
+                8,
+                15,
+                1,
+                39,
+                tzinfo=TimeZone(TimeDelta(hours=-1, minutes=-30)),
+            ),
+        ],
+        [
+            "2022-10-08 15:01:39+02",
+            DateTime(2022, 10, 8, 15, 1, 39, tzinfo=TimeZone(TimeDelta(hours=2))),
+        ],
+        [
+            "2022-10-08 15:01:39-02",
+            DateTime(2022, 10, 8, 15, 1, 39, tzinfo=TimeZone(TimeDelta(hours=-2))),
+        ],
+        [
+            "2022-10-08 15:01:39.597026+01:30",
+            DateTime(
+                2022,
+                10,
+                8,
+                15,
+                1,
+                39,
+                597026,
+                tzinfo=TimeZone(TimeDelta(hours=1, minutes=30)),
+            ),
+        ],
+        [
+            "2022-10-08 15:01:39.597026-01:30",
+            DateTime(
+                2022,
+                10,
+                8,
+                15,
+                1,
+                39,
+                597026,
+                tzinfo=TimeZone(TimeDelta(hours=-1, minutes=-30)),
+            ),
+        ],
+        [
+            "2022-10-08 15:01:39.597026+02",
+            DateTime(
+                2022, 10, 8, 15, 1, 39, 597026, tzinfo=TimeZone(TimeDelta(hours=2))
+            ),
+        ],
+        [
+            "2022-10-08 15:01:39.597026-02",
+            DateTime(
+                2022, 10, 8, 15, 1, 39, 597026, tzinfo=TimeZone(TimeDelta(hours=-2))
+            ),
+        ],
+    ],
+)
+def test_timestamptz_in(value, expected):
+    assert timestamptz_in(value) == expected
 
 
 def test_make_param():

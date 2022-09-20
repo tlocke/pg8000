@@ -18,6 +18,8 @@ from ipaddress import (
 from json import dumps, loads
 from uuid import UUID
 
+from dateutil.parser import parse
+
 from pg8000.exceptions import InterfaceError
 
 
@@ -214,13 +216,22 @@ def timestamp_in(data):
     if data in ("infinity", "-infinity"):
         return data
 
-    pattern = "%Y-%m-%d %H:%M:%S.%f" if "." in data else "%Y-%m-%d %H:%M:%S"
-    return Datetime.strptime(data, pattern)
+    try:
+        pattern = "%Y-%m-%d %H:%M:%S.%f" if "." in data else "%Y-%m-%d %H:%M:%S"
+        return Datetime.strptime(data, pattern)
+    except ValueError:
+        return parse(data)
 
 
 def timestamptz_in(data):
-    patt = "%Y-%m-%d %H:%M:%S.%f%z" if "." in data else "%Y-%m-%d %H:%M:%S%z"
-    return Datetime.strptime(data + "00", patt)
+    if data in ("infinity", "-infinity"):
+        return data
+
+    try:
+        patt = "%Y-%m-%d %H:%M:%S.%f%z" if "." in data else "%Y-%m-%d %H:%M:%S%z"
+        return Datetime.strptime(f"{data}00", patt)
+    except ValueError:
+        return parse(data)
 
 
 def unknown_out(v):
