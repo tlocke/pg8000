@@ -3,6 +3,7 @@ from datetime import (
     datetime as DateTime,
     time as Time,
     timedelta as TimeDelta,
+    timezone as TimeZone,
 )
 from decimal import Decimal
 from ipaddress import IPv4Address, IPv4Network
@@ -25,6 +26,7 @@ from pg8000.converters import (
     pg_interval_in,
     string_in,
     string_out,
+    timestamptz_in,
 )
 from pg8000.native import InterfaceError
 
@@ -228,6 +230,22 @@ def test_pg_interval_in(value, expected):
 )
 def test_interval_in(value, expected):
     assert interval_in(value) == expected
+
+
+def test_timestamptz_in():
+    now = DateTime.now()
+    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S") + "+01:30") == \
+           now.replace(microsecond=0, tzinfo=TimeZone(TimeDelta(hours=1, minutes=30)))
+    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S") + "+02") == \
+           now.replace(microsecond=0, tzinfo=TimeZone(TimeDelta(hours=2)))
+    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S")) == \
+           now.replace(microsecond=0, tzinfo=TimeZone(TimeDelta(hours=0)))
+    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S.%f")+"+01:30") == \
+           now.replace(tzinfo=TimeZone(TimeDelta(hours=1, minutes=30)))
+    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S.%f") + "+02") == \
+           now.replace(tzinfo=TimeZone(TimeDelta(hours=2)))
+    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S.%f")) == \
+           now.replace(tzinfo=TimeZone(TimeDelta(hours=0)))
 
 
 def test_array_string_escape():
