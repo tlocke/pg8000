@@ -234,16 +234,18 @@ def test_interval_in(value, expected):
 
 def test_timestamptz_in():
     now = DateTime.now()
-    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S") + "+01:30") == \
-           now.replace(microsecond=0, tzinfo=TimeZone(TimeDelta(hours=1, minutes=30)))
-    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S") + "+02") == \
-           now.replace(microsecond=0, tzinfo=TimeZone(TimeDelta(hours=2)))
+    for tz_sign in ('+', '-'):
+        tz_mul = 1 if tz_sign == '+' else -1
+        assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S") + tz_sign + "01:30") == \
+               now.replace(microsecond=0, tzinfo=TimeZone(tz_mul * TimeDelta(hours=1, minutes=30)))
+        assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S") + tz_sign + "02") == \
+               now.replace(microsecond=0, tzinfo=TimeZone(tz_mul * TimeDelta(hours=2)))
+        assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S.%f") + tz_sign +"01:30") == \
+               now.replace(tzinfo=TimeZone(tz_mul * TimeDelta(hours=1, minutes=30)))
+        assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S.%f") + tz_sign + "02") == \
+               now.replace(tzinfo=TimeZone(tz_mul * TimeDelta(hours=2)))
     assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S")) == \
            now.replace(microsecond=0, tzinfo=TimeZone(TimeDelta(hours=0)))
-    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S.%f")+"+01:30") == \
-           now.replace(tzinfo=TimeZone(TimeDelta(hours=1, minutes=30)))
-    assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S.%f") + "+02") == \
-           now.replace(tzinfo=TimeZone(TimeDelta(hours=2)))
     assert timestamptz_in(now.strftime("%Y-%m-%d %H:%M:%S.%f")) == \
            now.replace(tzinfo=TimeZone(TimeDelta(hours=0)))
 
