@@ -233,6 +233,7 @@ def test_interval_in(value, expected):
 @pytest.mark.parametrize(
     "value,expected",
     [
+        ("a", "a"),
         ('"', '"\\""'),
         ("\r", '"\r"'),
         ("\n", '"\n"'),
