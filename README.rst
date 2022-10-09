@@ -2125,6 +2125,17 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.29.2, 2022-10-09
+``````````````````````````
+
+- Fixed a bug where in a literal array, items such as ``\n`` and ``\r`` weren't
+  escaped properly before being sent to the server.
+
+- Fixed a bug where if the PostgreSQL server has a half-hour time zone set, values of
+  type ``timestamp with time zone`` failed. This has been fixed by using the ``parse``
+  function of the ``dateutil`` package if the ``datetime`` parser fails.
+
+
 Version 1.29.1, 2022-05-23
 ``````````````````````````
 
