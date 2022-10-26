@@ -2125,6 +2125,13 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.29.3, 2022-10-26
+``````````````````````````
+
+- Upgrade the SCRAM library to version 1.4.3. This adds support for the case where the
+  client supports channel binding but the server doesn't.
+
+
 Version 1.29.2, 2022-10-09
 ``````````````````````````
 
