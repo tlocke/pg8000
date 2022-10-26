@@ -1,9 +1,43 @@
 [build-system]
 requires = [
-    "setuptools>=42",
-    "versioningit >= 1.1.1",
+    "setuptools >= 65",
+    "versioningit >= 2.1.0",
 ]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "pg8000"
+description = "PostgreSQL interface library"
+readme = "README.rst"
+requires-python = ">=3.7"
+keywords= ["postgresql", "dbapi"]
+license = {text = "BSD 3-Clause License"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: Implementation",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Operating System :: OS Independent",
+    "Topic :: Database :: Front-Ends",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "scramp >= 1.4.3",
+    'importlib-metadata >= 1.0 ; python_version < "3.8"',
+    'python-dateutil >= 2.8.2',
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/tlocke/pg8000"
 
 [tool.versioningit]
 
