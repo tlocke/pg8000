@@ -204,7 +204,6 @@ class CoreConnection:
         else:
             self.password = password
 
-        self.autocommit = False
         self._xid = None
         self._statement_nums = set()
 

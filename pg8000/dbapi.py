@@ -634,6 +634,9 @@ class Cursor:
 
 
 class Connection(CoreConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.autocommit = False
 
     # DBAPI Extension: supply exceptions as attributes on the connection
     Warning = property(lambda self: self._getError(Warning))

@@ -459,6 +459,7 @@ class Connection(CoreConnection):
                 raise ProgrammingError(msg)
 
         self._run_cursor = Cursor(self, paramstyle="named")
+        self.autocommit = False
 
     def _getError(self, error):
         warn("DB-API extension connection.%s used" % error.__name__, stacklevel=3)
