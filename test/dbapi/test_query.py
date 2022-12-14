@@ -273,9 +273,11 @@ def test_rollback_no_transaction(con):
     assert 0 == len(con.notices)
 
 
-def test_setinputsizes(con):
+@pytest.mark.parametrize("sizes,oids", [([0], [0]), ([float], [701])])
+def test_setinputsizes(con, sizes, oids):
     cursor = con.cursor()
-    cursor.setinputsizes(20)
+    cursor.setinputsizes(*sizes)
+    assert cursor._input_oids == oids
     cursor.execute("select %s", (None,))
     retval = cursor.fetchall()
     assert retval[0][0] is None

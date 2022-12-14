@@ -1,4 +1,8 @@
-from datetime import date as Date, datetime as Datetime, time as Time
+from datetime import (
+    date as Date,
+    datetime as Datetime,
+    time as Time,
+)
 from itertools import count, islice
 from time import localtime
 from warnings import warn
@@ -28,6 +32,7 @@ from pg8000.converters import (
     NUMERIC_ARRAY,
     OID,
     PGInterval,
+    PY_PG,
     STRING,
     TEXT,
     TEXT_ARRAY,
@@ -618,7 +623,7 @@ class Cursor:
                 oid = size
             else:
                 try:
-                    oid, _ = self._c.py_types[size]
+                    oid = PY_PG[size]
                 except KeyError:
                     oid = UNKNOWN
             oids.append(oid)
