@@ -2125,6 +2125,13 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.29.4, 2022-12-14
+``````````````````````````
+
+- Fixed bug in ``pg8000.dbapi`` in the ``setinputsizes()`` method where if a ``size``
+  was a recognized Python type, the method failed.
+
+
 Version 1.29.3, 2022-10-26
 ``````````````````````````
 
