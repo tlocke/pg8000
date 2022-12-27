@@ -739,7 +739,7 @@ Connect To PostgreSQL Over SSL
 To connect to the server using SSL defaults do::
 
   import pg8000.native
-  connection = pg8000.native.Connection(username, password="cpsnow", ssl_context=True)
+  connection = pg8000.native.Connection('postgres', password="cpsnow", ssl_context=True)
   connection.run("SELECT 'The game is afoot!'")
 
 To connect over SSL with custom settings, set the ``ssl_context`` parameter to an
@@ -755,7 +755,7 @@ To connect over SSL with custom settings, set the ``ssl_context`` parameter to a
   ssl_context.verify_mode = ssl.CERT_REQUIRED
   ssl_context.load_verify_locations('root.pem')        
   connection = pg8000.native.Connection(
-    username, password="cpsnow", ssl_context=ssl_context)
+    'postgres', password="cpsnow", ssl_context=ssl_context)
 
 It may be that your PostgreSQL server is behind an SSL proxy server in which case you
 can set a pg8000-specific attribute ``ssl.SSLContext.request_ssl = False`` which tells
@@ -770,7 +770,7 @@ server:
   ssl_context = ssl.create_default_context()
   ssl_context.request_ssl = False
   connection = pg8000.native.Connection(
-      username, password="cpsnow", ssl_context=ssl_context)
+      'postgres', password="cpsnow", ssl_context=ssl_context)
 
 
 Server-Side Cursors
@@ -785,7 +785,7 @@ server-side cursors. For example:
 
 >>> import pg8000.native
 >>>
->>> con = pg8000.native.Connection(username, password="cpsnow")
+>>> con = pg8000.native.Connection('postgres', password="cpsnow")
 >>> con.run("START TRANSACTION")
 >>> con.run("DECLARE c SCROLL CURSOR FOR SELECT * FROM generate_series(1, 100)")
 >>> con.run("FETCH FORWARD 5 FROM c")
@@ -808,7 +808,7 @@ Here's an example:
 
 >>> import pg8000.native
 >>>
->>> con = pg8000.native.Connection(username, password="cpsnow")
+>>> con = pg8000.native.Connection('postgres', password="cpsnow")
 >>>
 >>> # Create a BLOB and get its oid
 >>> data = b'hello'
@@ -836,6 +836,24 @@ Here's an example:
 >>> # Download a part of the data
 >>> con.run("SELECT lo_get(:oid, 6, 3)", oid=oid)
 [[b'all']]
+>>>
+>>> con.close()
+
+
+Replication Protocol
+````````````````````
+
+The PostgreSQL `Replication Protocol
+<https://www.postgresql.org/docs/current/protocol-replication.html>`_ is supported using
+the ``replication`` keyword when creating a connection:
+
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection(
+...    'postgres', password="cpsnow", replication="database")
+>>>
+>>> con.run("IDENTIFY_SYSTEM")
+[['...', 1, '0/...', 'postgres']]
 >>>
 >>> con.close()
 
