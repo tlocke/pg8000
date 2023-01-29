@@ -585,7 +585,6 @@ for LC in ("LC_CTYPE", "LANG"):
     ],
 )
 def test_roundtrip_oid(con, test_input, oid):
-
     retval = con.run("SELECT :v", v=test_input, types={"v": oid})
     assert retval[0][0] == test_input
 

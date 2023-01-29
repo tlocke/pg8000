@@ -18,7 +18,6 @@ from pg8000.dbapi import (
 
 @pytest.fixture
 def has_tzset():
-
     # Neither Windows nor Jython 2.5.3 have a time.tzset() so skip
     if hasattr(time, "tzset"):
         os.environ["TZ"] = "UTC"

@@ -2,6 +2,8 @@ name: pg8000
 
 on: [push]
 
+permissions: read-all
+
 jobs:
   main-test:
 
@@ -11,7 +13,12 @@ jobs:
         python-version: ["3.7", "3.8", "3.9", "3.10"]
         postgresql-version: [14, 13, 12, 11, 10]
 
-    container: python:${{ matrix.python-version }}
+    container:
+      image: python:${{ matrix.python-version }}
+      env:
+        PGHOST: postgres
+        PGPASSWORD: postgres
+        PGUSER: postgres
 
     services:
       postgres:
@@ -26,25 +33,19 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-mock pytest-benchmark pytz .
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          python -m pip install --no-cache-dir --upgrade pip
+          pip install --no-cache-dir --root-user-action ignore pytest pytest-mock pytest-benchmark pytz .
       - name: Set up Postgresql
-        env:
-          PGHOST: postgres
-          PGPASSWORD: postgres
-          PGUSER: postgres
         run: |
           apt-get update
           apt-get install --yes --no-install-recommends postgresql-client
           psql -c "CREATE EXTENSION hstore;"
           psql -c "SELECT pg_reload_conf()"
       - name: Test with pytest
-        env:
-          PGHOST: postgres
-          PGPASSWORD: postgres
         run: |
           python -m pytest -x -v -W error --ignore=test/dbapi/auth/ --ignore=test/legacy/auth/ --ignore=test/native/auth/ test --ignore=test/test_readme.py
 
@@ -56,7 +57,13 @@ jobs:
         postgresql-version: ["14", "10"]
         auth-type: [md5, gss, password, scram-sha-256]
 
-    container: python:${{ matrix.python-version }}
+    container:
+      image: python:${{ matrix.python-version }}
+      env:
+        PGHOST: postgres
+        PGPASSWORD: postgres
+        PGUSER: postgres
+        PIP_ROOT_USER_ACTION: ignore
 
     services:
       postgres:
@@ -73,15 +80,13 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-mock pytest-benchmark pytz .
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          python -m pip install --no-cache-dir --upgrade pip
+          pip install --no-cache-dir pytest pytest-mock pytest-benchmark pytz .
       - name: Test with pytest
-        env:
-          PGHOST: postgres
-          PGPASSWORD: postgres
         run: |
           python -m pytest -x -v -W error test/dbapi/auth/test_${{ matrix.auth-type }}.py test/native/auth/test_${{ matrix.auth-type }}.py test/legacy/auth/test_${{ matrix.auth-type }}.py
 
@@ -122,9 +127,9 @@ jobs:
           psql -c "SELECT pg_reload_conf()"
 
       - name: Check out repository code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: "3.10"
       - name: Install dependencies
@@ -156,9 +161,9 @@ jobs:
 
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: "3.10"
       - name: Install dependencies

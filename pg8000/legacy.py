@@ -125,7 +125,6 @@ def connect(
     application_name=None,
     replication=None,
 ):
-
     return Connection(
         user,
         host=host,
@@ -427,7 +426,6 @@ class Cursor:
 
 
 class Connection(CoreConnection):
-
     # DBAPI Extension: supply exceptions as attributes on the connection
     Warning = property(lambda self: self._getError(Warning))
     Error = property(lambda self: self._getError(Error))
@@ -732,7 +730,6 @@ class PreparedStatement:
         )
 
     def run(self, **vals):
-
         params = make_params(self.con.py_types, self.make_args(vals))
 
         try:

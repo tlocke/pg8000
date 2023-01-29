@@ -206,7 +206,6 @@ def connect(
     application_name=None,
     replication=None,
 ):
-
     return Connection(
         user,
         host=host,
@@ -511,7 +510,6 @@ class Cursor:
         operation = f"CALL {procname}(" + ", ".join(["%s" for _ in args]) + ")"
 
         try:
-
             statement, vals = convert_paramstyle("format", operation, args)
 
             self._context = self._c.execute_unnamed(statement, vals=vals)

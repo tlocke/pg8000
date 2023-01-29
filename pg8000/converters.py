@@ -615,7 +615,6 @@ def array_string_escape(v):
 def array_out(ar):
     result = []
     for v in ar:
-
         if isinstance(v, (list, tuple)):
             val = array_out(v)
 

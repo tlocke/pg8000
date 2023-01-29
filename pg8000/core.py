@@ -341,11 +341,9 @@ class CoreConnection:
         self._flush()
 
         try:
-
             code = None
             context = Context(None)
             while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
-
                 try:
                     code, data_len = ci_unpack(self._read(5))
                 except struct.error as e:
@@ -633,7 +631,6 @@ class CoreConnection:
             context.rows = []
 
     def send_PARSE(self, statement_name_bin, statement, oids=()):
-
         val = bytearray(statement_name_bin)
         val.extend(statement.encode(self._client_encoding) + NULL_BYTE)
         val.extend(h_pack(len(oids)))
@@ -689,7 +686,6 @@ class CoreConnection:
         return context
 
     def prepare_statement(self, statement, oids=None):
-
         for i in count():
             statement_name = f"pg8000_statement_{i}"
             statement_name_bin = statement_name.encode("ascii") + NULL_BYTE
@@ -800,7 +796,6 @@ class CoreConnection:
         code = None
 
         while code != READY_FOR_QUERY:
-
             try:
                 code, data_len = ci_unpack(self._read(5))
             except struct.error as e:

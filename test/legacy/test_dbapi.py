@@ -9,7 +9,6 @@ import pg8000
 
 @pytest.fixture
 def has_tzset():
-
     # Neither Windows nor Jython 2.5.3 have a time.tzset() so skip
     if hasattr(time, "tzset"):
         os.environ["TZ"] = "UTC"
@@ -37,7 +36,6 @@ def db_table(con, has_tzset):
 
 def test_parallel_queries(db_table):
     with db_table.cursor() as c1, db_table.cursor() as c2:
-
         c1.execute("SELECT f1, f2, f3 FROM t1")
         while 1:
             row = c1.fetchone()

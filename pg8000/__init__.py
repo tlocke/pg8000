@@ -107,7 +107,6 @@ def connect(
     application_name=None,
     replication=None,
 ):
-
     return Connection(
         user,
         host=host,
