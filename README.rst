@@ -128,8 +128,8 @@ returned. pg8000 attempts to detect when this has happened and raise an
 `InterfaceError`.
 
 
-Query Using Fuctions
-````````````````````
+Query Using Functions
+`````````````````````
 
 Another query, using some PostgreSQL functions:
 
@@ -889,8 +889,8 @@ id = 2, title = Speaker for the Dead
 >>> conn.close()
 
 
-Query Using Fuctions
-````````````````````
+Query Using Functions
+`````````````````````
 
 Another query, using some PostgreSQL functions:
 
