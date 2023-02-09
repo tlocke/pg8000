@@ -889,8 +889,8 @@ id = 2, title = Speaker for the Dead
 >>> conn.close()
 
 
-Query Using Fuctions
-````````````````````
+Query Using Functions
+`````````````````````
 
 Another query, using some PostgreSQL functions:
 
