@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
-        postgresql-version: [14, 13, 12, 11, 10]
+        postgresql-version: [15, 14, 13, 12, 11]
 
     container:
       image: python:${{ matrix.python-version }}
@@ -54,7 +54,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11"]
-        postgresql-version: ["14", "10"]
+        postgresql-version: ["15", "11"]
         auth-type: [md5, gss, password, scram-sha-256]
 
     container:
@@ -169,7 +169,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install black flake8 pytest flake8-alphabetize .
+          pip install black flake8 pytest flake8-alphabetize Flake8-pyproject .
       - name: Lint check
         run: |
           black --check .

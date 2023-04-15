@@ -45,6 +45,13 @@ Homepage = "https://github.com/tlocke/pg8000"
 method = "git"
 default-tag = "0.0.0"
 
+[tool.flake8]
+application-names = ['pg8000']
+ignore = ['E203', 'W503']
+max-line-length = 88
+exclude = ['.git', '__pycache__', 'build', 'dist', 'venv', '.tox']
+application-import-names = ['pg8000']
+
 [tool.tox]
 legacy_tox_ini = """
 [tox]
@@ -64,5 +71,6 @@ deps =
     black
     flake8
     flake8-alphabetize
+    Flake8-pyproject
     pytz
 """
