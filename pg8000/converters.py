@@ -187,6 +187,10 @@ def numeric_out(d):
     return str(d)
 
 
+def point_in(data):
+    return tuple(map(float, data[1:-1].split(",")))
+
+
 def pg_interval_in(data):
     return PGInterval.from_str(data)
 
@@ -612,11 +616,14 @@ def array_string_escape(v):
     return val
 
 
-def array_out(ar):
+def _container_out(ar):
     result = []
     for v in ar:
-        if isinstance(v, (list, tuple)):
+        if isinstance(v, list):
             val = array_out(v)
+
+        elif isinstance(v, tuple):
+            val = composite_out(v)
 
         elif v is None:
             val = "NULL"
@@ -635,7 +642,15 @@ def array_out(ar):
 
         result.append(val)
 
-    return "{" + ",".join(result) + "}"
+    return ",".join(result)
+
+
+def array_out(ar):
+    return f"{{{_container_out(ar)}}}"
+
+
+def composite_out(ar):
+    return f"({_container_out(ar)})"
 
 
 PY_PG = {
@@ -681,7 +696,7 @@ PY_TYPES = {
     str: string_out,  # unknown
     int: int_out,
     list: array_out,
-    tuple: array_out,
+    tuple: composite_out,
 }
 
 
@@ -717,6 +732,7 @@ PG_TYPES = {
     NUMERIC: numeric_in,  # numeric
     NUMERIC_ARRAY: numeric_array_in,  # numeric[]
     OID: int,  # oid
+    POINT: point_in,  # point
     INTERVAL: interval_in,  # interval
     INTERVAL_ARRAY: interval_array_in,  # interval[]
     REAL: float,  # float4

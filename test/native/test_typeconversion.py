@@ -579,7 +579,7 @@ for LC in ("LC_CTYPE", "LANG"):
         [IPv4Address("192.168.0.1"), INET],  # inet
         [86722, XID],  # xid
         ["infinity", TIMESTAMP],  # timestamp
-        ["(2.3,1)", POINT],  # point
+        [(2.3, 1), POINT],  # point
         [{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}, JSON],  # json
         [{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}, JSONB],  # jsonb
     ],
@@ -732,3 +732,16 @@ def test_jsonb_access_path(con):
 def test_time_in():
     actual = time_in("12:57:18.000396")
     assert actual == Time(12, 57, 18, 396)
+
+
+@pytest.fixture
+def duple_type(con):
+    con.run("CREATE TYPE duple AS (a int, b int);")
+    yield
+    con.run("DROP TYPE IF EXISTS duple;")
+
+
+def test_composite_type(con, duple_type):
+    v = 1, 3
+    retval = con.run("SELECT CAST(:v AS duple)", v=v)
+    assert retval[0][0] == "(1,3)"

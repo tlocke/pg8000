@@ -747,7 +747,7 @@ def test_infinity_timestamp_roundtrip(cursor):
 
 
 def test_point_roundtrip(cursor):
-    v = "(2.3,1)"
+    v = 2.3, 1
     cursor.execute("SELECT cast(%s as point) as f1", (v,))
     assert cursor.fetchall()[0][0] == v
 
