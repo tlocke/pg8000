@@ -2237,6 +2237,8 @@ Version 1.26.1, 2022-04-23
 ``````````````````````````
 
 - Make sure all tests are run by the GitHub Actions tests on commit.
+- Remove support for Python 3.6
+- Remove support for PostgreSQL 9.6
 
 
 Version 1.26.0, 2022-04-18
