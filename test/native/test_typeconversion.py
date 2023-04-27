@@ -39,6 +39,7 @@ from pg8000.converters import (
     NUMERIC_ARRAY,
     PGInterval,
     POINT,
+    Range,
     SMALLINT_ARRAY,
     TIME,
     TIMESTAMP,
@@ -50,7 +51,6 @@ from pg8000.converters import (
     XID,
     pg_interval_in,
     pg_interval_out,
-    time_in,
 )
 
 
@@ -584,19 +584,70 @@ def test_roundtrip_oid(con, test_input, oid):
 
 
 @pytest.mark.parametrize(
-    "test_input,typ",
+    "test_input,typ,req_ver",
     [
-        [[True, False, None], "bool[]"],
-        [[IPv4Address("192.168.0.1")], "inet[]"],
-        [[Date(2021, 3, 1)], "date[]"],
-        [[Datetime(2001, 2, 3, 4, 5, 6)], "timestamp[]"],
-        [[Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], "timestamptz[]"],
-        [[Time(4, 5, 6)], "time[]"],
-        [[Timedelta(seconds=30)], "interval[]"],
-        [[{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}], "jsonb[]"],
-        [[b"\x00\x01\x02\x03\x02\x01\x00"], "bytea[]"],
-        [[Decimal("1.1"), None, Decimal("3.3")], "numeric[]"],
-        [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], "uuid[]"],
+        [[True, False, None], "bool[]", None],
+        [
+            [
+                Range(Date(2023, 6, 1), Date(2023, 6, 6)),
+                Range(Date(2023, 6, 10), Date(2023, 6, 13)),
+            ],
+            "datemultirange",
+            14,
+        ],
+        [Range(Date(1937, 6, 1), Date(2023, 5, 10)), "daterange", None],
+        ['"a"=>"1"', "hstore", None],
+        [[IPv4Address("192.168.0.1")], "inet[]", None],
+        [[Range(3, 7), Range(8, 9)], "int4multirange", 14],
+        [Range(3, 7), "int4range", None],
+        [[Range(3, 7), Range(8, 9)], "int8multirange", 14],
+        [Range(3, 7), "int8range", None],
+        [Range(3, 7), "numrange", None],
+        [[Range(3, 7), Range(Decimal("9.5"), Decimal("11.4"))], "nummultirange", 14],
+        [[Date(2021, 3, 1)], "date[]", None],
+        [[Datetime(2001, 2, 3, 4, 5, 6)], "timestamp[]", None],
+        [[Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc)], "timestamptz[]", None],
+        [[Time(4, 5, 6)], "time[]", None],
+        [
+            [
+                Range(Datetime(2001, 2, 3, 4, 5), Datetime(2023, 2, 3, 4, 5)),
+                Range(Datetime(2024, 6, 1), Datetime(2024, 7, 3)),
+            ],
+            "tsmultirange",
+            14,
+        ],
+        [
+            Range(Datetime(2001, 2, 3, 4, 5), Datetime(2023, 2, 3, 4, 5)),
+            "tsrange",
+            None,
+        ],
+        [
+            [
+                Range(
+                    Datetime(2001, 2, 3, 4, 5, tzinfo=Timezone.utc),
+                    Datetime(2023, 2, 3, 4, 5, tzinfo=Timezone.utc),
+                ),
+                Range(
+                    Datetime(2024, 6, 1, tzinfo=Timezone.utc),
+                    Datetime(2024, 7, 3, tzinfo=Timezone.utc),
+                ),
+            ],
+            "tstzmultirange",
+            14,
+        ],
+        [
+            Range(
+                Datetime(2001, 2, 3, 4, 5, tzinfo=Timezone.utc),
+                Datetime(2023, 2, 3, 4, 5, tzinfo=Timezone.utc),
+            ),
+            "tstzrange",
+            None,
+        ],
+        [[Timedelta(seconds=30)], "interval[]", None],
+        [[{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}], "jsonb[]", None],
+        [[b"\x00\x01\x02\x03\x02\x01\x00"], "bytea[]", None],
+        [[Decimal("1.1"), None, Decimal("3.3")], "numeric[]", None],
+        [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], "uuid[]", None],
         [
             [
                 "Hello!",
@@ -612,30 +663,32 @@ def test_roundtrip_oid(con, test_input, oid):
                 None,
             ],
             "varchar[]",
+            None,
         ],
-        [Timedelta(seconds=30), "interval"],
-        [Time(4, 5, 6), "time"],
-        [Date(2001, 2, 3), "date"],
-        ["infinity", "date"],
-        [Datetime(2001, 2, 3, 4, 5, 6), "timestamp"],
-        [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), "timestamptz"],
-        [True, "bool"],
-        [Decimal("1.1"), "numeric"],
-        [1.756e-12, "float8"],
-        [float("inf"), "float8"],
-        ["hello world", "unknown"],
-        ["hello \u0173 world", "varchar"],
-        [50000000000000, "int8"],
-        [b"\x00\x01\x02\x03\x02\x01\x00", "bytea"],
-        [bytearray(b"\x00\x01\x02\x03\x02\x01\x00"), "bytea"],
-        [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), "uuid"],
-        [IPv4Network("192.168.0.0/28"), "inet"],
-        [IPv4Address("192.168.0.1"), "inet"],
+        [Timedelta(seconds=30), "interval", None],
+        [Time(4, 5, 6), "time", None],
+        [Date(2001, 2, 3), "date", None],
+        ["infinity", "date", None],
+        [Datetime(2001, 2, 3, 4, 5, 6), "timestamp", None],
+        [Datetime(2001, 2, 3, 4, 5, 6, 0, Timezone.utc), "timestamptz", None],
+        [True, "bool", None],
+        [Decimal("1.1"), "numeric", None],
+        [1.756e-12, "float8", None],
+        [float("inf"), "float8", None],
+        ["hello world", "unknown", None],
+        ["hello \u0173 world", "varchar", None],
+        [50000000000000, "int8", None],
+        [b"\x00\x01\x02\x03\x02\x01\x00", "bytea", None],
+        [bytearray(b"\x00\x01\x02\x03\x02\x01\x00"), "bytea", None],
+        [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), "uuid", None],
+        [IPv4Network("192.168.0.0/28"), "inet", None],
+        [IPv4Address("192.168.0.1"), "inet", None],
     ],
 )
-def test_roundtrip_cast(con, test_input, typ):
-    retval = con.run(f"SELECT CAST(:v AS {typ})", v=test_input)
-    assert retval[0][0] == test_input
+def test_roundtrip_cast(con, pg_version, test_input, typ, req_ver):
+    if req_ver is None or pg_version >= req_ver:
+        retval = con.run(f"SELECT CAST(:v AS {typ})", v=test_input)
+        assert retval[0][0] == test_input
 
 
 @pytest.mark.parametrize(
@@ -678,12 +731,6 @@ def test_tsvector_roundtrip(con):
     assert retval[0][0] == "'a' 'and' 'ate' 'cat' 'fat' 'mat' 'on' 'rat' 'sat'"
 
 
-def test_hstore_roundtrip(con):
-    val = '"a"=>"1"'
-    retval = con.run("SELECT cast(:val as hstore)", val=val)
-    assert retval[0][0] == val
-
-
 def test_json_access_object(con):
     val = {"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}
     retval = con.run("SELECT cast(:val as json) -> :name", val=dumps(val), name="name")
@@ -719,11 +766,6 @@ def test_jsonb_access_path(con):
 
     retval = con.run("SELECT cast(:v1 as jsonb) #>> :v2", v1=dumps(j), v2=path)
     assert retval[0][0] == str(j[path[0]][int(path[1])])
-
-
-def test_time_in():
-    actual = time_in("12:57:18.000396")
-    assert actual == Time(12, 57, 18, 396)
 
 
 @pytest.fixture

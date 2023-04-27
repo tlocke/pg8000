@@ -53,6 +53,7 @@ from pg8000.core import (
     ver,
 )
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
+from pg8000.types import Range
 
 
 __version__ = ver
@@ -945,6 +946,7 @@ __all__ = [
     "PGInterval",
     "ProgrammingError",
     "ROWID",
+    "Range",
     "STRING",
     "TEXT",
     "TEXT_ARRAY",

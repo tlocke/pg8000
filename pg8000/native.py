@@ -42,6 +42,7 @@ from pg8000.converters import (
 )
 from pg8000.core import CoreConnection, ver
 from pg8000.exceptions import DatabaseError, Error, InterfaceError
+from pg8000.types import Range
 
 __version__ = ver
 
@@ -263,6 +264,7 @@ __all__ = [
     "NUMERIC_ARRAY",
     "OID",
     "PGInterval",
+    "Range",
     "STRING",
     "TEXT",
     "TEXT_ARRAY",

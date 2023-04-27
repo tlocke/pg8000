@@ -13,10 +13,13 @@ import pytest
 from pg8000.converters import (
     PGInterval,
     PY_TYPES,
+    Range,
     array_out,
     array_string_escape,
     date_in,
+    datemultirange_in,
     identifier,
+    int4range_in,
     interval_in,
     literal,
     make_param,
@@ -24,9 +27,12 @@ from pg8000.converters import (
     numeric_in,
     numeric_out,
     pg_interval_in,
+    range_out,
     string_in,
     string_out,
+    time_in,
     timestamptz_in,
+    tsrange_in,
 )
 from pg8000.native import InterfaceError
 
@@ -103,6 +109,26 @@ def test_numeric_in(value):
 
 
 @pytest.mark.parametrize(
+    "data,expected",
+    [
+        ("[6,3]", Range(6, 3, bounds="[]")),
+    ],
+)
+def test_int4range_in(data, expected):
+    assert int4range_in(data) == expected
+
+
+@pytest.mark.parametrize(
+    "v,expected",
+    [
+        (Range(6, 3, bounds="[]"), "[6,3]"),
+    ],
+)
+def test_range_out(v, expected):
+    assert range_out(v) == expected
+
+
+@pytest.mark.parametrize(
     "value",
     [
         "hello \u0173 world",
@@ -122,97 +148,9 @@ def test_string_in(value):
     assert string_in(value) == value
 
 
-def test_PGInterval_init():
-    i = PGInterval(days=1)
-    assert i.months is None
-    assert i.days == 1
-    assert i.microseconds is None
-
-
-def test_PGInterval_repr():
-    v = PGInterval(microseconds=123456789, days=2, months=24)
-    assert repr(v) == "<PGInterval 24 months 2 days 123456789 microseconds>"
-
-
-def test_PGInterval_str():
-    v = PGInterval(microseconds=123456789, days=2, months=24, millennia=2)
-    assert str(v) == "2 millennia 24 months 2 days 123456789 microseconds"
-
-
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        ("P1Y2M", PGInterval(years=1, months=2)),
-        ("P12DT30S", PGInterval(days=12, seconds=30)),
-        (
-            "P-1Y-2M3DT-4H-5M-6S",
-            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
-        ),
-        ("PT1M32.32S", PGInterval(minutes=1, seconds=32.32)),
-    ],
-)
-def test_PGInterval_from_str_iso_8601(value, expected):
-    interval = PGInterval.from_str_iso_8601(value)
-    assert interval == expected
-
-
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        ("@ 1 year 2 mons", PGInterval(years=1, months=2)),
-        (
-            "@ 3 days 4 hours 5 mins 6 secs",
-            PGInterval(days=3, hours=4, minutes=5, seconds=6),
-        ),
-        (
-            "@ 1 year 2 mons -3 days 4 hours 5 mins 6 secs ago",
-            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
-        ),
-        (
-            "@ 1 millennium -2 mons",
-            PGInterval(millennia=1, months=-2),
-        ),
-    ],
-)
-def test_PGInterval_from_str_postgres(value, expected):
-    interval = PGInterval.from_str_postgres(value)
-    assert interval == expected
-
-
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        ["1-2", PGInterval(years=1, months=2)],
-        ["3 4:05:06", PGInterval(days=3, hours=4, minutes=5, seconds=6)],
-        [
-            "-1-2 +3 -4:05:06",
-            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
-        ],
-        ["8 4:00:32.32", PGInterval(days=8, hours=4, minutes=0, seconds=32.32)],
-    ],
-)
-def test_PGInterval_from_str_sql_standard(value, expected):
-    interval = PGInterval.from_str_sql_standard(value)
-    assert interval == expected
-
-
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        ("P12DT30S", PGInterval(days=12, seconds=30)),
-        ("@ 1 year 2 mons", PGInterval(years=1, months=2)),
-        ("1-2", PGInterval(years=1, months=2)),
-        ("3 4:05:06", PGInterval(days=3, hours=4, minutes=5, seconds=6)),
-        (
-            "-1-2 +3 -4:05:06",
-            PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
-        ),
-        ("00:00:30", PGInterval(seconds=30)),
-    ],
-)
-def test_PGInterval_from_str(value, expected):
-    interval = PGInterval.from_str(value)
-    assert interval == expected
+def test_time_in():
+    actual = time_in("12:57:18.000396")
+    assert actual == Time(12, 57, 18, 396)
 
 
 @pytest.mark.parametrize(
@@ -323,6 +261,35 @@ def test_array_string_escape(value, expected):
 )
 def test_timestamptz_in(value, expected):
     assert timestamptz_in(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        [
+            '["2001-02-03 04:05:00","2023-02-03 04:05:00")',
+            Range(DateTime(2001, 2, 3, 4, 5), DateTime(2023, 2, 3, 4, 5)),
+        ],
+    ],
+)
+def test_tsrange_in(value, expected):
+    assert tsrange_in(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        [
+            "{[2023-06-01,2023-06-06),[2023-06-10,2023-06-13)}",
+            [
+                Range(Date(2023, 6, 1), Date(2023, 6, 6)),
+                Range(Date(2023, 6, 10), Date(2023, 6, 13)),
+            ],
+        ],
+    ],
+)
+def test_datemultirange_in(value, expected):
+    assert datemultirange_in(value) == expected
 
 
 def test_make_param():

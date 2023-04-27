@@ -1219,6 +1219,10 @@ possible to change the default mapping using adapters (see the examples).
    |                       |                 | serialized string. Results returned as  |
    |                       |                 | de-serialized JSON.                     |
    +-----------------------+-----------------+-----------------------------------------+
+   | pg8000.Range          | \*range         | PostgreSQL multirange types are         |
+   |                       |                 | represented in Python as a list of      |
+   |                       |                 | range types.                            |
+   +-----------------------+-----------------+-----------------------------------------+
    | tuple                 | composite type  | Only from Python to PostgreSQL          |
    +-----------------------+-----------------+-----------------------------------------+
 
@@ -2096,6 +2100,18 @@ Note that values of the ``pg8000.dbapi.Interval.microseconds``,
 ``pg8000.dbapi.Interval.days``, and ``pg8000.dbapi.Interval.months`` properties are
 independently measured and cannot be converted to each other. A month may be 28, 29, 30,
 or 31 days, and a day may occasionally be lengthened slightly by a leap second.
+
+
+Design Decisions
+----------------
+
+For the ``Range`` type, the constructor follows the `PostgreSQL range constructor functions <https://www.postgresql.org/docs/current/rangetypes.html#RANGETYPES-CONSTRUCT>`_
+which makes `[closed, open) <https://fhur.me/posts/always-use-closed-open-intervals>`_
+the easiest to express:
+
+>>> from pg8000.types import Range
+>>>
+>>> pg_range = Range(2, 6)
 
 
 Tests
