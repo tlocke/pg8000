@@ -257,7 +257,7 @@ def uuid_in(data):
 class PGInterval:
     UNIT_MAP = {
         "millennia": "millennia",
-        "millenium": "millennia",
+        "millennium": "millennia",
         "centuries": "centuries",
         "century": "centuries",
         "decades": "decades",

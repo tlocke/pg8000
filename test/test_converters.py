@@ -167,6 +167,10 @@ def test_PGInterval_from_str_iso_8601(value, expected):
             "@ 1 year 2 mons -3 days 4 hours 5 mins 6 secs ago",
             PGInterval(years=-1, months=-2, days=3, hours=-4, minutes=-5, seconds=-6),
         ),
+        (
+            "@ 1 millennium -2 mons",
+            PGInterval(millennia=1, months=-2),
+        ),
     ],
 )
 def test_PGInterval_from_str_postgres(value, expected):
