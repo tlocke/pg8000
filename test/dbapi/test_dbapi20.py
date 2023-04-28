@@ -53,9 +53,9 @@ __author__ = "Stuart Bishop <zen@shangri-la.dropbear.id.au>"
 # - Now a subclass of TestCase, to avoid requiring the driver stub
 #   to use multiple inheritance
 # - Reversed the polarity of buggy test in test_description
-# - Test exception heirarchy correctly
+# - Test exception hierarchy correctly
 # - self.populate is now self._populate(), so if a driver stub
-#   overrides self.ddl1 this change propogates
+#   overrides self.ddl1 this change propagates
 # - VARCHAR columns now have a width, which will hopefully make the
 #   DDL even more portible (this will be reversed if it causes more problems)
 # - cursor.rowcount being checked after various execute and fetchXXX methods
@@ -159,7 +159,7 @@ def test_paramstyle():
 
 def test_Exceptions():
     # Make sure required exceptions exist, and are in the
-    # defined heirarchy.
+    # defined hierarchy.
     assert issubclass(driver.Warning, Exception)
     assert issubclass(driver.Error, Exception)
     assert issubclass(driver.InterfaceError, driver.Error)
@@ -376,7 +376,7 @@ def test_fetchone(cursor):
         cursor.fetchone()
 
     # cursor.fetchone should raise an Error if called after
-    # executing a query that cannnot return rows
+    # executing a query that cannot return rows
     executeDDL1(cursor)
     with pytest.raises(driver.Error):
         cursor.fetchone()
@@ -388,7 +388,7 @@ def test_fetchone(cursor):
     assert cursor.rowcount in (-1, 0)
 
     # cursor.fetchone should raise an Error if called after
-    # executing a query that cannnot return rows
+    # executing a query that cannot return rows
     cursor.execute("insert into %sbooze values ('Victoria Bitter')" % (table_prefix))
     with pytest.raises(driver.Error):
         cursor.fetchone()

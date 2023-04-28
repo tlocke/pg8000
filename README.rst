@@ -593,7 +593,7 @@ pg8000 has a mapping from PostgreSQL types to Python types for when it receives 
 results from the server. The default mapping that comes with pg8000 is designed to work
 well in most cases, but you might want to add or replace the default mapping.
 
-If pg800 recieves PostgreSQL ``interval`` type, which has the ``oid`` 1186, it converts
+If pg8000 receives PostgreSQL ``interval`` type, which has the ``oid`` 1186, it converts
 it into a Python ``datetime.timedelta`` object. But let's say we wanted to create our
 own Python class to be used instead of ``datetime.timedelta``. Then we'd have to
 register an adapter:
@@ -672,7 +672,7 @@ repeatedly. Here's an example:
 >>> # Create the prepared statement
 >>> ps = con.prepare("SELECT cast(:v as varchar)")
 >>>
->>> # Exceute the statement repeatedly
+>>> # Execute the statement repeatedly
 >>> ps.run(v="speedy")
 [['speedy']]
 >>> ps.run(v="rapid")
@@ -1692,7 +1692,7 @@ replication
 
 pg8000.dbapi.Date(year, month, day)
 
-Constuct an object holding a date value.
+Construct an object holding a date value.
 
 This property is part of the `DBAPI 2.0 specification
 <http://www.python.org/dev/peps/pep-0249/>`_.
@@ -1728,7 +1728,7 @@ Returns: ``datetime.datetime``
 pg8000.dbapi.TimeFromTicks(ticks)
 :::::::::::::::::::::::::::::::::
 
-Construct an objet holding a time value from the given ticks value (number of seconds
+Construct an object holding a time value from the given ticks value (number of seconds
 since the epoch).
 
 Returns: ``datetime.time``
@@ -2303,5 +2303,5 @@ Version 1.22.0, 2021-10-13
 
 - Rather than specifying the oids in the ``Parse`` step of the Postgres protocol, pg8000
   now omits them, and so Postgres will use the oids it determines from the query. This
-  makes the pg8000 code simplier and also it should also make the nuances of type
+  makes the pg8000 code simpler and also it should also make the nuances of type
   matching more straightforward.
