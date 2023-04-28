@@ -114,7 +114,7 @@ BINARY = bytes
 
 
 def PgDate(year, month, day):
-    """Constuct an object holding a date value.
+    """Construct an object holding a date value.
 
     This function is part of the `DBAPI 2.0 specification
     <http://www.python.org/dev/peps/pep-0249/>`_.
@@ -159,7 +159,7 @@ def DateFromTicks(ticks):
 
 
 def TimeFromTicks(ticks):
-    """Construct an objet holding a time value from the given ticks value
+    """Construct an object holding a time value from the given ticks value
     (number of seconds since the epoch).
 
     This function is part of the `DBAPI 2.0 specification
