@@ -12,6 +12,7 @@ from decimal import Decimal
 from enum import Enum
 from ipaddress import IPv4Address, IPv4Network
 from json import dumps
+from locale import LC_ALL, localeconv, setlocale
 from uuid import UUID
 
 import pytest
@@ -517,20 +518,11 @@ def test_float8_array_out(con):
     assert f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]]
 
 
-CURRENCIES = {
-    "en_GB.UTF-8": "£",
-    "C.UTF-8": "$",
-    "C.UTF8": "$",
-}
-
 # Find the currency string
-for LC in ("LC_CTYPE", "LANG"):
-    try:
-        LC_VAL = os.environ[LC]
-        CURRENCY = CURRENCIES[LC_VAL]
-        break
-    except KeyError:
-        pass
+setlocale(LC_ALL, "")
+CURRENCY = localeconv()["currency_symbol"]
+if CURRENCY == "":
+    CURRENCY = "$"
 
 
 @pytest.mark.parametrize(
