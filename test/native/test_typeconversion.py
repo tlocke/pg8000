@@ -519,11 +519,10 @@ def test_float8_array_out(con):
 
 CURRENCIES = {
     "en_GB.UTF-8": "£",
-    "C.UTF-8": "$",
-    "C.UTF8": "$",
 }
 
 # Find the currency string
+CURRENCY = "$"
 for LC in ("LC_CTYPE", "LANG"):
     try:
         LC_VAL = os.environ[LC]
