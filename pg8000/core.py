@@ -1,6 +1,5 @@
 import codecs
 import socket
-import struct
 from collections import defaultdict, deque
 from hashlib import md5
 from io import IOBase, TextIOBase
@@ -143,6 +142,36 @@ IN_TRANSACTION = b"T"
 IN_FAILED_TRANSACTION = b"E"
 
 
+def _flush(sock):
+    try:
+        sock.flush()
+    except OSError as e:
+        raise InterfaceError("network error") from e
+
+
+def _read(sock, size):
+    got = 0
+    buff = []
+    try:
+        while got < size:
+            block = sock.read(size - got)
+            if block == b"":
+                raise InterfaceError("network error")
+            buff.append(block)
+            got += len(block)
+    except OSError as e:
+        raise InterfaceError("network error") from e
+
+    return b"".join(buff)
+
+
+def _write(sock, d):
+    try:
+        sock.write(d)
+    except OSError as e:
+        raise InterfaceError("network error") from e
+
+
 class CoreConnection:
     def __enter__(self):
         return self
@@ -273,29 +302,6 @@ class CoreConnection:
 
         self._sock = self._usock.makefile(mode="rwb")
 
-        def sock_flush():
-            try:
-                self._sock.flush()
-            except OSError as e:
-                raise InterfaceError("network error") from e
-
-        self._flush = sock_flush
-
-        def sock_read(b):
-            try:
-                return self._sock.read(b)
-            except OSError as e:
-                raise InterfaceError("network error") from e
-
-        self._read = sock_read
-
-        def sock_write(d):
-            try:
-                self._sock.write(d)
-            except OSError as e:
-                raise InterfaceError("network error") from e
-
-        self._write = sock_write
         self._backend_key_data = None
 
         self.pg_types = defaultdict(lambda: string_in, PG_TYPES)
@@ -336,20 +342,17 @@ class CoreConnection:
         for k, v in init_params.items():
             val.extend(k.encode("ascii") + NULL_BYTE + v + NULL_BYTE)
         val.append(0)
-        self._write(i_pack(len(val) + 4))
-        self._write(val)
-        self._flush()
+        _write(self._sock, i_pack(len(val) + 4))
+        _write(self._sock, val)
+        _flush(self._sock)
 
         try:
             code = None
             context = Context(None)
             while code not in (READY_FOR_QUERY, ERROR_RESPONSE):
-                try:
-                    code, data_len = ci_unpack(self._read(5))
-                except struct.error as e:
-                    raise InterfaceError("network error") from e
+                code, data_len = ci_unpack(_read(self._sock, 5))
 
-                self.message_types[code](self._read(data_len - 4), context)
+                self.message_types[code](_read(self._sock, data_len - 4), context)
 
             if context.error is not None:
                 raise context.error
@@ -468,10 +471,10 @@ class CoreConnection:
                 bytes_read = readinto(bffr)
                 if bytes_read == 0:
                     break
-                self._write(COPY_DATA)
-                self._write(i_pack(bytes_read + 4))
-                self._write(bffr[:bytes_read])
-                self._flush()
+                _write(self._sock, COPY_DATA)
+                _write(self._sock, i_pack(bytes_read + 4))
+                _write(self._sock, bffr[:bytes_read])
+                _flush(self._sock)
 
         else:
             for k in context.stream:
@@ -486,12 +489,12 @@ class CoreConnection:
                     b = k
 
                 self._send_message(COPY_DATA, b)
-                self._flush()
+                _flush(self._sock)
 
         # Send CopyDone
-        self._write(COPY_DONE_MSG)
-        self._write(SYNC_MSG)
-        self._flush()
+        _write(self._sock, COPY_DONE_MSG)
+        _write(self._sock, SYNC_MSG)
+        _flush(self._sock)
 
     def handle_NOTIFICATION_RESPONSE(self, data, context):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
@@ -514,8 +517,8 @@ class CoreConnection:
             raise InterfaceError("connection is closed")
 
         try:
-            self._write(TERMINATE_MSG)
-            self._flush()
+            _write(self._sock, TERMINATE_MSG)
+            _flush(self._sock)
         finally:
             try:
                 self._usock.close()
@@ -538,7 +541,7 @@ class CoreConnection:
                     "provided"
                 )
             self._send_message(PASSWORD, self.password + NULL_BYTE)
-            self._flush()
+            _flush(self._sock)
 
         elif auth_code == 5:
             salt = b"".join(cccc_unpack(data, 4))
@@ -551,7 +554,7 @@ class CoreConnection:
                 md5(self.password + self.user).hexdigest().encode("ascii") + salt
             ).hexdigest().encode("ascii")
             self._send_message(PASSWORD, pwd + NULL_BYTE)
-            self._flush()
+            _flush(self._sock)
 
         elif auth_code == 10:
             # AuthenticationSASL
@@ -569,7 +572,7 @@ class CoreConnection:
 
             # SASLInitialResponse
             self._send_message(PASSWORD, mech + i_pack(len(init)) + init)
-            self._flush()
+            _flush(self._sock)
 
         elif auth_code == 11:
             # AuthenticationSASLContinue
@@ -578,7 +581,7 @@ class CoreConnection:
             # SASLResponse
             msg = self.auth.get_client_final().encode("utf8")
             self._send_message(PASSWORD, msg)
-            self._flush()
+            _flush(self._sock)
 
         elif auth_code == 12:
             # AuthenticationSASLFinal
@@ -638,11 +641,11 @@ class CoreConnection:
             val.extend(i_pack(0 if oid == -1 else oid))
 
         self._send_message(PARSE, val)
-        self._write(FLUSH_MSG)
+        _write(self._sock, FLUSH_MSG)
 
     def send_DESCRIBE_STATEMENT(self, statement_name_bin):
         self._send_message(DESCRIBE, STATEMENT + statement_name_bin)
-        self._write(FLUSH_MSG)
+        _write(self._sock, FLUSH_MSG)
 
     def send_QUERY(self, sql):
         self._send_message(QUERY, sql.encode(self._client_encoding) + NULL_BYTE)
@@ -651,7 +654,7 @@ class CoreConnection:
         context = Context(statement)
 
         self.send_QUERY(statement)
-        self._flush()
+        _flush(self._sock)
         self.handle_messages(context)
 
         return context
@@ -660,15 +663,15 @@ class CoreConnection:
         context = Context(statement, stream=stream)
 
         self.send_PARSE(NULL_BYTE, statement, oids)
-        self._write(SYNC_MSG)
-        self._flush()
+        _write(self._sock, SYNC_MSG)
+        _flush(self._sock)
         self.handle_messages(context)
         self.send_DESCRIBE_STATEMENT(NULL_BYTE)
 
-        self._write(SYNC_MSG)
+        _write(self._sock, SYNC_MSG)
 
         try:
-            self._flush()
+            _flush(self._sock)
         except AttributeError as e:
             if self._sock is None:
                 raise InterfaceError("connection is closed")
@@ -679,8 +682,8 @@ class CoreConnection:
         self.handle_messages(context)
         self.send_EXECUTE()
 
-        self._write(SYNC_MSG)
-        self._flush()
+        _write(self._sock, SYNC_MSG)
+        _flush(self._sock)
         self.handle_messages(context)
 
         return context
@@ -695,10 +698,10 @@ class CoreConnection:
 
         self.send_PARSE(statement_name_bin, statement, oids)
         self.send_DESCRIBE_STATEMENT(statement_name_bin)
-        self._write(SYNC_MSG)
+        _write(self._sock, SYNC_MSG)
 
         try:
-            self._flush()
+            _flush(self._sock)
         except AttributeError as e:
             if self._sock is None:
                 raise InterfaceError("connection is closed")
@@ -717,16 +720,16 @@ class CoreConnection:
 
         self.send_BIND(statement_name_bin, params)
         self.send_EXECUTE()
-        self._write(SYNC_MSG)
-        self._flush()
+        _write(self._sock, SYNC_MSG)
+        _flush(self._sock)
         self.handle_messages(context)
         return context
 
     def _send_message(self, code, data):
         try:
-            self._write(code)
-            self._write(i_pack(len(data) + 4))
-            self._write(data)
+            _write(self._sock, code)
+            _write(self._sock, i_pack(len(data) + 4))
+            _write(self._sock, data)
         except ValueError as e:
             if str(e) == "write to closed file":
                 raise InterfaceError("connection is closed")
@@ -752,12 +755,12 @@ class CoreConnection:
         retval.extend(h_pack(0))
 
         self._send_message(BIND, retval)
-        self._write(FLUSH_MSG)
+        _write(self._sock, FLUSH_MSG)
 
     def send_EXECUTE(self):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
-        self._write(EXECUTE_MSG)
-        self._write(FLUSH_MSG)
+        _write(self._sock, EXECUTE_MSG)
+        _write(self._sock, FLUSH_MSG)
 
     def handle_NO_DATA(self, msg, context):
         pass
@@ -796,12 +799,9 @@ class CoreConnection:
         code = None
 
         while code != READY_FOR_QUERY:
-            try:
-                code, data_len = ci_unpack(self._read(5))
-            except struct.error as e:
-                raise InterfaceError("network error") from e
+            code, data_len = ci_unpack(_read(self._sock, 5))
 
-            self.message_types[code](self._read(data_len - 4), context)
+            self.message_types[code](_read(self._sock, data_len - 4), context)
 
         if context.error is not None:
             raise context.error
@@ -809,9 +809,9 @@ class CoreConnection:
     def close_prepared_statement(self, statement_name_bin):
         """https://www.postgresql.org/docs/current/protocol-message-formats.html"""
         self._send_message(CLOSE, STATEMENT + statement_name_bin)
-        self._write(FLUSH_MSG)
-        self._write(SYNC_MSG)
-        self._flush()
+        _write(self._sock, FLUSH_MSG)
+        _write(self._sock, SYNC_MSG)
+        _flush(self._sock)
         context = Context(None)
         self.handle_messages(context)
         self._statement_nums.remove(statement_name_bin)

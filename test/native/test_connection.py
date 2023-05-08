@@ -1,5 +1,3 @@
-import struct
-
 from datetime import time as Time
 
 import pytest
@@ -212,12 +210,6 @@ def test_closed_connection(con):
     con.close()
     with pytest.raises(InterfaceError, match="connection is closed"):
         con.run("VALUES ('hw1'::text)")
-
-
-def test_network_error_on_connect(db_kwargs, mocker):
-    mocker.patch("pg8000.core.ci_unpack", side_effect=struct.error())
-    with pytest.raises(InterfaceError, match="network error"):
-        Connection(**db_kwargs)
 
 
 def test_version():

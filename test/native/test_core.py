@@ -1,12 +1,16 @@
 from io import BytesIO
 
+import pytest
+
 from pg8000.core import (
     Context,
     CoreConnection,
     NULL_BYTE,
     PASSWORD,
     _create_message,
+    _read,
 )
+from pg8000.native import InterfaceError
 
 
 def test_handle_AUTHENTICATION_3(mocker):
@@ -16,9 +20,9 @@ def test_handle_AUTHENTICATION_3(mocker):
     con = CoreConnection()
     password = "barbour".encode("utf8")
     con.password = password
-    con._flush = mocker.Mock()
+    con._sock = mocker.Mock()
     buf = BytesIO()
-    con._write = buf.write
+    con._sock.write = buf.write
     CoreConnection.handle_AUTHENTICATION_REQUEST(con, b"\x00\x00\x00\x03", None)
     assert buf.getvalue() == _create_message(PASSWORD, password + NULL_BYTE)
 
@@ -38,3 +42,10 @@ def test_handle_ERROR_RESPONSE(mocker):
     context = Context(None)
     CoreConnection.handle_ERROR_RESPONSE(con, data, context)
     assert str(context.error) == "{'S': '�err'}"
+
+
+def test_read(mocker):
+    mock_socket = mocker.Mock()
+    mock_socket.read = mocker.Mock(return_value=b"")
+    with pytest.raises(InterfaceError, match="network error"):
+        _read(mock_socket, 5)
