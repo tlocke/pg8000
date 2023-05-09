@@ -1219,6 +1219,9 @@ possible to change the default mapping using adapters (see the examples).
    |                       |                 | serialized string. Results returned as  |
    |                       |                 | de-serialized JSON.                     |
    +-----------------------+-----------------+-----------------------------------------+
+   | tuple                 | composite type  | Only from Python to PostgreSQL          |
+   +-----------------------+-----------------+-----------------------------------------+
+
 
 
 Theory Of Operation
@@ -2142,6 +2145,21 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 
 Release Notes
 -------------
+
+Version 1.29.5, 2023-05-09
+``````````````````````````
+
+- Fixed bug where pg8000 didn't handle the case when the number of bytes received from
+  a socket was fewer than requested. This was being interpreted as a network error, but
+  in fact we just needed to wait until more bytes were available.
+
+- When using the ``PGInterval`` type, if a response from the server contained the period
+  ``millennium``, it wasn't recognised. This was caused by a spelling mistake where we
+  had ``millenium`` rather than ``millennium``.
+
+- Added support for sending PostgreSQL composite types. If a value is sent as a
+  ``tuple``, pg8000 will send it to the server as a ``(`` delimited composite string.
+
 
 Version 1.29.4, 2022-12-14
 ``````````````````````````
