@@ -2146,6 +2146,14 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.29.6, 2023-05-29
+``````````````````````````
+
+- Fixed two bugs with composite types. Nulls should be represented by an empty string,
+  and in an array of composite types, the elements should be surrounded by double
+  quotes.
+
+
 Version 1.29.5, 2023-05-09
 ``````````````````````````
 
