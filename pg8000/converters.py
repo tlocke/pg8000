@@ -616,14 +616,14 @@ def array_string_escape(v):
     return val
 
 
-def _container_out(ar):
+def array_out(ar):
     result = []
     for v in ar:
         if isinstance(v, list):
             val = array_out(v)
 
         elif isinstance(v, tuple):
-            val = composite_out(v)
+            val = f'"{composite_out(v)}"'
 
         elif v is None:
             val = "NULL"
@@ -642,15 +642,36 @@ def _container_out(ar):
 
         result.append(val)
 
-    return ",".join(result)
-
-
-def array_out(ar):
-    return f"{{{_container_out(ar)}}}"
+    return f'{{{",".join(result)}}}'
 
 
 def composite_out(ar):
-    return f"({_container_out(ar)})"
+    result = []
+    for v in ar:
+        if isinstance(v, list):
+            val = array_out(v)
+
+        elif isinstance(v, tuple):
+            val = composite_out(v)
+
+        elif v is None:
+            val = ""
+
+        elif isinstance(v, dict):
+            val = array_string_escape(json_out(v))
+
+        elif isinstance(v, (bytes, bytearray)):
+            val = f'"\\{bytes_out(v)}"'
+
+        elif isinstance(v, str):
+            val = array_string_escape(v)
+
+        else:
+            val = make_param(PY_TYPES, v)
+
+        result.append(val)
+
+    return f'({",".join(result)})'
 
 
 PY_PG = {

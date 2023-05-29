@@ -733,7 +733,24 @@ def duple_type(con):
     con.run("DROP TYPE IF EXISTS duple;")
 
 
-def test_composite_type(con, duple_type):
-    v = 1, 3
-    retval = con.run("SELECT CAST(:v AS duple)", v=v)
-    assert retval[0][0] == "(1,3)"
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
+        ((1, 3), "(1,3)"),
+        ((1, None), "(1,)"),
+    ],
+)
+def test_composite_type(con, duple_type, test_input, expected):
+    retval = con.run("SELECT CAST(:v AS duple)", v=test_input)
+    assert retval[0][0] == expected
+
+
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
+        ([(1, 3)], '{"(1,3)"}'),
+    ],
+)
+def test_composite_type_array(con, duple_type, test_input, expected):
+    retval = con.run("SELECT CAST(:v AS duple[])", v=test_input)
+    assert retval[0][0] == expected

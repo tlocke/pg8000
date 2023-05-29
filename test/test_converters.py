@@ -63,6 +63,7 @@ def test_null_out():
         [[0, 7000000000, 2], "{0,7000000000,2}"],  # int8[]
         [[1.1, 2.2, 3.3], "{1.1,2.2,3.3}"],  # float8[]
         [["Veni", "vidi", "vici"], "{Veni,vidi,vici}"],  # varchar[]
+        [[("Veni", True, 1)], '{"(Veni,true,1)"}'],  # array of composites
     ],
 )
 def test_array_out(array, out):
