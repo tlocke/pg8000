@@ -297,6 +297,27 @@ def test_timestamp_mismatch(con):
         con.run("SET SESSION TIME ZONE DEFAULT")
 
 
+@pytest.mark.parametrize(
+    "select,expected",
+    [
+        ["CAST('t' AS bool)", True],
+        ["5000::smallint", 5000],
+        ["5000::numeric", Decimal("5000")],
+        ["50.34::numeric", Decimal("50.34")],
+        ["5000::integer", 5000],
+        ["50000000000000::bigint", 50000000000000],
+        ["1.1::real", 1.1],
+        ["1.1::double precision", 1.1000000000000001],
+        ["'hello'::varchar(20)", "hello"],
+        ["'hello'::char(20)", "hello               "],
+        ["'hello'::text", "hello"],
+    ],
+)
+def test_in(con, select, expected):
+    retval = con.run(f"SELECT {select}")
+    assert retval[0][0] == expected
+
+
 def test_name_out(con):
     # select a field that is of "name" type:
     con.run("SELECT usename FROM pg_user")
@@ -306,57 +327,6 @@ def test_name_out(con):
 def test_oid_out(con):
     con.run("SELECT oid FROM pg_type")
     # It is sufficient that no errors were encountered.
-
-
-def test_boolean_in(con):
-    retval = con.run("SELECT cast('t' as bool)")
-    assert retval[0][0]
-
-
-def test_numeric_out(con):
-    for num in ("5000", "50.34"):
-        retval = con.run("SELECT " + num + "::numeric")
-        assert str(retval[0][0]) == num
-
-
-def test_int2_out(con):
-    retval = con.run("SELECT 5000::smallint")
-    assert retval[0][0] == 5000
-
-
-def test_int4_out(con):
-    retval = con.run("SELECT 5000::integer")
-    assert retval[0][0] == 5000
-
-
-def test_int8_out(con):
-    retval = con.run("SELECT 50000000000000::bigint")
-    assert retval[0][0] == 50000000000000
-
-
-def test_float4_out(con):
-    retval = con.run("SELECT 1.1::real")
-    assert retval[0][0] == 1.1
-
-
-def test_float8_out(con):
-    retval = con.run("SELECT 1.1::double precision")
-    assert retval[0][0] == 1.1000000000000001
-
-
-def test_varchar_out(con):
-    retval = con.run("SELECT 'hello'::varchar(20)")
-    assert retval[0][0] == "hello"
-
-
-def test_char_out(con):
-    retval = con.run("SELECT 'hello'::char(20)")
-    assert retval[0][0] == "hello               "
-
-
-def test_text_out(con):
-    retval = con.run("SELECT 'hello'::text")
-    assert retval[0][0] == "hello"
 
 
 def test_pg_interval_in(con):
@@ -600,6 +570,7 @@ def test_roundtrip_oid(con, test_input, oid):
         [[IPv4Address("192.168.0.1")], "inet[]", None],
         [[Range(3, 7), Range(8, 9)], "int4multirange", 14],
         [Range(3, 7), "int4range", None],
+        [50000000000000, "int8", None],
         [[Range(3, 7), Range(8, 9)], "int8multirange", 14],
         [Range(3, 7), "int8range", None],
         [Range(3, 7), "numrange", None],
@@ -665,7 +636,7 @@ def test_roundtrip_oid(con, test_input, oid):
             "varchar[]",
             None,
         ],
-        [Timedelta(seconds=30), "interval", None],
+        [[], "varchar[]", None],
         [Time(4, 5, 6), "time", None],
         [Date(2001, 2, 3), "date", None],
         ["infinity", "date", None],
@@ -706,17 +677,6 @@ def test_roundtrip_cast(con, pg_version, test_input, typ, req_ver):
 def test_array_in(con, test_input, expected):
     result = con.run(test_input)
     assert result[0][0] == expected
-
-
-def test_numeric_array_out(con):
-    res = con.run("SELECT '{1.1,2.2,3.3}'::numeric[] AS f1")
-    assert res[0][0] == [Decimal("1.1"), Decimal("2.2"), Decimal("3.3")]
-
-
-def test_empty_array(con):
-    v = []
-    retval = con.run("SELECT cast(:v as varchar[])", v=v)
-    assert retval[0][0] == v
 
 
 def test_macaddr(con):
