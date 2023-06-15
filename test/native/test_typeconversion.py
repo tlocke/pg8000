@@ -311,6 +311,7 @@ def test_timestamp_mismatch(con):
         ["'hello'::varchar(20)", "hello"],
         ["'hello'::char(20)", "hello               "],
         ["'hello'::text", "hello"],
+        ["(1,2)", ("1", "2")],
     ],
 )
 def test_in(con, select, expected):

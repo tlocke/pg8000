@@ -73,6 +73,7 @@ OID = 26
 POINT = 600
 REAL = 700
 REAL_ARRAY = 1021
+RECORD = 2249
 SMALLINT = 21
 SMALLINT_ARRAY = 1005
 SMALLINT_VECTOR = 22
@@ -278,7 +279,7 @@ def uuid_in(data):
     return UUID(data)
 
 
-class ArrayState(Enum):
+class ParserState(Enum):
     InString = 1
     InEscape = 2
     InValue = 3
@@ -286,19 +287,19 @@ class ArrayState(Enum):
 
 
 def _parse_array(data, adapter):
-    state = ArrayState.Out
+    state = ParserState.Out
     stack = [[]]
     val = []
     for c in data:
-        if state == ArrayState.InValue:
+        if state == ParserState.InValue:
             if c in ("}", ","):
                 value = "".join(val)
                 stack[-1].append(None if value == "NULL" else adapter(value))
-                state = ArrayState.Out
+                state = ParserState.Out
             else:
                 val.append(c)
 
-        if state == ArrayState.Out:
+        if state == ParserState.Out:
             if c == "{":
                 a = []
                 stack[-1].append(a)
@@ -309,22 +310,22 @@ def _parse_array(data, adapter):
                 pass
             elif c == '"':
                 val = []
-                state = ArrayState.InString
+                state = ParserState.InString
             else:
                 val = [c]
-                state = ArrayState.InValue
+                state = ParserState.InValue
 
-        elif state == ArrayState.InString:
+        elif state == ParserState.InString:
             if c == '"':
                 stack[-1].append(adapter("".join(val)))
-                state = ArrayState.Out
+                state = ParserState.Out
             elif c == "\\":
-                state = ArrayState.InEscape
+                state = ParserState.InEscape
             else:
                 val.append(c)
-        elif state == ArrayState.InEscape:
+        elif state == ParserState.InEscape:
             val.append(c)
-            state = ArrayState.InString
+            state = ParserState.InString
 
     return stack[0][0]
 
@@ -488,6 +489,47 @@ nummultirange_in = _multirange_in(numrange_in)
 tsmultirange_in = _multirange_in(tsrange_in)
 tstzmultirange_in = _multirange_in(tstzrange_in)
 
+
+def record_in(data):
+    state = ParserState.Out
+    results = []
+    val = []
+    for c in data:
+        if state == ParserState.InValue:
+            if c in (")", ","):
+                value = "".join(val)
+                val.clear()
+                results.append(None if value == "" else value)
+                state = ParserState.Out
+            else:
+                val.append(c)
+
+        if state == ParserState.Out:
+            if c in "(),":
+                pass
+            elif c == '"':
+                state = ParserState.InString
+            else:
+                val.append(c)
+                state = ParserState.InValue
+
+        elif state == ParserState.InString:
+            if c == '"':
+                results.append("".join(val))
+                val.clear()
+                state = ParserState.Out
+            elif c == "\\":
+                state = ParserState.InEscape
+            else:
+                val.append(c)
+
+        elif state == ParserState.InEscape:
+            val.append(c)
+            state = ParserState.InString
+
+    return tuple(results)
+
+
 PY_PG = {
     Date: DATE,
     Decimal: NUMERIC,
@@ -581,6 +623,7 @@ PG_TYPES = {
     INTERVAL_ARRAY: interval_array_in,  # interval[]
     REAL: float,  # float4
     REAL_ARRAY: float_array_in,  # float4[]
+    RECORD: record_in,  # record
     SMALLINT: int,  # int2
     SMALLINT_ARRAY: int_array_in,  # int2[]
     SMALLINT_VECTOR: vector_in,  # int2vector
