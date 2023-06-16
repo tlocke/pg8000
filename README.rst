@@ -2161,6 +2161,11 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 
 Release Notes
 -------------
+Version 1.29.8, 2023-06-16
+``````````````````````````
+
+- Ranges don't work with legacy API.
+
 
 Version 1.29.7, 2023-06-16
 ``````````````````````````

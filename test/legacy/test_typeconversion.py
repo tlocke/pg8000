@@ -23,6 +23,7 @@ from pg8000 import (
     Binary,
     INTERVAL,
     PGInterval,
+    Range,
     pginterval_in,
     pginterval_out,
     timedelta_in,
@@ -332,6 +333,12 @@ def test_int2vector_in(cursor):
 
     # Should complete without an exception
     tuple(cursor.execute("select indkey from pg_index"))
+
+
+def test_range_roundtrip(cursor):
+    v = Range(1, 3)
+    retval = tuple(cursor.execute("select cast(%s as int4range)", (v,)))
+    assert retval[0][0] == v
 
 
 def test_timestamp_tz_out(cursor):
