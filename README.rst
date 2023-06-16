@@ -2162,6 +2162,17 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.29.7, 2023-06-16
+``````````````````````````
+
+- Add support for PostgreSQL ``range`` and ``multirange`` types. Previously pg8000
+  would just return them as strings, but now they're returned as ``Range`` and lists of
+  ``Range``.
+
+- The PostgreSQL ``record`` type is now returned as a ``tuple`` of strings, whereas
+  before it was returned as one string.
+
+
 Version 1.29.6, 2023-05-29
 ``````````````````````````
 
