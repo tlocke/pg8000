@@ -1295,7 +1295,7 @@ pg8000.native.DatabaseError
 
 For errors that originate from the server.
 
-pg8000.native.Connection(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None)
+pg8000.native.Connection(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None, sock=None)
 ```````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
 
 Creates a connection to a PostgreSQL database.
@@ -1374,6 +1374,11 @@ replication
   character encoding is not ``ascii`` or ``utf8``, then you need to provide values as
   bytes, eg. ``'database'.encode('EUC-JP')``.
 
+sock
+  A socket-like object to use for the connection. For example, ``sock`` could be a plain
+  ``socket.socket``, or it could represent an SSH tunnel or perhaps an
+  ``ssl.SSLSocket`` to an SSL proxy. If an |ssl.SSLContext| is provided, then it will be
+  used to attempt to create an SSL socket from the provided socket. 
 
 pg8000.native.Connection.notifications
 ``````````````````````````````````````
@@ -1619,7 +1624,7 @@ ROWID type oid
 Functions
 `````````
 
-pg8000.dbapi.connect(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None)
+pg8000.dbapi.connect(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None, sock=None)
 :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 Creates a connection to a PostgreSQL database.
@@ -1695,6 +1700,12 @@ replication
   <https://www.postgresql.org/docs/current/protocol-replication.html>`_. If your server
   character encoding is not ``ascii`` or ``utf8``, then you need to provide values as
   bytes, eg. ``'database'.encode('EUC-JP')``.
+
+sock
+  A socket-like object to use for the connection. For example, ``sock`` could be a plain
+  ``socket.socket``, or it could represent an SSH tunnel or perhaps an
+  ``ssl.SSLSocket`` to an SSL proxy. If an |ssl.SSLContext| is provided, then it will be
+  used to attempt to create an SSL socket from the provided socket. 
 
 
 pg8000.dbapi.Date(year, month, day)

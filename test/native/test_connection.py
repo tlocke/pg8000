@@ -1,3 +1,5 @@
+import socket
+
 from datetime import time as Time
 
 import pytest
@@ -21,6 +23,20 @@ def test_internet_socket_connection_refused():
         "\\(timeout is None and source_address is None\\).",
     ):
         Connection(**conn_params)
+
+
+def test_Connection_plain_socket(db_kwargs):
+    host = db_kwargs.get("host", "localhost")
+    port = db_kwargs.get("port", 5432)
+    with socket.create_connection((host, port)) as sock:
+        user = db_kwargs["user"]
+        password = db_kwargs["password"]
+        conn_params = {"sock": sock, "user": user, "password": password}
+
+        con = Connection(**conn_params)
+
+        res = con.run("SELECT 1")
+        assert res[0][0] == 1
 
 
 def test_database_missing(db_kwargs):

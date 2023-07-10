@@ -8,9 +8,24 @@ from pg8000.core import (
     NULL_BYTE,
     PASSWORD,
     _create_message,
+    _make_socket,
     _read,
 )
 from pg8000.native import InterfaceError
+
+
+def test_make_socket(mocker):
+    unix_sock = None
+    sock = mocker.Mock()
+    host = "localhost"
+    port = 5432
+    timeout = None
+    source_address = None
+    tcp_keepalive = True
+    ssl_context = None
+    _make_socket(
+        unix_sock, sock, host, port, timeout, source_address, tcp_keepalive, ssl_context
+    )
 
 
 def test_handle_AUTHENTICATION_3(mocker):
