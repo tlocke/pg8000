@@ -193,6 +193,7 @@ class CoreConnection:
         tcp_keepalive=True,
         application_name=None,
         replication=None,
+        sock=None,
     ):
         self._client_encoding = "utf8"
         self._commands_with_count = (
@@ -238,67 +239,71 @@ class CoreConnection:
 
         self._caches = {}
 
-        if unix_sock is None and host is not None:
-            try:
-                self._usock = socket.create_connection(
-                    (host, port), timeout, source_address
-                )
-            except socket.error as e:
-                raise InterfaceError(
-                    f"Can't create a connection to host {host} and port {port} "
-                    f"(timeout is {timeout} and source_address is {source_address})."
-                ) from e
-
-        elif unix_sock is not None:
-            try:
-                if not hasattr(socket, "AF_UNIX"):
+        if sock is None:
+            if unix_sock is None and host is not None:
+                try:
+                    self._usock = socket.create_connection(
+                        (host, port), timeout, source_address
+                    )
+                except socket.error as e:
                     raise InterfaceError(
-                        "attempt to connect to unix socket on unsupported platform"
-                    )
-                self._usock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                self._usock.settimeout(timeout)
-                self._usock.connect(unix_sock)
-            except socket.error as e:
-                if self._usock is not None:
-                    self._usock.close()
-                raise InterfaceError("communication error") from e
+                        f"Can't create a connection to host {host} and port {port} "
+                        f"(timeout is {timeout} and source_address is {source_address})."
+                    ) from e
 
+            elif unix_sock is not None:
+                try:
+                    if not hasattr(socket, "AF_UNIX"):
+                        raise InterfaceError(
+                            "attempt to connect to unix socket on unsupported platform"
+                        )
+                    self._usock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                    self._usock.settimeout(timeout)
+                    self._usock.connect(unix_sock)
+                except socket.error as e:
+                    if self._usock is not None:
+                        self._usock.close()
+                    raise InterfaceError("communication error") from e
+
+            else:
+                raise InterfaceError("one of host or unix_sock must be provided")
+
+            if tcp_keepalive:
+                self._usock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
+            self.channel_binding = None
+            if ssl_context is not None:
+                try:
+                    import ssl
+
+                    if ssl_context is True:
+                        ssl_context = ssl.create_default_context()
+
+                    request_ssl = getattr(ssl_context, "request_ssl", True)
+
+                    if request_ssl:
+                        # Int32(8) - Message length, including self.
+                        # Int32(80877103) - The SSL request code.
+                        self._usock.sendall(ii_pack(8, 80877103))
+                        resp = self._usock.recv(1)
+                        if resp != b"S":
+                            raise InterfaceError("Server refuses SSL")
+
+                    self._usock = ssl_context.wrap_socket(self._usock, server_hostname=host)
+
+                    if request_ssl:
+                        self.channel_binding = scramp.make_channel_binding(
+                            "tls-server-end-point", self._usock
+                        )
+
+                except ImportError:
+                    raise InterfaceError(
+                        "SSL required but ssl module not available in this python "
+                        "installation."
+                    )
+        
         else:
-            raise InterfaceError("one of host or unix_sock must be provided")
-
-        if tcp_keepalive:
-            self._usock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-
-        self.channel_binding = None
-        if ssl_context is not None:
-            try:
-                import ssl
-
-                if ssl_context is True:
-                    ssl_context = ssl.create_default_context()
-
-                request_ssl = getattr(ssl_context, "request_ssl", True)
-
-                if request_ssl:
-                    # Int32(8) - Message length, including self.
-                    # Int32(80877103) - The SSL request code.
-                    self._usock.sendall(ii_pack(8, 80877103))
-                    resp = self._usock.recv(1)
-                    if resp != b"S":
-                        raise InterfaceError("Server refuses SSL")
-
-                self._usock = ssl_context.wrap_socket(self._usock, server_hostname=host)
-
-                if request_ssl:
-                    self.channel_binding = scramp.make_channel_binding(
-                        "tls-server-end-point", self._usock
-                    )
-
-            except ImportError:
-                raise InterfaceError(
-                    "SSL required but ssl module not available in this python "
-                    "installation."
-                )
+            self._usock = sock
 
         self._sock = self._usock.makefile(mode="rwb")
 
