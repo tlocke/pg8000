@@ -1296,7 +1296,7 @@ pg8000.native.DatabaseError
 For errors that originate from the server.
 
 pg8000.native.Connection(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None, sock=None)
-```````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
+``````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
 
 Creates a connection to a PostgreSQL database.
 
@@ -1625,7 +1625,7 @@ Functions
 `````````
 
 pg8000.dbapi.connect(user, host='localhost', database=None, port=5432, password=None, source_address=None, unix_sock=None, ssl_context=None, timeout=None, tcp_keepalive=True, application_name=None, replication=None, sock=None)
-:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 Creates a connection to a PostgreSQL database.
 
@@ -2157,6 +2157,18 @@ environment variable if set.
 Benchmarks are run as part of the test suite at ``tests/test_benchmarks.py``.
 
 
+README.rst
+----------
+
+This file is written in the `reStructuredText
+<https://docutils.sourceforge.io/docs/user/rst/quickref.html>`_ format. To generate an
+HTML page from it, do:
+
+- Activate the virtual environment: ``source venv/bin/activate``
+- Install ``Sphinx``: ``pip install Sphinx``
+- Run ``rst2html.py``: ``rst2html.py README.rst README.html``
+
+
 Doing A Release Of pg8000
 -------------------------
 
@@ -2172,6 +2184,16 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 
 Release Notes
 -------------
+
+Version 1.30.0, 2023-07-27
+``````````````````````````
+
+- Remove support for Python 3.7
+
+- Add a ``socket`` keyword parameter for creating a connection from a pre-configured
+  socket.
+
+
 Version 1.29.8, 2023-06-16
 ``````````````````````````
 
