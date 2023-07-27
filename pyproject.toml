@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 name = "pg8000"
 description = "PostgreSQL interface library"
 readme = "README.rst"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 keywords= ["postgresql", "dbapi"]
 license = {text = "BSD 3-Clause License"}
 classifiers = [
@@ -18,10 +18,10 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: Implementation",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
@@ -31,7 +31,6 @@ classifiers = [
 ]
 dependencies = [
     "scramp >= 1.4.3",
-    'importlib-metadata >= 1.0 ; python_version < "3.8"',
     'python-dateutil >= 2.8.2',
 ]
 dynamic = ["version"]
