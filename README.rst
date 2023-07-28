@@ -2190,7 +2190,7 @@ Version 1.30.0, 2023-07-27
 
 - Remove support for Python 3.7
 
-- Add a ``socket`` keyword parameter for creating a connection from a pre-configured
+- Add a ``sock`` keyword parameter for creating a connection from a pre-configured
   socket.
 
 
