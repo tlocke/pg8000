@@ -2185,6 +2185,14 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.30.1, 2023-07-29
+``````````````````````````
+
+- There was a problem uploading the previous version (1.30.0) to PyPI because the
+  markup of the README.rst was invalid. There's now a step in the automated tests to
+  check for this.
+
+
 Version 1.30.0, 2023-07-27
 ``````````````````````````
 
