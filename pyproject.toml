@@ -59,11 +59,16 @@ envlist = py
 
 [testenv]
 passenv = PGPORT
+allowlist_externals=/usr/bin/rm
 commands =
     black --check .
     flake8 .
     python -m pytest -x -v -W error test
+    rm -rf dist
+    python -m build
+    twine check dist/*
 deps =
+    build
     pytest
     pytest-mock
     pytest-benchmark
@@ -72,4 +77,5 @@ deps =
     flake8-alphabetize
     Flake8-pyproject
     pytz
+    twine
 """

@@ -169,7 +169,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install black flake8 pytest flake8-alphabetize Flake8-pyproject .
+          pip install black build flake8 pytest flake8-alphabetize Flake8-pyproject \
+            twine .
       - name: Lint check
         run: |
           black --check .
@@ -180,3 +181,7 @@ jobs:
           USER: postgres
         run: |
           python -m pytest -x -v -W error test/test_readme.py
+      - name: Check Distribution
+        run: |
+          python -m build
+          twine check dist/*
