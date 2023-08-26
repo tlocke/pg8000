@@ -229,6 +229,14 @@ JSON can always be sent in serialized form to the server:
 >>>
 >>> con.close()
 
+JSON queries can be have parameters:
+
+>>> import pg8000.native
+>>>
+>>> with pg8000.native.Connection("postgres", password="cpsnow") as con:
+...     con.run(""" SELECT CAST('{"a":1, "b":2}' AS jsonb) @> :v """, v={"b": 2})
+[[True]]
+
 
 Retrieve Column Metadata From Results
 `````````````````````````````````````
@@ -1021,6 +1029,17 @@ JSON is sent to the server serialized, and returned de-serialized. Here's an exa
 >>> cur.close()
 >>>
 >>> con.close()
+
+JSON queries can be have parameters:
+
+>>> import pg8000.dbapi
+>>>
+>>> with pg8000.dbapi.connect("postgres", password="cpsnow") as con:
+...     cur = con.cursor()
+...     cur.execute(""" SELECT CAST('{"a":1, "b":2}' AS jsonb) @> %s """, ({"b": 2},))
+...     for row in cur.fetchall():
+...         print(row)
+[True]
 
 
 Retrieve Column Names From Results
