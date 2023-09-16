@@ -215,6 +215,12 @@ def test_to_statement():
     assert new_query == expected
 
 
+def test_to_statement_quotes():
+    new_query, _ = to_statement("SELECT $$'$$ = :v")
+    expected = "SELECT $$'$$ = $1"
+    assert new_query == expected
+
+
 def test_not_parsed_if_no_params(mocker, con):
     mock_to_statement = mocker.patch("pg8000.native.to_statement")
     con.run("ROLLBACK")

@@ -30,7 +30,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "scramp >= 1.4.3",
+    "scramp >= 1.4.4",
     'python-dateutil >= 2.8.2',
 ]
 dynamic = ["version"]

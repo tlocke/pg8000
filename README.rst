@@ -2204,6 +2204,12 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.30.2, 2023-09-17
+``````````````````````````
+
+- Bug fix where dollar-quoted string constants weren't supported.
+
+
 Version 1.30.1, 2023-07-29
 ``````````````````````````
 

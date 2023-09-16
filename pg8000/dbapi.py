@@ -255,6 +255,7 @@ def convert_paramstyle(style, query, args):
     INSIDE_ES = 3  # inside escaped single-quote string, E'...'
     INSIDE_PN = 4  # inside parameter name eg. :name
     INSIDE_CO = 5  # inside inline comment eg. --
+    INSIDE_DQ = 6  # inside escaped dollar-quote string, $$...$$
 
     in_quote_escape = False
     in_param_escape = False
@@ -264,10 +265,7 @@ def convert_paramstyle(style, query, args):
     state = OUTSIDE
     prev_c = None
     for i, c in enumerate(query):
-        if i + 1 < len(query):
-            next_c = query[i + 1]
-        else:
-            next_c = None
+        next_c = query[i + 1] if i + 1 < len(query) else None
 
         if state == OUTSIDE:
             if c == "'":
@@ -283,6 +281,10 @@ def convert_paramstyle(style, query, args):
                 output_query.append(c)
                 if prev_c == "-":
                     state = INSIDE_CO
+            elif c == "$":
+                output_query.append(c)
+                if prev_c == "$":
+                    state = INSIDE_DQ
             elif style == "qmark" and c == "?":
                 output_query.append(next(param_idx))
             elif (
@@ -337,6 +339,11 @@ def convert_paramstyle(style, query, args):
         elif state == INSIDE_ES:
             if c == "'" and prev_c != "\\":
                 # check for escaped single-quote
+                state = OUTSIDE
+            output_query.append(c)
+
+        elif state == INSIDE_DQ:
+            if c == "$" and prev_c == "$":
                 state = OUTSIDE
             output_query.append(c)
 

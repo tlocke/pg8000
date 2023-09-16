@@ -53,16 +53,21 @@ def test_numeric_unchanged(query):
     assert (new_query, vals) == (query, args)
 
 
-def test_named():
-    args = {
-        "f_2": 1,
-        "f1": 2,
-    }
-    new_query, vals = convert_paramstyle(
-        "named", "SELECT sum(x)::decimal(5, 2) :f_2, :f1 FROM t WHERE a=:f_2", args
-    )
-    expected = "SELECT sum(x)::decimal(5, 2) $1, $2 FROM t WHERE a=$1"
-    assert (new_query, vals) == (expected, (1, 2))
+@pytest.mark.parametrize(
+    "query,args,expected_query,expected_args",
+    [
+        [
+            "SELECT sum(x)::decimal(5, 2) :f_2, :f1 FROM t WHERE a=:f_2",
+            {"f_2": 1, "f1": 2},
+            "SELECT sum(x)::decimal(5, 2) $1, $2 FROM t WHERE a=$1",
+            (1, 2),
+        ],
+        ["SELECT $$'$$ = :v", {"v": "'"}, "SELECT $$'$$ = $1", ("'",)],
+    ],
+)
+def test_named(query, args, expected_query, expected_args):
+    new_query, vals = convert_paramstyle("named", query, args)
+    assert (new_query, vals) == (expected_query, expected_args)
 
 
 @pytest.mark.parametrize(

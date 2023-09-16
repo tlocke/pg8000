@@ -1,4 +1,5 @@
 from collections import defaultdict
+from enum import Enum, auto
 
 from pg8000.converters import (
     BIGINT,
@@ -75,19 +76,21 @@ __version__ = ver
 # POSSIBILITY OF SUCH DAMAGE.
 
 
-OUTSIDE = 0  # outside quoted string
-INSIDE_SQ = 1  # inside single-quote string '...'
-INSIDE_QI = 2  # inside quoted identifier   "..."
-INSIDE_ES = 3  # inside escaped single-quote string, E'...'
-INSIDE_PN = 4  # inside parameter name eg. :name
-INSIDE_CO = 5  # inside inline comment eg. --
+class State(Enum):
+    OUT = auto()  # outside quoted string
+    IN_SQ = auto()  # inside single-quote string '...'
+    IN_QI = auto()  # inside quoted identifier   "..."
+    IN_ES = auto()  # inside escaped single-quote string, E'...'
+    IN_PN = auto()  # inside parameter name eg. :name
+    IN_CO = auto()  # inside inline comment eg. --
+    IN_DQ = auto()  # inside dollar-quoted string eg. $$...$$
 
 
 def to_statement(query):
     in_quote_escape = False
     placeholders = []
     output_query = []
-    state = OUTSIDE
+    state = State.OUT
     prev_c = None
     for i, c in enumerate(query):
         if i + 1 < len(query):
@@ -95,51 +98,55 @@ def to_statement(query):
         else:
             next_c = None
 
-        if state == OUTSIDE:
+        if state == State.OUT:
             if c == "'":
                 output_query.append(c)
                 if prev_c == "E":
-                    state = INSIDE_ES
+                    state = State.IN_ES
                 else:
-                    state = INSIDE_SQ
+                    state = State.IN_SQ
             elif c == '"':
                 output_query.append(c)
-                state = INSIDE_QI
+                state = State.IN_QI
             elif c == "-":
                 output_query.append(c)
                 if prev_c == "-":
-                    state = INSIDE_CO
+                    state = State.IN_CO
+            elif c == "$":
+                output_query.append(c)
+                if prev_c == "$":
+                    state = State.IN_DQ
             elif c == ":" and next_c not in ":=" and prev_c != ":":
-                state = INSIDE_PN
+                state = State.IN_PN
                 placeholders.append("")
             else:
                 output_query.append(c)
 
-        elif state == INSIDE_SQ:
+        elif state == State.IN_SQ:
             if c == "'":
                 if in_quote_escape:
                     in_quote_escape = False
                 elif next_c == "'":
                     in_quote_escape = True
                 else:
-                    state = OUTSIDE
+                    state = State.OUT
             output_query.append(c)
 
-        elif state == INSIDE_QI:
+        elif state == State.IN_QI:
             if c == '"':
-                state = OUTSIDE
+                state = State.OUT
             output_query.append(c)
 
-        elif state == INSIDE_ES:
+        elif state == State.IN_ES:
             if c == "'" and prev_c != "\\":
                 # check for escaped single-quote
-                state = OUTSIDE
+                state = State.OUT
             output_query.append(c)
 
-        elif state == INSIDE_PN:
+        elif state == State.IN_PN:
             placeholders[-1] += c
             if next_c is None or (not next_c.isalnum() and next_c != "_"):
-                state = OUTSIDE
+                state = State.OUT
                 try:
                     pidx = placeholders.index(placeholders[-1], 0, -1)
                     output_query.append(f"${pidx + 1}")
@@ -147,10 +154,15 @@ def to_statement(query):
                 except ValueError:
                     output_query.append(f"${len(placeholders)}")
 
-        elif state == INSIDE_CO:
+        elif state == State.IN_CO:
             output_query.append(c)
             if c == "\n":
-                state = OUTSIDE
+                state = State.OUT
+
+        elif state == State.IN_DQ:
+            output_query.append(c)
+            if c == "$" and prev_c == "$":
+                state = State.OUT
 
         prev_c = c
 
