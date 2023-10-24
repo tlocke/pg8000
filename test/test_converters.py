@@ -333,9 +333,12 @@ def test_identifier_success(value, expected):
     assert identifier(value) == expected
 
 
-def test_literal():
-    val = "top_secret"
-    assert literal(val) == f"'{val}'"
+@pytest.mark.parametrize(
+    "value,expected",
+    [("top_secret", "'top_secret'"), (["cove"], "'{cove}'")],
+)
+def test_literal(value, expected):
+    assert literal(value) == expected
 
 
 def test_literal_quote():

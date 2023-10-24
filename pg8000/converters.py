@@ -758,14 +758,16 @@ def literal(value):
         return str(value)
     elif isinstance(value, (bytes, bytearray)):
         return f"X'{value.hex()}'"
+    elif isinstance(value, Datetime):
+        return f"'{datetime_out(value)}'"
     elif isinstance(value, Date):
         return f"'{date_out(value)}'"
     elif isinstance(value, Time):
         return f"'{time_out(value)}'"
-    elif isinstance(value, Datetime):
-        return f"'{datetime_out(value)}'"
     elif isinstance(value, Timedelta):
         return f"'{interval_out(value)}'"
+    elif isinstance(value, list):
+        return f"'{array_out(value)}'"
     else:
         val = str(value).replace("'", "''")
         return f"'{val}'"
