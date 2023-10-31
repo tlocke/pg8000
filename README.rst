@@ -1195,13 +1195,21 @@ possible to change the default mapping using adapters (see the examples).
    +-----------------------+-----------------+-----------------------------------------+
    | datetime.datetime     | timestamp       | +/-infinity PostgreSQL values are       |
    | (without tzinfo)      | without         | represented as Python ``str`` values.   |
-   |                       | timezone        |                                         |
+   |                       | timezone        | If a ``timestamp`` is too big for       |
+   |                       |                 | ``datetime.datetime`` then a ``str`` is |
+   |                       |                 | used.                                   |
    +-----------------------+-----------------+-----------------------------------------+
    | datetime.datetime     | timestamp with  | +/-infinity PostgreSQL values are       |
    | (with tzinfo)         | timezone        | represented as Python ``str`` values.   |
+   |                       |                 | If a ``timestamptz`` is too big for     |
+   |                       |                 | ``datetime.datetime`` then a ``str`` is |
+   |                       |                 | used.                                   |
    +-----------------------+-----------------+-----------------------------------------+
    | datetime.date         | date            | +/-infinity PostgreSQL values are       |
    |                       |                 | represented as Python ``str`` values.   |
+   |                       |                 | If a ``date`` is too big for a          |
+   |                       |                 | ``datetime.date`` then a ``str`` is     |
+   |                       |                 | used.                                   |
    +-----------------------+-----------------+-----------------------------------------+
    | datetime.time         | time without    |                                         |
    |                       | time zone       |                                         |

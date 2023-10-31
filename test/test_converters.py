@@ -31,6 +31,7 @@ from pg8000.converters import (
     string_in,
     string_out,
     time_in,
+    timestamp_in,
     timestamptz_in,
     tsrange_in,
 )
@@ -43,6 +44,7 @@ from pg8000.native import InterfaceError
         ["2022-03-02", Date(2022, 3, 2)],
         ["infinity", "infinity"],
         ["-infinity", "-infinity"],
+        ["20022-03-02", "20022-03-02"],
     ],
 )
 def test_date_in(value, expected):
@@ -257,10 +259,27 @@ def test_array_string_escape(value, expected):
                 2022, 10, 8, 15, 1, 39, 597026, tzinfo=TimeZone(TimeDelta(hours=-2))
             ),
         ],
+        [
+            "20022-10-08 15:01:39.597026-02",
+            "20022-10-08 15:01:39.597026-02",
+        ],
     ],
 )
 def test_timestamptz_in(value, expected):
     assert timestamptz_in(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        [
+            "20022-10-08 15:01:39.597026",
+            "20022-10-08 15:01:39.597026",
+        ],
+    ],
+)
+def test_timestamp_in(value, expected):
+    assert timestamp_in(value) == expected
 
 
 @pytest.mark.parametrize(

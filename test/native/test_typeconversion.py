@@ -312,6 +312,7 @@ def test_timestamp_mismatch(con):
         ["'hello'::char(20)", "hello               "],
         ["'hello'::text", "hello"],
         ["(1,2)", ("1", "2")],
+        ["CAST('20000-01-01' AS TIMESTAMP WITHOUT TIME ZONE)", "20000-01-01 00:00:00"],
     ],
 )
 def test_in(con, select, expected):
