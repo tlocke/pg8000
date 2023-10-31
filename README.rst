@@ -2212,6 +2212,13 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.30.3, 2023-10-31
+``````````````````````````
+
+- Fix problem with PG date overflowing Python types. Now we return the ``str`` we got from the
+  server if we can't parse it. 
+
+
 Version 1.30.2, 2023-09-17
 ``````````````````````````
 
