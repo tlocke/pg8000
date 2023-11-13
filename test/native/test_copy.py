@@ -95,7 +95,7 @@ def test_copy_from_with_error(db_table):
         ),
         "W": ('COPY t1, line 2, column f1: ""',),
         "F": ("numutils.c",),
-        "R": ("pg_atoi", "pg_strtoint32"),
+        "R": ("pg_atoi", "pg_strtoint32", "pg_strtoint32_safe"),
     }
     earg = e.value.args[0]
     for k, v in arg.items():
