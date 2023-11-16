@@ -861,7 +861,7 @@ the ``replication`` keyword when creating a connection:
 ...    'postgres', password="cpsnow", replication="database")
 >>>
 >>> con.run("IDENTIFY_SYSTEM")
-[['...', 1, '0/...', 'postgres']]
+[['...', 1, '.../...', 'postgres']]
 >>>
 >>> con.close()
 
