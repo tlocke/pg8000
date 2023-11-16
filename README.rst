@@ -639,7 +639,7 @@ the server:
 >>>
 >>> con.run("SELECT :v IS NULL", v=None)
 Traceback (most recent call last):
-pg8000.exceptions.DatabaseError: {'S': 'ERROR', 'V': 'ERROR', 'C': '42P18', 'M': 'could not determine data type of parameter $1', 'F': 'postgres.c', 'L': '...', 'R': 'exec_parse_message'}
+pg8000.exceptions.DatabaseError: {'S': 'ERROR', 'V': 'ERROR', 'C': '42P18', 'M': 'could not determine data type of parameter $1', 'F': 'postgres.c', 'L': '...', 'R': '...'}
 >>>
 >>> con.close()
 
