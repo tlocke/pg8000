@@ -275,9 +275,7 @@ PostgreSQL `notices
 <https://www.postgresql.org/docs/current/static/plpgsql-errors-and-messages.html>`_ are
 stored in a deque called ``Connection.notices`` and added using the ``append()``
 method. Similarly there are ``Connection.notifications`` for `notifications
-<https://www.postgresql.org/docs/current/static/sql-notify.html>`_ and
-``Connection.parameter_statuses`` for changes to the server configuration. Here's an
-example:
+<https://www.postgresql.org/docs/current/static/sql-notify.html>`_. Here's an example:
 
 >>> import pg8000.native
 >>>
@@ -289,6 +287,26 @@ example:
 >>>
 >>> con.notifications[0]
 (..., 'aliens_landed', '')
+>>>
+>>> con.close()
+
+
+Parameter Statuses
+``````````````````
+
+`Certain parameter values are reported by the server automatically at connection startup or whenever
+their values change
+<https://www.postgresql.org/docs/current/libpq-status.html#LIBPQ-PQPARAMETERSTATUS>`_ and pg8000
+stores the latest values in a dict called ``Connection.parameter_statuses``. Here's an example where
+we set the ``aplication_name`` parameter and then read it from the ``parameter_statuses``:
+
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection(
+...     "postgres", password="cpsnow", application_name='AGI')
+>>>
+>>> con.parameter_statuses['application_name']
+'AGI'
 >>>
 >>> con.close()
 
