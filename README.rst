@@ -2230,6 +2230,14 @@ Run ``tox`` to make sure all tests pass, then update the release notes, then do:
 Release Notes
 -------------
 
+Version 1.30.4, 2024-01-03
+``````````````````````````
+
+- Add support for more range and multirange types.
+
+- Make the ``Connection.parameter_statuses`` property a ``dict`` rather than a ``dequeue``.
+
+
 Version 1.30.3, 2023-10-31
 ``````````````````````````
 
