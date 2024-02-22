@@ -1,6 +1,12 @@
 Release Notes
 -------------
 
+Version 1.30.5, 2024-02-22
+``````````````````````````
+
+- Fix bug that now means the number of parameters cam be as high as an unsigned 16 bit
+  integer will go.
+
 
 Version 1.30.4, 2024-01-03
 ``````````````````````````
