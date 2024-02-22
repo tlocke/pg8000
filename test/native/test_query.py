@@ -225,3 +225,12 @@ def test_not_parsed_if_no_params(mocker, con):
     mock_to_statement = mocker.patch("pg8000.native.to_statement")
     con.run("ROLLBACK")
     mock_to_statement.assert_not_called()
+
+
+def test_max_parameters(con):
+    SIZE = 60000
+    kwargs = {f"param_{i}": 1 for i in range(SIZE)}
+    con.run(
+        f"SELECT 1 WHERE 1 IN ({','.join([f':param_{i}' for i in range(SIZE)])})",
+        **kwargs,
+    )
