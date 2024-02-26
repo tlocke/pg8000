@@ -1184,6 +1184,39 @@ Here's an example:
 >>> con.close()
 
 
+Parameter Limit
+```````````````
+
+The protocol that PostgreSQL uses limits the number of parameters to 6,5535. The following will give
+an error:
+
+>>> import pg8000.dbapi
+>>>
+>>> conn = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cursor = conn.cursor()
+>>> SIZE = 100000
+>>> cursor.execute(
+...    f"SELECT 1 WHERE 1 IN ({','.join(['%s'] * SIZE)})",
+...    [1] * SIZE,
+... )
+Traceback (most recent call last):
+struct.error: 'H' format requires 0 <= number <= 65535
+
+One way of working round this problem is to use the `unnest
+<https://www.postgresql.org/docs/current/functions-array.html>`_ function:
+
+>>> import pg8000.dbapi
+>>>
+>>> conn = pg8000.dbapi.connect(user="postgres", password="cpsnow")
+>>> cursor = conn.cursor()
+>>> SIZE = 100000
+>>> cursor.execute(
+...    "SELECT 1 WHERE 1 IN (SELECT unnest(CAST(%s AS int[])))",
+...    [[1] * SIZE],
+... )
+>>> conn.close()
+
+
 Type Mapping
 ------------
 
