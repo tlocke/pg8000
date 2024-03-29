@@ -824,46 +824,43 @@ So we've taken the approach of only being able to set connection parameters usin
 
 ### Connect To PostgreSQL Over SSL
 
-To connect to the server using SSL defaults do::
+By default the `ssl_context` connection parameter has the value `None` which means pg8000 will
+attempt to connect to the server using SSL, and then fall back to a plain socket if the server
+refuses SSL. If you want to *require* SSL (ie. to fail if it's not achieved) then you can set
+`ssl_context=True`:
 
 ```python
-import pg8000.native
-connection = pg8000.native.Connection('postgres', password="cpsnow", ssl_context=True)
-connection.run("SELECT 'The game is afoot!'")
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection('postgres', password="cpsnow", ssl_context=True)
+>>> con.run("SELECT 'The game is afoot!'")
+[['The game is afoot!']]
+>>> con.close()
 
 ```
 
-To connect over SSL with custom settings, set the `ssl_context` parameter to an
-`ssl.SSLContext` object:
+If on the other hand you want to connect over SSL with custom settings, set the `ssl_context`
+parameter to an [`ssl.SSLContext`](https://docs.python.org/3/library/ssl.html#ssl.SSLContext) object:
 
 ```python
-import pg8000.native
-import ssl
-
-
-ssl_context = ssl.create_default_context()
-ssl_context.verify_mode = ssl.CERT_REQUIRED
-ssl_context.load_verify_locations('root.pem')        
-connection = pg8000.native.Connection(
-  'postgres', password="cpsnow", ssl_context=ssl_context)
+>>> import pg8000.native
+>>> import ssl
+>>>
+>>> ssl_context = ssl.create_default_context()
+>>> ssl_context.check_hostname = False
+>>> ssl_context.verify_mode = ssl.CERT_NONE
+>>> con = pg8000.native.Connection(
+...     'postgres', password="cpsnow", ssl_context=ssl_context)
+>>> con.run("SELECT 'Work is the curse of the drinking classes.'")
+[['Work is the curse of the drinking classes.']]
+>>> con.close()
 
 ```
 
 It may be that your PostgreSQL server is behind an SSL proxy server in which case you
-can set a pg8000-specific attribute `ssl.SSLContext.request_ssl = False` which tells
-pg8000 to connect using an SSL socket, but not to request SSL from the PostgreSQL
-server:
-
-```python
-import pg8000.native
-import ssl
-
-ssl_context = ssl.create_default_context()
-ssl_context.request_ssl = False
-connection = pg8000.native.Connection(
-    'postgres', password="cpsnow", ssl_context=ssl_context)
-
-```
+can give pg8000 the SSL socket with the `sock` parameter, and then set
+`ssl_context=False` which means that no attempt will be made to create an SSL connection
+to the server.
 
 
 ### Server-Side Cursors
@@ -1433,10 +1430,11 @@ Creates a connection to a PostgreSQL database.
 - *password* - The user password to connect to the server with. This parameter is optional; if omitted and the database server requests password-based authentication, the connection will fail to open. If this parameter is provided but not requested by the server, no error will occur. If your server character encoding is not `ascii` or `utf8`, then you need to provide `password` as bytes, eg.  `'my_password'.encode('EUC-JP')`.
 - *source_address* - The source IP address which initiates the connection to the PostgreSQL server. The default is `None` which means that the operating system will choose the source address.
 - *unix_sock* - The path to the UNIX socket to access the database through, for example, `'/tmp/.s.PGSQL.5432'`. One of either `host` or `unix_sock` must be provided.
-- *ssl_context* - This governs SSL encryption for TCP/IP sockets. It can have three values:
-  - `None`, meaning no SSL (the default)
-  - `True`, means use SSL with an `ssl.SSLContext` created using `ssl.create_default_context()`
-  - An instance of `ssl.SSLContext` which will be used to create the SSL connection. If your PostgreSQL server is behind an SSL proxy, you can set the pg8000-specific attribute `ssl.SSLContext.request_ssl = False`, which tells pg8000 to use an SSL socket, but not to request SSL from the PostgreSQL server. Note that this means you can't use SCRAM authentication with channel binding.
+- *ssl_context* - This governs SSL encryption for TCP/IP sockets. It can have four values:
+  - `None`, the default, meaning that an attempt will be made to connect over SSL, but if this is rejected by the server then pg8000 will fall back to using a plain socket.
+  - `True`, means use SSL with an `ssl.SSLContext` with the minimum of checks.
+  - `False`, means to not attempt to create an SSL socket.
+  - An instance of `ssl.SSLContext` which will be used to create the SSL connection.
 - *timeout* - This is the time in seconds before the connection to the server will time out. The default is `None` which means no timeout.
 - *tcp_keepalive* - If `True` then use [TCP keepalive](https://en.wikipedia.org/wiki/Keepalive#TCP_keepalive). The default is `True`.
 - *application_name* - Sets the [application\_name](https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-APPLICATION-NAME). If your server character encoding is not `ascii` or `utf8`, then you need to provide values as bytes, eg.  `'my_application_name'.encode('EUC-JP')`. The default is `None` which means that the server will set the application name.
@@ -1636,10 +1634,11 @@ Creates a connection to a PostgreSQL database.
 - *password* - The user password to connect to the server with. This parameter is optional; if omitted and the database server requests password-based authentication, the connection will fail to open. If this parameter is provided but not requested by the server, no error will occur. If your server character encoding is not `ascii` or `utf8`, then you need to provide `password` as bytes, eg.  `'my_password'.encode('EUC-JP')`.
 - *source_address* - The source IP address which initiates the connection to the PostgreSQL server. The default is `None` which means that the operating system will choose the source address.
 - *unix_sock* - The path to the UNIX socket to access the database through, for example, `'/tmp/.s.PGSQL.5432'`. One of either `host` or `unix_sock` must be provided.
-- *ssl\_context* - This governs SSL encryption for TCP/IP sockets. It can have three values:
-  - `None`, meaning no SSL (the default)
-  - `True`, means use SSL with an `ssl.SSLContext` created using `ssl.create_default_context()`.
-  - An instance of `ssl.SSLContext` which will be used to create the SSL connection. If your PostgreSQL server is behind an SSL proxy, you can set the pg8000-specific attribute `ssl.SSLContext.request_ssl = False`, which tells pg8000 to use an SSL socket, but not to request SSL from the PostgreSQL server. Note that this means you can't use SCRAM authentication with channel binding.
+- *ssl_context* - This governs SSL encryption for TCP/IP sockets. It can have four values:
+  - `None`, the default, meaning that an attempt will be made to connect over SSL, but if this is rejected by the server then pg8000 will fall back to using a plain socket.
+  - `True`, means use SSL with an `ssl.SSLContext` with the minimum of checks.
+  - `False`, means to not attempt to create an SSL socket.
+  - An instance of `ssl.SSLContext` which will be used to create the SSL connection.
 - *timeout* - This is the time in seconds before the connection to the server will time out. The default is `None` which means no timeout.
 - *tcp_keepalive* - If `True` then use [TCP keepalive](https://en.wikipedia.org/wiki/Keepalive#TCP_keepalive). The default is `True`.
 - *application_name* - Sets the [application\_name](https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-APPLICATION-NAME). If your server character encoding is not `ascii` or `utf8`, then you need to provide values as bytes, eg. `'my_application_name'.encode('EUC-JP')`. The default is `None` which means that the server will set the application name.

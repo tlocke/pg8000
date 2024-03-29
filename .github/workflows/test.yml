@@ -33,7 +33,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -80,7 +80,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -127,7 +127,7 @@ jobs:
           psql -c "SELECT pg_reload_conf()"
 
       - name: Check out repository code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -161,13 +161,17 @@ jobs:
 
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
       - name: Install dependencies
         run: |
+          psql postgresql://postgres:cpsnow@localhost -c "ALTER SYSTEM SET ssl = on;"
+          psql postgresql://postgres:cpsnow@localhost -c "ALTER SYSTEM SET ssl_cert_file = '/etc/ssl/certs/ssl-cert-snakeoil.pem'"
+          psql postgresql://postgres:cpsnow@localhost -c "ALTER SYSTEM SET ssl_key_file = '/etc/ssl/private/ssl-cert-snakeoil.key'"
+          psql postgresql://postgres:cpsnow@localhost localhost -c "SELECT pg_reload_conf()"
           python -m pip install --upgrade pip
           pip install black build flake8 pytest flake8-alphabetize Flake8-pyproject \
             twine .
