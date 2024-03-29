@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pg8000"
 description = "PostgreSQL interface library"
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.8"
 keywords= ["postgresql", "dbapi"]
 license = {text = "BSD 3-Clause License"}
