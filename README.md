@@ -2040,6 +2040,15 @@ twine upload dist/*
 
 ## Release Notes
 
+### Version 1.31.0, 2024-03-31
+
+- Now the `ssl_context` connection parameter can have one of four values:
+  - None - The default, meaning it'll try and connect over SSL but fall back to a plain socket if not.
+  - True - Will try and connect over SSL and fail if not.
+  - False - It'll not try to connect over SSL.
+  - SSLContext object - It'll use this object to connect over SSL.
+
+
 ### Version 1.30.5, 2024-02-22
 
 - Fix bug that now means the number of parameters cam be as high as an unsigned 16 bit
