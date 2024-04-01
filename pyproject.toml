@@ -1,9 +1,9 @@
 [build-system]
 requires = [
-    "setuptools >= 65",
-    "versioningit >= 2.1.0",
+    "hatchling",
+    "versioningit >= 3.1.0",
 ]
-build-backend = "setuptools.build_meta"
+build-backend = "hatchling.build"
 
 [project]
 name = "pg8000"
@@ -37,6 +37,9 @@ dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/tlocke/pg8000"
+
+[tool.hatch.version]
+source = "versioningit"
 
 [tool.versioningit]
 

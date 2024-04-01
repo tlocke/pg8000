@@ -29,9 +29,12 @@ def test_Connection_plain_socket(db_kwargs):
     host = db_kwargs.get("host", "localhost")
     port = db_kwargs.get("port", 5432)
     with socket.create_connection((host, port)) as sock:
-        user = db_kwargs["user"]
-        password = db_kwargs["password"]
-        conn_params = {"sock": sock, "user": user, "password": password}
+        conn_params = {
+            "sock": sock,
+            "user": db_kwargs["user"],
+            "password": db_kwargs["password"],
+            "ssl_context": False,
+        }
 
         con = Connection(**conn_params)
 

@@ -185,15 +185,25 @@ def test_application_name_bytearray(db_kwargs):
 
 
 # This requires a line in pg_hba.conf that requires scram-sha-256 for the
-# database scram-sha-256
+# database pg8000_scram_sha_256
+
+DB = "pg8000_scram_sha_256"
 
 
-def test_scram_sha_256(db_kwargs):
-    db_kwargs["database"] = "pg8000_scram_sha_256"
+@pytest.fixture
+def setup(con, cursor):
+    con.autocommit = True
+    try:
+        cursor.execute(f"CREATE DATABASE {DB}")
+    except DatabaseError:
+        con.rollback()
 
-    # Should only raise an exception saying db doesn't exist
-    with pytest.raises(ProgrammingError, match="3D000"):
-        connect(**db_kwargs)
+
+def test_scram_sha_256(setup, db_kwargs):
+    db_kwargs["database"] = DB
+
+    con = connect(**db_kwargs)
+    con.close()
 
 
 @pytest.mark.parametrize(
