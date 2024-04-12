@@ -3,7 +3,7 @@ import pytest
 from pg8000 import DatabaseError, connect
 
 # This requires a line in pg_hba.conf that requires scram-sha-256 for the
-# database pg8000_scram-sha-256
+# database pg8000_scram_sha_256
 
 DB = "pg8000_scram_sha_256"
 
