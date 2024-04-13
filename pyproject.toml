@@ -7,6 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pg8000"
+authors = [{name = "The Contributors"}]
 description = "PostgreSQL interface library"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -30,7 +31,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "scramp >= 1.4.4",
+    "scramp >= 1.4.5",
     'python-dateutil >= 2.8.2',
 ]
 dynamic = ["version"]
