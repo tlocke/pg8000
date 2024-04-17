@@ -372,7 +372,26 @@ pg8000.exceptions.DatabaseError: ...
 
 ```
 
-instead you can write it using the [unnest
+the most straightforward way to get around this problem is to rewrie the query using the [`ANY`](
+https://www.postgresql.org/docs/current/functions-comparisons.html#FUNCTIONS-COMPARISONS-ANY-SOME)
+function:
+
+```python
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
+>>> con.run("SELECT 'silo 1' WHERE 'a' = ANY(:v)", v=['a', 'b'])
+[['silo 1']]
+>>> con.close()
+
+```
+
+However, using the array variant of `ANY` [may cause a performance problem](
+https://stackoverflow.com/questions/34627026/in-vs-any-operator-in-postgresql/34627688#34627688)
+and so you can use the [subquery variant of `IN`](
+https://www.postgresql.org/docs/current/functions-subquery.html#FUNCTIONS-SUBQUERY-IN)
+with the [unnest
 ](https://www.postgresql.org/docs/current/functions-array.html) function:
 
 ```python
