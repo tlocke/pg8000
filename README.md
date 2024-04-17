@@ -388,6 +388,21 @@ instead you can write it using the [unnest
 
 ```
 
+or `any`:
+
+```python
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
+>>> con.run(
+...     "SELECT 'silo 1' WHERE 'a' = any(:v)",
+...     v=['a', 'b'])
+[['silo 1']]
+>>> con.close()
+
+```
+
 and you can do the same for `NOT IN`.
 
 
