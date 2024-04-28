@@ -36,10 +36,9 @@ def test_Connection_plain_socket(db_kwargs):
             "ssl_context": False,
         }
 
-        con = Connection(**conn_params)
-
-        res = con.run("SELECT 1")
-        assert res[0][0] == 1
+        with Connection(**conn_params) as con:
+            res = con.run("SELECT 1")
+            assert res[0][0] == 1
 
 
 def test_database_missing(db_kwargs):
@@ -327,5 +326,4 @@ def test_parameter_statuses(con):
     except DatabaseError:
         pass
     con.run(f"set session authorization '{role_name}'")
-    print(con.parameter_statuses)
     assert role_name == con.parameter_statuses["session_authorization"]
