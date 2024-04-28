@@ -2059,6 +2059,12 @@ twine upload dist/*
 
 ## Release Notes
 
+### Version 1.31.2, 2024-04-28
+
+- Fix bug where `parameter_statuses` fails for non-ascii encoding.
+- Add support for Python 3.12
+
+
 ### Version 1.31.1, 2024-04-01
 
 - Move to src style layout, and also for packaging use Hatch rather than setuptools. This means that if the source distribution has a directory added to it (as is needed for packaging for OS distributions) the package can still be built.
