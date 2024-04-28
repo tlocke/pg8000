@@ -16,7 +16,7 @@ from pg8000.converters import (
     make_params,
     string_in,
 )
-from pg8000.exceptions import DatabaseError, Error, InterfaceError
+from pg8000.exceptions import DatabaseError, InterfaceError
 
 
 ver = version("pg8000")
@@ -385,7 +385,7 @@ class CoreConnection:
             if context.error is not None:
                 raise context.error
 
-        except Error as e:
+        except BaseException as e:
             self.close()
             raise e
 

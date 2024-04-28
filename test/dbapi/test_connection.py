@@ -11,8 +11,8 @@ def test_unix_socket_missing():
     conn_params = {"unix_sock": "/file-does-not-exist", "user": "doesn't-matter"}
 
     with pytest.raises(InterfaceError):
-        with connect(**conn_params) as con:
-            con.close()
+        with connect(**conn_params):
+            pass
 
 
 def test_internet_socket_connection_refused():
@@ -23,7 +23,8 @@ def test_internet_socket_connection_refused():
         match="Can't create a connection to host localhost and port 0 "
         "\\(timeout is None and source_address is None\\).",
     ):
-        connect(**conn_params)
+        with connect(**conn_params):
+            pass
 
 
 def test_Connection_plain_socket(db_kwargs):
@@ -37,18 +38,19 @@ def test_Connection_plain_socket(db_kwargs):
             "ssl_context": False,
         }
 
-        con = connect(**conn_params)
-        cur = con.cursor()
+        with connect(**conn_params) as con:
+            cur = con.cursor()
 
-        cur.execute("SELECT 1")
-        res = cur.fetchall()
-        assert res[0][0] == 1
+            cur.execute("SELECT 1")
+            res = cur.fetchall()
+            assert res[0][0] == 1
 
 
 def test_database_missing(db_kwargs):
     db_kwargs["database"] = "missing-db"
     with pytest.raises(DatabaseError):
-        connect(**db_kwargs)
+        with connect(**db_kwargs):
+            pass
 
 
 def test_database_name_unicode(db_kwargs):
@@ -56,7 +58,8 @@ def test_database_name_unicode(db_kwargs):
 
     # Should only raise an exception saying db doesn't exist
     with pytest.raises(DatabaseError, match="3D000"):
-        connect(**db_kwargs)
+        with connect(**db_kwargs):
+            pass
 
 
 def test_database_name_bytes(db_kwargs):
@@ -64,7 +67,8 @@ def test_database_name_bytes(db_kwargs):
 
     db_kwargs["database"] = bytes("pg8000_sn\uFF6Fw", "utf8")
     with pytest.raises(DatabaseError, match="3D000"):
-        connect(**db_kwargs)
+        with connect(**db_kwargs):
+            pass
 
 
 def test_password_bytes(con, db_kwargs):
@@ -79,7 +83,8 @@ def test_password_bytes(con, db_kwargs):
     db_kwargs["password"] = password.encode("utf8")
     db_kwargs["database"] = "pg8000_md5"
     with pytest.raises(DatabaseError, match="3D000"):
-        connect(**db_kwargs)
+        with connect(**db_kwargs):
+            pass
 
     cur.execute("drop role " + username)
     con.commit()
@@ -105,7 +110,8 @@ def test_application_name_integer(db_kwargs):
         InterfaceError,
         match="The parameter application_name can't be of type " "<class 'int'>.",
     ):
-        connect(**db_kwargs)
+        with connect(**db_kwargs):
+            pass
 
 
 def test_application_name_bytearray(db_kwargs):
