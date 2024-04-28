@@ -850,7 +850,9 @@ class CoreConnection:
 
     def handle_PARAMETER_STATUS(self, data, context):
         pos = data.find(NULL_BYTE)
-        key, value = data[:pos].decode("ascii"), data[pos + 1 : -1].decode("ascii")
+        key, value = data[:pos].decode("ascii"), data[pos + 1 : -1].decode(
+            self._client_encoding
+        )
         self.parameter_statuses[key] = value
         if key == "client_encoding":
             encoding = value.lower()

@@ -318,3 +318,14 @@ def test_failed_transaction_sql(con, sql):
 
     with pytest.raises(DatabaseError):
         con.run(sql)
+
+
+def test_parameter_statuses(con):
+    role_name = "Æthelred"
+    try:
+        con.run(f"create role {role_name}")
+    except DatabaseError:
+        pass
+    con.run(f"set session authorization '{role_name}'")
+    print(con.parameter_statuses)
+    assert role_name == con.parameter_statuses["session_authorization"]
