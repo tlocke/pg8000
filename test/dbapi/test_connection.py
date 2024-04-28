@@ -79,7 +79,8 @@ def test_password_bytes(con, db_kwargs):
     db_kwargs["password"] = password.encode("utf8")
     db_kwargs["database"] = "pg8000_md5"
     with pytest.raises(DatabaseError, match="3D000"):
-        connect(**db_kwargs)
+        with connect(**db_kwargs):
+            pass
 
     cur.execute("drop role " + username)
     con.commit()
