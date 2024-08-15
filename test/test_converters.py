@@ -345,7 +345,11 @@ def test_identifier_quoted_null():
         (" Table", '" Table"'),
         ("A Table", '"A Table"'),
         ('A " Table', '"A "" Table"'),
-        ("Table$", "Table$"),
+        ("table$", "table$"),
+        ("Table$", '"Table$"'),
+        ("tableఐ", "tableఐ"),  # Unicode character 0C10 which is uncased
+        ("table", "table"),
+        ("tAble", '"tAble"'),
     ],
 )
 def test_identifier_success(value, expected):

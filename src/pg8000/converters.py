@@ -772,6 +772,10 @@ def make_params(py_types, values):
     return tuple([make_param(py_types, v) for v in values])
 
 
+def _quote_letter(c):
+    return c.isupper() if c.isalpha() else True
+
+
 def identifier(sql):
     if not isinstance(sql, str):
         raise InterfaceError("identifier must be a str")
@@ -779,10 +783,10 @@ def identifier(sql):
     if len(sql) == 0:
         raise InterfaceError("identifier must be > 0 characters in length")
 
-    quote = not sql[0].isalpha()
+    quote = _quote_letter(sql[0])
 
     for c in sql[1:]:
-        if not (c.isalpha() or c.isdecimal() or c in "_$"):
+        if _quote_letter(c) and c not in "0123456789_$":
             if c == "\u0000":
                 raise InterfaceError(
                     "identifier cannot contain the code zero character"
