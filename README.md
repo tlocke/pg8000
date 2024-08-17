@@ -632,7 +632,7 @@ are both separate identifiers. So to escape them you'd do:
 ...     f"WHERE lanname = 'sql'"
 ... )
 >>> print(query)
-SELECT lanname FROM pg_catalog.pg_language WHERE lanname = 'sql'
+SELECT lanname FROM "pg_catalog"."pg_language" WHERE lanname = 'sql'
 >>>
 >>> con.run(query)
 [['sql']]

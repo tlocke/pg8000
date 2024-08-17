@@ -341,14 +341,14 @@ def test_identifier_quoted_null():
 @pytest.mark.parametrize(
     "value,expected",
     [
-        ("top_secret", "top_secret"),
+        ("top_secret", '"top_secret"'),
         (" Table", '" Table"'),
         ("A Table", '"A Table"'),
         ('A " Table', '"A "" Table"'),
-        ("table$", "table$"),
+        ("table$", '"table$"'),
         ("Table$", '"Table$"'),
-        ("tableఐ", "tableఐ"),  # Unicode character 0C10 which is uncased
-        ("table", "table"),
+        ("tableఐ", '"tableఐ"'),  # Unicode character 0C10 which is uncased
+        ("table", '"table"'),
         ("tAble", '"tAble"'),
     ],
 )

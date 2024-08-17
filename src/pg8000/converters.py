@@ -772,10 +772,6 @@ def make_params(py_types, values):
     return tuple([make_param(py_types, v) for v in values])
 
 
-def _quote_letter(c):
-    return c.isupper() if c.isalpha() else True
-
-
 def identifier(sql):
     if not isinstance(sql, str):
         raise InterfaceError("identifier must be a str")
@@ -783,22 +779,11 @@ def identifier(sql):
     if len(sql) == 0:
         raise InterfaceError("identifier must be > 0 characters in length")
 
-    quote = _quote_letter(sql[0])
+    if "\u0000" in sql:
+        raise InterfaceError("identifier cannot contain the code zero character")
 
-    for c in sql[1:]:
-        if _quote_letter(c) and c not in "0123456789_$":
-            if c == "\u0000":
-                raise InterfaceError(
-                    "identifier cannot contain the code zero character"
-                )
-            quote = True
-            break
-
-    if quote:
-        sql = sql.replace('"', '""')
-        return f'"{sql}"'
-    else:
-        return sql
+    sql = sql.replace('"', '""')
+    return f'"{sql}"'
 
 
 def literal(value):
