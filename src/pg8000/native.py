@@ -257,6 +257,7 @@ __all__ = [
     "BYTES",
     "CHAR",
     "CHAR_ARRAY",
+    "Connection",
     "DATE",
     "DatabaseError",
     "Error",
