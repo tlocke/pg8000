@@ -1000,6 +1000,21 @@ these additional parameters can be specified using the `startup_params` paramete
 
 ```
 
+### PostgreSQL-Style Parameter Placeholders
+
+```python
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection('postgres', password="cpsnow")
+>>>
+>>> con.run("SELECT $1", title='A Time Of Hope')
+[['A Time Of Hope']]
+>>>
+>>> con.close()
+
+```
+
+
 ## DB-API 2 Interactive Examples
 
 These examples stick to the DB-API 2.0 standard.

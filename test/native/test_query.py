@@ -234,3 +234,8 @@ def test_max_parameters(con):
         f"SELECT 1 WHERE 1 IN ({','.join([f':param_{i}' for i in range(SIZE)])})",
         **kwargs,
     )
+
+
+def test_pg_placeholder_style(con):
+    rows = con.run("SELECT $1", title="A Time Of Hope")
+    assert rows[0] == ["A Time Of Hope"]
