@@ -972,6 +972,33 @@ the `replication` keyword when creating a connection:
 
 ```
 
+### Extra Startup Parameters
+
+The standard startup parameters `user`, `database` and `replication` are set with their
+own parameters in the `Connection()` constructor. However, as the
+[docs](https://www.postgresql.org/docs/current/protocol-message-formats.html) say:
+
+> In addition to the above, other parameters may be listed. Parameter names beginning
+> with \_pq\_. are reserved for use as protocol extensions, while others are treated as
+> run-time parameters to be set at backend start time. Such settings will be applied
+> during backend start (after parsing the command-line arguments if any) and will act as
+> session defaults.
+
+these additional parameters can be specified using the `startup_params` parameter of the
+`Connection()` constructor:
+
+```python
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection(
+...    'postgres', password="cpsnow", startup_params={'IntervalStyle': 'sql_standard'})
+>>>
+>>> con.run("SHOW IntervalStyle")
+[['sql_standard']]
+>>>
+>>> con.close()
+
+```
 
 ## DB-API 2 Interactive Examples
 
@@ -1459,6 +1486,7 @@ Creates a connection to a PostgreSQL database.
 - *application_name* - Sets the [application\_name](https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-APPLICATION-NAME). If your server character encoding is not `ascii` or `utf8`, then you need to provide values as bytes, eg.  `'my_application_name'.encode('EUC-JP')`. The default is `None` which means that the server will set the application name.
 - *replication* - Used to run in [streaming replication mode](https://www.postgresql.org/docs/current/protocol-replication.html). If your server character encoding is not `ascii` or `utf8`, then you need to provide values as bytes, eg. `'database'.encode('EUC-JP')`.
 - *sock*  - A socket-like object to use for the connection. For example, `sock` could be a plain `socket.socket`, or it could represent an SSH tunnel or perhaps an `ssl.SSLSocket` to an SSL proxy. If an `ssl.SSLContext` is provided, then it will be used to attempt to create an SSL socket from the provided socket. 
+- *startup_params* - The standard startup parameters 'user', 'database' and 'replication' have their own parameters in this constructor. Other startup parameters can be specified in this dictionary. To quote the [docs](https://www.postgresql.org/docs/current/protocol-message-formats.html): "Parameter names beginning with _pq_. are reserved for use as protocol extensions, while others are treated as run-time parameters to be set at backend start time. Such settings will be applied during backend start (after parsing the command-line arguments if any) and will act as session defaults."
 
 ### pg8000.native.Connection.notifications
 
@@ -1663,14 +1691,15 @@ Creates a connection to a PostgreSQL database.
 - *application_name* - Sets the [application\_name](https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-APPLICATION-NAME). If your server character encoding is not `ascii` or `utf8`, then you need to provide values as bytes, eg. `'my_application_name'.encode('EUC-JP')`. The default is `None` which means that the server will set the application name.
 - *replication* - Used to run in [streaming replication mode](https://www.postgresql.org/docs/current/protocol-replication.html). If your server character encoding is not `ascii` or `utf8`, then you need to provide values as bytes, eg. `'database'.encode('EUC-JP')`.
 - *sock* - A socket-like object to use for the connection. For example, `sock` could be a plain `socket.socket`, or it could represent an SSH tunnel or perhaps an `ssl.SSLSocket` to an SSL proxy. If an `ssl.SSLContext` is provided, then it will be used to attempt to create an SSL socket from the provided socket. 
+- *startup_params* - The standard startup parameters 'user', 'database' and 'replication' have their own parameters in this constructor. Other startup parameters can be specified in this dictionary. To quote the [docs](https://www.postgresql.org/docs/current/protocol-message-formats.html): "Parameter names beginning with _pq_. are reserved for use as protocol extensions, while others are treated as run-time parameters to be set at backend start time. Such settings will be applied during backend start (after parsing the command-line arguments if any) and will act as session defaults."
 
 
 #### pg8000.dbapi.Date(year, month, day)
 
 Construct an object holding a date value.
 
-This property is part of the `DBAPI 2.0 specification
-<http://www.python.org/dev/peps/pep-0249/>`_.
+This property is part of the
+[DBAPI 2.0 specification](http://www.python.org/dev/peps/pep-0249/).
 
 Returns: `datetime.date`
 
