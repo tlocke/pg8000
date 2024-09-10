@@ -271,6 +271,7 @@ class CoreConnection:
         tcp_keepalive=True,
         application_name=None,
         replication=None,
+        init_params=None,
         sock=None,
     ):
         self._client_encoding = "utf8"
@@ -295,6 +296,7 @@ class CoreConnection:
             "database": database,
             "application_name": application_name,
             "replication": replication,
+            **(init_params or {})
         }
 
         for k, v in tuple(init_params.items()):

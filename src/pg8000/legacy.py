@@ -125,6 +125,7 @@ def connect(
     tcp_keepalive=True,
     application_name=None,
     replication=None,
+    init_params=None,
 ):
     return Connection(
         user,
@@ -139,6 +140,7 @@ def connect(
         tcp_keepalive=tcp_keepalive,
         application_name=application_name,
         replication=replication,
+        init_params=init_params,
     )
 
 
