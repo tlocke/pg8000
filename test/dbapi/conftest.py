@@ -2,6 +2,8 @@ from os import environ
 
 import pytest
 
+from test.utils import parse_server_version
+
 import pg8000.dbapi
 
 
@@ -57,5 +59,5 @@ def pg_version(cursor):
     cursor.execute("select current_setting('server_version')")
     retval = cursor.fetchall()
     version = retval[0][0]
-    idx = version.index(".")
-    return int(version[:idx])
+    major = parse_server_version(version)
+    return int(major)

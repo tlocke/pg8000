@@ -2,6 +2,8 @@ from os import environ
 
 import pytest
 
+from test.utils import parse_server_version
+
 import pg8000.native
 
 
@@ -45,5 +47,5 @@ def con(request, db_kwargs):
 def pg_version(con):
     retval = con.run("select current_setting('server_version')")
     version = retval[0][0]
-    idx = version.index(".")
-    return int(version[:idx])
+    major = parse_server_version(version)
+    return int(major)
