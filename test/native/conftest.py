@@ -1,6 +1,7 @@
 from os import environ
 
 import pytest
+import re
 
 import pg8000.native
 
@@ -45,5 +46,5 @@ def con(request, db_kwargs):
 def pg_version(con):
     retval = con.run("select current_setting('server_version')")
     version = retval[0][0]
-    idx = version.index(".")
-    return int(version[:idx])
+    major = re.match(r'\d+', version).group() # leading digits in 17.0, 17rc1
+    return int(major)
