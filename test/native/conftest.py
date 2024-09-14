@@ -48,4 +48,4 @@ def pg_version(con):
     retval = con.run("select current_setting('server_version')")
     version = retval[0][0]
     major = parse_server_version(version)
-    return int(major)
+    return major

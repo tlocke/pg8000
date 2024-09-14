@@ -60,4 +60,4 @@ def pg_version(cursor):
     retval = cursor.fetchall()
     version = retval[0][0]
     major = parse_server_version(version)
-    return int(major)
+    return major
