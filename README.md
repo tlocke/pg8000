@@ -1014,6 +1014,64 @@ these additional parameters can be specified using the `startup_params` paramete
 
 ```
 
+### PostgreSQL pure native parameter
+
+In this mode, pg8000 will not perform any local parsing of the SQL-string and
+only rely on the native PostgreSQL parameter handling.  The value of the
+parameters are passed as numeric dictionary keys.
+
+```python
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection('postgres', password="cpsnow")
+>>>
+>>> con.run_native("SELECT $1", {1: 'A Time Of Hope'})
+[['A Time Of Hope']]
+>>>
+>>> con.close()
+
+```
+
+`run_native`, like `run`, supports a `types` parameter, but instead of string
+keys it uses integer keys, in a similar fashion as the parameters dict:
+
+```python
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
+>>> con.run_native("SELECT $1 IS NULL", {1: None}, types={1: pg8000.native.TIMESTAMP})
+[[True]]
+>>>
+>>> con.close()
+
+```
+
+Prepared statements can also be run in this mode, by setting the `native_params`
+flag:
+
+```python
+>>> import pg8000.native
+>>>
+>>> con = pg8000.native.Connection("postgres", password="cpsnow")
+>>>
+>>> # Create the prepared statement
+>>> ps = con.prepare("SELECT cast($1 as varchar)", native_params=True)
+>>>
+>>> # Execute the statement repeatedly
+>>> ps.run({1: "speedy"})
+[['speedy']]
+>>> ps.run({1: "rapid"})
+[['rapid']]
+>>> ps.run({1: "swift"})
+[['swift']]
+>>>
+>>> # Close the prepared statement, releasing resources on the server
+>>> ps.close()
+>>>
+>>> con.close()
+
+```
 
 ## DB-API 2 Interactive Examples
 

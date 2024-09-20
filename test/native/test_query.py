@@ -239,3 +239,8 @@ def test_max_parameters(con):
 def test_pg_placeholder_style(con):
     rows = con.run("SELECT $1", title="A Time Of Hope")
     assert rows[0] == ["A Time Of Hope"]
+
+
+def test_native_parameters(con):
+    rows = con.run_native("SELECT $1", {1: "A Time Of Hope"})
+    assert rows[0] == ["A Time Of Hope"]

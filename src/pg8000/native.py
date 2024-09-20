@@ -211,6 +211,19 @@ def to_statement(query):
     return "".join(output_query), make_vals
 
 
+def is_one_based_dict(one_based_dict):
+    return isinstance(one_based_dict, dict) and all(
+        isinstance(k, int) and k > 0 for k in one_based_dict.keys()
+    )
+
+
+def unsparse(one_based_dict):
+    ret = [None] * max(one_based_dict.keys())
+    for k, v in one_based_dict.items():
+        ret[k - 1] = v
+    return ret
+
+
 class Connection(CoreConnection):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -241,8 +254,32 @@ class Connection(CoreConnection):
             )
         return self._context.rows
 
-    def prepare(self, sql):
-        return PreparedStatement(self, sql)
+    def run_native(self, sql, params=None, stream=None, types=None):
+        if not params and not stream:
+            self._context = self.execute_simple(sql)
+        else:
+            if params is not None and not is_one_based_dict(params):
+                raise ValueError(
+                    "Expected params to be dict with positive integer keys"
+                )
+            if types is not None:
+                if not is_one_based_dict(types):
+                    raise ValueError(
+                        "Expected types to be dict with positive integer keys"
+                    )
+                oids = unsparse(types)
+            else:
+                oids = ()
+            self._context = self.execute_unnamed(
+                sql, unsparse(params), oids=oids, stream=stream
+            )
+        return self._context.rows
+
+    def prepare(self, sql, native_params=False):
+        if native_params:
+            return NativeParamsPreparedStatement(self, sql)
+        else:
+            return PreparedStatement(self, sql)
 
 
 class PreparedStatement:
@@ -263,6 +300,41 @@ class PreparedStatement:
 
         self._context = self.con.execute_named(
             self.name_bin, params, self.cols, self.input_funcs, self.statement
+        )
+
+        return self._context.rows
+
+    def close(self):
+        self.con.close_prepared_statement(self.name_bin)
+
+
+class NativeParamsPreparedStatement:
+    def __init__(self, con, sql, types=None):
+        self.con = con
+        self.statement = sql
+        if types is not None:
+            if not is_one_based_dict(types):
+                raise ValueError("Expected types to be dict with positive integer keys")
+            oids = unsparse(types)
+        else:
+            oids = ()
+        self.name_bin, self.cols, self.input_funcs = con.prepare_statement(
+            self.statement, oids
+        )
+
+    @property
+    def columns(self):
+        try:
+            return self._context.columns
+        except AttributeError:
+            return self.cols
+
+    def run(self, params, stream=None):
+        if params is not None and not is_one_based_dict(params):
+            raise ValueError("Expected params to be dict with positive integer keys")
+
+        self._context = self.con.execute_named(
+            self.name_bin, unsparse(params), self.cols, self.input_funcs, self.statement
         )
 
         return self._context.rows
