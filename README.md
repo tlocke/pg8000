@@ -2061,6 +2061,21 @@ the easiest to express:
 
 - Install [tox](http://testrun.org/tox/latest/): `pip install tox`
 
+The pg8000 test suite requires a PostgreSQL server running on the local host.
+
+### Running PostgreSQL server using Docker
+If you have Docker installed you may use it to fire up a local PostgreSQL server
+to run the tests against, using the provided shell script:
+```shell
+./postgres_test_server/run-test-server.sh
+```
+The server will run in the foreground, logging all statements sent to it to the
+terminal, until you stop it with Ctrl-C.
+
+### Manual configuration of PostgreSQL server
+If you'd like to configure your PostgreSQL server manually instead of going
+with Docker, these are the required steps:
+
 - Enable the PostgreSQL hstore extension by running the SQL command:
   `create extension hstore;`
 
@@ -2077,7 +2092,17 @@ host    all                  all        127.0.0.1/32            trust
 - Set password encryption to `scram-sha-256` in `postgresql.conf`:
   `password_encryption = 'scram-sha-256'`
 
+- Enable SSL in `postgresql.conf`:
+  `ssl = on`
+
+- Create a self-signed server certificate for the PostgreSQL server.
+
+- Make sure there is a PostgreSQL user and a database with the same name as
+  you logged in user.
+
 - Set the password for the postgres user: `ALTER USER postgresql WITH PASSWORD 'pw';`
+
+### Running the tests
 
 - Run `tox` from the `pg8000` directory: `tox`
 
