@@ -33,6 +33,14 @@ jobs:
           apt -y install podman
       - name: Check Podman version
         run: podman --version
+      - name: Create a Podman volume and copy file to volume
+        run: |
+            podman volume create my-volume
+            podman run --rm -v my-volume:/mnt alpine sh -c 'echo "Hello from GitHub Actions" > /mnt/hello.txt'
+      - name: Run Podman container with volume
+        run: |
+          podman run --name my-container -d -v my-volume:/mnt docker.io/library/nginx:latest
+          podman exec my-container cat /mnt/hello.txt  # Verify the file from the volume
       - name: Create a directory to mount
         run: |
           mkdir -p /tmp/my-mount-dir
