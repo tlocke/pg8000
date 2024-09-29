@@ -34,7 +34,17 @@ jobs:
       - name: Check Podman version
         run: podman --version
       - name: Run postgresql
-        run: test/postgres_server/run_test_server.sh
+        run: |
+          podman run \
+            --interactive \
+            --tty \
+            --publish 127.0.0.1:5432:5432 \
+            --env POSTGRES_PASSWORD=pw \
+            --env OUTSIDE_USER="$USER" \
+            --mount type=bind,source="${{ github.workspace }}/test/postgres_server/init_scripts",target=/docker-entrypoint-initdb.d \
+                                                                                                        --name pg8000-test-server \
+            docker.io/library/postgres:latest
+
       - name: Test with pytest
         run: |
           python -m pytest -x -v -W error test --ignore=test/test_readme.py
