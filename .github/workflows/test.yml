@@ -39,7 +39,7 @@ jobs:
           echo "Hello from GitHub Actions" > /tmp/my-mount-dir/hello.txt
       - name: Run Podman container with mount
         run: |
-          podman run --name my-container -d --mount type=bind,source=/tmp/my-mount-dir,target=/mnt docker.io/library/postgres:latest
+          podman run --privileged --name my-container -d --mount type=bind,source=/tmp/my-mount-dir,target=/mnt docker.io/library/postgres:latest
 
       - name: Run test
         run: |
