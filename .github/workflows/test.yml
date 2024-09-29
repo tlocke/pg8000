@@ -36,8 +36,8 @@ jobs:
       - name: Run test
         run: |
           podman run \
-            --mount type=bind,source="${{ github.workspace }}/test/postgres_server/init_scripts",target=/docker-entrypoint-initdb.d
-        docker.io/library/postgres:latest
+            --mount type=bind,source="${{ github.workspace }}/test/postgres_server/init_scripts",target=/docker-entrypoint-initdb.d \
+            docker.io/library/postgres:latest
       - name: Run postgresql
         run: |
           podman run \
