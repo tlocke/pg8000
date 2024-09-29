@@ -31,7 +31,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-          --mount type=bind,source="$GITHUB_WORKSPACE/test/postgres_server/init_scripts",target=/docker-entrypoint-initdb.d
+          --mount type=bind,source="${{ github.workspace }}/test/postgres_server/init_scripts",target=/docker-entrypoint-initdb.d
 
     steps:
       - uses: actions/checkout@v4
