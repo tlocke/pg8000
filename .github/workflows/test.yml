@@ -40,9 +40,21 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           python -m pip install --no-cache-dir --upgrade pip
           pip install --no-cache-dir --root-user-action ignore pytest pytest-mock pytest-benchmark pytz .
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install podman
+      - name: Check Podman version
+        run: podman --version
+      - name: Run postgresql
+        run: ${{ github.workspace }}/test/postgres_server/run_test_server.sh
       - name: Test with pytest
         run: |
           python -m pytest -x -v -W error test --ignore=test/test_readme.py
+      - name: Stop and remove the container
+        run: |
+          podman stop pg8000-test-server
+          podman rm pg8000-test-server
 
   static-test:
     runs-on: ubuntu-latest
