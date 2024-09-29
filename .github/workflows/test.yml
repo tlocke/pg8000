@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        postgresql-version: [16, 15, 14, 13, 12]
+        postgresql-version: [17, 16, 15, 14, 13, 12]
 
     container:
       image: python:${{ matrix.python-version }}
@@ -31,6 +31,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --mount type=bind,source="test/postgres_server/init_scripts",target=/docker-entrypoint-initdb.d \
 
     steps:
       - uses: actions/checkout@v4
@@ -39,109 +40,9 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           python -m pip install --no-cache-dir --upgrade pip
           pip install --no-cache-dir --root-user-action ignore pytest pytest-mock pytest-benchmark pytz .
-      - name: Set up Postgresql
-        run: |
-          apt-get update
-          apt-get install --yes --no-install-recommends postgresql-client
-          psql -c "CREATE EXTENSION hstore;"
-          psql -c "SELECT pg_reload_conf()"
       - name: Test with pytest
         run: |
-          python -m pytest -x -v -W error --ignore=test/dbapi/auth/ --ignore=test/legacy/auth/ --ignore=test/native/auth/ test --ignore=test/test_readme.py
-
-  auth-test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11"]
-        postgresql-version: ["16", "12"]
-        auth-type: [md5, gss, password, scram-sha-256]
-
-    container:
-      image: python:${{ matrix.python-version }}
-      env:
-        PGHOST: postgres
-        PGPASSWORD: postgres
-        PGUSER: postgres
-        PIP_ROOT_USER_ACTION: ignore
-
-    services:
-      postgres:
-        image: postgres:${{ matrix.postgresql-version }}
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_HOST_AUTH_METHOD: ${{ matrix.auth-type }}
-          POSTGRES_INITDB_ARGS: "${{ matrix.auth-type == 'scram-sha-256' && '--auth-host=scram-sha-256' || '' }}"
-        # Set health checks to wait until postgres has started
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          python -m pip install --no-cache-dir --upgrade pip
-          pip install --no-cache-dir pytest pytest-mock pytest-benchmark pytz .
-      - name: Test with pytest
-        run: |
-          python -m pytest -x -v -W error test/dbapi/auth/test_${{ matrix.auth-type }}.py test/native/auth/test_${{ matrix.auth-type }}.py test/legacy/auth/test_${{ matrix.auth-type }}.py
-
-  ssl-test:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        auth-type: [md5, scram-sha-256]
-
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_HOST_AUTH_METHOD: ${{ matrix.auth-type }}
-          POSTGRES_INITDB_ARGS: "${{ matrix.auth-type == 'scram-sha-256' && '--auth-host=scram-sha-256' || '' }}"
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - name: Configure Postgres
-        env:
-          PGPASSWORD: postgres
-          PGUSER: postgres
-          PGHOST: localhost
-        run: |
-          sudo apt update
-          sudo apt install --yes --no-install-recommends postgresql-client
-          psql -c "ALTER SYSTEM SET ssl = on;"
-          psql -c "ALTER SYSTEM SET ssl_cert_file = '/etc/ssl/certs/ssl-cert-snakeoil.pem'"
-          psql -c "ALTER SYSTEM SET ssl_key_file = '/etc/ssl/private/ssl-cert-snakeoil.key'"
-          psql -c "SELECT pg_reload_conf()"
-
-      - name: Check out repository code
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-mock pytest-benchmark pytz .
-      - name: SSL Test
-        env:
-          PGPASSWORD: postgres
-          USER: postgres
-        run: |
-          python -m pytest -x -v -W error test/dbapi/auth/test_${{ matrix.auth-type}}_ssl.py test/native/auth/test_${{ matrix.auth-type}}_ssl.py test/legacy/auth/test_${{ matrix.auth-type}}_ssl.py
+          python -m pytest -x -v -W error test --ignore=test/test_readme.py
 
   static-test:
     runs-on: ubuntu-latest

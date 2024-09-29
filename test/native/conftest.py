@@ -1,3 +1,4 @@
+from locale import LC_MONETARY, localeconv, setlocale
 from os import environ
 
 import pytest
@@ -49,3 +50,11 @@ def pg_version(con):
     version = retval[0][0]
     major = parse_server_version(version)
     return major
+
+
+@pytest.fixture
+def currency(con):
+    retval = con.run("show lc_monetary")
+    lc_monetary = retval[0][0]
+    setlocale(LC_MONETARY, lc_monetary)
+    return localeconv()["currency_symbol"]

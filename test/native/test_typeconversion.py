@@ -12,7 +12,6 @@ from decimal import Decimal
 from enum import Enum
 from ipaddress import IPv4Address, IPv4Network
 from json import dumps
-from locale import LC_ALL, localeconv, setlocale
 from uuid import UUID
 
 import pytest
@@ -490,13 +489,6 @@ def test_float8_array_out(con):
     assert f3 == [[[1, 2], [3, 4]], [[None, 6], [7, 8]]]
 
 
-# Find the currency string
-setlocale(LC_ALL, "")
-CURRENCY = localeconv()["currency_symbol"]
-if CURRENCY == "":
-    CURRENCY = "$"
-
-
 @pytest.mark.parametrize(
     "test_input,oid",
     [
@@ -518,7 +510,7 @@ if CURRENCY == "":
         [[7000000000, 2, 3], BIGINT_ARRAY],  # int8[]
         [[1.1, 2.2, 3.3], FLOAT_ARRAY],  # float8[]
         [[Decimal("1.1"), None, Decimal("3.3")], NUMERIC_ARRAY],  # numeric[]
-        [[f"{CURRENCY}1.10", None, f"{CURRENCY}3.30"], MONEY_ARRAY],  # money[]
+        [["{currency}1.10", None, "{currency}3.30"], MONEY_ARRAY],  # money[]
         [[UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d")], UUID_ARRAY],  # uuid[]
         [  # json[]
             [{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}],
@@ -535,8 +527,8 @@ if CURRENCY == "":
         [True, BOOLEAN],  # bool
         [None, BOOLEAN],  # null
         [Decimal("1.1"), NUMERIC],  # numeric
-        [f"{CURRENCY}1.10", MONEY],  # money
-        [f"-{CURRENCY}1.10", MONEY],  # money
+        ["{currency}1.10", MONEY],  # money
+        ["-{currency}1.10", MONEY],  # money
         [50000000000000, BIGINT],  # int8
         [UUID("911460f2-1f43-fea2-3e2c-e01fd5b5069d"), UUID_TYPE],  # uuid
         [IPv4Network("192.168.0.0/28"), INET],  # inet
@@ -548,9 +540,17 @@ if CURRENCY == "":
         [{"name": "Apollo 11 Cave", "zebra": True, "age": 26.003}, JSONB],  # jsonb
     ],
 )
-def test_roundtrip_oid(con, test_input, oid):
-    retval = con.run("SELECT :v", v=test_input, types={"v": oid})
-    assert retval[0][0] == test_input
+def test_roundtrip_oid(currency, con, test_input, oid):
+    def fill_currency(s):
+        return s.format(currency=currency) if isinstance(s, str) else s
+
+    if isinstance(test_input, list):
+        v = [fill_currency(k) for k in test_input]
+    else:
+        v = fill_currency(test_input)
+
+    retval = con.run("SELECT :v", v=v, types={"v": oid})
+    assert retval[0][0] == v
 
     assert oid == con.columns[0]["type_oid"]
 
