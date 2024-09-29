@@ -33,16 +33,18 @@ jobs:
           apt -y install podman
       - name: Check Podman version
         run: podman --version
+      - name: Run test
+        run: |
+          podman run \
+            --mount type=bind,source="${{ github.workspace }}/test/postgres_server/init_scripts",target=/docker-entrypoint-initdb.d
       - name: Run postgresql
         run: |
           podman run \
-            --interactive \
-            --tty \
             --publish 127.0.0.1:5432:5432 \
             --env POSTGRES_PASSWORD=pw \
             --env OUTSIDE_USER="$USER" \
             --mount type=bind,source="${{ github.workspace }}/test/postgres_server/init_scripts",target=/docker-entrypoint-initdb.d \
-                                                                                                        --name pg8000-test-server \
+            --name pg8000-test-server \
             docker.io/library/postgres:latest
 
       - name: Test with pytest
