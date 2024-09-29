@@ -34,7 +34,7 @@ jobs:
       - name: Check Podman version
         run: podman --version
       - name: Run postgresql
-        run: ${{ github.workspace }}/test/postgres_server/run_test_server.sh
+        run: test/postgres_server/run_test_server.sh
       - name: Test with pytest
         run: |
           python -m pytest -x -v -W error test --ignore=test/test_readme.py
