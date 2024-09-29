@@ -33,6 +33,14 @@ jobs:
           apt -y install podman
       - name: Check Podman version
         run: podman --version
+      - name: Create a directory to mount
+        run: |
+          mkdir -p /tmp/my-mount-dir
+          echo "Hello from GitHub Actions" > /tmp/my-mount-dir/hello.txt
+      - name: Run Podman container with mount
+        run: |
+          podman run --name my-container -d --mount type=bind,source=/tmp/my-mount-dir,target=/mnt docker.io/library/postgres:latest
+
       - name: Run test
         run: |
           podman run \
