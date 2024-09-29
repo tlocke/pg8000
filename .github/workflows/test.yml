@@ -29,8 +29,8 @@ jobs:
           pip install --no-cache-dir --root-user-action ignore pytest pytest-mock pytest-benchmark pytz .
       - name: Install Podman
         run: |
-          sudo apt-get update
-          sudo apt-get -y install podman
+          apt update
+          apt -y install podman
       - name: Check Podman version
         run: podman --version
       - name: Run postgresql
