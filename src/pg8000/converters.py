@@ -675,7 +675,6 @@ PG_TYPES = {
     TEXT_ARRAY: string_array_in,  # text[]
     TIME: time_in,  # time
     TIME_ARRAY: time_array_in,  # time[]
-    INTERVAL: interval_in,  # interval
     TIMESTAMP: timestamp_in,  # timestamp
     TIMESTAMP_ARRAY: timestamp_array_in,  # timestamp
     TIMESTAMPTZ: timestamptz_in,  # timestamptz
