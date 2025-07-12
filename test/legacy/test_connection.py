@@ -76,7 +76,7 @@ def testPassword(db_kwargs):
 
 
 def testUnicodeDatabaseName(db_kwargs):
-    db_kwargs["database"] = "pg8000_sn\uFF6Fw"
+    db_kwargs["database"] = "pg8000_sn\uff6fw"
 
     # Should only raise an exception saying db doesn't exist
     with pytest.raises(ProgrammingError, match="3D000"):
@@ -86,7 +86,7 @@ def testUnicodeDatabaseName(db_kwargs):
 def testBytesDatabaseName(db_kwargs):
     """Should only raise an exception saying db doesn't exist"""
 
-    db_kwargs["database"] = bytes("pg8000_sn\uFF6Fw", "utf8")
+    db_kwargs["database"] = bytes("pg8000_sn\uff6fw", "utf8")
     with pytest.raises(ProgrammingError, match="3D000"):
         connect(**db_kwargs)
 
@@ -94,7 +94,7 @@ def testBytesDatabaseName(db_kwargs):
 def testBytesPassword(con, db_kwargs):
     # Create user
     username = "boltzmann"
-    password = "cha\uFF6Fs"
+    password = "cha\uff6fs"
     with con.cursor() as cur:
         cur.execute("create user " + username + " with password '" + password + "';")
         con.commit()

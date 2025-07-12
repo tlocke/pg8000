@@ -165,7 +165,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
       - name: Install dependencies
         run: |
           psql postgresql://postgres:cpsnow@localhost -c "ALTER SYSTEM SET ssl = on;"
@@ -182,7 +182,7 @@ jobs:
       - name: Doctest
         env:
           PGPASSWORD: cpsnow
-          USER: postgres
+          LOGNAME: postgres
         run: |
           python -m pytest -x -v -W error test/test_readme.py
       - name: Check Distribution

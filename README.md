@@ -1358,6 +1358,7 @@ an error:
 ... )
 Traceback (most recent call last):
 struct.error: 'H' format requires 0 <= number <= 65535
+>>> conn.close()
 
 ```
 
