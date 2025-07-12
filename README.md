@@ -10,7 +10,7 @@ distributed under the BSD 3-clause license.
 All bug reports, feature requests and contributions are welcome at
 [http://github.com/tlocke/pg8000/](http://github.com/tlocke/pg8000/).
 
-[![Workflow Status Badge](https://github.com/tlocke/pg8000/actions/workflows/pg8000/badge.svg)](https://github.com/tlocke/pg8000/actions/workflows/test.yml)
+[![Workflow Status Badge](https://github.com/tlocke/pg8000/actions/workflows/test.yml/badge.svg)](https://github.com/tlocke/pg8000/actions/workflows/test.yml)
 
 ## Installation
 
