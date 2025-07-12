@@ -57,30 +57,33 @@ exclude = ['.git', '__pycache__', 'build', 'dist', 'venv', '.tox']
 application-import-names = ['pg8000']
 
 [tool.tox]
-legacy_tox_ini = """
-[tox]
-isolated_build = True
-envlist = py
+requires = ["tox>=4.19"]
+envlist = ["py"]
 
-[testenv]
-passenv = PGPORT
-allowlist_externals=/usr/bin/rm
-commands =
-    black --check .
-    flake8 .
-    python -m pytest -x -v -W error test
-    rm -rf dist
-    python -m build
-    twine check dist/*
-deps =
-    build
-    pytest
-    pytest-mock
-    pytest-benchmark
-    black
-    flake8
-    flake8-alphabetize
-    Flake8-pyproject
-    pytz
-    twine
-"""
+[tool.tox.env_run_base]
+description = "Run test under {base_python}"
+passenv = ["PGPORT"]
+allowlist_externals = ["rm"]
+commands = [
+    ["black", "--check", "."],
+    ["flake8", "."],
+    ["validate-pyproject", "pyproject.toml"],
+    ["python", "-m", "pytest", "-v", "-x", "-W error", "test"],
+    ["rm", "-rf", "dist"],
+    ["python", "-m", "build"],
+    ["twine", "check", "dist/*"],
+]
+deps = [
+    "black",
+    "build",
+    "pytest",
+    "pytest-mock",
+    "pytest-benchmark",
+    "flake8",
+    "flake8-alphabetize",
+    "Flake8-pyproject",
+    "pytz",
+    "docutils",
+    "twine",
+    "validate-pyproject",
+]
