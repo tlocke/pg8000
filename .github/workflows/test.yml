@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        postgresql-version: [16, 15, 14, 13, 12]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        postgresql-version: [17, 16, 15, 14, 13]
 
     container:
       image: python:${{ matrix.python-version }}
@@ -53,8 +53,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11"]
-        postgresql-version: ["16", "12"]
+        python-version: ["3.13"]
+        postgresql-version: ["17", "13"]
         auth-type: [md5, gss, password, scram-sha-256]
 
     container:
@@ -131,7 +131,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
