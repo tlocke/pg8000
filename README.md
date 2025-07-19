@@ -1567,7 +1567,9 @@ keys:
 
 ### pg8000.native.Connection.close()
 
-Closes the database connection.
+Closes the database connection. First the connection is closed at the PostgreSQL protocol
+level, and then regardless of whether that succeeds or not, the underlying socket is
+closed.
 
 
 ### pg8000.native.Connection.register\_out\_adapter(typ, out\_func)
@@ -1849,7 +1851,9 @@ setting this boolean pg8000-specific autocommit property to ``True``.
 
 #### pg8000.dbapi.Connection.close()
 
-Closes the database connection.
+Closes the database connection. First the connection is closed at the PostgreSQL protocol
+level, and then regardless of whether that succeeds or not, the underlying socket is
+closed.
 
 
 #### pg8000.dbapi.Connection.cursor()
@@ -1862,7 +1866,7 @@ Creates a `pg8000.dbapi.Cursor` object bound to this connection.
 Rolls back the current database transaction.
 
 
-#### pg8000.dbapi.Connection.tpc_begin(xid)
+#### pg8000.dbapi.Connection.tpc\_begin(xid)
 
 Begins a TPC transaction with the given transaction ID xid. This method should be
 called outside of a transaction (i.e. nothing may have executed since the last
