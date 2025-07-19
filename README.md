@@ -2107,6 +2107,12 @@ twine upload dist/*
 
 ## Release Notes
 
+### Version 1.31.3, 2025-07-19
+
+- Simplify the `indentifier()` function by always quoting.
+
+- New `startup_params` option that allows setting arbitrary startup parameters.
+
 ### Version 1.31.2, 2024-04-28
 
 - Fix bug where `parameter_statuses` fails for non-ascii encoding.
