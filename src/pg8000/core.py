@@ -762,10 +762,11 @@ class CoreConnection:
         return context
 
     def _send_message(self, code, data):
+        buff = bytearray(code)
+        buff.extend(i_pack(len(data) + 4))
+        buff.extend(data)
         try:
-            _write(self._sock, code)
-            _write(self._sock, i_pack(len(data) + 4))
-            _write(self._sock, data)
+            _write(self._sock, bytes(buff))
         except ValueError as e:
             if str(e) == "write to closed file":
                 raise InterfaceError("connection is closed")
