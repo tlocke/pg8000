@@ -147,19 +147,17 @@ def _flush(sock):
 
 
 def _read(sock, size):
-    got = 0
-    buff = []
+    buff = bytearray()
     try:
-        while got < size:
-            block = sock.read(size - got)
+        while len(buff) < size:
+            block = sock.read(size - len(buff))
             if block == b"":
                 raise InterfaceError("network error")
-            buff.append(block)
-            got += len(block)
+            buff.extend(block)
     except OSError as e:
         raise InterfaceError("network error") from e
 
-    return b"".join(buff)
+    return bytes(buff)
 
 
 def _write(sock, d):
